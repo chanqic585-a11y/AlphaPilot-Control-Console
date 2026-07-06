@@ -45,6 +45,26 @@ PAPER_OBSERVATION_TASK_LABELS = {
     "rejected": "已淘汰",
 }
 
+ALLOWED_PAPER_OBSERVATION_LOG_TYPES = {
+    "no_signal",
+    "signal_seen",
+    "rule_matched",
+    "missed",
+    "invalidated",
+    "risk_warning",
+}
+
+PAPER_OBSERVATION_LOG_LABELS = {
+    "no_signal": "无信号",
+    "signal_seen": "看到信号",
+    "rule_matched": "规则匹配",
+    "missed": "错过观察",
+    "invalidated": "条件失效",
+    "risk_warning": "风险提醒",
+}
+
+CONTROL_CONSOLE_STATE_SOURCE = "alphapilot_control_console_v13_7_8"
+
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -74,6 +94,8 @@ def load_state() -> dict[str, Any]:
         state["artifactReviews"] = {}
     if not isinstance(state.get("paperObservationTasks"), dict):
         state["paperObservationTasks"] = {}
+    if not isinstance(state.get("paperObservationLogs"), dict):
+        state["paperObservationLogs"] = {}
     return state
 
 
@@ -88,7 +110,7 @@ def append_audit(event_type: str, payload: dict[str, Any]) -> dict[str, Any]:
         "eventType": event_type,
         "payload": payload,
         "createdAt": now_iso(),
-        "source": "alphapilot_control_console_v13_7_7",
+        "source": CONTROL_CONSOLE_STATE_SOURCE,
     }
     with AUDIT_PATH.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(event, ensure_ascii=False) + "\n")
@@ -140,7 +162,7 @@ def get_artifact_review(artifact_id: str) -> dict[str, Any]:
             "reviewLabel": ARTIFACT_REVIEW_LABELS["unreviewed"],
             "reviewNote": "",
             "reviewedAt": None,
-            "source": "alphapilot_control_console_v13_7_7",
+            "source": CONTROL_CONSOLE_STATE_SOURCE,
         }
     status = str(review.get("reviewStatus") or "unreviewed")
     return {
@@ -149,7 +171,7 @@ def get_artifact_review(artifact_id: str) -> dict[str, Any]:
         "reviewLabel": ARTIFACT_REVIEW_LABELS.get(status, ARTIFACT_REVIEW_LABELS["unreviewed"]),
         "reviewNote": str(review.get("reviewNote") or ""),
         "reviewedAt": review.get("reviewedAt"),
-        "source": review.get("source") or "alphapilot_control_console_v13_7_7",
+        "source": review.get("source") or CONTROL_CONSOLE_STATE_SOURCE,
     }
 
 
@@ -163,7 +185,7 @@ def update_artifact_review(artifact_id: str, review_status: str, note: str = "")
         "reviewLabel": ARTIFACT_REVIEW_LABELS.get(review_status, review_status),
         "reviewNote": note,
         "reviewedAt": now_iso(),
-        "source": "alphapilot_control_console_v13_7_7",
+        "source": CONTROL_CONSOLE_STATE_SOURCE,
     }
     state["artifactReviews"][artifact_id] = review
     save_state(state)
@@ -182,6 +204,69 @@ def list_paper_observation_tasks() -> dict[str, Any]:
 def get_paper_observation_task(artifact_id: str) -> dict[str, Any] | None:
     task = list_paper_observation_tasks().get(artifact_id)
     return task if isinstance(task, dict) else None
+
+
+def list_paper_observation_logs(artifact_id: str | None = None) -> dict[str, list[dict[str, Any]]] | list[dict[str, Any]]:
+    state = load_state()
+    logs_by_artifact = state.get("paperObservationLogs", {})
+    if not isinstance(logs_by_artifact, dict):
+        return [] if artifact_id else {}
+    if artifact_id:
+        rows = logs_by_artifact.get(artifact_id, [])
+        return rows if isinstance(rows, list) else []
+    return {
+        str(key): value
+        for key, value in logs_by_artifact.items()
+        if isinstance(value, list)
+    }
+
+
+def add_paper_observation_log(
+    artifact_id: str,
+    log_type: str = "no_signal",
+    note: str = "",
+    signal_observed: bool | None = None,
+    rule_matched: bool | None = None,
+    outcome: str = "",
+    artifact: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    if log_type not in ALLOWED_PAPER_OBSERVATION_LOG_TYPES:
+        raise ValueError(f"Unsupported paper observation log type: {log_type}")
+    state = load_state()
+    logs_by_artifact = state["paperObservationLogs"]
+    rows = logs_by_artifact.get(artifact_id) if isinstance(logs_by_artifact.get(artifact_id), list) else []
+    now = now_iso()
+    artifact = artifact or {}
+    log = {
+        "logId": f"paper_log::{artifact_id}::{len(rows) + 1}",
+        "artifactId": artifact_id,
+        "strategyId": artifact.get("strategyId"),
+        "title": artifact.get("displayName") or artifact.get("title") or artifact_id,
+        "version": artifact.get("version"),
+        "logType": log_type,
+        "logLabel": PAPER_OBSERVATION_LOG_LABELS.get(log_type, log_type),
+        "signalObserved": bool(signal_observed) if signal_observed is not None else log_type in {"signal_seen", "rule_matched"},
+        "ruleMatched": bool(rule_matched) if rule_matched is not None else log_type == "rule_matched",
+        "outcome": outcome,
+        "note": note,
+        "createdAt": now,
+        "source": CONTROL_CONSOLE_STATE_SOURCE,
+    }
+    rows.append(log)
+    logs_by_artifact[artifact_id] = rows[-200:]
+    save_state(state)
+    append_audit(
+        "paper_observation_log_added",
+        {
+            "artifactId": artifact_id,
+            "logType": log_type,
+            "signalObserved": log["signalObserved"],
+            "ruleMatched": log["ruleMatched"],
+            "outcome": outcome,
+            "note": note,
+        },
+    )
+    return log
 
 
 def upsert_paper_observation_task(
@@ -216,7 +301,7 @@ def upsert_paper_observation_task(
         "note": note if note else existing.get("note", ""),
         "createdAt": existing.get("createdAt") or now,
         "updatedAt": now,
-        "source": "alphapilot_control_console_v13_7_7",
+        "source": CONTROL_CONSOLE_STATE_SOURCE,
     }
     if task_status == "active" and not task.get("startedAt"):
         task["startedAt"] = now

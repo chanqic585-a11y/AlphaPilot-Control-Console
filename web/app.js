@@ -48,6 +48,25 @@ const paperTaskStatusLabels = {
   rejected: "已淘汰",
 };
 
+const paperLogTypeLabels = {
+  no_signal: "无信号",
+  signal_seen: "看到信号",
+  rule_matched: "规则匹配",
+  missed: "错过观察",
+  invalidated: "条件失效",
+  risk_warning: "风险提醒",
+};
+
+const paperHealthLabels = {
+  healthy_observation: "观察健康",
+  watching: "继续观察",
+  needs_review: "需要复核",
+  needs_more_observation: "样本不足",
+  paused: "已暂停",
+  completed: "已完成",
+  rejected: "已淘汰",
+};
+
 const readinessLabels = {
   local_paper_review_ready: "本地模拟复核就绪",
   research_observer_ready: "研究观察就绪",
@@ -308,6 +327,14 @@ function tPaperTaskStatus(value) {
   return paperTaskStatusLabels[value] || value || "--";
 }
 
+function tPaperLogType(value) {
+  return paperLogTypeLabels[value] || value || "--";
+}
+
+function tPaperHealth(value) {
+  return paperHealthLabels[value] || value || "--";
+}
+
 function paperTaskBadge(value) {
   const normalized = String(value || "planned");
   let kind = "";
@@ -315,6 +342,13 @@ function paperTaskBadge(value) {
   if (normalized === "planned" || normalized === "paused") kind = "warn";
   if (normalized === "rejected") kind = "danger";
   return `<span class="badge ${kind}">${tPaperTaskStatus(normalized)}</span>`;
+}
+
+function paperHealthBadge(health) {
+  const label = health?.healthLabel || "needs_more_observation";
+  const tone = health?.healthTone || "warn";
+  const kind = tone === "good" ? "ok" : tone === "danger" ? "danger" : "warn";
+  return `<span class="badge ${kind}">${tPaperHealth(label)} · ${formatNumber(health?.healthScore, 0)}分</span>`;
 }
 
 function tBaselineComparison(value) {
@@ -360,6 +394,8 @@ function filterAndSortArtifacts(index) {
     if (artifactFilters.reviewStatus !== "all" && (item.reviewStatus || "unreviewed") !== artifactFilters.reviewStatus) return false;
     if (!query) return true;
     return [
+      item.displayName,
+      item.displaySubtitle,
       item.title,
       item.strategyId,
       item.reportId,
@@ -404,16 +440,19 @@ function renderArtifactDetail(item) {
   const score = item.scoreBreakdown || {};
   const checklist = item.paperObservationChecklist || {};
   const task = item.paperObservationTask || {};
+  const health = task.health || {};
+  const recentLogs = Array.isArray(task.recentLogs) ? task.recentLogs : [];
   el("artifactDetail").innerHTML = `
     <div class="artifact-detail-main">
       <div>
         <p class="panel-eyebrow">SELECTED ARTIFACT</p>
-        <h3>${escapeHtml(item.title || item.strategyId || "--")}</h3>
-        <small>${escapeHtml(item.version || "--")} · ${escapeHtml(item.sourceFile || "--")}</small>
+        <h3>${escapeHtml(item.displayName || item.title || item.strategyId || "--")}</h3>
+        <small>${escapeHtml(item.displaySubtitle || "本地策略资产")} · 原始ID ${escapeHtml(item.strategyId || "--")} · ${escapeHtml(item.version || "--")}</small>
       </div>
       <div class="artifact-detail-status">
         ${artifactBadge(item.readinessTier)}
         ${artifactReviewBadge(item.reviewStatus)}
+        ${paperHealthBadge(health)}
         <span class="status-pill neutral">评分 ${formatNumber(item.researchScore, 0)}</span>
       </div>
     </div>
@@ -446,6 +485,14 @@ function renderArtifactDetail(item) {
       <div><span>目标样本</span><strong>${task.currentSampleCount ?? "--"} / ${task.targetSampleCount ?? "--"}</strong></div>
       <div><span>观察天数</span><strong>${task.observationDays ?? "--"} 天</strong></div>
     </div>
+    <div class="artifact-health-grid">
+      <div><span>健康分</span><strong>${formatNumber(health.healthScore, 0)}</strong></div>
+      <div><span>健康状态</span><strong>${tPaperHealth(health.healthLabel)}</strong></div>
+      <div><span>观察日志</span><strong>${health.logCount ?? 0}</strong></div>
+      <div><span>规则匹配</span><strong>${health.ruleMatchedCount ?? 0}</strong></div>
+      <div><span>风险提醒</span><strong>${health.riskWarningCount ?? 0}</strong></div>
+      <div><span>最新日志</span><strong>${formatDate(health.latestLogAt)}</strong></div>
+    </div>
     <div class="artifact-review-actions">
       <input id="artifactReviewNote" value="${escapeHtml(item.reviewNote || "")}" placeholder="复核备注，只保存在本地，不会触发交易…" autocomplete="off" />
       <button type="button" data-review-status="continue_observing">继续观察</button>
@@ -461,6 +508,29 @@ function renderArtifactDetail(item) {
       <button type="button" data-task-status="paused">暂停任务</button>
       <button type="button" data-task-status="completed">完成任务</button>
       <button type="button" data-task-status="rejected">淘汰任务</button>
+    </div>
+    <div class="paper-log-actions">
+      <select id="paperLogType" autocomplete="off">
+        ${Object.entries(paperLogTypeLabels).map(([value, label]) => `<option value="${value}">${label}</option>`).join("")}
+      </select>
+      <label><input id="paperLogSignalObserved" type="checkbox" /> 看到信号</label>
+      <label><input id="paperLogRuleMatched" type="checkbox" /> 规则匹配</label>
+      <input id="paperLogOutcome" value="" placeholder="观察结果，例如：未触发 / 符合 / 失效" autocomplete="off" />
+      <input id="paperLogNote" value="" placeholder="添加纸面观察日志，不会创建订单…" autocomplete="off" />
+      <button type="button" data-log-action="add">记录日志</button>
+    </div>
+    <div class="paper-log-list">
+      ${recentLogs.length ? recentLogs.map((log) => `
+        <div class="paper-log-row">
+          <strong>${tPaperLogType(log.logType)}</strong>
+          <span>${formatDate(log.createdAt)} · ${escapeHtml(log.outcome || "未写结果")}</span>
+          <small>${escapeHtml(log.note || "无备注")}</small>
+        </div>
+      `).join("") : '<div class="paper-log-empty">暂无观察日志。先记录无信号、看到信号、规则匹配或风险提醒。</div>'}
+    </div>
+    <div class="artifact-detail-note">
+      <strong>下一步复核动作</strong>
+      <span>${escapeHtml(health.nextReviewAction || "继续记录纸面观察日志。")} ${Array.isArray(health.riskFlags) && health.riskFlags.length ? `风险：${health.riskFlags.map(escapeHtml).join(" / ")}` : ""}</span>
     </div>
     <div class="artifact-detail-note">
       <strong>建议动作</strong>
@@ -519,6 +589,25 @@ function renderArtifactDetail(item) {
       }
     });
   });
+  el("artifactDetail").querySelectorAll("[data-log-action]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      try {
+        const response = await postJson("/api/paper-observation-log", {
+          artifactId: item.artifactId,
+          logType: el("paperLogType")?.value || "no_signal",
+          signalObserved: Boolean(el("paperLogSignalObserved")?.checked),
+          ruleMatched: Boolean(el("paperLogRuleMatched")?.checked),
+          outcome: el("paperLogOutcome")?.value || "",
+          note: el("paperLogNote")?.value || "",
+        });
+        latestArtifactIndex = response.strategyArtifactIndex || latestArtifactIndex;
+        await refreshAll();
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
 }
 
 function renderStrategyArtifacts(indexPayload) {
@@ -546,8 +635,8 @@ function renderStrategyArtifacts(indexPayload) {
     return `
       <button class="artifact-row${selected}" data-artifact-id="${escapeHtml(item.artifactId)}" type="button">
         <div>
-          <strong>${escapeHtml(item.title || item.strategyId || "--")}</strong>
-          <small>${escapeHtml(item.version || "--")} · ${escapeHtml(item.sourceFile || "--")}</small>
+          <strong>${escapeHtml(item.displayName || item.title || item.strategyId || "--")}</strong>
+          <small>${escapeHtml(item.displaySubtitle || item.strategyId || "--")} · ${escapeHtml(item.version || "--")}</small>
         </div>
         <div>
           ${artifactBadge(item.readinessTier)}
@@ -576,21 +665,29 @@ function renderStrategyArtifacts(indexPayload) {
 
 function renderPaperObservationTasks(taskPayload) {
   const tasks = Array.isArray(taskPayload?.tasks) ? taskPayload.tasks : [];
+  const summary = taskPayload?.summary || {};
   latestPaperTasks = tasks;
-  el("paperTaskTotal").textContent = String(tasks.length);
-  el("paperTaskActive").textContent = String(tasks.filter((item) => item.taskStatus === "active").length);
-  el("paperTaskPaused").textContent = String(tasks.filter((item) => item.taskStatus === "paused").length);
-  el("paperTaskCompleted").textContent = String(tasks.filter((item) => item.taskStatus === "completed").length);
+  el("paperTaskTotal").textContent = String(summary.totalTasks ?? tasks.length);
+  el("paperTaskActive").textContent = String(summary.activeCount ?? tasks.filter((item) => item.taskStatus === "active").length);
+  el("paperTaskPaused").textContent = String(summary.pausedCount ?? tasks.filter((item) => item.taskStatus === "paused").length);
+  el("paperTaskCompleted").textContent = String(summary.completedCount ?? tasks.filter((item) => item.taskStatus === "completed").length);
+  el("paperTaskHealthy").textContent = String(summary.healthyCount ?? tasks.filter((item) => item.health?.healthLabel === "healthy_observation").length);
+  el("paperTaskNeedsReview").textContent = String(summary.needsReviewCount ?? tasks.filter((item) => item.health?.healthLabel === "needs_review").length);
+  el("paperTaskLogCount").textContent = String(summary.totalLogCount ?? tasks.reduce((total, item) => total + Number(item.health?.logCount || 0), 0));
+  el("paperTaskLatestLog").textContent = formatDate(summary.latestLogAt);
 
   el("paperObservationTaskList").innerHTML = tasks.slice(0, 20).map((task) => {
     const progress = Number(task.progressPct || 0);
     const metrics = task.metrics || {};
+    const health = task.health || {};
+    const logs = Array.isArray(task.recentLogs) ? task.recentLogs.slice(0, 2) : [];
     return `
       <div class="paper-task-row">
         <div>
           <strong>${escapeHtml(task.title || task.artifactId || "--")}</strong>
-          <small>${escapeHtml(task.version || "--")} · ${escapeHtml(task.strategyId || "--")}</small>
+          <small>${escapeHtml(task.displaySubtitle || task.originalTitle || task.strategyId || "--")} · ${escapeHtml(task.version || "--")}</small>
           ${paperTaskBadge(task.taskStatus)}
+          ${paperHealthBadge(health)}
         </div>
         <div>
           <span>样本进度</span>
@@ -599,7 +696,11 @@ function renderPaperObservationTasks(taskPayload) {
         </div>
         <div><span>观察天数</span><strong>${task.observationDays ?? "--"} 天</strong></div>
         <div><span>胜率 / PF</span><strong>${formatPercent(metrics.winRatePct)} / ${formatNumber(metrics.profitFactor)}</strong></div>
+        <div><span>日志 / 匹配</span><strong>${health.logCount ?? 0} / ${health.ruleMatchedCount ?? 0}</strong></div>
         <div><span>更新时间</span><strong>${formatDate(task.updatedAt || task.startedAt)}</strong></div>
+        <div class="paper-task-log-strip">
+          ${logs.length ? logs.map((log) => `<small>${tPaperLogType(log.logType)} · ${formatDate(log.createdAt)} · ${escapeHtml(log.note || log.outcome || "无备注")}</small>`).join("") : "<small>暂无日志</small>"}
+        </div>
       </div>
     `;
   }).join("") || '<div class="item">暂无纸面观察任务。请在策略资产详情中点击“进入纸面观察”或“启动任务”。</div>';

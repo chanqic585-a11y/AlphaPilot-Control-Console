@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.1 - Runtime Contract Signal Tape Bridge
+AlphaPilot V13.7.8 - Paper Observation Execution Console
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -85,6 +85,20 @@ position access, order creation, exchange Dry-run, live trading, or automation.
 
 V13.7.1 does not add API key input, private exchange access, account access,
 position access, order creation, exchange Dry-run, live trading, or automation.
+
+## What V13.7.8 Adds
+
+- Adds local paper-observation logs for strategy artifacts.
+- Adds `POST /api/paper-observation-log` and `GET /api/paper-observation-logs`.
+- Adds a paper-observation health score based on local observation completeness, risk warnings, invalidations, and missed observations.
+- Improves strategy artifact names with readable Chinese display names while preserving original strategy IDs for traceability.
+- Shows recent paper-observation logs in the desktop strategy artifact detail panel.
+- Extends the mobile status payload with paper-observation health, log counts, latest log time, and recent logs.
+
+V13.7.8 does not add API key input, private exchange access, account access,
+position access, order creation, exchange Dry-run, live trading, or automation.
+The health score is a local review-completeness score, not a probability of
+profit.
 
 ## What V13.6 Does Not Do
 

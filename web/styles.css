@@ -782,7 +782,8 @@ small {
 }
 
 .artifact-score-grid,
-.artifact-checklist-grid {
+.artifact-checklist-grid,
+.artifact-health-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 1px;
@@ -795,22 +796,29 @@ small {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.artifact-health-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
 .artifact-score-grid div,
-.artifact-checklist-grid div {
+.artifact-checklist-grid div,
+.artifact-health-grid div {
   min-height: 64px;
   background: #0a1015;
   padding: 10px;
 }
 
 .artifact-score-grid span,
-.artifact-checklist-grid span {
+.artifact-checklist-grid span,
+.artifact-health-grid span {
   display: block;
   color: var(--muted);
   font-size: 12px;
 }
 
 .artifact-score-grid strong,
-.artifact-checklist-grid strong {
+.artifact-checklist-grid strong,
+.artifact-health-grid strong {
   display: block;
   margin-top: 6px;
   color: var(--text);
@@ -874,6 +882,67 @@ small {
   color: var(--text);
 }
 
+.paper-log-actions {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.7fr) auto auto minmax(180px, 1fr) minmax(220px, 1.2fr) auto;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid rgba(24, 211, 166, 0.18);
+  border-top: 0;
+  background: #0a1015;
+  padding: 10px 14px;
+}
+
+.paper-log-actions label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.paper-log-actions select,
+.paper-log-actions input {
+  min-width: 0;
+}
+
+.paper-log-actions button {
+  background: var(--green);
+  border-color: var(--green);
+}
+
+.paper-log-list {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(24, 211, 166, 0.18);
+  border-top: 0;
+  background: #0a1015;
+  padding: 10px 14px;
+}
+
+.paper-log-row,
+.paper-log-empty {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 8px 10px;
+}
+
+.paper-log-row strong,
+.paper-log-row span,
+.paper-log-row small,
+.paper-log-empty {
+  display: block;
+  line-height: 1.45;
+}
+
+.paper-log-row span,
+.paper-log-row small,
+.paper-log-empty {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .paper-task-list {
   display: grid;
   gap: 10px;
@@ -882,7 +951,7 @@ small {
 
 .paper-task-row {
   display: grid;
-  grid-template-columns: minmax(260px, 1.25fr) repeat(4, minmax(120px, 0.6fr));
+  grid-template-columns: minmax(260px, 1.25fr) repeat(5, minmax(120px, 0.6fr));
   gap: 10px;
   align-items: center;
   border: 1px solid var(--line);
@@ -917,6 +986,14 @@ small {
   display: block;
   height: 100%;
   background: linear-gradient(90deg, var(--green), var(--gold));
+}
+
+.paper-task-log-strip {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 4px;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
 }
 
 .artifact-row {
@@ -1218,8 +1295,10 @@ code {
     .artifact-detail-grid,
     .artifact-score-grid,
     .artifact-checklist-grid,
+    .artifact-health-grid,
     .artifact-review-actions,
     .paper-task-actions,
+    .paper-log-actions,
     .artifact-row,
     .paper-task-row,
     .exchange-grid,

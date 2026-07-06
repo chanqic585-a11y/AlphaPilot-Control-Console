@@ -7,6 +7,7 @@ from typing import Any
 from .config import SAFETY_BOUNDARY, get_quant_engine_path
 from .state_store import (
     ARTIFACT_REVIEW_LABELS,
+    PAPER_OBSERVATION_LOG_LABELS,
     append_audit,
     load_state,
     now_iso,
@@ -14,8 +15,8 @@ from .state_store import (
     write_mobile_status,
 )
 
-CONTROL_CONSOLE_VERSION = "V13.7.7"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_7"
+CONTROL_CONSOLE_VERSION = "V13.7.8"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_8"
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -166,6 +167,83 @@ def _clamp(value: float, lower: float, upper: float) -> float:
     return max(lower, min(upper, value))
 
 
+def _human_strategy_name(artifact: dict[str, Any]) -> dict[str, str]:
+    raw_parts = [
+        str(artifact.get("title") or ""),
+        str(artifact.get("strategyId") or ""),
+        str(artifact.get("reportId") or ""),
+        str(artifact.get("sourceFile") or ""),
+    ]
+    raw = " ".join(raw_parts).lower()
+    if "local_paper_refresh" in raw:
+        name = "本地纸面刷新候选"
+        subtitle = "从本地纸面刷新流程筛出的候选，重点看后续观察日志。"
+    elif "paper_sandbox_ledger" in raw:
+        name = "纸面沙盒台账"
+        subtitle = "记录纸面沙盒样本和结果，用于复核观察质量。"
+    elif "paper_monitoring" in raw:
+        name = "纸面观察监控"
+        subtitle = "用于持续查看纸面观察样本是否稳定。"
+    elif "forward_confirmation" in raw:
+        name = "前向确认纸面沙盒"
+        subtitle = "观察候选在前向样本里的确认情况。"
+    elif "comparative_backtest" in raw:
+        name = "多策略对比回测"
+        subtitle = "用于横向比较不同策略候选的历史表现。"
+    elif "expanded_validation" in raw:
+        name = "扩展验证报告"
+        subtitle = "扩大样本后的验证结果，重点看稳健性。"
+    elif "v03_selection" in raw:
+        name = "V03 候选选择"
+        subtitle = "第三版候选策略筛选结果。"
+    elif "execution_reality" in raw:
+        name = "执行现实约束设计"
+        subtitle = "用于检查滑点、流动性和现实执行限制。"
+    elif "dynamic_universe" in raw:
+        name = "动态币种池构建"
+        subtitle = "按历史条件构建可观察币种池。"
+    elif "probability_dataset" in raw:
+        name = "概率数据集构建"
+        subtitle = "为概率/分桶研究准备样本数据。"
+    elif "probability_bucket" in raw:
+        name = "概率分桶粗化"
+        subtitle = "把过细概率桶合并成更稳的观察区间。"
+    elif "low_frequency_baseline" in raw:
+        name = "低频基线对照"
+        subtitle = "NoTrade / BuyHold / 等权基线，用于设定策略门槛。"
+    elif "low_frequency_candidate" in raw:
+        name = "低频候选规格"
+        subtitle = "低频策略候选定义，还不是实盘策略。"
+    elif "alpha191" in raw or "alpha_191" in raw:
+        name = "Alpha191 因子观察策略"
+        subtitle = "多因子研究候选，用于观察因子方向和稳定性。"
+    elif "dynamic" in raw and "regime" in raw:
+        name = "动态市场状态策略"
+        subtitle = "按市场状态切换观察条件，适合做 regime 复核。"
+    elif "low" in raw and "frequency" in raw:
+        name = "低频主流币趋势策略"
+        subtitle = "偏低频方向筛选，重点看趋势质量和回撤控制。"
+    elif "pullback" in raw:
+        name = "趋势回撤观察策略"
+        subtitle = "趋势方向内等待回撤后的研究候选。"
+    elif "volume" in raw or "rebound" in raw:
+        name = "放量反弹研究策略"
+        subtitle = "观察放量、反弹和风险过滤是否同时成立。"
+    elif "short" in raw or "rejection" in raw:
+        name = "短线反转拒绝策略"
+        subtitle = "观察反转失败、假突破和拒绝形态。"
+    elif "benchmark" in raw:
+        name = "基准对照策略"
+        subtitle = "用于和 NoTrade / BuyHold / 等权基线对比。"
+    elif "factor" in raw:
+        name = "因子研究观察策略"
+        subtitle = "用于观察单因子或组合因子的历史表现。"
+    else:
+        name = str(artifact.get("title") or artifact.get("strategyId") or "未命名策略")
+        subtitle = "本地策略资产，保留原始 ID 作为追溯依据。"
+    return {"displayName": name, "displaySubtitle": subtitle}
+
+
 def _build_artifact_score_breakdown(artifact: dict[str, Any]) -> dict[str, Any]:
     metrics = artifact.get("metrics") if isinstance(artifact.get("metrics"), dict) else {}
     sample_count = _metric_value(metrics, "sampleCount", "tradeCount", "filledSignalCount") or 0
@@ -238,19 +316,124 @@ def _build_paper_observation_checklist(artifact: dict[str, Any], review: dict[st
     }
 
 
+def _logs_for_artifact(logs_by_artifact: dict[str, Any], artifact_id: str, limit: int = 5) -> list[dict[str, Any]]:
+    rows = logs_by_artifact.get(artifact_id, [])
+    if not isinstance(rows, list):
+        return []
+    clean_rows = [row for row in rows if isinstance(row, dict)]
+    return sorted(clean_rows, key=lambda item: str(item.get("createdAt") or ""), reverse=True)[:limit]
+
+
+def _count_logs(logs: list[dict[str, Any]], log_type: str) -> int:
+    return sum(1 for row in logs if row.get("logType") == log_type)
+
+
+def _build_paper_observation_health(
+    artifact: dict[str, Any],
+    task: dict[str, Any],
+    logs: list[dict[str, Any]],
+    checklist: dict[str, Any],
+) -> dict[str, Any]:
+    task_status = str(task.get("taskStatus") or "planned")
+    progress_pct = float(task.get("progressPct") or checklist.get("progressPct") or 0)
+    log_count = len(logs)
+    signal_seen_count = sum(1 for row in logs if row.get("signalObserved"))
+    rule_matched_count = sum(1 for row in logs if row.get("ruleMatched") or row.get("logType") == "rule_matched")
+    missed_count = _count_logs(logs, "missed")
+    invalidated_count = _count_logs(logs, "invalidated")
+    risk_warning_count = _count_logs(logs, "risk_warning")
+    score = 50
+    if task_status == "active":
+        score += 10
+    if log_count >= 3:
+        score += 10
+    if rule_matched_count > 0:
+        score += 10
+    if progress_pct >= 60:
+        score += 10
+    if invalidated_count > 0:
+        score -= 15
+    if missed_count >= 2:
+        score -= 10
+    if risk_warning_count > 0:
+        score -= 10
+    score = int(_clamp(score, 0, 100))
+    if task_status == "completed":
+        health_label = "completed"
+        health_tone = "good"
+        next_action = "整理观察结果，确认是否进入下一轮策略研究。"
+    elif task_status == "paused":
+        health_label = "paused"
+        health_tone = "warn"
+        next_action = "暂停继续观察，等待新样本或新版本策略。"
+    elif task_status == "rejected":
+        health_label = "rejected"
+        health_tone = "danger"
+        next_action = "保留淘汰原因，避免重复研究同类失败条件。"
+    elif invalidated_count > 0 or risk_warning_count > 0:
+        health_label = "needs_review"
+        health_tone = "danger"
+        next_action = "优先复核失效或风险记录，暂缓扩大观察范围。"
+    elif score >= 75:
+        health_label = "healthy_observation"
+        health_tone = "good"
+        next_action = "继续累计纸面观察日志，保持人工复核。"
+    elif score >= 50:
+        health_label = "watching"
+        health_tone = "warn"
+        next_action = "继续观察，同时补足规则匹配和未触发样本。"
+    else:
+        health_label = "needs_more_observation"
+        health_tone = "warn"
+        next_action = "样本或日志不足，先补记录再判断。"
+    risk_flags: list[str] = []
+    if invalidated_count:
+        risk_flags.append("存在条件失效记录")
+    if risk_warning_count:
+        risk_flags.append("存在风险提醒记录")
+    if missed_count >= 2:
+        risk_flags.append("多次错过观察")
+    if log_count == 0:
+        risk_flags.append("尚未记录观察日志")
+    latest_log_at = logs[0].get("createdAt") if logs else None
+    return {
+        "healthScore": score,
+        "healthLabel": health_label,
+        "healthTone": health_tone,
+        "logCount": log_count,
+        "latestLogAt": latest_log_at,
+        "signalSeenCount": signal_seen_count,
+        "ruleMatchedCount": rule_matched_count,
+        "missedCount": missed_count,
+        "invalidatedCount": invalidated_count,
+        "riskWarningCount": risk_warning_count,
+        "riskFlags": risk_flags,
+        "nextReviewAction": next_action,
+        "note": "Health score is a local paper-observation completeness score, not a probability of profit.",
+        "strategyDisplayName": artifact.get("displayName") or artifact.get("title"),
+    }
+
+
 def _build_paper_observation_task_view(
     artifact: dict[str, Any],
     task: dict[str, Any] | None,
     checklist: dict[str, Any],
+    logs: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     metrics = artifact.get("metrics") if isinstance(artifact.get("metrics"), dict) else {}
     sample_count = int(_metric_value(metrics, "sampleCount", "tradeCount", "filledSignalCount") or 0)
     task = task if isinstance(task, dict) else {}
     target_sample_count = int(task.get("targetSampleCount") or checklist.get("targetSampleCount") or 50)
     task_status = str(task.get("taskStatus") or "planned")
-    return {
+    recent_logs = logs or []
+    view = {
         "taskId": task.get("taskId"),
         "artifactId": artifact.get("artifactId"),
+        "strategyId": artifact.get("strategyId"),
+        "title": artifact.get("displayName") or artifact.get("title"),
+        "originalTitle": artifact.get("title"),
+        "displaySubtitle": artifact.get("displaySubtitle"),
+        "version": artifact.get("version"),
         "taskStatus": task_status,
         "taskLabel": task.get("taskLabel") or {
             "planned": "计划中",
@@ -270,6 +453,9 @@ def _build_paper_observation_task_view(
         "source": task.get("source") or CONTROL_CONSOLE_SOURCE,
         "safetyNote": "Observation tasks are local research workflow records only. They do not create orders.",
     }
+    view["health"] = _build_paper_observation_health(artifact, view, recent_logs, checklist)
+    view["recentLogs"] = recent_logs
+    return view
 
 
 def _default_artifact_review(artifact_id: str) -> dict[str, Any]:
@@ -309,6 +495,7 @@ def _task_status_counts(artifacts: list[dict[str, Any]]) -> dict[str, int]:
 def _apply_artifact_reviews(index: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:
     reviews = state.get("artifactReviews") if isinstance(state.get("artifactReviews"), dict) else {}
     tasks = state.get("paperObservationTasks") if isinstance(state.get("paperObservationTasks"), dict) else {}
+    logs_by_artifact = state.get("paperObservationLogs") if isinstance(state.get("paperObservationLogs"), dict) else {}
     all_items: list[dict[str, Any]] = []
     for key in ("artifacts", "topArtifacts"):
         rows = index.get(key)
@@ -321,6 +508,9 @@ def _apply_artifact_reviews(index: dict[str, Any], state: dict[str, Any]) -> dic
             if not artifact_id:
                 continue
             item["artifactId"] = artifact_id
+            display = _human_strategy_name(item)
+            item["displayName"] = display["displayName"]
+            item["displaySubtitle"] = display["displaySubtitle"]
             review = reviews.get(artifact_id) if isinstance(reviews.get(artifact_id), dict) else _default_artifact_review(artifact_id)
             status = str(review.get("reviewStatus") or "unreviewed")
             item["reviewStatus"] = status
@@ -332,7 +522,8 @@ def _apply_artifact_reviews(index: dict[str, Any], state: dict[str, Any]) -> dic
             checklist = _build_paper_observation_checklist(item, review)
             item["paperObservationChecklist"] = checklist
             task = tasks.get(artifact_id) if isinstance(tasks.get(artifact_id), dict) else None
-            item["paperObservationTask"] = _build_paper_observation_task_view(item, task, checklist)
+            recent_logs = _logs_for_artifact(logs_by_artifact, artifact_id, limit=5)
+            item["paperObservationTask"] = _build_paper_observation_task_view(item, task, checklist, recent_logs)
             all_items.append(item)
     artifacts = index.get("artifacts") if isinstance(index.get("artifacts"), list) else all_items
     summary = index.get("summary") if isinstance(index.get("summary"), dict) else {}
@@ -342,6 +533,9 @@ def _apply_artifact_reviews(index: dict[str, Any], state: dict[str, Any]) -> dic
     summary["paperObservationTaskStatusCounts"] = task_counts
     summary["manualReviewCount"] = sum(count for status, count in review_counts.items() if status != "unreviewed")
     summary["activePaperObservationTaskCount"] = task_counts.get("active", 0)
+    summary["paperObservationLogCount"] = sum(
+        len(rows) for rows in logs_by_artifact.values() if isinstance(rows, list)
+    )
     index["summary"] = summary
     return index
 
@@ -430,7 +624,9 @@ def _compact_paper_observation_tasks(index: dict[str, Any], limit: int = 30) -> 
             continue
         tasks.append({
             **task,
-            "title": artifact.get("title"),
+            "title": artifact.get("displayName") or artifact.get("title"),
+            "originalTitle": artifact.get("title"),
+            "displaySubtitle": artifact.get("displaySubtitle"),
             "strategyId": artifact.get("strategyId"),
             "version": artifact.get("version"),
             "readinessTier": artifact.get("readinessTier"),
@@ -441,13 +637,21 @@ def _compact_paper_observation_tasks(index: dict[str, Any], limit: int = 30) -> 
     return {
         "version": index.get("version"),
         "generatedAt": index.get("generatedAt"),
-        "source": "alphapilot_control_console_v13_7_7",
+        "source": CONTROL_CONSOLE_SOURCE,
         "summary": {
             "totalTasks": len(tasks),
             "activeCount": sum(1 for item in tasks if item.get("taskStatus") == "active"),
             "pausedCount": sum(1 for item in tasks if item.get("taskStatus") == "paused"),
             "completedCount": sum(1 for item in tasks if item.get("taskStatus") == "completed"),
             "rejectedCount": sum(1 for item in tasks if item.get("taskStatus") == "rejected"),
+            "healthyCount": sum(1 for item in tasks if (item.get("health") or {}).get("healthLabel") == "healthy_observation"),
+            "needsReviewCount": sum(1 for item in tasks if (item.get("health") or {}).get("healthLabel") == "needs_review"),
+            "totalLogCount": sum(int((item.get("health") or {}).get("logCount") or 0) for item in tasks),
+            "latestLogAt": max(
+                [str((item.get("health") or {}).get("latestLogAt") or "") for item in tasks],
+                default="",
+            )
+            or None,
         },
         "tasks": tasks[:limit],
     }
