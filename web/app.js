@@ -606,6 +606,56 @@ function renderCandidateQueue(queuePayload) {
   `).join("") || '<div class="item">暂无候选队列。请先生成策略资产索引。</div>';
 }
 
+function researchTaskBadge(taskType) {
+  const labels = {
+    forward_observation: "前向观察",
+    backtest_gap: "补回测",
+    label_gap: "补标签",
+    ml_evaluation: "ML 评价",
+  };
+  let kind = "warn";
+  if (taskType === "forward_observation" || taskType === "ml_evaluation") kind = "ok";
+  return `<span class="badge ${kind}">${escapeHtml(labels[taskType] || taskType || "--")}</span>`;
+}
+
+function renderResearchTaskRows(tasks, emptyText) {
+  return tasks.slice(0, 6).map((task) => `
+    <div class="research-task-row">
+      <div class="research-task-head">
+        <strong>${escapeHtml(task.title || task.strategyId || "--")}</strong>
+        ${researchTaskBadge(task.taskType)}
+      </div>
+      <small>${escapeHtml(task.displaySubtitle || task.version || "--")} · 优先分 ${formatNumber(task.priorityScore, 1)}</small>
+      <div class="artifact-metrics">
+        <span>样本 ${task.sampleCount ?? "--"}</span>
+        <span>胜率 ${formatPercent(task.winRatePct)}</span>
+        <span>PF ${formatNumber(task.profitFactor)}</span>
+        <span>RR ${formatNumber(task.rewardRiskRatio)}</span>
+        <span>回撤 ${formatPercent(task.maxDrawdownPct)}</span>
+      </div>
+      <div class="artifact-note">
+        下一步：${escapeHtml(task.nextAction || "继续人工复核。")}
+        ${Array.isArray(task.acceptanceChecks) && task.acceptanceChecks.length ? `<br />验收：${task.acceptanceChecks.slice(0, 2).map(escapeHtml).join(" / ")}` : ""}
+      </div>
+    </div>
+  `).join("") || `<div class="item">${escapeHtml(emptyText)}</div>`;
+}
+
+function renderResearchTaskBoard(taskPayload) {
+  const board = taskPayload?.researchTaskBoard || taskPayload || {};
+  const summary = board.summary || {};
+  if (!el("researchTaskSummaryBadge")) return;
+  el("researchTaskSummaryBadge").textContent = `任务 ${formatNumber(summary.totalResearchTasks, 0)} · ${escapeHtml(summary.acceptanceGateLabel || "研究排期")}`;
+  el("researchTaskForward").textContent = formatNumber(summary.forwardObservationTaskCount, 0);
+  el("researchTaskBacktest").textContent = formatNumber(summary.backtestTaskCount, 0);
+  el("researchTaskLabels").textContent = formatNumber(summary.labelTaskCount, 0);
+  el("researchTaskMl").textContent = formatNumber(summary.mlEvaluationTaskCount, 0);
+  const forwardTasks = Array.isArray(board.forwardObservationTasks) ? board.forwardObservationTasks : [];
+  const backtestTasks = Array.isArray(board.backtestTasks) ? board.backtestTasks : [];
+  el("forwardResearchTaskList").innerHTML = renderResearchTaskRows(forwardTasks, "暂无前向观察任务。");
+  el("backtestResearchTaskList").innerHTML = renderResearchTaskRows(backtestTasks, "暂无需要补回测的任务。");
+}
+
 function renderArtifactDetail(item) {
   if (!item) {
     el("artifactDetail").innerHTML = '<div class="item">请选择一个策略资产查看详情。</div>';
@@ -1097,7 +1147,7 @@ function renderAudit(events) {
 }
 
 async function refreshAll() {
-  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue] = await Promise.all([
+  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, researchTaskBoard] = await Promise.all([
     getJson("/api/strategies"),
     getJson("/api/reports"),
     getJson("/api/mobile/status"),
@@ -1108,6 +1158,7 @@ async function refreshAll() {
     getJson("/api/strategy-artifacts"),
     getJson("/api/paper-observation-tasks"),
     getJson("/api/candidate-queue"),
+    getJson("/api/research-task-board"),
   ]);
   const strategyItems = strategies.strategies || [];
   const reportItems = reports.reports || [];
@@ -1120,6 +1171,7 @@ async function refreshAll() {
   renderStrategySlots(slots.slots || []);
   renderStrategyArtifacts(artifacts);
   renderCandidateQueue(candidateQueue);
+  renderResearchTaskBoard(researchTaskBoard);
   renderForwardValidation(mobile.forwardValidation);
   renderPaperObservationTasks(paperTasks);
   renderMobileConnectionInfo(connection);

@@ -383,3 +383,20 @@ Safety boundary:
 - It does not change strategy state automatically, create paper tasks, create
   orders, use API keys, read accounts or positions, run exchange Dry-run, or
   enable live or automatic trading.
+
+## V13.7.12 Research Task Board
+
+V13.7.12 turns the strategy candidate queue into a read-only research task board.
+
+What changed:
+
+- Added `researchTaskBoard` to the imported console payload and mobile status payload.
+- Added `GET /api/research-task-board` for desktop and phone diagnostics.
+- Splits candidate queue items into forward-observation tasks, backtest-gap tasks, label-gap tasks, and ML-evaluation tasks.
+- Shows the forward-observation priority list and needs-backtest task list in the web Strategy Artifact Center.
+- Keeps task rows as research scheduling artifacts only; no automatic backtest execution, paper-order creation, dry-run execution, or trading action is triggered.
+
+Safety boundary:
+
+- Research tasks are planning records only.
+- They do not run strategy backtests automatically, do not create orders, do not use API keys, do not read accounts or positions, do not run exchange Dry-run, and do not enable live or automatic trading.

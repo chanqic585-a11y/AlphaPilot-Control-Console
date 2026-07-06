@@ -351,6 +351,44 @@
             </div>
             <div id="candidateQueueList" class="candidate-queue-list"></div>
           </div>
+          <div class="research-task-card">
+            <div class="forward-validation-head">
+              <div>
+                <p class="panel-eyebrow">RESEARCH TASK BOARD</p>
+                <h3>研究任务清单</h3>
+                <p>把候选队列拆成前向观察、补回测、补标签和 ML 评价任务；这里只做研究排期，不会自动运行回测或创建订单。</p>
+              </div>
+              <span id="researchTaskSummaryBadge" class="badge warn">等待任务</span>
+            </div>
+            <div class="metric-grid compact">
+              <div class="metric-cell">
+                <span>前向观察</span>
+                <strong id="researchTaskForward">--</strong>
+              </div>
+              <div class="metric-cell">
+                <span>补回测</span>
+                <strong id="researchTaskBacktest">--</strong>
+              </div>
+              <div class="metric-cell">
+                <span>补标签</span>
+                <strong id="researchTaskLabels">--</strong>
+              </div>
+              <div class="metric-cell">
+                <span>ML 评价</span>
+                <strong id="researchTaskMl">--</strong>
+              </div>
+            </div>
+            <div class="research-task-columns">
+              <div>
+                <h4>前向观察优先</h4>
+                <div id="forwardResearchTaskList" class="research-task-list"></div>
+              </div>
+              <div>
+                <h4>需要补回测</h4>
+                <div id="backtestResearchTaskList" class="research-task-list"></div>
+              </div>
+            </div>
+          </div>
           <div class="item artifact-updated">
             <strong>索引更新时间</strong>
             <span id="artifactGeneratedAt">--</span>

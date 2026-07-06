@@ -16,8 +16,8 @@ from .state_store import (
     write_mobile_status,
 )
 
-CONTROL_CONSOLE_VERSION = "V13.7.11"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_11"
+CONTROL_CONSOLE_VERSION = "V13.7.12"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_12"
 BEIJING_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 FORWARD_VALIDATION_REVIEW_DATE = date(2026, 7, 10)
 FORWARD_VALIDATION_REVIEW_LABEL = "2026年7月10日（北京时间）"
@@ -807,6 +807,126 @@ def _build_strategy_candidate_queue(index: dict[str, Any], limit: int = 60) -> d
     }
 
 
+def _research_task_type_label(task_type: str) -> str:
+    labels = {
+        "forward_observation": "前向观察任务",
+        "backtest_gap": "补回测任务",
+        "label_gap": "补标签任务",
+        "ml_evaluation": "ML 评价任务",
+    }
+    return labels.get(task_type, task_type)
+
+
+def _research_task_acceptance_checks(task_type: str) -> list[str]:
+    checks = {
+        "forward_observation": [
+            "建立正式 active 前向观察任务，不能只保留 smoke/test 任务。",
+            "至少记录 3 条前向观察日志。",
+            "至少记录 1 次规则匹配。",
+            "没有未处理的失效或风险提醒。",
+        ],
+        "backtest_gap": [
+            "补齐 2020-2026 长区间回测或当前可用最长区间。",
+            "覆盖更多币种，优先 Top 100 中有足够 OHLCV 的标的。",
+            "保留手续费、滑点、延迟、连续亏损压力测试。",
+            "与 NoTrade / BuyHold / EqualWeight 基线对比。",
+        ],
+        "label_gap": [
+            "补胜负标签、2R 标签或路径质量标签。",
+            "标明标签来源和时间切分，不能事后挑样本。",
+            "低质量或缺失标签继续留在研究观察，不进入 ML 评价。",
+        ],
+        "ml_evaluation": [
+            "按训练、验证、测试切分做离线评价。",
+            "检查特征泄漏、样本过少和过拟合风险。",
+            "ML 只做候选排序和过滤，不输出交易指令。",
+        ],
+    }
+    return checks.get(task_type, ["继续人工复核，保持研究边界。"])
+
+
+def _research_task_row(candidate: dict[str, Any], task_type: str) -> dict[str, Any]:
+    artifact_id = str(candidate.get("artifactId") or candidate.get("strategyId") or candidate.get("rank") or "unknown")
+    task_id = f"v13_7_12_{task_type}_{artifact_id}".replace(" ", "_").replace("/", "_").replace("\\", "_")
+    return {
+        "taskId": task_id,
+        "taskType": task_type,
+        "taskTypeLabel": _research_task_type_label(task_type),
+        "status": "research_todo",
+        "rank": candidate.get("rank"),
+        "artifactId": candidate.get("artifactId"),
+        "strategyId": candidate.get("strategyId"),
+        "title": candidate.get("title"),
+        "displaySubtitle": candidate.get("displaySubtitle"),
+        "version": candidate.get("version"),
+        "queueType": candidate.get("queueType"),
+        "priorityScore": candidate.get("priorityScore"),
+        "sampleCount": candidate.get("sampleCount"),
+        "winRatePct": candidate.get("winRatePct"),
+        "profitFactor": candidate.get("profitFactor"),
+        "rewardRiskRatio": candidate.get("rewardRiskRatio"),
+        "maxDrawdownPct": candidate.get("maxDrawdownPct"),
+        "nextAction": candidate.get("nextAction"),
+        "acceptanceChecks": _research_task_acceptance_checks(task_type),
+        "decisionReasons": candidate.get("decisionReasons") if isinstance(candidate.get("decisionReasons"), list) else [],
+        "safetyNote": "Research task board is read-only. It does not run backtests, create orders, or execute dry-run.",
+    }
+
+
+def _build_research_task_board(
+    candidate_queue: dict[str, Any],
+    forward_validation: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    candidates = candidate_queue.get("candidates") if isinstance(candidate_queue.get("candidates"), list) else []
+    forward_rows = [
+        _research_task_row(item, "forward_observation")
+        for item in candidates
+        if item.get("queueType") == "priority_forward_validation"
+    ]
+    backtest_rows = [
+        _research_task_row(item, "backtest_gap")
+        for item in candidates
+        if item.get("queueType") == "needs_backtest"
+    ]
+    label_rows = [
+        _research_task_row(item, "label_gap")
+        for item in candidates
+        if item.get("queueType") == "needs_labels"
+    ]
+    ml_rows = [
+        _research_task_row(item, "ml_evaluation")
+        for item in candidates
+        if item.get("queueType") == "ml_evaluation"
+    ]
+    all_tasks = forward_rows + backtest_rows + label_rows + ml_rows
+    forward_validation = forward_validation if isinstance(forward_validation, dict) else {}
+    summary = {
+        "totalResearchTasks": len(all_tasks),
+        "forwardObservationTaskCount": len(forward_rows),
+        "backtestTaskCount": len(backtest_rows),
+        "labelTaskCount": len(label_rows),
+        "mlEvaluationTaskCount": len(ml_rows),
+        "topForwardTitle": forward_rows[0].get("title") if forward_rows else None,
+        "topBacktestTitle": backtest_rows[0].get("title") if backtest_rows else None,
+        "acceptanceGate": forward_validation.get("acceptanceGate"),
+        "acceptanceGateLabel": forward_validation.get("acceptanceGateLabel"),
+        "reviewDateLabel": forward_validation.get("reviewDateLabel"),
+        "safetyNote": "Tasks are research scheduling artifacts only. They do not trigger backtests, orders, dry-run, or auto trading.",
+    }
+    return {
+        "version": CONTROL_CONSOLE_VERSION,
+        "generatedAt": now_iso(),
+        "source": CONTROL_CONSOLE_SOURCE,
+        "summary": summary,
+        "forwardObservationTasks": forward_rows[:8],
+        "backtestTasks": backtest_rows[:12],
+        "labelTasks": label_rows[:8],
+        "mlEvaluationTasks": ml_rows[:8],
+        "allTasks": all_tasks[:40],
+        "safetyBoundary": SAFETY_BOUNDARY,
+    }
+
+
 def _apply_artifact_reviews(index: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:
     reviews = state.get("artifactReviews") if isinstance(state.get("artifactReviews"), dict) else {}
     tasks = state.get("paperObservationTasks") if isinstance(state.get("paperObservationTasks"), dict) else {}
@@ -911,6 +1031,11 @@ def scan_quant_engine() -> dict[str, Any]:
         "strategyArtifactIndex": strategy_artifact_index or {},
     }
     payload["strategyCandidateQueue"] = _build_strategy_candidate_queue(payload["strategyArtifactIndex"])
+    payload["forwardValidation"] = _build_forward_validation_summary(payload["strategyArtifactIndex"])
+    payload["researchTaskBoard"] = _build_research_task_board(
+        payload["strategyCandidateQueue"],
+        payload["forwardValidation"],
+    )
     write_mobile_status(build_mobile_status(payload))
     return payload
 
@@ -1241,9 +1366,18 @@ def build_mobile_status(payload: dict[str, Any]) -> dict[str, Any]:
         "paperObservationLedger": _compact_paper_observation_ledger(payload.get("paperObservationLedger", {})),
         "strategyArtifactIndex": _compact_strategy_artifact_index(payload.get("strategyArtifactIndex", {})),
         "paperObservationTasks": _compact_paper_observation_tasks(payload.get("strategyArtifactIndex", {})),
-        "forwardValidation": _build_forward_validation_summary(payload.get("strategyArtifactIndex", {})),
+        "forwardValidation": payload.get("forwardValidation")
+        or _build_forward_validation_summary(payload.get("strategyArtifactIndex", {})),
         "strategyCandidateQueue": payload.get("strategyCandidateQueue") or _build_strategy_candidate_queue(
             payload.get("strategyArtifactIndex", {})
+        ),
+        "researchTaskBoard": payload.get("researchTaskBoard")
+        or _build_research_task_board(
+            payload.get("strategyCandidateQueue") or _build_strategy_candidate_queue(
+                payload.get("strategyArtifactIndex", {})
+            ),
+            payload.get("forwardValidation")
+            or _build_forward_validation_summary(payload.get("strategyArtifactIndex", {})),
         ),
         "exchangeConnectivity": _mobile_exchange_connectivity(),
         "strategies": [

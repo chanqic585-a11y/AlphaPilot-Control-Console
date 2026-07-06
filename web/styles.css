@@ -368,7 +368,8 @@ small {
 
 .forward-validation-card,
 .ml-coverage-card,
-.candidate-queue-card {
+.candidate-queue-card,
+.research-task-card {
   border: 1px solid rgba(24, 211, 166, 0.26);
   background: linear-gradient(135deg, rgba(24, 211, 166, 0.11), rgba(122, 168, 255, 0.055));
   border-radius: 8px;
@@ -384,6 +385,11 @@ small {
 .candidate-queue-card {
   border-color: rgba(255, 209, 61, 0.24);
   background: linear-gradient(135deg, rgba(255, 209, 61, 0.09), rgba(24, 211, 166, 0.045));
+}
+
+.research-task-card {
+  border-color: rgba(122, 168, 255, 0.28);
+  background: linear-gradient(135deg, rgba(122, 168, 255, 0.105), rgba(24, 211, 166, 0.04));
 }
 
 .forward-validation-head {
@@ -472,6 +478,49 @@ small {
   margin-top: 4px;
   color: var(--muted);
   font-size: 12px;
+  line-height: 1.4;
+}
+
+.research-task-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.research-task-columns h4 {
+  margin: 0 0 8px;
+  color: var(--text);
+}
+
+.research-task-list {
+  display: grid;
+  gap: 8px;
+}
+
+.research-task-row {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 8px;
+  background: #0a1015;
+  padding: 10px;
+}
+
+.research-task-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.research-task-row strong,
+.research-task-row small {
+  display: block;
+}
+
+.research-task-row small {
+  color: var(--muted);
   line-height: 1.4;
 }
 
@@ -1432,6 +1481,7 @@ code {
     .artifact-ml-grid,
     .artifact-review-actions,
     .candidate-queue-row,
+    .research-task-columns,
     .paper-task-actions,
     .paper-log-actions,
     .artifact-row,
