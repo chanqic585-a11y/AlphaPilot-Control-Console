@@ -101,7 +101,17 @@
             <p>Read-only endpoint for the phone console. It exposes status, not execution.</p>
           </div>
         </div>
-        <code id="mobileBridgeUrl">http://127.0.0.1:8766/api/mobile/status</code>
+        <div class="mobile-helper">
+          <div>
+            <span>Local desktop URL</span>
+            <code id="mobileBridgeUrl">http://127.0.0.1:8766/api/mobile/status</code>
+          </div>
+          <div>
+            <span>Recommended phone URL</span>
+            <code id="recommendedMobileUrl">Loading...</code>
+          </div>
+        </div>
+        <div id="mobileConnectionNotes" class="list"></div>
         <pre id="mobilePreview" class="preview">Loading...</pre>
       </section>
 

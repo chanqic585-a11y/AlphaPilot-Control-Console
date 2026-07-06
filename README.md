@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.6.1 - Public Exchange Connectivity and Strategy Slots
+AlphaPilot V13.6.3 - Mobile Connection Helper and Bridge Smoke Test
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -32,6 +32,16 @@ It is not a trading execution system.
 V13.6.1 does not add API key input, private exchange access, account access,
 position access, order creation, exchange Dry-run, live trading, or automation.
 
+## What V13.6.3 Adds
+
+- Adds `GET /api/mobile/connection-info`.
+- Shows LAN candidate URLs for real phone connection testing.
+- Adds `scripts/smoke_mobile_bridge.ps1` to verify health, mobile status, mobile connection info, and execution locks.
+- Updates the desktop page Mobile Bridge section with a recommended phone URL and setup notes.
+
+V13.6.3 does not add API key input, private exchange access, account access,
+position access, order creation, exchange Dry-run, live trading, or automation.
+
 ## What V13.6 Does Not Do
 
 ```text
@@ -50,6 +60,12 @@ no automatic trading
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\start_console.ps1
+```
+
+For real phone testing, start the console on the LAN-visible host:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\start_console.ps1 -Mobile
 ```
 
 Default URL:
@@ -71,6 +87,7 @@ GET  /api/health
 GET  /api/strategies
 GET  /api/reports
 GET  /api/mobile/status
+GET  /api/mobile/connection-info
 GET  /api/audit
 GET  /api/exchanges
 GET  /api/strategy-slots
@@ -107,7 +124,20 @@ The mobile bridge is read-only:
 http://127.0.0.1:8766/api/mobile/status
 ```
 
-Future mobile App work can consume this endpoint to display strategy status.
+Real Android phones should use the PC LAN URL rather than `127.0.0.1`.
+Use the helper endpoint to see candidates:
+
+```text
+http://127.0.0.1:8766/api/mobile/connection-info
+```
+
+Smoke test the bridge:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\smoke_mobile_bridge.ps1
+```
+
+The mobile App can consume these endpoints to display strategy status.
 V13.6 does not add a mobile trading button or execution path.
 
 ## Public Exchange Connectivity

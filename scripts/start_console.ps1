@@ -1,6 +1,7 @@
 param(
   [string]$HostName = "127.0.0.1",
   [int]$Port = 8766,
+  [switch]$Mobile,
   [switch]$Smoke
 )
 
@@ -12,6 +13,10 @@ if (-not (Test-Path $python)) {
 }
 
 $env:PYTHONPATH = (Resolve-Path ".").Path
+
+if ($Mobile) {
+  $HostName = "0.0.0.0"
+}
 
 if ($Smoke) {
   & $python -m alphapilot_control_console.http_app --smoke

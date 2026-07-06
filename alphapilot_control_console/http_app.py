@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 from .config import ALLOWED_STRATEGY_STATUSES, SAFETY_BOUNDARY, WEB_DIR
 from .exchange_connectors.public_exchange_registry import list_public_exchange_sources, probe_public_exchanges
 from .importer import build_mobile_status, import_now, scan_quant_engine
+from .mobile_connection import build_mobile_connection_info
 from .strategy_slots import list_strategy_slots
 from .state_store import list_audit, update_strategy_status
 
@@ -26,7 +27,7 @@ def _safe_int(value: object, fallback: int) -> int:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.6.1"
+    server_version = "AlphaPilotControlConsole/13.6.3"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -67,8 +68,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.6.1",
-                "source": "alphapilot_control_console_v13_6_1",
+                "version": "V13.6.3",
+                "source": "alphapilot_control_console_v13_6_3",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -80,6 +81,9 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/mobile/status":
             self._send_json(build_mobile_status(scan_quant_engine()))
+            return
+        if path == "/api/mobile/connection-info":
+            self._send_json(build_mobile_connection_info(str(self.server.server_address[0]), int(self.server.server_address[1])))
             return
         if path == "/api/audit":
             self._send_json({"events": list_audit()})

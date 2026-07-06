@@ -52,7 +52,7 @@ def append_audit(event_type: str, payload: dict[str, Any]) -> dict[str, Any]:
         "eventType": event_type,
         "payload": payload,
         "createdAt": now_iso(),
-        "source": "alphapilot_control_console_v13_6_1",
+        "source": "alphapilot_control_console_v13_6_3",
     }
     with AUDIT_PATH.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(event, ensure_ascii=False) + "\n")

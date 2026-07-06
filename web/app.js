@@ -194,10 +194,11 @@ function renderAudit(events) {
 }
 
 async function refreshAll() {
-  const [strategies, reports, mobile, audit, exchanges, slots] = await Promise.all([
+  const [strategies, reports, mobile, connection, audit, exchanges, slots] = await Promise.all([
     getJson("/api/strategies"),
     getJson("/api/reports"),
     getJson("/api/mobile/status"),
+    getJson("/api/mobile/connection-info"),
     getJson("/api/audit"),
     getJson("/api/exchanges"),
     getJson("/api/strategy-slots"),
@@ -207,7 +208,24 @@ async function refreshAll() {
   renderAudit(audit.events || []);
   renderExchanges(exchanges.sources || [], mobile);
   renderStrategySlots(slots.slots || []);
+  renderMobileConnectionInfo(connection);
   el("mobilePreview").textContent = JSON.stringify(mobile, null, 2);
+}
+
+function renderMobileConnectionInfo(connection) {
+  const recommended = connection.recommendedMobileUrl || "Restart with scripts/start_console.ps1 -Mobile for phone testing.";
+  el("recommendedMobileUrl").textContent = recommended;
+  const urls = connection.mobileStatusUrls || [];
+  const notes = connection.notes || [];
+  el("mobileConnectionNotes").innerHTML = `
+    <div class="item">
+      <strong>Phone setup</strong>
+      <div>Keep desktop and phone on the same Wi-Fi or LAN.</div>
+      <div>LAN visible: ${connection.serverLanVisible ? "yes" : "no"}</div>
+      <div>Candidate LAN URLs: ${urls.length ? urls.join(", ") : "--"}</div>
+    </div>
+    ${notes.map((note) => `<div class="item">${note}</div>`).join("")}
+  `;
 }
 
 el("refreshButton").addEventListener("click", refreshAll);
