@@ -322,6 +322,35 @@
             </div>
             <div id="mlCoverageBreakdown" class="forward-validation-method"></div>
           </div>
+          <div class="candidate-queue-card">
+            <div class="forward-validation-head">
+              <div>
+                <p class="panel-eyebrow">CANDIDATE QUEUE</p>
+                <h3>策略候选队列</h3>
+                <p>把现有策略资产按前向验证、ML 评价、补回测、补标签和研究观察排序；队列只是研究优先级，不会创建订单。</p>
+              </div>
+              <span id="candidateQueueSummaryBadge" class="badge warn">等待队列</span>
+            </div>
+            <div class="metric-grid compact">
+              <div class="metric-cell">
+                <span>前向验证优先</span>
+                <strong id="candidateQueueForward">--</strong>
+              </div>
+              <div class="metric-cell">
+                <span>ML 评价队列</span>
+                <strong id="candidateQueueMl">--</strong>
+              </div>
+              <div class="metric-cell">
+                <span>需要补回测</span>
+                <strong id="candidateQueueBacktest">--</strong>
+              </div>
+              <div class="metric-cell">
+                <span>需要补标签</span>
+                <strong id="candidateQueueLabels">--</strong>
+              </div>
+            </div>
+            <div id="candidateQueueList" class="candidate-queue-list"></div>
+          </div>
           <div class="item artifact-updated">
             <strong>索引更新时间</strong>
             <span id="artifactGeneratedAt">--</span>

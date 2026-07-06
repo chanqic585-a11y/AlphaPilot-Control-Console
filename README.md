@@ -360,3 +360,26 @@ Safety boundary:
 - This version does not train a live trading model, does not create orders,
   does not use API keys, does not read accounts or positions, does not run
   exchange Dry-run, and does not enable live or automatic trading.
+
+## V13.7.11 Strategy Candidate Queue
+
+V13.7.11 turns the ML coverage output into a read-only strategy candidate queue.
+
+What changed:
+
+- Added `strategyCandidateQueue` to the imported console payload and mobile
+  status payload.
+- Added `GET /api/candidate-queue` for desktop and phone diagnostics.
+- Ranks existing strategy artifacts into forward-validation priority,
+  ML-evaluation queue, needs-backtest, needs-labels, research-watchlist,
+  paused, and rejected queues.
+- Shows candidate priority score, method type, ML status, label status,
+  sample count, win rate, profit factor, reward-risk, drawdown, next action,
+  and decision reasons in the web console.
+
+Safety boundary:
+
+- The queue is research triage only.
+- It does not change strategy state automatically, create paper tasks, create
+  orders, use API keys, read accounts or positions, run exchange Dry-run, or
+  enable live or automatic trading.

@@ -111,6 +111,16 @@ const candidateDecisionLabels = {
   rejected_or_archived: "淘汰 / 归档",
 };
 
+const candidateQueueLabels = {
+  priority_forward_validation: "前向验证优先",
+  ml_evaluation: "ML 评价队列",
+  needs_backtest: "需要补回测",
+  needs_labels: "需要补标签",
+  research_watchlist: "研究观察",
+  paused: "暂停",
+  rejected: "淘汰 / 归档",
+};
+
 const readinessLabels = {
   local_paper_review_ready: "本地模拟复核就绪",
   research_observer_ready: "研究观察就绪",
@@ -400,6 +410,10 @@ function tCandidateDecision(value) {
   return candidateDecisionLabels[value] || value || "--";
 }
 
+function tCandidateQueue(value) {
+  return candidateQueueLabels[value] || value || "--";
+}
+
 function paperTaskBadge(value) {
   const normalized = String(value || "planned");
   let kind = "";
@@ -428,6 +442,13 @@ function candidateDecisionBadge(value) {
   if (value === "can_forward_validate" || value === "ml_evaluation_queue") kind = "ok";
   if (value === "paused" || value === "rejected_or_archived") kind = "danger";
   return `<span class="badge ${kind}">${escapeHtml(tCandidateDecision(value))}</span>`;
+}
+
+function candidateQueueBadge(value) {
+  let kind = "warn";
+  if (value === "priority_forward_validation" || value === "ml_evaluation") kind = "ok";
+  if (value === "paused" || value === "rejected") kind = "danger";
+  return `<span class="badge ${kind}">${escapeHtml(tCandidateQueue(value))}</span>`;
 }
 
 function tBaselineComparison(value) {
@@ -547,6 +568,42 @@ function renderMlCoverage(summary) {
     renderCountGroup("标签状态", ml.labelStatusCounts, tLabelStatus),
     renderCountGroup("候选决策", ml.candidateDecisionCounts, tCandidateDecision),
   ].join("");
+}
+
+function renderCandidateQueue(queuePayload) {
+  const queue = queuePayload?.strategyCandidateQueue || queuePayload || {};
+  const summary = queue.summary || {};
+  const candidates = Array.isArray(queue.candidates) ? queue.candidates : [];
+  if (!el("candidateQueueSummaryBadge")) return;
+  el("candidateQueueSummaryBadge").textContent = `候选 ${formatNumber(summary.totalCandidates, 0)} · Top ${escapeHtml(summary.topCandidateTitle || "--")}`;
+  el("candidateQueueForward").textContent = formatNumber(summary.forwardReadyCount, 0);
+  el("candidateQueueMl").textContent = formatNumber(summary.mlEvaluationCount, 0);
+  el("candidateQueueBacktest").textContent = formatNumber(summary.needsBacktestCount, 0);
+  el("candidateQueueLabels").textContent = formatNumber(summary.needsLabelsCount, 0);
+  el("candidateQueueList").innerHTML = candidates.slice(0, 8).map((item) => `
+    <div class="candidate-queue-row">
+      <div>
+        <strong>#${formatNumber(item.rank, 0)} ${escapeHtml(item.title || item.strategyId || "--")}</strong>
+        <small>${escapeHtml(item.displaySubtitle || item.originalTitle || item.strategyId || "--")} · ${escapeHtml(item.version || "--")}</small>
+      </div>
+      <div>
+        ${candidateQueueBadge(item.queueType)}
+        <span class="status-pill neutral">优先分 ${formatNumber(item.priorityScore, 1)}</span>
+      </div>
+      <div class="artifact-metrics">
+        <span>样本 ${item.sampleCount ?? "--"}</span>
+        <span>胜率 ${formatPercent(item.winRatePct)}</span>
+        <span>PF ${formatNumber(item.profitFactor)}</span>
+        <span>RR ${formatNumber(item.rewardRiskRatio)}</span>
+        <span>回撤 ${formatPercent(item.maxDrawdownPct)}</span>
+        <span>${escapeHtml(tMlStatus(item.mlStatus))}</span>
+      </div>
+      <div class="artifact-note">
+        ${escapeHtml(item.nextAction || "继续人工复核。")}
+        ${Array.isArray(item.decisionReasons) && item.decisionReasons.length ? `<br />原因：${item.decisionReasons.map(escapeHtml).join(" / ")}` : ""}
+      </div>
+    </div>
+  `).join("") || '<div class="item">暂无候选队列。请先生成策略资产索引。</div>';
 }
 
 function renderArtifactDetail(item) {
@@ -1040,7 +1097,7 @@ function renderAudit(events) {
 }
 
 async function refreshAll() {
-  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks] = await Promise.all([
+  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue] = await Promise.all([
     getJson("/api/strategies"),
     getJson("/api/reports"),
     getJson("/api/mobile/status"),
@@ -1050,6 +1107,7 @@ async function refreshAll() {
     getJson("/api/strategy-slots"),
     getJson("/api/strategy-artifacts"),
     getJson("/api/paper-observation-tasks"),
+    getJson("/api/candidate-queue"),
   ]);
   const strategyItems = strategies.strategies || [];
   const reportItems = reports.reports || [];
@@ -1061,6 +1119,7 @@ async function refreshAll() {
   renderExchanges(exchanges.sources || [], mobile);
   renderStrategySlots(slots.slots || []);
   renderStrategyArtifacts(artifacts);
+  renderCandidateQueue(candidateQueue);
   renderForwardValidation(mobile.forwardValidation);
   renderPaperObservationTasks(paperTasks);
   renderMobileConnectionInfo(connection);

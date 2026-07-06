@@ -16,8 +16,8 @@ from .state_store import (
     write_mobile_status,
 )
 
-CONTROL_CONSOLE_VERSION = "V13.7.10"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_10"
+CONTROL_CONSOLE_VERSION = "V13.7.11"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_11"
 BEIJING_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 FORWARD_VALIDATION_REVIEW_DATE = date(2026, 7, 10)
 FORWARD_VALIDATION_REVIEW_LABEL = "2026年7月10日（北京时间）"
@@ -671,6 +671,142 @@ def _ml_coverage_summary(artifacts: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _candidate_queue_label(queue_type: str) -> str:
+    labels = {
+        "priority_forward_validation": "前向验证优先",
+        "ml_evaluation": "ML 评价队列",
+        "needs_backtest": "需要补回测",
+        "needs_labels": "需要补标签",
+        "research_watchlist": "研究观察",
+        "paused": "暂停",
+        "rejected": "淘汰/归档",
+    }
+    return labels.get(queue_type, queue_type)
+
+
+def _candidate_queue_type(decision: str) -> str:
+    if decision == "can_forward_validate":
+        return "priority_forward_validation"
+    if decision == "ml_evaluation_queue":
+        return "ml_evaluation"
+    if decision == "needs_backtest":
+        return "needs_backtest"
+    if decision == "needs_labels":
+        return "needs_labels"
+    if decision == "paused":
+        return "paused"
+    if decision == "rejected_or_archived":
+        return "rejected"
+    return "research_watchlist"
+
+
+def _candidate_next_action(queue_type: str) -> str:
+    actions = {
+        "priority_forward_validation": "先建立正式前向观察任务，记录至少 3 条观察日志和 1 次规则匹配。",
+        "ml_evaluation": "整理训练样本和标签，进入离线 ML/因子评价，不进入执行。",
+        "needs_backtest": "先补长区间、多币种或多市场回测，再决定是否进入观察。",
+        "needs_labels": "补齐胜负、2R 或路径质量标签，再进入 ML 评价。",
+        "research_watchlist": "保留研究观察，暂不作为主验证策略。",
+        "paused": "暂停推进，先复核回撤、PF、样本或人工暂停原因。",
+        "rejected": "保持归档或淘汰状态，不进入当前候选队列。",
+    }
+    return actions.get(queue_type, "继续人工复核。")
+
+
+def _candidate_priority_score(artifact: dict[str, Any], queue_type: str) -> float:
+    metrics = artifact.get("metrics") if isinstance(artifact.get("metrics"), dict) else {}
+    weights = {
+        "priority_forward_validation": 1000,
+        "ml_evaluation": 820,
+        "needs_backtest": 560,
+        "needs_labels": 520,
+        "research_watchlist": 260,
+        "paused": 80,
+        "rejected": -100,
+    }
+    score = float(weights.get(queue_type, 0))
+    score += float(artifact.get("researchScore") or 0)
+    score += min(float(_metric_value(metrics, "sampleCount", "tradeCount", "filledSignalCount") or 0), 500) / 20
+    score += float(_metric_value(metrics, "profitFactor") or 0) * 8
+    score += float(_metric_value(metrics, "rewardRiskRatio") or 0) * 6
+    drawdown = _metric_value(metrics, "maxDrawdownPct")
+    if drawdown is not None:
+        score -= min(float(drawdown), 100) / 5
+    return round(score, 2)
+
+
+def _candidate_queue_row(artifact: dict[str, Any]) -> dict[str, Any]:
+    metrics = artifact.get("metrics") if isinstance(artifact.get("metrics"), dict) else {}
+    ml = artifact.get("mlCoverage") if isinstance(artifact.get("mlCoverage"), dict) else {}
+    decision = str(ml.get("candidateDecision") or "research_only")
+    queue_type = _candidate_queue_type(decision)
+    return {
+        "artifactId": artifact.get("artifactId"),
+        "strategyId": artifact.get("strategyId"),
+        "title": artifact.get("displayName") or artifact.get("title") or artifact.get("strategyId"),
+        "originalTitle": artifact.get("title"),
+        "displaySubtitle": artifact.get("displaySubtitle"),
+        "version": artifact.get("version"),
+        "reportId": artifact.get("reportId"),
+        "sourceFile": artifact.get("sourceFile"),
+        "queueType": queue_type,
+        "queueLabel": _candidate_queue_label(queue_type),
+        "priorityScore": _candidate_priority_score(artifact, queue_type),
+        "candidateDecision": decision,
+        "candidateDecisionLabel": ml.get("candidateDecisionLabel"),
+        "methodType": ml.get("methodType"),
+        "methodLabel": ml.get("methodLabel"),
+        "mlStatus": ml.get("mlStatus"),
+        "mlStatusLabel": ml.get("mlStatusLabel"),
+        "labelStatus": ml.get("labelStatus"),
+        "labelStatusLabel": ml.get("labelStatusLabel"),
+        "walkForwardStatus": ml.get("walkForwardStatus"),
+        "walkForwardStatusLabel": ml.get("walkForwardStatusLabel"),
+        "readinessTier": artifact.get("readinessTier"),
+        "reviewStatus": artifact.get("reviewStatus"),
+        "researchScore": artifact.get("researchScore"),
+        "sampleCount": _metric_value(metrics, "sampleCount", "tradeCount", "filledSignalCount"),
+        "winRatePct": _metric_value(metrics, "winRatePct"),
+        "profitFactor": _metric_value(metrics, "profitFactor"),
+        "rewardRiskRatio": _metric_value(metrics, "rewardRiskRatio"),
+        "maxDrawdownPct": _metric_value(metrics, "maxDrawdownPct"),
+        "totalReturnPct": _metric_value(metrics, "totalReturnPct"),
+        "nextAction": _candidate_next_action(queue_type),
+        "decisionReasons": ml.get("decisionReasons") if isinstance(ml.get("decisionReasons"), list) else [],
+        "safetyNote": "Candidate queue is read-only research prioritization. It does not create orders.",
+    }
+
+
+def _build_strategy_candidate_queue(index: dict[str, Any], limit: int = 60) -> dict[str, Any]:
+    artifacts = index.get("artifacts") if isinstance(index.get("artifacts"), list) else []
+    rows = [_candidate_queue_row(item) for item in artifacts if isinstance(item, dict)]
+    rows = sorted(rows, key=lambda item: float(item.get("priorityScore") or 0), reverse=True)
+    for rank, row in enumerate(rows, start=1):
+        row["rank"] = rank
+    summary = {
+        "totalCandidates": len(rows),
+        "forwardReadyCount": sum(1 for item in rows if item.get("queueType") == "priority_forward_validation"),
+        "mlEvaluationCount": sum(1 for item in rows if item.get("queueType") == "ml_evaluation"),
+        "needsBacktestCount": sum(1 for item in rows if item.get("queueType") == "needs_backtest"),
+        "needsLabelsCount": sum(1 for item in rows if item.get("queueType") == "needs_labels"),
+        "researchWatchlistCount": sum(1 for item in rows if item.get("queueType") == "research_watchlist"),
+        "pausedCount": sum(1 for item in rows if item.get("queueType") == "paused"),
+        "rejectedCount": sum(1 for item in rows if item.get("queueType") == "rejected"),
+        "topQueueType": rows[0].get("queueType") if rows else None,
+        "topCandidateTitle": rows[0].get("title") if rows else None,
+        "queueMethod": "candidateDecision, ML readiness, label readiness, research score, sample count, PF, reward-risk, and drawdown penalty",
+        "safetyNote": "Queue ranking is research triage only. It is not a trading signal or execution instruction.",
+    }
+    return {
+        "version": CONTROL_CONSOLE_VERSION,
+        "generatedAt": now_iso(),
+        "source": CONTROL_CONSOLE_SOURCE,
+        "summary": summary,
+        "candidates": rows[:limit],
+        "safetyBoundary": SAFETY_BOUNDARY,
+    }
+
+
 def _apply_artifact_reviews(index: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:
     reviews = state.get("artifactReviews") if isinstance(state.get("artifactReviews"), dict) else {}
     tasks = state.get("paperObservationTasks") if isinstance(state.get("paperObservationTasks"), dict) else {}
@@ -774,6 +910,7 @@ def scan_quant_engine() -> dict[str, Any]:
         "paperObservationLedger": paper_observation_ledger or {},
         "strategyArtifactIndex": strategy_artifact_index or {},
     }
+    payload["strategyCandidateQueue"] = _build_strategy_candidate_queue(payload["strategyArtifactIndex"])
     write_mobile_status(build_mobile_status(payload))
     return payload
 
@@ -1105,6 +1242,9 @@ def build_mobile_status(payload: dict[str, Any]) -> dict[str, Any]:
         "strategyArtifactIndex": _compact_strategy_artifact_index(payload.get("strategyArtifactIndex", {})),
         "paperObservationTasks": _compact_paper_observation_tasks(payload.get("strategyArtifactIndex", {})),
         "forwardValidation": _build_forward_validation_summary(payload.get("strategyArtifactIndex", {})),
+        "strategyCandidateQueue": payload.get("strategyCandidateQueue") or _build_strategy_candidate_queue(
+            payload.get("strategyArtifactIndex", {})
+        ),
         "exchangeConnectivity": _mobile_exchange_connectivity(),
         "strategies": [
             {

@@ -367,7 +367,8 @@ small {
 }
 
 .forward-validation-card,
-.ml-coverage-card {
+.ml-coverage-card,
+.candidate-queue-card {
   border: 1px solid rgba(24, 211, 166, 0.26);
   background: linear-gradient(135deg, rgba(24, 211, 166, 0.11), rgba(122, 168, 255, 0.055));
   border-radius: 8px;
@@ -378,6 +379,11 @@ small {
 .ml-coverage-card {
   border-color: rgba(122, 168, 255, 0.26);
   background: linear-gradient(135deg, rgba(122, 168, 255, 0.1), rgba(255, 209, 61, 0.045));
+}
+
+.candidate-queue-card {
+  border-color: rgba(255, 209, 61, 0.24);
+  background: linear-gradient(135deg, rgba(255, 209, 61, 0.09), rgba(24, 211, 166, 0.045));
 }
 
 .forward-validation-head {
@@ -438,6 +444,35 @@ small {
 .ml-count-group b {
   color: var(--gold);
   font-variant-numeric: tabular-nums;
+}
+
+.candidate-queue-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.candidate-queue-row {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.15fr) minmax(190px, 0.65fr) minmax(330px, 1.15fr) minmax(260px, 1fr);
+  gap: 10px;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 8px;
+  background: #0a1015;
+  padding: 10px;
+}
+
+.candidate-queue-row strong,
+.candidate-queue-row small {
+  display: block;
+}
+
+.candidate-queue-row small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .forward-validation-method strong,
@@ -1396,6 +1431,7 @@ code {
     .artifact-health-grid,
     .artifact-ml-grid,
     .artifact-review-actions,
+    .candidate-queue-row,
     .paper-task-actions,
     .paper-log-actions,
     .artifact-row,
