@@ -7,8 +7,8 @@ from typing import Any
 from .config import SAFETY_BOUNDARY, get_quant_engine_path
 from .state_store import append_audit, load_state, now_iso, read_exchange_probe_results, write_mobile_status
 
-CONTROL_CONSOLE_VERSION = "V13.7.1"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_1"
+CONTROL_CONSOLE_VERSION = "V13.7.4"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_4"
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -165,6 +165,7 @@ def scan_quant_engine() -> dict[str, Any]:
     runtime_status = _read_json(reports_dir / "runtime_status.json") if reports_dir.exists() else None
     signal_tape = _read_json(reports_dir / "signal_tape.json") if reports_dir.exists() else None
     paper_observation_ledger = _read_json(reports_dir / "paper_observation_ledger.json") if reports_dir.exists() else None
+    strategy_artifact_index = _read_json(reports_dir / "strategy_artifact_index.json") if reports_dir.exists() else None
 
     state_by_strategy = state.get("strategies", {})
     for strategy in strategies:
@@ -186,9 +187,23 @@ def scan_quant_engine() -> dict[str, Any]:
         "runtimeStatus": runtime_status or {},
         "signalTape": signal_tape or {},
         "paperObservationLedger": paper_observation_ledger or {},
+        "strategyArtifactIndex": strategy_artifact_index or {},
     }
     write_mobile_status(build_mobile_status(payload))
     return payload
+
+
+def _compact_strategy_artifact_index(index: dict[str, Any], limit: int = 12) -> dict[str, Any]:
+    artifacts = index.get("artifacts") if isinstance(index.get("artifacts"), list) else []
+    top_artifacts = index.get("topArtifacts") if isinstance(index.get("topArtifacts"), list) else artifacts
+    return {
+        "version": index.get("version"),
+        "generatedAt": index.get("generatedAt"),
+        "source": index.get("source"),
+        "summary": index.get("summary") if isinstance(index.get("summary"), dict) else {},
+        "safetyBoundary": index.get("safetyBoundary") if isinstance(index.get("safetyBoundary"), dict) else {},
+        "topArtifacts": top_artifacts[:limit],
+    }
 
 
 def _compact_signal_tape(signal_tape: dict[str, Any], limit: int = 20) -> dict[str, Any]:
@@ -342,6 +357,7 @@ def build_mobile_status(payload: dict[str, Any]) -> dict[str, Any]:
         "runtimeStatus": _compact_runtime_status(payload.get("runtimeStatus", {})),
         "signalTape": _compact_signal_tape(payload.get("signalTape", {})),
         "paperObservationLedger": _compact_paper_observation_ledger(payload.get("paperObservationLedger", {})),
+        "strategyArtifactIndex": _compact_strategy_artifact_index(payload.get("strategyArtifactIndex", {})),
         "exchangeConnectivity": _mobile_exchange_connectivity(),
         "strategies": [
             {
@@ -397,6 +413,9 @@ def import_now() -> dict[str, Any]:
         {
             "strategyCount": len(payload["strategies"]),
             "reportCount": len(payload["reports"]),
+            "artifactCount": len(payload.get("strategyArtifactIndex", {}).get("artifacts", []))
+            if isinstance(payload.get("strategyArtifactIndex"), dict)
+            else 0,
             "quantEnginePath": payload["quantEnginePath"],
         },
     )

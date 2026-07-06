@@ -39,6 +39,7 @@ const sectionLabels = {
   overview: "驾驶舱",
   command: "策略总控",
   runtime: "运行监控",
+  artifacts: "策略资产",
   exchanges: "公共行情",
   mobile: "手机控制台",
   audit: "审计日志",
@@ -232,6 +233,60 @@ function renderRuntimePaperObservations(observations) {
   `).join("") || '<div class="compact-empty">暂无纸面观察。</div>';
 }
 
+function tArtifactTier(value) {
+  const labels = {
+    paper_observation_ready: "纸面观察候选",
+    research_watchlist: "研究观察",
+    needs_review: "需要复核",
+    archived_or_failed: "归档/失败",
+    blocked_by_safety_review: "安全复核阻断",
+  };
+  return labels[value] || value || "--";
+}
+
+function artifactBadge(value) {
+  const normalized = String(value ?? "--");
+  let kind = "";
+  if (normalized === "paper_observation_ready") kind = "ok";
+  if (normalized === "research_watchlist" || normalized === "needs_review") kind = "warn";
+  if (normalized === "archived_or_failed" || normalized === "blocked_by_safety_review") kind = "danger";
+  return `<span class="badge ${kind}">${tArtifactTier(normalized)}</span>`;
+}
+
+function renderStrategyArtifacts(indexPayload) {
+  const index = indexPayload?.strategyArtifactIndex || indexPayload || {};
+  const summary = index.summary || {};
+  const artifacts = index.topArtifacts || index.artifacts || [];
+
+  el("artifactTotal").textContent = summary.totalArtifacts ?? "--";
+  el("artifactPaperReady").textContent = summary.paperObservationReadyCount ?? "--";
+  el("artifactWatchlist").textContent = summary.researchWatchlistCount ?? "--";
+  el("artifactNeedsReview").textContent = summary.needsReviewCount ?? "--";
+  el("artifactGeneratedAt").textContent = formatDate(index.generatedAt);
+
+  el("artifactList").innerHTML = artifacts.slice(0, 10).map((item) => {
+    const metrics = item.metrics || {};
+    return `
+      <div class="artifact-row">
+        <div>
+          <strong>${item.title || item.strategyId || "--"}</strong>
+          <small>${item.version || "--"} · ${item.sourceFile || "--"}</small>
+        </div>
+        <div>${artifactBadge(item.readinessTier)}</div>
+        <div class="artifact-metrics">
+          <span>样本 ${metrics.sampleCount ?? "--"}</span>
+          <span>胜率 ${formatPercent(metrics.winRatePct)}</span>
+          <span>PF ${formatNumber(metrics.profitFactor)}</span>
+          <span>RR ${formatNumber(metrics.rewardRiskRatio)}</span>
+          <span>回撤 ${formatPercent(metrics.maxDrawdownPct)}</span>
+          <span>收益 ${formatPercent(metrics.totalReturnPct)}</span>
+        </div>
+        <div class="artifact-note">${item.recommendedAction || "本地研究资产，不代表交易指令。"}</div>
+      </div>
+    `;
+  }).join("") || '<div class="item">暂无策略资产索引。请先在 Quant Engine 生成 strategy_artifact_index.json。</div>';
+}
+
 function renderStrategies(strategies) {
   latestStrategies = strategies;
 
@@ -400,7 +455,7 @@ function renderAudit(events) {
 }
 
 async function refreshAll() {
-  const [strategies, reports, mobile, connection, audit, exchanges, slots] = await Promise.all([
+  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts] = await Promise.all([
     getJson("/api/strategies"),
     getJson("/api/reports"),
     getJson("/api/mobile/status"),
@@ -408,6 +463,7 @@ async function refreshAll() {
     getJson("/api/audit"),
     getJson("/api/exchanges"),
     getJson("/api/strategy-slots"),
+    getJson("/api/strategy-artifacts"),
   ]);
   const strategyItems = strategies.strategies || [];
   const reportItems = reports.reports || [];
@@ -418,6 +474,7 @@ async function refreshAll() {
   renderAudit(audit.events || []);
   renderExchanges(exchanges.sources || [], mobile);
   renderStrategySlots(slots.slots || []);
+  renderStrategyArtifacts(artifacts);
   renderMobileConnectionInfo(connection);
   el("mobilePreview").textContent = JSON.stringify(mobile, null, 2);
 }

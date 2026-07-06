@@ -26,6 +26,9 @@
           <a class="rail-item" href="#runtime" title="运行监控" aria-label="运行监控">
             <span class="nav-key">R</span><span>运行监控</span>
           </a>
+          <a class="rail-item" href="#artifacts" title="策略资产" aria-label="策略资产">
+            <span class="nav-key">C</span><span>策略资产</span>
+          </a>
           <a class="rail-item" href="#exchanges" title="公共行情" aria-label="公共行情">
             <span class="nav-key">M</span><span>公共行情</span>
           </a>
@@ -258,6 +261,40 @@
               <div id="runtimePaperObservationList" class="compact-list"></div>
             </div>
           </div>
+        </section>
+
+        <section id="artifacts" class="panel artifact-panel">
+          <div class="section-header">
+            <div>
+              <p class="panel-eyebrow">STRATEGY ARTIFACT CENTER</p>
+              <h2>策略资产中心</h2>
+              <p>统一读取 Quant Engine 本地研究报告，把策略、信号、纸面观察准备度和回测指标整理成只读资产清单。</p>
+            </div>
+            <span class="status-pill danger">不执行交易</span>
+          </div>
+          <div class="metric-grid">
+            <div class="metric-cell">
+              <span>资产总数</span>
+              <strong id="artifactTotal">--</strong>
+            </div>
+            <div class="metric-cell">
+              <span>纸面观察候选</span>
+              <strong id="artifactPaperReady">--</strong>
+            </div>
+            <div class="metric-cell">
+              <span>研究观察</span>
+              <strong id="artifactWatchlist">--</strong>
+            </div>
+            <div class="metric-cell">
+              <span>需要复核</span>
+              <strong id="artifactNeedsReview">--</strong>
+            </div>
+          </div>
+          <div class="item artifact-updated">
+            <strong>索引更新时间</strong>
+            <span id="artifactGeneratedAt">--</span>
+          </div>
+          <div id="artifactList" class="artifact-list"></div>
         </section>
 
         <section class="content-grid">

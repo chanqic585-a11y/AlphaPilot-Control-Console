@@ -133,6 +133,7 @@ GET  /api/reports
 GET  /api/mobile/status
 GET  /api/mobile/connection-info
 GET  /api/runtime
+GET  /api/strategy-artifacts
 GET  /api/audit
 GET  /api/exchanges
 GET  /api/strategy-slots
@@ -211,3 +212,23 @@ Strategy slots reserve visible places for:
 
 Slots are metadata and review containers only. Empty backup slots do not create
 strategy logic, and loaded slots do not execute trades.
+
+## V13.7.4 Strategy Artifact Center
+
+V13.7.4 reads `reports/strategy_artifact_index.json` from the Quant Engine and
+shows a Strategy Artifact Center in the desktop console. The same summary is
+included in `/api/mobile/status` for the mobile console.
+
+The artifact center shows strategy artifact counts, local paper-observation
+candidate counts, research-watchlist counts, review counts, and top artifacts
+with sample count, win rate, profit factor, reward-risk ratio, drawdown, and
+return.
+
+The endpoint is read-only:
+
+```text
+GET /api/strategy-artifacts
+```
+
+It cannot place orders, read real accounts, read real positions, use API keys,
+run exchange Dry-run, run live trading, or trigger automatic trading.

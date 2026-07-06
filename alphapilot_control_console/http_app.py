@@ -27,7 +27,7 @@ def _safe_int(value: object, fallback: int) -> int:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.7.1"
+    server_version = "AlphaPilotControlConsole/13.7.4"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -68,8 +68,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.7.1",
-                "source": "alphapilot_control_console_v13_7_1",
+                "version": "V13.7.4",
+                "source": "alphapilot_control_console_v13_7_4",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -88,6 +88,13 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 "runtimeStatus": payload["runtimeStatus"],
                 "signalTape": payload["signalTape"],
                 "paperObservationLedger": payload["paperObservationLedger"],
+                "safetyBoundary": SAFETY_BOUNDARY,
+            })
+            return
+        if path == "/api/strategy-artifacts":
+            payload = scan_quant_engine()
+            self._send_json({
+                "strategyArtifactIndex": payload["strategyArtifactIndex"],
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -163,6 +170,9 @@ def smoke() -> None:
         "ok": True,
         "strategyCount": len(payload["strategies"]),
         "reportCount": len(payload["reports"]),
+        "artifactCount": len(payload.get("strategyArtifactIndex", {}).get("artifacts", []))
+        if isinstance(payload.get("strategyArtifactIndex"), dict)
+        else 0,
         "mobileBridgeReady": True,
     }, ensure_ascii=False, indent=2))
 

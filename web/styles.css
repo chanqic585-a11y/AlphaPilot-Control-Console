@@ -585,6 +585,10 @@ small {
   border-color: rgba(122, 168, 255, 0.22);
 }
 
+.artifact-panel {
+  border-color: rgba(24, 211, 166, 0.24);
+}
+
 .runtime-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -669,6 +673,49 @@ small {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.5;
+}
+
+.artifact-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.artifact-row {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.4fr) minmax(140px, 0.5fr) minmax(360px, 1.4fr) minmax(220px, 1fr);
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #0a1015;
+  padding: 12px;
+}
+
+.artifact-row strong,
+.artifact-row small,
+.artifact-note {
+  display: block;
+}
+
+.artifact-row small,
+.artifact-note {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.artifact-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.artifact-updated {
+  margin-top: 10px;
 }
 
 .content-grid {
@@ -878,7 +925,7 @@ code {
 
   .rail-nav {
     grid-auto-flow: column;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(7, minmax(0, 1fr));
     justify-content: stretch;
     overflow-x: auto;
   }
@@ -912,10 +959,11 @@ code {
   .content-grid,
   .command-grid,
   .metric-grid,
-  .runtime-grid,
-  .runtime-tape,
-  .runtime-lists,
-  .exchange-grid,
+    .runtime-grid,
+    .runtime-tape,
+    .runtime-lists,
+    .artifact-row,
+    .exchange-grid,
   .slot-grid,
   .mobile-helper,
   .probe-controls,
