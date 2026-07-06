@@ -70,8 +70,8 @@ PUBLIC_EXCHANGES = {
 
 def list_public_exchange_sources() -> dict[str, Any]:
     return {
-        "version": "V13.6.1",
-        "source": "alphapilot_control_console_v13_6_1",
+        "version": "V13.6.5",
+        "source": "alphapilot_control_console_v13_6_5",
         "publicOnly": True,
         "safetyBoundary": SAFETY_BOUNDARY,
         "sources": [
@@ -105,8 +105,8 @@ def probe_public_exchanges(
         if exchange in PUBLIC_EXCHANGES
     ]
     payload = {
-        "version": "V13.6.1",
-        "source": "alphapilot_control_console_v13_6_1",
+        "version": "V13.6.5",
+        "source": "alphapilot_control_console_v13_6_5",
         "publicOnly": True,
         "symbol": symbol,
         "timeframe": timeframe,
@@ -185,7 +185,7 @@ def _http_check(name: str, url: str, params: dict[str, str], required_keys: list
     full_url = f"{url}?{urlencode(params)}" if params else url
     started = time.perf_counter()
     try:
-        request = Request(full_url, headers={"User-Agent": "AlphaPilot-Control-Console/13.6.1"})
+        request = Request(full_url, headers={"User-Agent": "AlphaPilot-Control-Console/13.6.5"})
         with urlopen(request, timeout=8) as response:
             body = response.read(2_000_000)
             data = json.loads(body.decode("utf-8"))

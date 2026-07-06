@@ -6,6 +6,20 @@ const statusOptions = [
   "disabled",
 ];
 
+const statusLabels = {
+  research_only: "研究观察",
+  local_paper_ready: "本地模拟候选",
+  forward_testing: "前向观察",
+  dry_run_candidate: "Dry-run 候选",
+  disabled: "禁用",
+  waiting_for_import: "等待导入",
+  ok: "正常",
+  failed: "失败",
+  public_only: "仅公共行情",
+  private_disabled: "私有权限关闭",
+  not_probed: "未探测",
+};
+
 let latestStrategies = [];
 
 function el(id) {
@@ -33,25 +47,105 @@ function formatNumber(value, digits = 2) {
   return Number(value).toFixed(digits);
 }
 
+function formatPercent(value, digits = 2) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "--";
+  return `${Number(value).toFixed(digits)}%`;
+}
+
+function formatDate(value) {
+  if (!value) return "--";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
+function tStatus(value) {
+  return statusLabels[value] || value || "--";
+}
+
 function badge(value) {
   const normalized = String(value ?? "--");
+  const label = tStatus(normalized);
   let kind = "";
-  if (normalized === "local_paper_ready" || normalized === "ok" || normalized === "public_only") kind = "ok";
-  if (normalized === "disabled" || normalized === "research_only") kind = "warn";
-  if (normalized.includes("false") || normalized === "failed") kind = "danger";
-  return `<span class="badge ${kind}">${normalized}</span>`;
+  if (["local_paper_ready", "ok", "public_only"].includes(normalized)) kind = "ok";
+  if (["research_only", "waiting_for_import", "not_probed", "forward_testing"].includes(normalized)) kind = "warn";
+  if (normalized.includes("false") || normalized === "failed" || normalized === "disabled") kind = "danger";
+  return `<span class="badge ${kind}">${label}</span>`;
+}
+
+function pickPrimaryStrategy(strategies) {
+  return (
+    strategies.find((item) => item.consoleStatus === "local_paper_ready") ||
+    strategies.find((item) => item.consoleStatus === "forward_testing") ||
+    strategies[0] ||
+    null
+  );
+}
+
+function getMetrics(strategy) {
+  return (strategy && strategy.metrics) || {};
+}
+
+function getSignalCount(strategy) {
+  const metrics = getMetrics(strategy);
+  return strategy?.selectedSignalCount ?? metrics.filledSignalCount ?? metrics.tradeCount ?? null;
+}
+
+function renderCommandCenter(strategies, reports, mobile) {
+  const primary = pickPrimaryStrategy(strategies);
+  const metrics = getMetrics(primary);
+  const readyCount = strategies.filter((item) => item.consoleStatus === "local_paper_ready").length;
+  const researchCount = strategies.filter((item) => item.consoleStatus === "research_only").length;
+  const connected = mobile.exchangeConnectivity?.connectedExchangeCount ?? 0;
+  const totalExchangeResults = mobile.exchangeConnectivity?.resultCount ?? 0;
+
+  el("strategyCount").textContent = String(strategies.length);
+  el("reportCount").textContent = String(reports.length);
+  el("exchangeConnectedCount").textContent = `${connected}/${totalExchangeResults}`;
+  el("readyStrategyCount").textContent = String(readyCount);
+  el("researchStrategyCount").textContent = String(researchCount);
+  el("strategyDonut").textContent = strategies.length ? String(strategies.length) : "--";
+
+  const hasReady = readyCount > 0;
+  el("portfolioBias").textContent = hasReady ? "本地模拟候选可用" : "研究观察模式";
+  el("portfolioMeta").textContent = hasReady
+    ? `${readyCount}/${strategies.length} 个策略处于本地模拟候选`
+    : "尚无可进入模拟观察的策略包";
+
+  el("probeSymbolLabel").textContent = mobile.exchangeConnectivity?.symbol || "--";
+  el("probeTimeframeLabel").textContent = mobile.exchangeConnectivity?.timeframe || "--";
+  el("latestProbeAt").textContent = formatDate(mobile.exchangeConnectivity?.latestProbeAt);
+
+  el("activeStrategyTitle").textContent = primary?.title || "--";
+  el("activeStrategyStatus").innerHTML = primary ? badge(primary.consoleStatus) : "--";
+  el("signalCount").textContent = getSignalCount(primary) ?? "--";
+  el("signalMeta").textContent = primary?.version ? `${primary.version} 本地样本` : "本地样本";
+  el("paperPositionLimit").textContent = primary?.maxConcurrentPositions
+    ? `上限 ${primary.maxConcurrentPositions}`
+    : "无真实持仓";
+  el("backtestPf").textContent = metrics.profitFactor ? `PF ${formatNumber(metrics.profitFactor)}` : "--";
+  el("backtestMeta").textContent = `RR ${formatNumber(metrics.rewardRiskRatio)} / DD ${formatPercent(metrics.maxDrawdownPct)}`;
+  el("metricWinRate").textContent = formatPercent(metrics.winRatePct);
+  el("metricRewardRisk").textContent = formatNumber(metrics.rewardRiskRatio);
+  el("metricDrawdown").textContent = formatPercent(metrics.maxDrawdownPct);
+  el("metricStopLoss").textContent = primary?.stopLossPct ? formatPercent(primary.stopLossPct * 100, 1) : "--";
+  el("metricTargetR").textContent = primary?.targetRMultiple ? `${formatNumber(primary.targetRMultiple, 1)}R` : "--";
+  el("executionLock").textContent = mobile.safetyBoundary?.orderCreationAllowed ? "异常开启" : "关闭";
 }
 
 function renderStrategies(strategies) {
   latestStrategies = strategies;
-  el("strategyCount").textContent = String(strategies.length);
-  const anyDry = strategies.some((item) => item.exchangeDryRunApproved);
-  const anyLive = strategies.some((item) => item.liveTradingApproved);
-  el("dryRunStatus").textContent = anyDry ? "True" : "False";
-  el("liveStatus").textContent = anyLive ? "True" : "False";
 
   if (!strategies.length) {
-    el("strategyList").innerHTML = '<div class="item">No strategy packages found. Run Import Reports after Quant Engine reports exist.</div>';
+    el("strategyList").innerHTML = '<div class="item">未发现策略包。请在 Quant Engine 生成报告后点击“导入报告”。</div>';
     return;
   }
 
@@ -68,21 +162,22 @@ function renderStrategies(strategies) {
         <td>
           <div>PF ${formatNumber(metrics.profitFactor)}</div>
           <div>RR ${formatNumber(metrics.rewardRiskRatio)}</div>
-          <div>Win ${formatNumber(metrics.winRatePct)}%</div>
-          <div>DD ${formatNumber(metrics.maxDrawdownPct)}%</div>
+          <div>胜率 ${formatPercent(metrics.winRatePct)}</div>
+          <div>回撤 ${formatPercent(metrics.maxDrawdownPct)}</div>
         </td>
         <td>
-          <div>Signals ${item.selectedSignalCount ?? metrics.filledSignalCount ?? metrics.tradeCount ?? "--"}</div>
-          <div>SL ${formatNumber(item.stopLossPct, 3)}</div>
-          <div>Target ${formatNumber(item.targetRMultiple, 1)}R</div>
+          <div>信号 ${getSignalCount(item) ?? "--"}</div>
+          <div>止损 ${item.stopLossPct ? formatPercent(item.stopLossPct * 100, 1) : "--"}</div>
+          <div>目标 ${item.targetRMultiple ? formatNumber(item.targetRMultiple, 1) : "--"}R</div>
+          <div>真实执行 ${item.liveTradingApproved ? "异常开启" : "关闭"}</div>
         </td>
         <td>
           <div class="note-row">
             <select data-strategy="${item.strategyId}">
-              ${statusOptions.map((status) => `<option value="${status}" ${status === item.consoleStatus ? "selected" : ""}>${status}</option>`).join("")}
+              ${statusOptions.map((status) => `<option value="${status}" ${status === item.consoleStatus ? "selected" : ""}>${tStatus(status)}</option>`).join("")}
             </select>
-            <input data-note="${item.strategyId}" value="${item.consoleNote || ""}" placeholder="Local note only" />
-            <button class="secondary" data-save="${item.strategyId}" type="button">Save</button>
+            <input data-note="${item.strategyId}" value="${item.consoleNote || ""}" placeholder="本地备注，不会触发交易…" autocomplete="off" />
+            <button class="secondary" data-save="${item.strategyId}" type="button">保存</button>
           </div>
         </td>
       </tr>
@@ -93,11 +188,11 @@ function renderStrategies(strategies) {
     <table>
       <thead>
         <tr>
-          <th>Package</th>
-          <th>Status</th>
-          <th>Metrics</th>
-          <th>Risk</th>
-          <th>Console Action</th>
+          <th>策略</th>
+          <th>状态</th>
+          <th>回测指标</th>
+          <th>风险参数</th>
+          <th>本地操作</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
@@ -121,15 +216,24 @@ function renderStrategies(strategies) {
 }
 
 function renderReports(reports) {
-  el("reportCount").textContent = String(reports.length);
-  el("reportList").innerHTML = reports.slice(0, 10).map((item) => `
-    <div class="item">
-      <strong>${item.version || item.reportId}</strong>
-      <small>${item.generatedAt || "--"}</small>
-      <div>${item.reportId}</div>
-      <div>${badge(`dryRun:${item.exchangeDryRunApproved}`)} ${badge(`live:${item.liveTradingApproved}`)}</div>
-    </div>
-  `).join("") || '<div class="item">No reports found.</div>';
+  el("reportList").innerHTML = reports.slice(0, 8).map((item) => {
+    const summary = item.summary || {};
+    return `
+      <div class="item report-item">
+        <div>
+          <strong>${item.version || item.reportId}</strong>
+          <small>${formatDate(item.generatedAt)}</small>
+          <div>${item.reportId}</div>
+        </div>
+        <div class="report-metrics">
+          <span>信号 ${summary.filledSignalCount ?? summary.tradeCount ?? "--"}</span>
+          <span>胜率 ${formatPercent(summary.winRatePct)}</span>
+          <span>PF ${formatNumber(summary.profitFactor)}</span>
+          <span>RR ${formatNumber(summary.rewardRiskRatio)}</span>
+        </div>
+      </div>
+    `;
+  }).join("") || '<div class="item">暂无报告。</div>';
 }
 
 function renderExchanges(sources, mobile) {
@@ -150,16 +254,16 @@ function renderExchanges(sources, mobile) {
         </div>
         <div>${badge(status)}</div>
         <div class="kv">
-          <span>Ticker</span><strong>${item.supportsTicker ? "yes" : "no"}</strong>
-          <span>OHLCV</span><strong>${item.supportsOhlcv ? "yes" : "no"}</strong>
-          <span>Funding</span><strong>${item.supportsFundingRate ? "yes" : "no"}</strong>
-          <span>Open Interest</span><strong>${item.supportsOpenInterest ? "yes" : "no"}</strong>
-          <span>Latest latency</span><strong>${formatNumber(latest.latencyMs, 0)} ms</strong>
+          <span>Ticker</span><strong>${item.supportsTicker ? "支持" : "不支持"}</strong>
+          <span>OHLCV</span><strong>${item.supportsOhlcv ? "支持" : "不支持"}</strong>
+          <span>Funding</span><strong>${item.supportsFundingRate ? "支持" : "不支持"}</strong>
+          <span>Open Interest</span><strong>${item.supportsOpenInterest ? "支持" : "不支持"}</strong>
+          <span>延迟</span><strong>${formatNumber(latest.latencyMs, 0)} ms</strong>
         </div>
         <small>${item.documentationUrl}</small>
       </div>
     `;
-  }).join("") || '<div class="item">No public exchange sources configured.</div>';
+  }).join("") || '<div class="item">未配置公共行情源。</div>';
 }
 
 function renderStrategySlots(slots) {
@@ -172,25 +276,36 @@ function renderStrategySlots(slots) {
           ${badge(slot.status)}
         </div>
         <div class="kv">
-          <span>Role</span><strong>${slot.role}</strong>
-          <span>Expected</span><strong>${slot.expectedStrategyId || "--"}</strong>
-          <span>Loaded</span><strong>${strategy.strategyId || "--"}</strong>
-          <span>Manual import</span><strong>${slot.manualImportOnly ? "yes" : "no"}</strong>
-          <span>Execution</span><strong>${slot.executionAllowed ? "enabled" : "disabled"}</strong>
+          <span>角色</span><strong>${slot.role}</strong>
+          <span>预期策略</span><strong>${slot.expectedStrategyId || "--"}</strong>
+          <span>已载入</span><strong>${strategy.strategyId || "--"}</strong>
+          <span>手动导入</span><strong>${slot.manualImportOnly ? "是" : "否"}</strong>
+          <span>执行权限</span><strong>${slot.executionAllowed ? "开启" : "关闭"}</strong>
         </div>
       </div>
     `;
-  }).join("") || '<div class="item">No strategy slots configured.</div>';
+  }).join("") || '<div class="item">未配置策略槽位。</div>';
+}
+
+function translateConnectionNote(note) {
+  const translations = {
+    "Use the LAN URL on a real phone; 127.0.0.1 points to the phone itself.": "真机请使用局域网 URL；127.0.0.1 指向手机自身。",
+    "Keep the phone and desktop on the same Wi-Fi or LAN.": "手机和电脑需要在同一 Wi-Fi 或局域网。",
+    "If the phone cannot connect, allow Python through Windows Firewall for this local port.": "如果手机无法连接，请允许 Python 通过 Windows 防火墙访问本地端口。",
+    "This endpoint only exposes read-only status and cannot execute trades.": "该接口只暴露只读状态，不能执行交易。",
+    "The console is currently bound to localhost only. Restart with scripts/start_console.ps1 -Mobile for phone testing.": "当前控制台只绑定本机地址；真机测试请用 scripts/start_console.ps1 -Mobile 重启。",
+  };
+  return translations[note] || note;
 }
 
 function renderAudit(events) {
   el("auditList").innerHTML = events.slice().reverse().slice(0, 12).map((item) => `
-    <div class="item">
+    <div class="item audit-item">
       <strong>${item.eventType}</strong>
-      <small>${item.createdAt}</small>
+      <small>${formatDate(item.createdAt)}</small>
       <div>${JSON.stringify(item.payload)}</div>
     </div>
-  `).join("") || '<div class="item">No audit events yet.</div>';
+  `).join("") || '<div class="item">暂无审计事件。</div>';
 }
 
 async function refreshAll() {
@@ -203,8 +318,11 @@ async function refreshAll() {
     getJson("/api/exchanges"),
     getJson("/api/strategy-slots"),
   ]);
-  renderStrategies(strategies.strategies || []);
-  renderReports(reports.reports || []);
+  const strategyItems = strategies.strategies || [];
+  const reportItems = reports.reports || [];
+  renderCommandCenter(strategyItems, reportItems, mobile);
+  renderStrategies(strategyItems);
+  renderReports(reportItems);
   renderAudit(audit.events || []);
   renderExchanges(exchanges.sources || [], mobile);
   renderStrategySlots(slots.slots || []);
@@ -213,18 +331,18 @@ async function refreshAll() {
 }
 
 function renderMobileConnectionInfo(connection) {
-  const recommended = connection.recommendedMobileUrl || "Restart with scripts/start_console.ps1 -Mobile for phone testing.";
+  const recommended = connection.recommendedMobileUrl || "手机测试请用 scripts/start_console.ps1 -Mobile 重启控制台。";
   el("recommendedMobileUrl").textContent = recommended;
   const urls = connection.mobileStatusUrls || [];
   const notes = connection.notes || [];
   el("mobileConnectionNotes").innerHTML = `
     <div class="item">
-      <strong>Phone setup</strong>
-      <div>Keep desktop and phone on the same Wi-Fi or LAN.</div>
-      <div>LAN visible: ${connection.serverLanVisible ? "yes" : "no"}</div>
-      <div>Candidate LAN URLs: ${urls.length ? urls.join(", ") : "--"}</div>
+      <strong>手机连接准备</strong>
+      <div>电脑和手机需要在同一 Wi-Fi 或局域网。</div>
+      <div>局域网可见：${connection.serverLanVisible ? "是" : "否"}</div>
+      <div>候选 URL：${urls.length ? urls.join(", ") : "--"}</div>
     </div>
-    ${notes.map((note) => `<div class="item">${note}</div>`).join("")}
+    ${notes.map((note) => `<div class="item">${translateConnectionNote(note)}</div>`).join("")}
   `;
 }
 
@@ -254,5 +372,5 @@ el("probeExchangesButton").addEventListener("click", async () => {
 });
 
 refreshAll().catch((error) => {
-  el("strategyList").innerHTML = `<div class="item">Load failed: ${error.message}</div>`;
+  el("strategyList").innerHTML = `<div class="item">加载失败：${error.message}</div>`;
 });

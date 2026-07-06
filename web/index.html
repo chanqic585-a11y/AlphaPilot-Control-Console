@@ -1,142 +1,280 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>AlphaPilot Control Console</title>
+    <title>AlphaPilot 控制台</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <main class="shell">
-      <header class="topbar">
-        <div>
-          <p class="kicker">V13.6 Control Console Bridge</p>
-          <h1>AlphaPilot Control Console</h1>
-          <p class="subtitle">Local research control, strategy package review, and mobile status bridge.</p>
+    <div class="app-shell">
+      <aside class="side-rail" aria-label="主导航">
+        <div class="brand-mark">A</div>
+        <nav class="rail-nav">
+          <a class="rail-item active" href="#overview" title="系统总览" aria-label="系统总览">⌂</a>
+          <a class="rail-item" href="#command" title="策略总控" aria-label="策略总控">⌁</a>
+          <a class="rail-item" href="#exchanges" title="公共行情" aria-label="公共行情">◈</a>
+          <a class="rail-item" href="#mobile" title="手机连接" aria-label="手机连接">▣</a>
+          <a class="rail-item" href="#audit" title="审计日志" aria-label="审计日志">◎</a>
+        </nav>
+        <div class="rail-footer">
+          <span>本地</span>
         </div>
-        <div class="actions">
-          <button id="refreshButton" type="button">Refresh</button>
-          <button id="importButton" type="button">Import Reports</button>
-          <button id="probeExchangesButton" type="button">Probe Public Exchanges</button>
-        </div>
-      </header>
+      </aside>
 
-      <section class="safety">
-        <strong>Research control only.</strong>
-        No API keys, no Trade API, no Withdraw API, no account reads, no position reads, no orders, no auto trading.
-      </section>
-
-      <section class="grid stats" aria-label="Console summary">
-        <div class="stat">
-          <span>Strategies</span>
-          <strong id="strategyCount">--</strong>
-        </div>
-        <div class="stat">
-          <span>Reports</span>
-          <strong id="reportCount">--</strong>
-        </div>
-        <div class="stat">
-          <span>Dry-run Approved</span>
-          <strong id="dryRunStatus">False</strong>
-        </div>
-        <div class="stat">
-          <span>Live Approved</span>
-          <strong id="liveStatus">False</strong>
-        </div>
-      </section>
-
-      <section class="panel">
-        <div class="section-header">
+      <main class="workspace">
+        <header class="topbar">
           <div>
-            <h2>Exchange Public Connectivity</h2>
-            <p>Public market-data probes only. No API key input, no private endpoints, no account access, no orders.</p>
+            <p class="kicker">QUANT CONTROL TERMINAL</p>
+            <h1>AlphaPilot 控制台</h1>
+            <p class="subtitle">策略、信号、模拟持仓与回测结果的本地研究面板。</p>
           </div>
-        </div>
-        <div class="probe-controls">
-          <label>
-            <span>Symbol</span>
-            <input id="probeSymbol" value="BTC/USDT:USDT" />
-          </label>
-          <label>
-            <span>Timeframe</span>
-            <select id="probeTimeframe">
-              <option value="15m">15m</option>
-              <option value="1h" selected>1h</option>
-              <option value="4h">4h</option>
-              <option value="1d">1d</option>
-            </select>
-          </label>
-          <label>
-            <span>Candles</span>
-            <input id="probeLimit" type="number" min="1" max="10" value="2" />
-          </label>
-        </div>
-        <div id="exchangeList" class="exchange-grid"></div>
-      </section>
+          <div class="top-status">
+            <span class="status-pill ok">本地记录模式</span>
+            <span class="status-pill neutral">公共行情</span>
+            <span class="status-pill danger">实盘关闭</span>
+          </div>
+        </header>
 
-      <section class="panel">
-        <div class="section-header">
-          <div>
-            <h2>Strategy Slots</h2>
-            <p>Manual import registry for active, observer, and backup strategies. Slots do not execute anything.</p>
-          </div>
-        </div>
-        <div id="strategySlotList" class="slot-grid"></div>
-      </section>
+        <section class="safety">
+          <strong>仅用于研究控制。</strong>
+          不保存 API Key，不接 Trade API，不接 Withdraw API，不读取真实账户，不读取真实持仓，不创建订单，不自动交易。
+        </section>
 
-      <section class="panel">
-        <div class="section-header">
-          <div>
-            <h2>Strategy Packages</h2>
-            <p>Imported from local Quant Engine reports. Status changes are local console labels only.</p>
-          </div>
-        </div>
-        <div id="strategyList" class="table-wrap"></div>
-      </section>
-
-      <section class="panel">
-        <div class="section-header">
-          <div>
-            <h2>Mobile Bridge</h2>
-            <p>Read-only endpoint for the phone console. It exposes status, not execution.</p>
-          </div>
-        </div>
-        <div class="mobile-helper">
-          <div>
-            <span>Local desktop URL</span>
-            <code id="mobileBridgeUrl">http://127.0.0.1:8766/api/mobile/status</code>
-          </div>
-          <div>
-            <span>Recommended phone URL</span>
-            <code id="recommendedMobileUrl">Loading...</code>
-          </div>
-        </div>
-        <div id="mobileConnectionNotes" class="list"></div>
-        <pre id="mobilePreview" class="preview">Loading...</pre>
-      </section>
-
-      <section class="split">
-        <div class="panel">
-          <div class="section-header">
-            <div>
-              <h2>Latest Reports</h2>
-              <p>Compact view of recent Quant Engine reports.</p>
+        <section id="overview" class="hero-grid">
+          <div class="hero-panel portfolio-panel">
+            <div class="panel-eyebrow">PORTFOLIO CONTEXT</div>
+            <div class="hero-row">
+              <div>
+                <h2 id="portfolioBias">研究候选</h2>
+                <p id="portfolioMeta">等待策略报告导入</p>
+              </div>
+              <div class="hero-metrics">
+                <div>
+                  <span>策略包</span>
+                  <strong id="strategyCount">--</strong>
+                </div>
+                <div>
+                  <span>报告</span>
+                  <strong id="reportCount">--</strong>
+                </div>
+                <div>
+                  <span>公共连接</span>
+                  <strong id="exchangeConnectedCount">--</strong>
+                </div>
+              </div>
+            </div>
+            <div class="position-strip">
+              <div class="donut" id="strategyDonut">--</div>
+              <div class="strip-card">
+                <span class="dot positive"></span>
+                <span>本地模拟候选</span>
+                <strong id="readyStrategyCount">--</strong>
+              </div>
+              <div class="strip-card">
+                <span class="dot warning"></span>
+                <span>研究观察</span>
+                <strong id="researchStrategyCount">--</strong>
+              </div>
+              <div class="strip-card">
+                <span class="dot muted"></span>
+                <span>真实持仓</span>
+                <strong>0</strong>
+              </div>
             </div>
           </div>
-          <div id="reportList" class="list"></div>
-        </div>
 
-        <div class="panel">
-          <div class="section-header">
-            <div>
-              <h2>Audit Log</h2>
-              <p>Local console actions and imports.</p>
+          <div class="hero-panel market-panel">
+            <div class="panel-eyebrow">MARKET BRIDGE</div>
+            <div class="market-row">
+              <span>探测币种</span>
+              <strong id="probeSymbolLabel">--</strong>
+            </div>
+            <div class="market-row">
+              <span>周期</span>
+              <strong id="probeTimeframeLabel">--</strong>
+            </div>
+            <div class="market-row">
+              <span>最近探测</span>
+              <strong id="latestProbeAt">--</strong>
             </div>
           </div>
-          <div id="auditList" class="list"></div>
-        </div>
-      </section>
-    </main>
+        </section>
+
+        <section id="command" class="panel command-panel">
+          <div class="section-header">
+            <div>
+              <p class="panel-eyebrow">ONE SCREEN MATRIX</p>
+              <h2>策略 / 信号 / 模拟持仓 / 回测结果</h2>
+              <p>这个面板只汇总本地研究记录，不创建真实订单。</p>
+            </div>
+            <div class="actions">
+              <button id="refreshButton" type="button">刷新状态</button>
+              <button id="importButton" type="button">导入报告</button>
+            </div>
+          </div>
+          <div class="command-grid">
+            <article class="command-card">
+              <span class="card-index">1</span>
+              <p>策略</p>
+              <h3 id="activeStrategyTitle">--</h3>
+              <small id="activeStrategyStatus">--</small>
+            </article>
+            <article class="command-card">
+              <span class="card-index">2</span>
+              <p>信号</p>
+              <h3 id="signalCount">--</h3>
+              <small id="signalMeta">本地样本</small>
+            </article>
+            <article class="command-card">
+              <span class="card-index">3</span>
+              <p>模拟持仓</p>
+              <h3 id="paperPositionLimit">--</h3>
+              <small>真实持仓读取关闭</small>
+            </article>
+            <article class="command-card">
+              <span class="card-index">4</span>
+              <p>回测结果</p>
+              <h3 id="backtestPf">--</h3>
+              <small id="backtestMeta">PF / RR / DD</small>
+            </article>
+          </div>
+          <div class="metric-grid">
+            <div class="metric-cell">
+              <span>胜率</span>
+              <strong id="metricWinRate">--</strong>
+            </div>
+            <div class="metric-cell">
+              <span>盈亏比</span>
+              <strong id="metricRewardRisk">--</strong>
+            </div>
+            <div class="metric-cell">
+              <span>最大回撤</span>
+              <strong id="metricDrawdown">--</strong>
+            </div>
+            <div class="metric-cell">
+              <span>止损</span>
+              <strong id="metricStopLoss">--</strong>
+            </div>
+            <div class="metric-cell">
+              <span>目标 R</span>
+              <strong id="metricTargetR">--</strong>
+            </div>
+            <div class="metric-cell">
+              <span>执行锁</span>
+              <strong id="executionLock">关闭</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="content-grid">
+          <section class="panel">
+            <div class="section-header">
+              <div>
+                <p class="panel-eyebrow">STRATEGY PACKAGES</p>
+                <h2>策略包</h2>
+                <p>来自本地 Quant Engine 报告。状态变更只是本地标签。</p>
+              </div>
+            </div>
+            <div id="strategyList" class="table-wrap"></div>
+          </section>
+
+          <section class="panel">
+            <div class="section-header">
+              <div>
+                <p class="panel-eyebrow">BACKTEST REPORTS</p>
+                <h2>最新回测 / 研究报告</h2>
+                <p>只读报告摘要，不代表实盘收益。</p>
+              </div>
+            </div>
+            <div id="reportList" class="list"></div>
+          </section>
+        </section>
+
+        <section id="exchanges" class="panel">
+          <div class="section-header">
+            <div>
+              <p class="panel-eyebrow">PUBLIC EXCHANGE CONNECTIVITY</p>
+              <h2>交易所公共行情连接</h2>
+              <p>只探测公开行情，不输入 API Key，不访问私有端点。</p>
+            </div>
+            <button id="probeExchangesButton" type="button">探测公共行情</button>
+          </div>
+          <div class="probe-controls">
+            <label>
+              <span>币种</span>
+              <input id="probeSymbol" name="probeSymbol" autocomplete="off" value="BTC/USDT:USDT" />
+            </label>
+            <label>
+              <span>周期</span>
+              <select id="probeTimeframe" name="probeTimeframe" autocomplete="off">
+                <option value="15m">15m</option>
+                <option value="1h" selected>1h</option>
+                <option value="4h">4h</option>
+                <option value="1d">1d</option>
+              </select>
+            </label>
+            <label>
+              <span>K线数</span>
+              <input id="probeLimit" name="probeLimit" type="number" min="1" max="10" value="2" autocomplete="off" inputmode="numeric" />
+            </label>
+          </div>
+          <div id="exchangeList" class="exchange-grid"></div>
+        </section>
+
+        <section class="content-grid">
+          <section class="panel">
+            <div class="section-header">
+              <div>
+                <p class="panel-eyebrow">STRATEGY SLOTS</p>
+                <h2>策略槽位</h2>
+                <p>预留主动候选、观察候选和备用策略位置，槽位不会执行交易。</p>
+              </div>
+            </div>
+            <div id="strategySlotList" class="slot-grid"></div>
+          </section>
+
+          <section id="mobile" class="panel">
+            <div class="section-header">
+              <div>
+                <p class="panel-eyebrow">MOBILE BRIDGE</p>
+                <h2>手机端连接</h2>
+                <p>给手机 App 读取状态的只读桥接。</p>
+              </div>
+            </div>
+            <div class="mobile-helper">
+              <div>
+                <span>电脑本机接口</span>
+                <code id="mobileBridgeUrl">http://127.0.0.1:8766/api/mobile/status</code>
+              </div>
+              <div>
+                <span>手机推荐接口</span>
+                <code id="recommendedMobileUrl">加载中…</code>
+              </div>
+            </div>
+            <div id="mobileConnectionNotes" class="list"></div>
+          </section>
+        </section>
+
+        <section id="audit" class="panel">
+          <div class="section-header">
+            <div>
+              <p class="panel-eyebrow">AUDIT TAPE</p>
+              <h2>审计日志</h2>
+              <p>记录本地导入、状态更新和控制台操作。</p>
+            </div>
+          </div>
+          <div id="auditList" class="audit-grid"></div>
+        </section>
+
+        <section class="panel debug-panel">
+          <details>
+            <summary>调试 JSON</summary>
+            <pre id="mobilePreview" class="preview">加载中…</pre>
+          </details>
+        </section>
+      </main>
+    </div>
     <script src="/app.js"></script>
   </body>
 </html>

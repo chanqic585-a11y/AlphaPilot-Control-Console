@@ -27,7 +27,7 @@ def _safe_int(value: object, fallback: int) -> int:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.6.3"
+    server_version = "AlphaPilotControlConsole/13.6.5"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -68,8 +68,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.6.3",
-                "source": "alphapilot_control_console_v13_6_3",
+                "version": "V13.6.5",
+                "source": "alphapilot_control_console_v13_6_5",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return

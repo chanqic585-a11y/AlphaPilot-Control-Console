@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.6.3 - Mobile Connection Helper and Bridge Smoke Test
+AlphaPilot V13.6.5 - Chinese Quant Terminal UI
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -40,6 +40,17 @@ position access, order creation, exchange Dry-run, live trading, or automation.
 - Updates the desktop page Mobile Bridge section with a recommended phone URL and setup notes.
 
 V13.6.3 does not add API key input, private exchange access, account access,
+position access, order creation, exchange Dry-run, live trading, or automation.
+
+## What V13.6.5 Adds
+
+- Converts the desktop Control Console UI into a Chinese-first dark quant terminal.
+- Adds a left rail, top status bar, portfolio context cards, and a one-screen matrix.
+- Places strategy, signal, simulated-position, and backtest-result summaries in one panel.
+- Keeps public exchange connectivity, strategy slots, mobile bridge, reports, and audit logs visible.
+- Uses a research-terminal style inspired by professional trading dashboards without adding an order panel.
+
+V13.6.5 does not add API key input, private exchange access, account access,
 position access, order creation, exchange Dry-run, live trading, or automation.
 
 ## What V13.6 Does Not Do
