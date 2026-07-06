@@ -29,6 +29,22 @@ ARTIFACT_REVIEW_LABELS = {
     "rejected": "淘汰",
 }
 
+ALLOWED_PAPER_OBSERVATION_TASK_STATUSES = {
+    "planned",
+    "active",
+    "paused",
+    "completed",
+    "rejected",
+}
+
+PAPER_OBSERVATION_TASK_LABELS = {
+    "planned": "计划中",
+    "active": "观察中",
+    "paused": "已暂停",
+    "completed": "已完成",
+    "rejected": "已淘汰",
+}
+
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -56,6 +72,8 @@ def load_state() -> dict[str, Any]:
         state["strategies"] = {}
     if not isinstance(state.get("artifactReviews"), dict):
         state["artifactReviews"] = {}
+    if not isinstance(state.get("paperObservationTasks"), dict):
+        state["paperObservationTasks"] = {}
     return state
 
 
@@ -70,7 +88,7 @@ def append_audit(event_type: str, payload: dict[str, Any]) -> dict[str, Any]:
         "eventType": event_type,
         "payload": payload,
         "createdAt": now_iso(),
-        "source": "alphapilot_control_console_v13_7_6",
+        "source": "alphapilot_control_console_v13_7_7",
     }
     with AUDIT_PATH.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(event, ensure_ascii=False) + "\n")
@@ -122,7 +140,7 @@ def get_artifact_review(artifact_id: str) -> dict[str, Any]:
             "reviewLabel": ARTIFACT_REVIEW_LABELS["unreviewed"],
             "reviewNote": "",
             "reviewedAt": None,
-            "source": "alphapilot_control_console_v13_7_6",
+            "source": "alphapilot_control_console_v13_7_7",
         }
     status = str(review.get("reviewStatus") or "unreviewed")
     return {
@@ -131,7 +149,7 @@ def get_artifact_review(artifact_id: str) -> dict[str, Any]:
         "reviewLabel": ARTIFACT_REVIEW_LABELS.get(status, ARTIFACT_REVIEW_LABELS["unreviewed"]),
         "reviewNote": str(review.get("reviewNote") or ""),
         "reviewedAt": review.get("reviewedAt"),
-        "source": review.get("source") or "alphapilot_control_console_v13_7_6",
+        "source": review.get("source") or "alphapilot_control_console_v13_7_7",
     }
 
 
@@ -145,7 +163,7 @@ def update_artifact_review(artifact_id: str, review_status: str, note: str = "")
         "reviewLabel": ARTIFACT_REVIEW_LABELS.get(review_status, review_status),
         "reviewNote": note,
         "reviewedAt": now_iso(),
-        "source": "alphapilot_control_console_v13_7_6",
+        "source": "alphapilot_control_console_v13_7_7",
     }
     state["artifactReviews"][artifact_id] = review
     save_state(state)
@@ -154,6 +172,69 @@ def update_artifact_review(artifact_id: str, review_status: str, note: str = "")
         {"artifactId": artifact_id, "reviewStatus": review_status, "note": note},
     )
     return review
+
+
+def list_paper_observation_tasks() -> dict[str, Any]:
+    state = load_state()
+    return state.get("paperObservationTasks", {})
+
+
+def get_paper_observation_task(artifact_id: str) -> dict[str, Any] | None:
+    task = list_paper_observation_tasks().get(artifact_id)
+    return task if isinstance(task, dict) else None
+
+
+def upsert_paper_observation_task(
+    artifact_id: str,
+    task_status: str = "active",
+    note: str = "",
+    target_sample_count: int | None = None,
+    observation_days: int | None = None,
+    artifact: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    if task_status not in ALLOWED_PAPER_OBSERVATION_TASK_STATUSES:
+        raise ValueError(f"Unsupported paper observation task status: {task_status}")
+    state = load_state()
+    tasks = state["paperObservationTasks"]
+    existing = tasks.get(artifact_id) if isinstance(tasks.get(artifact_id), dict) else {}
+    now = now_iso()
+    artifact = artifact or {}
+    task = {
+        **existing,
+        "taskId": existing.get("taskId") or f"paper_observation::{artifact_id}",
+        "artifactId": artifact_id,
+        "strategyId": artifact.get("strategyId") or existing.get("strategyId"),
+        "title": artifact.get("title") or existing.get("title") or artifact_id,
+        "version": artifact.get("version") or existing.get("version"),
+        "sourceFile": artifact.get("sourceFile") or existing.get("sourceFile"),
+        "readinessTier": artifact.get("readinessTier") or existing.get("readinessTier"),
+        "researchScore": artifact.get("researchScore") if artifact.get("researchScore") is not None else existing.get("researchScore"),
+        "taskStatus": task_status,
+        "taskLabel": PAPER_OBSERVATION_TASK_LABELS.get(task_status, task_status),
+        "targetSampleCount": target_sample_count or existing.get("targetSampleCount") or 50,
+        "observationDays": observation_days or existing.get("observationDays") or 60,
+        "note": note if note else existing.get("note", ""),
+        "createdAt": existing.get("createdAt") or now,
+        "updatedAt": now,
+        "source": "alphapilot_control_console_v13_7_7",
+    }
+    if task_status == "active" and not task.get("startedAt"):
+        task["startedAt"] = now
+    if task_status == "completed":
+        task["completedAt"] = now
+    tasks[artifact_id] = task
+    save_state(state)
+    append_audit(
+        "paper_observation_task_updated",
+        {
+            "artifactId": artifact_id,
+            "taskStatus": task_status,
+            "targetSampleCount": task["targetSampleCount"],
+            "observationDays": task["observationDays"],
+            "note": note,
+        },
+    )
+    return task
 
 
 def write_mobile_status(payload: dict[str, Any]) -> None:

@@ -40,6 +40,14 @@ const checklistStatusLabels = {
   not_started: "未开始",
 };
 
+const paperTaskStatusLabels = {
+  planned: "计划中",
+  active: "观察中",
+  paused: "已暂停",
+  completed: "已完成",
+  rejected: "已淘汰",
+};
+
 const readinessLabels = {
   local_paper_review_ready: "本地模拟复核就绪",
   research_observer_ready: "研究观察就绪",
@@ -60,6 +68,7 @@ const sectionLabels = {
   command: "策略总控",
   runtime: "运行监控",
   artifacts: "策略资产",
+  observationTasks: "观察任务",
   exchanges: "公共行情",
   mobile: "手机控制台",
   audit: "审计日志",
@@ -67,6 +76,7 @@ const sectionLabels = {
 
 let latestStrategies = [];
 let latestArtifactIndex = {};
+let latestPaperTasks = [];
 let selectedArtifactId = null;
 const artifactFilters = {
   search: "",
@@ -294,6 +304,19 @@ function artifactReviewBadge(value) {
   return `<span class="badge ${kind}">${tArtifactReview(normalized)}</span>`;
 }
 
+function tPaperTaskStatus(value) {
+  return paperTaskStatusLabels[value] || value || "--";
+}
+
+function paperTaskBadge(value) {
+  const normalized = String(value || "planned");
+  let kind = "";
+  if (normalized === "active" || normalized === "completed") kind = "ok";
+  if (normalized === "planned" || normalized === "paused") kind = "warn";
+  if (normalized === "rejected") kind = "danger";
+  return `<span class="badge ${kind}">${tPaperTaskStatus(normalized)}</span>`;
+}
+
 function tBaselineComparison(value) {
   return baselineComparisonLabels[value] || value || "--";
 }
@@ -380,6 +403,7 @@ function renderArtifactDetail(item) {
   const reasons = Array.isArray(item.readinessReasons) ? item.readinessReasons : [];
   const score = item.scoreBreakdown || {};
   const checklist = item.paperObservationChecklist || {};
+  const task = item.paperObservationTask || {};
   el("artifactDetail").innerHTML = `
     <div class="artifact-detail-main">
       <div>
@@ -416,12 +440,27 @@ function renderArtifactDetail(item) {
       <div><span>样本进度</span><strong>${checklist.currentSampleCount ?? "--"} / ${checklist.targetSampleCount ?? "--"}</strong></div>
       <div><span>进度</span><strong>${formatPercent(checklist.progressPct)}</strong></div>
     </div>
+    <div class="artifact-checklist-grid">
+      <div><span>任务状态</span><strong>${tPaperTaskStatus(task.taskStatus)}</strong></div>
+      <div><span>任务开始</span><strong>${formatDate(task.startedAt)}</strong></div>
+      <div><span>目标样本</span><strong>${task.currentSampleCount ?? "--"} / ${task.targetSampleCount ?? "--"}</strong></div>
+      <div><span>观察天数</span><strong>${task.observationDays ?? "--"} 天</strong></div>
+    </div>
     <div class="artifact-review-actions">
       <input id="artifactReviewNote" value="${escapeHtml(item.reviewNote || "")}" placeholder="复核备注，只保存在本地，不会触发交易…" autocomplete="off" />
       <button type="button" data-review-status="continue_observing">继续观察</button>
       <button type="button" data-review-status="paper_observation">进入纸面观察</button>
       <button type="button" data-review-status="paused">暂停</button>
       <button type="button" data-review-status="rejected">淘汰</button>
+    </div>
+    <div class="paper-task-actions">
+      <input id="paperTaskTarget" type="number" min="10" max="500" value="${escapeHtml(task.targetSampleCount || checklist.targetSampleCount || 50)}" autocomplete="off" />
+      <input id="paperTaskDays" type="number" min="7" max="365" value="${escapeHtml(task.observationDays || 60)}" autocomplete="off" />
+      <input id="paperTaskNote" value="${escapeHtml(task.note || item.reviewNote || "")}" placeholder="观察任务备注，只保存在本地…" autocomplete="off" />
+      <button type="button" data-task-status="active">启动任务</button>
+      <button type="button" data-task-status="paused">暂停任务</button>
+      <button type="button" data-task-status="completed">完成任务</button>
+      <button type="button" data-task-status="rejected">淘汰任务</button>
     </div>
     <div class="artifact-detail-note">
       <strong>建议动作</strong>
@@ -450,6 +489,28 @@ function renderArtifactDetail(item) {
           artifactId: item.artifactId,
           reviewStatus,
           note,
+        });
+        latestArtifactIndex = response.strategyArtifactIndex || latestArtifactIndex;
+        await refreshAll();
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
+  el("artifactDetail").querySelectorAll("[data-task-status]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const taskStatus = button.getAttribute("data-task-status");
+      const note = el("paperTaskNote")?.value || "";
+      const targetSampleCount = Number(el("paperTaskTarget")?.value || 50);
+      const observationDays = Number(el("paperTaskDays")?.value || 60);
+      button.disabled = true;
+      try {
+        const response = await postJson("/api/paper-observation-task", {
+          artifactId: item.artifactId,
+          taskStatus,
+          note,
+          targetSampleCount,
+          observationDays,
         });
         latestArtifactIndex = response.strategyArtifactIndex || latestArtifactIndex;
         await refreshAll();
@@ -511,6 +572,37 @@ function renderStrategyArtifacts(indexPayload) {
       renderStrategyArtifacts(latestArtifactIndex);
     });
   });
+}
+
+function renderPaperObservationTasks(taskPayload) {
+  const tasks = Array.isArray(taskPayload?.tasks) ? taskPayload.tasks : [];
+  latestPaperTasks = tasks;
+  el("paperTaskTotal").textContent = String(tasks.length);
+  el("paperTaskActive").textContent = String(tasks.filter((item) => item.taskStatus === "active").length);
+  el("paperTaskPaused").textContent = String(tasks.filter((item) => item.taskStatus === "paused").length);
+  el("paperTaskCompleted").textContent = String(tasks.filter((item) => item.taskStatus === "completed").length);
+
+  el("paperObservationTaskList").innerHTML = tasks.slice(0, 20).map((task) => {
+    const progress = Number(task.progressPct || 0);
+    const metrics = task.metrics || {};
+    return `
+      <div class="paper-task-row">
+        <div>
+          <strong>${escapeHtml(task.title || task.artifactId || "--")}</strong>
+          <small>${escapeHtml(task.version || "--")} · ${escapeHtml(task.strategyId || "--")}</small>
+          ${paperTaskBadge(task.taskStatus)}
+        </div>
+        <div>
+          <span>样本进度</span>
+          <strong>${task.currentSampleCount ?? "--"} / ${task.targetSampleCount ?? "--"}</strong>
+          <div class="paper-task-progress"><i style="width:${Math.max(0, Math.min(100, progress))}%"></i></div>
+        </div>
+        <div><span>观察天数</span><strong>${task.observationDays ?? "--"} 天</strong></div>
+        <div><span>胜率 / PF</span><strong>${formatPercent(metrics.winRatePct)} / ${formatNumber(metrics.profitFactor)}</strong></div>
+        <div><span>更新时间</span><strong>${formatDate(task.updatedAt || task.startedAt)}</strong></div>
+      </div>
+    `;
+  }).join("") || '<div class="item">暂无纸面观察任务。请在策略资产详情中点击“进入纸面观察”或“启动任务”。</div>';
 }
 
 function renderStrategies(strategies) {
@@ -681,7 +773,7 @@ function renderAudit(events) {
 }
 
 async function refreshAll() {
-  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts] = await Promise.all([
+  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks] = await Promise.all([
     getJson("/api/strategies"),
     getJson("/api/reports"),
     getJson("/api/mobile/status"),
@@ -690,6 +782,7 @@ async function refreshAll() {
     getJson("/api/exchanges"),
     getJson("/api/strategy-slots"),
     getJson("/api/strategy-artifacts"),
+    getJson("/api/paper-observation-tasks"),
   ]);
   const strategyItems = strategies.strategies || [];
   const reportItems = reports.reports || [];
@@ -701,6 +794,7 @@ async function refreshAll() {
   renderExchanges(exchanges.sources || [], mobile);
   renderStrategySlots(slots.slots || []);
   renderStrategyArtifacts(artifacts);
+  renderPaperObservationTasks(paperTasks);
   renderMobileConnectionInfo(connection);
   el("mobilePreview").textContent = JSON.stringify(mobile, null, 2);
 }

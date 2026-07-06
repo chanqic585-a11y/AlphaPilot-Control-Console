@@ -284,3 +284,26 @@ Safety boundary:
 - This version does not add Trade API, Withdraw API, raw API key storage, real
   account reads, real position reads, order creation, dry-run execution, live
   trading, or automatic trading.
+
+## V13.7.7 Paper Observation Task Flow
+
+V13.7.7 turns reviewed strategy artifacts into local paper-observation tasks.
+
+What changed:
+
+- Added local paper-observation task state in `data/console_state.json`.
+- Added `GET /api/paper-observation-tasks` for the desktop and phone consoles.
+- Added `POST /api/paper-observation-task` for desktop-only task updates:
+  planned, active, paused, completed, and rejected.
+- Selecting `paper_observation` in the artifact review workflow automatically
+  creates or refreshes a local observation task.
+- Added a desktop `纸面观察任务` panel with task counts, progress, target sample
+  counts, observation days, win rate, profit factor, and update time.
+- Expanded `/api/mobile/status` with a compact `paperObservationTasks` payload.
+
+Safety boundary:
+
+- Paper-observation tasks are local research workflow records only.
+- They do not create orders, read real positions, read real accounts, access
+  private exchange endpoints, use API keys, run exchange Dry-run, run live
+  trading, or enable automatic trading.

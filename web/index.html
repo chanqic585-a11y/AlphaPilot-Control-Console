@@ -29,6 +29,9 @@
           <a class="rail-item" href="#artifacts" title="策略资产" aria-label="策略资产">
             <span class="nav-key">C</span><span>策略资产</span>
           </a>
+          <a class="rail-item" href="#observationTasks" title="观察任务" aria-label="观察任务">
+            <span class="nav-key">O</span><span>观察任务</span>
+          </a>
           <a class="rail-item" href="#exchanges" title="公共行情" aria-label="公共行情">
             <span class="nav-key">M</span><span>公共行情</span>
           </a>
@@ -360,6 +363,36 @@
             </div>
             <div id="reportList" class="list"></div>
           </section>
+        </section>
+
+        <section id="observationTasks" class="panel observation-task-panel">
+          <div class="section-header">
+            <div>
+              <p class="panel-eyebrow">PAPER OBSERVATION TASKS</p>
+              <h2>纸面观察任务</h2>
+              <p>把进入纸面观察的策略候选整理成任务流，只记录研究观察进度，不创建订单。</p>
+            </div>
+            <span class="status-pill danger">执行能力关闭</span>
+          </div>
+          <div class="metric-grid">
+            <div class="metric-cell">
+              <span>任务总数</span>
+              <strong id="paperTaskTotal">--</strong>
+            </div>
+            <div class="metric-cell">
+              <span>观察中</span>
+              <strong id="paperTaskActive">--</strong>
+            </div>
+            <div class="metric-cell">
+              <span>已暂停</span>
+              <strong id="paperTaskPaused">--</strong>
+            </div>
+            <div class="metric-cell">
+              <span>已完成</span>
+              <strong id="paperTaskCompleted">--</strong>
+            </div>
+          </div>
+          <div id="paperObservationTaskList" class="paper-task-list"></div>
         </section>
 
         <section id="exchanges" class="panel">

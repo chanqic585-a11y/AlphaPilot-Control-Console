@@ -589,6 +589,10 @@ small {
   border-color: rgba(24, 211, 166, 0.24);
 }
 
+.observation-task-panel {
+  border-color: rgba(255, 209, 61, 0.25);
+}
+
 .runtime-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -841,6 +845,78 @@ small {
   background: #121a22;
   border-color: var(--line-strong);
   color: var(--text);
+}
+
+.paper-task-actions {
+  display: grid;
+  grid-template-columns: minmax(170px, 0.8fr) minmax(170px, 0.8fr) minmax(220px, 1fr) repeat(4, auto);
+  gap: 8px;
+  border: 1px solid rgba(255, 209, 61, 0.18);
+  border-top: 0;
+  background: #0a1015;
+  padding: 10px 14px;
+}
+
+.paper-task-actions input {
+  min-width: 0;
+}
+
+.paper-task-actions button[data-task-status="active"] {
+  background: var(--green);
+  border-color: var(--green);
+}
+
+.paper-task-actions button[data-task-status="paused"],
+.paper-task-actions button[data-task-status="completed"],
+.paper-task-actions button[data-task-status="rejected"] {
+  background: #121a22;
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+.paper-task-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.paper-task-row {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.25fr) repeat(4, minmax(120px, 0.6fr));
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #0a1015;
+  padding: 12px;
+}
+
+.paper-task-row strong,
+.paper-task-row span,
+.paper-task-row small {
+  display: block;
+}
+
+.paper-task-row span,
+.paper-task-row small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.paper-task-progress {
+  min-height: 7px;
+  border-radius: 999px;
+  background: #111a22;
+  border: 1px solid var(--line);
+  overflow: hidden;
+  margin-top: 6px;
+}
+
+.paper-task-progress i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--green), var(--gold));
 }
 
 .artifact-row {
@@ -1100,7 +1176,7 @@ code {
 
   .rail-nav {
     grid-auto-flow: column;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-columns: repeat(8, minmax(0, 1fr));
     justify-content: stretch;
     overflow-x: auto;
   }
@@ -1143,7 +1219,9 @@ code {
     .artifact-score-grid,
     .artifact-checklist-grid,
     .artifact-review-actions,
+    .paper-task-actions,
     .artifact-row,
+    .paper-task-row,
     .exchange-grid,
   .slot-grid,
   .mobile-helper,

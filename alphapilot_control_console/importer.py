@@ -14,8 +14,8 @@ from .state_store import (
     write_mobile_status,
 )
 
-CONTROL_CONSOLE_VERSION = "V13.7.6"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_6"
+CONTROL_CONSOLE_VERSION = "V13.7.7"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_7"
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -199,7 +199,7 @@ def _build_artifact_score_breakdown(artifact: dict[str, Any]) -> dict[str, Any]:
         baseline_comparison = "return_available_without_baseline"
 
     return {
-        "method": "console_explain_only_v13_7_6",
+        "method": "console_explain_only_v13_7_7",
         "researchScore": artifact.get("researchScore"),
         "winRateContribution": round(win_rate_contribution, 2),
         "rewardRiskContribution": round(reward_risk_contribution, 2),
@@ -238,6 +238,40 @@ def _build_paper_observation_checklist(artifact: dict[str, Any], review: dict[st
     }
 
 
+def _build_paper_observation_task_view(
+    artifact: dict[str, Any],
+    task: dict[str, Any] | None,
+    checklist: dict[str, Any],
+) -> dict[str, Any]:
+    metrics = artifact.get("metrics") if isinstance(artifact.get("metrics"), dict) else {}
+    sample_count = int(_metric_value(metrics, "sampleCount", "tradeCount", "filledSignalCount") or 0)
+    task = task if isinstance(task, dict) else {}
+    target_sample_count = int(task.get("targetSampleCount") or checklist.get("targetSampleCount") or 50)
+    task_status = str(task.get("taskStatus") or "planned")
+    return {
+        "taskId": task.get("taskId"),
+        "artifactId": artifact.get("artifactId"),
+        "taskStatus": task_status,
+        "taskLabel": task.get("taskLabel") or {
+            "planned": "计划中",
+            "active": "观察中",
+            "paused": "已暂停",
+            "completed": "已完成",
+            "rejected": "已淘汰",
+        }.get(task_status, task_status),
+        "currentSampleCount": sample_count,
+        "targetSampleCount": target_sample_count,
+        "progressPct": round(_clamp(sample_count / target_sample_count * 100 if target_sample_count else 0, 0, 100), 2),
+        "observationDays": int(task.get("observationDays") or 60),
+        "startedAt": task.get("startedAt"),
+        "completedAt": task.get("completedAt"),
+        "updatedAt": task.get("updatedAt"),
+        "note": task.get("note") or "",
+        "source": task.get("source") or CONTROL_CONSOLE_SOURCE,
+        "safetyNote": "Observation tasks are local research workflow records only. They do not create orders.",
+    }
+
+
 def _default_artifact_review(artifact_id: str) -> dict[str, Any]:
     return {
         "artifactId": artifact_id,
@@ -257,8 +291,24 @@ def _review_status_counts(artifacts: list[dict[str, Any]]) -> dict[str, int]:
     return counts
 
 
+def _task_status_counts(artifacts: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {
+        "planned": 0,
+        "active": 0,
+        "paused": 0,
+        "completed": 0,
+        "rejected": 0,
+    }
+    for artifact in artifacts:
+        task = artifact.get("paperObservationTask") if isinstance(artifact.get("paperObservationTask"), dict) else {}
+        status = str(task.get("taskStatus") or "planned")
+        counts[status] = counts.get(status, 0) + 1
+    return counts
+
+
 def _apply_artifact_reviews(index: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:
     reviews = state.get("artifactReviews") if isinstance(state.get("artifactReviews"), dict) else {}
+    tasks = state.get("paperObservationTasks") if isinstance(state.get("paperObservationTasks"), dict) else {}
     all_items: list[dict[str, Any]] = []
     for key in ("artifacts", "topArtifacts"):
         rows = index.get(key)
@@ -279,13 +329,19 @@ def _apply_artifact_reviews(index: dict[str, Any], state: dict[str, Any]) -> dic
             item["reviewedAt"] = review.get("reviewedAt")
             item["reviewSource"] = review.get("source") or CONTROL_CONSOLE_SOURCE
             item["scoreBreakdown"] = _build_artifact_score_breakdown(item)
-            item["paperObservationChecklist"] = _build_paper_observation_checklist(item, review)
+            checklist = _build_paper_observation_checklist(item, review)
+            item["paperObservationChecklist"] = checklist
+            task = tasks.get(artifact_id) if isinstance(tasks.get(artifact_id), dict) else None
+            item["paperObservationTask"] = _build_paper_observation_task_view(item, task, checklist)
             all_items.append(item)
     artifacts = index.get("artifacts") if isinstance(index.get("artifacts"), list) else all_items
     summary = index.get("summary") if isinstance(index.get("summary"), dict) else {}
     review_counts = _review_status_counts([item for item in artifacts if isinstance(item, dict)])
+    task_counts = _task_status_counts([item for item in artifacts if isinstance(item, dict)])
     summary["reviewStatusCounts"] = review_counts
+    summary["paperObservationTaskStatusCounts"] = task_counts
     summary["manualReviewCount"] = sum(count for status, count in review_counts.items() if status != "unreviewed")
+    summary["activePaperObservationTaskCount"] = task_counts.get("active", 0)
     index["summary"] = summary
     return index
 
@@ -357,6 +413,43 @@ def _compact_strategy_artifact_index(index: dict[str, Any], limit: int = 30) -> 
         "summary": index.get("summary") if isinstance(index.get("summary"), dict) else {},
         "safetyBoundary": index.get("safetyBoundary") if isinstance(index.get("safetyBoundary"), dict) else {},
         "topArtifacts": top_artifacts[:limit],
+    }
+
+
+def _compact_paper_observation_tasks(index: dict[str, Any], limit: int = 30) -> dict[str, Any]:
+    artifacts = index.get("artifacts") if isinstance(index.get("artifacts"), list) else []
+    top_artifacts = artifacts if artifacts else index.get("topArtifacts") if isinstance(index.get("topArtifacts"), list) else []
+    tasks = []
+    for artifact in top_artifacts:
+        if not isinstance(artifact, dict):
+            continue
+        task = artifact.get("paperObservationTask") if isinstance(artifact.get("paperObservationTask"), dict) else None
+        if not task:
+            continue
+        if task.get("taskStatus") == "planned" and artifact.get("reviewStatus") != "paper_observation":
+            continue
+        tasks.append({
+            **task,
+            "title": artifact.get("title"),
+            "strategyId": artifact.get("strategyId"),
+            "version": artifact.get("version"),
+            "readinessTier": artifact.get("readinessTier"),
+            "reviewStatus": artifact.get("reviewStatus"),
+            "researchScore": artifact.get("researchScore"),
+            "metrics": artifact.get("metrics") if isinstance(artifact.get("metrics"), dict) else {},
+        })
+    return {
+        "version": index.get("version"),
+        "generatedAt": index.get("generatedAt"),
+        "source": "alphapilot_control_console_v13_7_7",
+        "summary": {
+            "totalTasks": len(tasks),
+            "activeCount": sum(1 for item in tasks if item.get("taskStatus") == "active"),
+            "pausedCount": sum(1 for item in tasks if item.get("taskStatus") == "paused"),
+            "completedCount": sum(1 for item in tasks if item.get("taskStatus") == "completed"),
+            "rejectedCount": sum(1 for item in tasks if item.get("taskStatus") == "rejected"),
+        },
+        "tasks": tasks[:limit],
     }
 
 
@@ -503,6 +596,7 @@ def build_mobile_status(payload: dict[str, Any]) -> dict[str, Any]:
         "signalTape": _compact_signal_tape(payload.get("signalTape", {})),
         "paperObservationLedger": _compact_paper_observation_ledger(payload.get("paperObservationLedger", {})),
         "strategyArtifactIndex": _compact_strategy_artifact_index(payload.get("strategyArtifactIndex", {})),
+        "paperObservationTasks": _compact_paper_observation_tasks(payload.get("strategyArtifactIndex", {})),
         "exchangeConnectivity": _mobile_exchange_connectivity(),
         "strategies": [
             {

@@ -14,8 +14,10 @@ from .mobile_connection import build_mobile_connection_info
 from .strategy_slots import list_strategy_slots
 from .state_store import (
     ALLOWED_ARTIFACT_REVIEW_STATUSES,
+    ALLOWED_PAPER_OBSERVATION_TASK_STATUSES,
     list_audit,
     update_artifact_review,
+    upsert_paper_observation_task,
     update_strategy_status,
 )
 
@@ -31,8 +33,19 @@ def _safe_int(value: object, fallback: int) -> int:
         return fallback
 
 
+def _find_artifact(index: dict, artifact_id: str) -> dict | None:
+    for key in ("artifacts", "topArtifacts"):
+        rows = index.get(key)
+        if not isinstance(rows, list):
+            continue
+        for item in rows:
+            if isinstance(item, dict) and item.get("artifactId") == artifact_id:
+                return item
+    return None
+
+
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.7.6"
+    server_version = "AlphaPilotControlConsole/13.7.7"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -73,8 +86,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.7.6",
-                "source": "alphapilot_control_console_v13_7_6",
+                "version": "V13.7.7",
+                "source": "alphapilot_control_console_v13_7_7",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -102,6 +115,23 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 "strategyArtifactIndex": payload["strategyArtifactIndex"],
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
+            return
+        if path == "/api/paper-observation-tasks":
+            payload = scan_quant_engine()
+            index = payload["strategyArtifactIndex"]
+            tasks = []
+            artifacts = index.get("artifacts") if isinstance(index.get("artifacts"), list) else []
+            for item in artifacts:
+                task = item.get("paperObservationTask") if isinstance(item.get("paperObservationTask"), dict) else None
+                if task and (task.get("taskStatus") != "planned" or item.get("reviewStatus") == "paper_observation"):
+                    tasks.append({
+                        **task,
+                        "title": item.get("title"),
+                        "strategyId": item.get("strategyId"),
+                        "version": item.get("version"),
+                        "metrics": item.get("metrics") if isinstance(item.get("metrics"), dict) else {},
+                    })
+            self._send_json({"tasks": tasks, "safetyBoundary": SAFETY_BOUNDARY})
             return
         if path == "/api/mobile/connection-info":
             self._send_json(build_mobile_connection_info(str(self.server.server_address[0]), int(self.server.server_address[1])))
@@ -158,6 +188,58 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 }, 400)
                 return
             updated = update_artifact_review(artifact_id, review_status, note)
+            latest = scan_quant_engine()
+            if review_status == "paper_observation":
+                artifact = _find_artifact(latest["strategyArtifactIndex"], artifact_id)
+                checklist = artifact.get("paperObservationChecklist", {}) if artifact else {}
+                upsert_paper_observation_task(
+                    artifact_id=artifact_id,
+                    task_status="active",
+                    note=note,
+                    target_sample_count=_safe_int(checklist.get("targetSampleCount") if isinstance(checklist, dict) else None, 50),
+                    observation_days=60,
+                    artifact=artifact,
+                )
+                latest = scan_quant_engine()
+            if review_status in {"paused", "rejected"}:
+                artifact = _find_artifact(latest["strategyArtifactIndex"], artifact_id)
+                upsert_paper_observation_task(
+                    artifact_id=artifact_id,
+                    task_status="paused" if review_status == "paused" else "rejected",
+                    note=note,
+                    artifact=artifact,
+                )
+                latest = scan_quant_engine()
+            self._send_json({
+                "updated": updated,
+                "strategyArtifactIndex": latest["strategyArtifactIndex"],
+                "safetyBoundary": SAFETY_BOUNDARY,
+            })
+            return
+        if parsed.path == "/api/paper-observation-task":
+            payload = self._read_body_json()
+            artifact_id = str(payload.get("artifactId") or "").strip()
+            task_status = str(payload.get("taskStatus") or "").strip()
+            note = str(payload.get("note") or "").strip()
+            if not artifact_id:
+                self._send_json({"error": "artifactId_required"}, 400)
+                return
+            if task_status not in ALLOWED_PAPER_OBSERVATION_TASK_STATUSES:
+                self._send_json({
+                    "error": "unsupported_task_status",
+                    "allowed": sorted(ALLOWED_PAPER_OBSERVATION_TASK_STATUSES),
+                }, 400)
+                return
+            latest = scan_quant_engine()
+            artifact = _find_artifact(latest["strategyArtifactIndex"], artifact_id)
+            updated = upsert_paper_observation_task(
+                artifact_id=artifact_id,
+                task_status=task_status,
+                note=note,
+                target_sample_count=_safe_int(payload.get("targetSampleCount"), 50),
+                observation_days=_safe_int(payload.get("observationDays"), 60),
+                artifact=artifact,
+            )
             latest = scan_quant_engine()
             self._send_json({
                 "updated": updated,
