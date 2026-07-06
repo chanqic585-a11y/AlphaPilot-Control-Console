@@ -9,16 +9,36 @@
   <body>
     <div class="app-shell">
       <aside class="side-rail" aria-label="主导航">
-        <div class="brand-mark">A</div>
+        <div class="brand-block">
+          <div class="brand-mark">A</div>
+          <div>
+            <strong>AlphaPilot</strong>
+            <span>量化控制台</span>
+          </div>
+        </div>
         <nav class="rail-nav">
-          <a class="rail-item active" href="#overview" title="系统总览" aria-label="系统总览">⌂</a>
-          <a class="rail-item" href="#command" title="策略总控" aria-label="策略总控">⌁</a>
-          <a class="rail-item" href="#exchanges" title="公共行情" aria-label="公共行情">◈</a>
-          <a class="rail-item" href="#mobile" title="手机连接" aria-label="手机连接">▣</a>
-          <a class="rail-item" href="#audit" title="审计日志" aria-label="审计日志">◎</a>
+          <a class="rail-item active" href="#overview" title="系统总览" aria-label="系统总览">
+            <span class="nav-key">D</span><span>驾驶舱</span>
+          </a>
+          <a class="rail-item" href="#command" title="策略总控" aria-label="策略总控">
+            <span class="nav-key">S</span><span>策略总控</span>
+          </a>
+          <a class="rail-item" href="#exchanges" title="公共行情" aria-label="公共行情">
+            <span class="nav-key">M</span><span>公共行情</span>
+          </a>
+          <a class="rail-item" href="#mobile" title="手机连接" aria-label="手机连接">
+            <span class="nav-key">P</span><span>手机控制台</span>
+          </a>
+          <a class="rail-item" href="#audit" title="审计日志" aria-label="审计日志">
+            <span class="nav-key">A</span><span>审计日志</span>
+          </a>
         </nav>
         <div class="rail-footer">
-          <span>本地</span>
+          <div class="rail-status-dot"></div>
+          <div>
+            <strong>系统运行中</strong>
+            <span>本地只读 · 实盘关闭</span>
+          </div>
         </div>
       </aside>
 
@@ -26,8 +46,8 @@
         <header class="topbar">
           <div>
             <p class="kicker">QUANT CONTROL TERMINAL</p>
-            <h1>AlphaPilot 控制台</h1>
-            <p class="subtitle">策略、信号、模拟持仓与回测结果的本地研究面板。</p>
+            <h1>AlphaPilot 量化控制台</h1>
+            <p class="subtitle">把策略、信号、模拟持仓、回测结果和手机连接放在一张本地总控台里。</p>
           </div>
           <div class="top-status">
             <span class="status-pill ok">本地记录模式</span>
@@ -37,7 +57,7 @@
         </header>
 
         <section class="safety">
-          <strong>仅用于研究控制。</strong>
+          <strong>控制台只负责观察和研究。</strong>
           不保存 API Key，不接 Trade API，不接 Withdraw API，不读取真实账户，不读取真实持仓，不创建订单，不自动交易。
         </section>
 
@@ -106,7 +126,7 @@
             <div>
               <p class="panel-eyebrow">ONE SCREEN MATRIX</p>
               <h2>策略 / 信号 / 模拟持仓 / 回测结果</h2>
-              <p>这个面板只汇总本地研究记录，不创建真实订单。</p>
+              <p>策略、信号、模拟持仓和回测指标集中在这里；所有交易执行能力保持关闭。</p>
             </div>
             <div class="actions">
               <button id="refreshButton" type="button">刷新状态</button>

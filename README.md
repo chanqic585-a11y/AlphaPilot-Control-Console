@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.6.5 - Chinese Quant Terminal UI
+AlphaPilot V13.6.6 - Desktop and Mobile Command Console UI Polish
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -51,6 +51,17 @@ position access, order creation, exchange Dry-run, live trading, or automation.
 - Uses a research-terminal style inspired by professional trading dashboards without adding an order panel.
 
 V13.6.5 does not add API key input, private exchange access, account access,
+position access, order creation, exchange Dry-run, live trading, or automation.
+
+## What V13.6.6 Adds
+
+- Refines the desktop Control Console into a clearer Chinese quant command terminal.
+- Expands the left navigation from icon-only rail to labeled cockpit modules.
+- Improves the one-screen command matrix for strategy, signal, simulated position context, and backtest metrics.
+- Aligns the mobile app control-console page with the same dark terminal style.
+- Keeps mobile focused on current strategy, signal count, simulated PnL context, backtest metrics, public connectivity, and execution locks.
+
+V13.6.6 does not add API key input, private exchange access, account access,
 position access, order creation, exchange Dry-run, live trading, or automation.
 
 ## What V13.6 Does Not Do

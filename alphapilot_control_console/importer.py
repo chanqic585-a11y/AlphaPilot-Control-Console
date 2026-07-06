@@ -167,8 +167,8 @@ def scan_quant_engine() -> dict[str, Any]:
         strategy["consoleUpdatedAt"] = override.get("updatedAt")
 
     payload = {
-        "version": "V13.6.5",
-        "source": "alphapilot_control_console_v13_6_5",
+        "version": "V13.6.6",
+        "source": "alphapilot_control_console_v13_6_6",
         "quantEnginePath": str(quant_path),
         "quantEngineAvailable": quant_path.exists(),
         "reportsDirAvailable": reports_dir.exists(),

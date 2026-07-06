@@ -63,8 +63,8 @@ def build_mobile_connection_info(host: str, port: int) -> dict:
     if not server_lan_visible:
         notes.insert(0, "The console is currently bound to localhost only. Restart with scripts/start_console.ps1 -Mobile for phone testing.")
     return {
-        "version": "V13.6.5",
-        "source": "alphapilot_control_console_v13_6_5",
+        "version": "V13.6.6",
+        "source": "alphapilot_control_console_v13_6_6",
         "generatedAt": now_iso(),
         "serverHost": host,
         "serverPort": port,
