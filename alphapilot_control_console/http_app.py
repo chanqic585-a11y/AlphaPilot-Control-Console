@@ -12,7 +12,12 @@ from .exchange_connectors.public_exchange_registry import list_public_exchange_s
 from .importer import build_mobile_status, import_now, scan_quant_engine
 from .mobile_connection import build_mobile_connection_info
 from .strategy_slots import list_strategy_slots
-from .state_store import list_audit, update_strategy_status
+from .state_store import (
+    ALLOWED_ARTIFACT_REVIEW_STATUSES,
+    list_audit,
+    update_artifact_review,
+    update_strategy_status,
+)
 
 
 def _json_bytes(payload: object) -> bytes:
@@ -27,7 +32,7 @@ def _safe_int(value: object, fallback: int) -> int:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.7.5"
+    server_version = "AlphaPilotControlConsole/13.7.6"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -68,8 +73,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.7.5",
-                "source": "alphapilot_control_console_v13_7_5",
+                "version": "V13.7.6",
+                "source": "alphapilot_control_console_v13_7_6",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -137,6 +142,28 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 return
             updated = update_strategy_status(strategy_id, status, note)
             self._send_json({"updated": updated, "safetyBoundary": SAFETY_BOUNDARY})
+            return
+        if parsed.path == "/api/strategy-artifact-review":
+            payload = self._read_body_json()
+            artifact_id = str(payload.get("artifactId") or "").strip()
+            review_status = str(payload.get("reviewStatus") or "").strip()
+            note = str(payload.get("note") or "").strip()
+            if not artifact_id:
+                self._send_json({"error": "artifactId_required"}, 400)
+                return
+            if review_status not in ALLOWED_ARTIFACT_REVIEW_STATUSES:
+                self._send_json({
+                    "error": "unsupported_review_status",
+                    "allowed": sorted(ALLOWED_ARTIFACT_REVIEW_STATUSES),
+                }, 400)
+                return
+            updated = update_artifact_review(artifact_id, review_status, note)
+            latest = scan_quant_engine()
+            self._send_json({
+                "updated": updated,
+                "strategyArtifactIndex": latest["strategyArtifactIndex"],
+                "safetyBoundary": SAFETY_BOUNDARY,
+            })
             return
         if parsed.path == "/api/exchanges/probe-public":
             payload = self._read_body_json()

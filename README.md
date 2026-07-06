@@ -257,3 +257,30 @@ Safety boundary:
 - It does not add Trade API, Withdraw API, raw API key storage, real account
   reads, real position reads, order creation, dry-run execution, live trading,
   or automatic trading.
+
+## V13.7.6 Strategy Candidate Review Workbench
+
+V13.7.6 adds a local strategy candidate review workbench on top of the Strategy
+Artifact Center.
+
+What changed:
+
+- Added local artifact review labels: unreviewed, continue observing, paper
+  observation, paused, and rejected.
+- Added `POST /api/strategy-artifact-review` for saving desktop-only review
+  notes and labels to the local console state.
+- Added score explanation fields for win-rate contribution, reward/risk
+  contribution, sample-size penalty, drawdown penalty, stability penalty, and
+  baseline comparison.
+- Added a paper-observation checklist with start time, target sample count,
+  current sample count, progress, and required review checks.
+- Expanded `/api/mobile/status` so the phone can display review status and
+  paper-observation checklist data in read-only mode.
+
+Safety boundary:
+
+- Review labels are local research metadata only.
+- Paper observation is a checklist, not an order flow.
+- This version does not add Trade API, Withdraw API, raw API key storage, real
+  account reads, real position reads, order creation, dry-run execution, live
+  trading, or automatic trading.

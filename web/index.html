@@ -286,7 +286,7 @@
               <strong id="artifactWatchlist">--</strong>
             </div>
             <div class="metric-cell">
-              <span>需要复核</span>
+              <span>人工复核</span>
               <strong id="artifactNeedsReview">--</strong>
             </div>
           </div>
@@ -308,6 +308,17 @@
                 <option value="needs_review">需要复核</option>
                 <option value="archived_or_failed">归档 / 失败</option>
                 <option value="blocked_by_safety_review">安全复核阻断</option>
+              </select>
+            </label>
+            <label>
+              <span>复核状态</span>
+              <select id="artifactReviewFilter" autocomplete="off">
+                <option value="all">全部复核</option>
+                <option value="unreviewed">未复核</option>
+                <option value="continue_observing">继续观察</option>
+                <option value="paper_observation">纸面观察</option>
+                <option value="paused">暂停</option>
+                <option value="rejected">淘汰</option>
               </select>
             </label>
             <label>

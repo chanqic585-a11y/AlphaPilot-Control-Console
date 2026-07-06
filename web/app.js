@@ -20,6 +20,26 @@ const statusLabels = {
   not_probed: "未探测",
 };
 
+const artifactReviewLabels = {
+  unreviewed: "未复核",
+  continue_observing: "继续观察",
+  paper_observation: "纸面观察",
+  paused: "暂停",
+  rejected: "淘汰",
+};
+
+const baselineComparisonLabels = {
+  above_baseline: "高于基线",
+  below_baseline: "低于基线",
+  return_available_without_baseline: "有收益数据，缺基线",
+  not_available: "缺少基线",
+};
+
+const checklistStatusLabels = {
+  active: "观察中",
+  not_started: "未开始",
+};
+
 const readinessLabels = {
   local_paper_review_ready: "本地模拟复核就绪",
   research_observer_ready: "研究观察就绪",
@@ -51,6 +71,7 @@ let selectedArtifactId = null;
 const artifactFilters = {
   search: "",
   tier: "all",
+  reviewStatus: "all",
   sort: "tier_score",
 };
 
@@ -260,6 +281,23 @@ function tArtifactTier(value) {
   return labels[value] || value || "--";
 }
 
+function tArtifactReview(value) {
+  return artifactReviewLabels[value] || value || "未复核";
+}
+
+function artifactReviewBadge(value) {
+  const normalized = String(value || "unreviewed");
+  let kind = "";
+  if (normalized === "paper_observation" || normalized === "continue_observing") kind = "ok";
+  if (normalized === "unreviewed" || normalized === "paused") kind = "warn";
+  if (normalized === "rejected") kind = "danger";
+  return `<span class="badge ${kind}">${tArtifactReview(normalized)}</span>`;
+}
+
+function tBaselineComparison(value) {
+  return baselineComparisonLabels[value] || value || "--";
+}
+
 function artifactBadge(value) {
   const normalized = String(value ?? "--");
   let kind = "";
@@ -296,6 +334,7 @@ function filterAndSortArtifacts(index) {
   const query = artifactFilters.search.trim().toLowerCase();
   const rows = getArtifactRows(index).filter((item) => {
     if (artifactFilters.tier !== "all" && item.readinessTier !== artifactFilters.tier) return false;
+    if (artifactFilters.reviewStatus !== "all" && (item.reviewStatus || "unreviewed") !== artifactFilters.reviewStatus) return false;
     if (!query) return true;
     return [
       item.title,
@@ -339,6 +378,8 @@ function renderArtifactDetail(item) {
   }
   const metrics = item.metrics || {};
   const reasons = Array.isArray(item.readinessReasons) ? item.readinessReasons : [];
+  const score = item.scoreBreakdown || {};
+  const checklist = item.paperObservationChecklist || {};
   el("artifactDetail").innerHTML = `
     <div class="artifact-detail-main">
       <div>
@@ -348,6 +389,7 @@ function renderArtifactDetail(item) {
       </div>
       <div class="artifact-detail-status">
         ${artifactBadge(item.readinessTier)}
+        ${artifactReviewBadge(item.reviewStatus)}
         <span class="status-pill neutral">评分 ${formatNumber(item.researchScore, 0)}</span>
       </div>
     </div>
@@ -361,6 +403,26 @@ function renderArtifactDetail(item) {
       <div><span>纸面观察</span><strong>${item.paperObservationEligible ? "可观察" : "不可观察"}</strong></div>
       <div><span>实盘权限</span><strong>${item.liveTradingApproved ? "异常开启" : "关闭"}</strong></div>
     </div>
+    <div class="artifact-score-grid">
+      <div><span>胜率贡献</span><strong>${formatNumber(score.winRateContribution, 1)}</strong></div>
+      <div><span>盈亏比贡献</span><strong>${formatNumber(score.rewardRiskContribution, 1)}</strong></div>
+      <div><span>样本惩罚</span><strong>${formatNumber(score.sampleSizePenalty, 1)}</strong></div>
+      <div><span>回撤惩罚</span><strong>${formatNumber(score.drawdownPenalty, 1)}</strong></div>
+      <div><span>基线对比</span><strong>${tBaselineComparison(score.baselineComparison)}</strong></div>
+    </div>
+    <div class="artifact-checklist-grid">
+      <div><span>观察状态</span><strong>${checklistStatusLabels[checklist.status] || checklist.status || "--"}</strong></div>
+      <div><span>开始时间</span><strong>${formatDate(checklist.startAt)}</strong></div>
+      <div><span>样本进度</span><strong>${checklist.currentSampleCount ?? "--"} / ${checklist.targetSampleCount ?? "--"}</strong></div>
+      <div><span>进度</span><strong>${formatPercent(checklist.progressPct)}</strong></div>
+    </div>
+    <div class="artifact-review-actions">
+      <input id="artifactReviewNote" value="${escapeHtml(item.reviewNote || "")}" placeholder="复核备注，只保存在本地，不会触发交易…" autocomplete="off" />
+      <button type="button" data-review-status="continue_observing">继续观察</button>
+      <button type="button" data-review-status="paper_observation">进入纸面观察</button>
+      <button type="button" data-review-status="paused">暂停</button>
+      <button type="button" data-review-status="rejected">淘汰</button>
+    </div>
     <div class="artifact-detail-note">
       <strong>建议动作</strong>
       <span>${escapeHtml(item.recommendedAction || "本地研究资产，不代表交易指令。")}</span>
@@ -369,7 +431,33 @@ function renderArtifactDetail(item) {
       <strong>候选原因</strong>
       <span>${reasons.length ? reasons.map(escapeHtml).join(" / ") : "未记录额外原因"}</span>
     </div>
+    <div class="artifact-detail-note">
+      <strong>复核备注</strong>
+      <span>${escapeHtml(item.reviewNote || "暂无复核备注。")}</span>
+    </div>
+    <div class="artifact-detail-note">
+      <strong>纸面观察清单</strong>
+      <span>${Array.isArray(checklist.requiredChecks) ? checklist.requiredChecks.map(escapeHtml).join(" / ") : "等待复核。"} ${escapeHtml(checklist.safetyNote || "")}</span>
+    </div>
   `;
+  el("artifactDetail").querySelectorAll("[data-review-status]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const reviewStatus = button.getAttribute("data-review-status");
+      const note = el("artifactReviewNote")?.value || "";
+      button.disabled = true;
+      try {
+        const response = await postJson("/api/strategy-artifact-review", {
+          artifactId: item.artifactId,
+          reviewStatus,
+          note,
+        });
+        latestArtifactIndex = response.strategyArtifactIndex || latestArtifactIndex;
+        await refreshAll();
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
 }
 
 function renderStrategyArtifacts(indexPayload) {
@@ -382,7 +470,7 @@ function renderStrategyArtifacts(indexPayload) {
   el("artifactTotal").textContent = summary.totalArtifacts ?? "--";
   el("artifactPaperReady").textContent = summary.paperObservationReadyCount ?? "--";
   el("artifactWatchlist").textContent = summary.researchWatchlistCount ?? "--";
-  el("artifactNeedsReview").textContent = summary.needsReviewCount ?? "--";
+  el("artifactNeedsReview").textContent = summary.manualReviewCount ?? summary.needsReviewCount ?? "--";
   el("artifactGeneratedAt").textContent = formatDate(index.generatedAt);
   el("artifactResultLine").textContent = `当前显示 ${artifacts.length}/${allArtifacts.length} 个策略资产，排序：${el("artifactSort")?.selectedOptions?.[0]?.textContent || "候选优先"}`;
 
@@ -400,7 +488,10 @@ function renderStrategyArtifacts(indexPayload) {
           <strong>${escapeHtml(item.title || item.strategyId || "--")}</strong>
           <small>${escapeHtml(item.version || "--")} · ${escapeHtml(item.sourceFile || "--")}</small>
         </div>
-        <div>${artifactBadge(item.readinessTier)}</div>
+        <div>
+          ${artifactBadge(item.readinessTier)}
+          ${artifactReviewBadge(item.reviewStatus)}
+        </div>
         <div class="artifact-metrics">
           <span>样本 ${metrics.sampleCount ?? "--"}</span>
           <span>胜率 ${formatPercent(metrics.winRatePct)}</span>
@@ -684,6 +775,11 @@ el("artifactSearch").addEventListener("input", (event) => {
 });
 el("artifactTierFilter").addEventListener("change", (event) => {
   artifactFilters.tier = event.target.value || "all";
+  selectedArtifactId = null;
+  renderStrategyArtifacts(latestArtifactIndex);
+});
+el("artifactReviewFilter").addEventListener("change", (event) => {
+  artifactFilters.reviewStatus = event.target.value || "all";
   selectedArtifactId = null;
   renderStrategyArtifacts(latestArtifactIndex);
 });

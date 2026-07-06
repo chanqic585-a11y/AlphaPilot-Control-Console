@@ -683,7 +683,7 @@ small {
 
 .artifact-controls {
   display: grid;
-  grid-template-columns: minmax(240px, 1.4fr) minmax(180px, 0.8fr) minmax(180px, 0.8fr);
+  grid-template-columns: minmax(240px, 1.3fr) minmax(170px, 0.75fr) minmax(170px, 0.75fr) minmax(170px, 0.75fr);
   gap: 10px;
   margin-top: 12px;
 }
@@ -777,9 +777,75 @@ small {
   margin-bottom: 4px;
 }
 
+.artifact-score-grid,
+.artifact-checklist-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1px;
+  border: 1px solid rgba(255, 209, 61, 0.18);
+  border-top: 0;
+  background: var(--line);
+}
+
+.artifact-checklist-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.artifact-score-grid div,
+.artifact-checklist-grid div {
+  min-height: 64px;
+  background: #0a1015;
+  padding: 10px;
+}
+
+.artifact-score-grid span,
+.artifact-checklist-grid span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.artifact-score-grid strong,
+.artifact-checklist-grid strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--text);
+  font-size: 17px;
+}
+
+.artifact-review-actions {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) repeat(4, auto);
+  gap: 8px;
+  border: 1px solid rgba(24, 211, 166, 0.18);
+  border-top: 0;
+  background: #0a1015;
+  padding: 10px 14px;
+}
+
+.artifact-review-actions input {
+  min-width: 0;
+}
+
+.artifact-review-actions button {
+  white-space: nowrap;
+}
+
+.artifact-review-actions button[data-review-status="paper_observation"] {
+  background: var(--green);
+  border-color: var(--green);
+}
+
+.artifact-review-actions button[data-review-status="paused"],
+.artifact-review-actions button[data-review-status="rejected"] {
+  background: #121a22;
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
 .artifact-row {
   display: grid;
-  grid-template-columns: minmax(240px, 1.4fr) minmax(140px, 0.5fr) minmax(360px, 1.4fr) minmax(220px, 1fr);
+  grid-template-columns: minmax(240px, 1.35fr) minmax(210px, 0.8fr) minmax(360px, 1.35fr) minmax(220px, 1fr);
   gap: 12px;
   align-items: center;
   width: 100%;
@@ -1074,6 +1140,9 @@ code {
     .artifact-controls,
     .artifact-detail-main,
     .artifact-detail-grid,
+    .artifact-score-grid,
+    .artifact-checklist-grid,
+    .artifact-review-actions,
     .artifact-row,
     .exchange-grid,
   .slot-grid,

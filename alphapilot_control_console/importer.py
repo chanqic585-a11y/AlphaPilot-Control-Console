@@ -5,10 +5,17 @@ from pathlib import Path
 from typing import Any
 
 from .config import SAFETY_BOUNDARY, get_quant_engine_path
-from .state_store import append_audit, load_state, now_iso, read_exchange_probe_results, write_mobile_status
+from .state_store import (
+    ARTIFACT_REVIEW_LABELS,
+    append_audit,
+    load_state,
+    now_iso,
+    read_exchange_probe_results,
+    write_mobile_status,
+)
 
-CONTROL_CONSOLE_VERSION = "V13.7.5"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_5"
+CONTROL_CONSOLE_VERSION = "V13.7.6"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_6"
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -138,6 +145,151 @@ def _strategy_from_alpha191_report(report: dict[str, Any], path: Path) -> dict[s
     }
 
 
+def _metric_number(metrics: dict[str, Any], key: str) -> float | None:
+    value = metrics.get(key)
+    try:
+        number_value = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number_value
+
+
+def _metric_value(metrics: dict[str, Any], *keys: str) -> float | None:
+    for key in keys:
+        value = _metric_number(metrics, key)
+        if value is not None:
+            return value
+    return None
+
+
+def _clamp(value: float, lower: float, upper: float) -> float:
+    return max(lower, min(upper, value))
+
+
+def _build_artifact_score_breakdown(artifact: dict[str, Any]) -> dict[str, Any]:
+    metrics = artifact.get("metrics") if isinstance(artifact.get("metrics"), dict) else {}
+    sample_count = _metric_value(metrics, "sampleCount", "tradeCount", "filledSignalCount") or 0
+    win_rate = _metric_value(metrics, "winRatePct")
+    reward_risk = _metric_value(metrics, "rewardRiskRatio")
+    drawdown = _metric_value(metrics, "maxDrawdownPct")
+    profit_factor = _metric_value(metrics, "profitFactor")
+    total_return = _metric_value(metrics, "totalReturnPct")
+    baseline_delta = _metric_value(
+        metrics,
+        "baselineReturnDeltaPct",
+        "excessReturnPct",
+        "vsBuyHoldReturnPct",
+        "alphaReturnPct",
+    )
+
+    win_rate_contribution = _clamp(((win_rate or 0) - 45) * 1.1, 0, 25)
+    reward_risk_contribution = _clamp((reward_risk or 0) / 2 * 25, 0, 25)
+    sample_size_penalty = 0 if sample_count >= 50 else _clamp((50 - sample_count) / 50 * 18, 0, 18)
+    drawdown_penalty = 0 if drawdown is None or drawdown <= 12 else _clamp((drawdown - 12) * 0.8, 0, 18)
+    stability_penalty = 0
+    if artifact.get("readinessTier") in {"needs_review", "archived_or_failed", "blocked_by_safety_review"}:
+        stability_penalty += 12
+    if profit_factor is None or profit_factor < 1:
+        stability_penalty += 8
+
+    baseline_comparison = "not_available"
+    if baseline_delta is not None:
+        baseline_comparison = "above_baseline" if baseline_delta > 0 else "below_baseline"
+    elif total_return is not None:
+        baseline_comparison = "return_available_without_baseline"
+
+    return {
+        "method": "console_explain_only_v13_7_6",
+        "researchScore": artifact.get("researchScore"),
+        "winRateContribution": round(win_rate_contribution, 2),
+        "rewardRiskContribution": round(reward_risk_contribution, 2),
+        "sampleSizePenalty": round(sample_size_penalty, 2),
+        "drawdownPenalty": round(drawdown_penalty, 2),
+        "stabilityPenalty": round(stability_penalty, 2),
+        "baselineComparison": baseline_comparison,
+        "baselineDeltaPct": baseline_delta,
+        "notes": [
+            "Score explanation is a local review aid, not a profit probability.",
+            "Low sample size, high drawdown, weak PF, or safety blocks should slow down observation.",
+            "Paper observation status is a manual research label and does not create orders.",
+        ],
+    }
+
+
+def _build_paper_observation_checklist(artifact: dict[str, Any], review: dict[str, Any]) -> dict[str, Any]:
+    metrics = artifact.get("metrics") if isinstance(artifact.get("metrics"), dict) else {}
+    sample_count = int(_metric_value(metrics, "sampleCount", "tradeCount", "filledSignalCount") or 0)
+    target_sample_count = 30 if sample_count < 30 else max(sample_count + 20, 50)
+    status = str(review.get("reviewStatus") or "unreviewed")
+    return {
+        "status": "active" if status == "paper_observation" else "not_started",
+        "startAt": review.get("reviewedAt") if status == "paper_observation" else None,
+        "observationPeriod": "next_30_to_60_calendar_days",
+        "currentSampleCount": sample_count,
+        "targetSampleCount": target_sample_count,
+        "progressPct": round(_clamp(sample_count / target_sample_count * 100 if target_sample_count else 0, 0, 100), 2),
+        "requiredChecks": [
+            "Confirm signal sample count and data freshness.",
+            "Confirm risk/reward remains near 2R research target.",
+            "Confirm drawdown and losing streak remain acceptable.",
+            "Record paper observations only; do not create real orders.",
+        ],
+        "safetyNote": "Paper observation is a research checklist only. Trade API, orders, and automatic execution remain disabled.",
+    }
+
+
+def _default_artifact_review(artifact_id: str) -> dict[str, Any]:
+    return {
+        "artifactId": artifact_id,
+        "reviewStatus": "unreviewed",
+        "reviewLabel": ARTIFACT_REVIEW_LABELS["unreviewed"],
+        "reviewNote": "",
+        "reviewedAt": None,
+        "source": CONTROL_CONSOLE_SOURCE,
+    }
+
+
+def _review_status_counts(artifacts: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {status: 0 for status in ARTIFACT_REVIEW_LABELS}
+    for artifact in artifacts:
+        status = str(artifact.get("reviewStatus") or "unreviewed")
+        counts[status] = counts.get(status, 0) + 1
+    return counts
+
+
+def _apply_artifact_reviews(index: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:
+    reviews = state.get("artifactReviews") if isinstance(state.get("artifactReviews"), dict) else {}
+    all_items: list[dict[str, Any]] = []
+    for key in ("artifacts", "topArtifacts"):
+        rows = index.get(key)
+        if not isinstance(rows, list):
+            continue
+        for item in rows:
+            if not isinstance(item, dict):
+                continue
+            artifact_id = str(item.get("artifactId") or item.get("strategyId") or item.get("reportId") or "").strip()
+            if not artifact_id:
+                continue
+            item["artifactId"] = artifact_id
+            review = reviews.get(artifact_id) if isinstance(reviews.get(artifact_id), dict) else _default_artifact_review(artifact_id)
+            status = str(review.get("reviewStatus") or "unreviewed")
+            item["reviewStatus"] = status
+            item["reviewLabel"] = ARTIFACT_REVIEW_LABELS.get(status, ARTIFACT_REVIEW_LABELS["unreviewed"])
+            item["reviewNote"] = str(review.get("reviewNote") or "")
+            item["reviewedAt"] = review.get("reviewedAt")
+            item["reviewSource"] = review.get("source") or CONTROL_CONSOLE_SOURCE
+            item["scoreBreakdown"] = _build_artifact_score_breakdown(item)
+            item["paperObservationChecklist"] = _build_paper_observation_checklist(item, review)
+            all_items.append(item)
+    artifacts = index.get("artifacts") if isinstance(index.get("artifacts"), list) else all_items
+    summary = index.get("summary") if isinstance(index.get("summary"), dict) else {}
+    review_counts = _review_status_counts([item for item in artifacts if isinstance(item, dict)])
+    summary["reviewStatusCounts"] = review_counts
+    summary["manualReviewCount"] = sum(count for status, count in review_counts.items() if status != "unreviewed")
+    index["summary"] = summary
+    return index
+
+
 def scan_quant_engine() -> dict[str, Any]:
     quant_path = get_quant_engine_path()
     reports_dir = quant_path / "reports"
@@ -166,6 +318,8 @@ def scan_quant_engine() -> dict[str, Any]:
     signal_tape = _read_json(reports_dir / "signal_tape.json") if reports_dir.exists() else None
     paper_observation_ledger = _read_json(reports_dir / "paper_observation_ledger.json") if reports_dir.exists() else None
     strategy_artifact_index = _read_json(reports_dir / "strategy_artifact_index.json") if reports_dir.exists() else None
+    if strategy_artifact_index:
+        strategy_artifact_index = _apply_artifact_reviews(strategy_artifact_index, state)
 
     state_by_strategy = state.get("strategies", {})
     for strategy in strategies:
@@ -252,15 +406,6 @@ def _compact_runtime_status(runtime_status: dict[str, Any]) -> dict[str, Any]:
         if isinstance(runtime_status.get("contractFiles"), dict)
         else {},
     }
-
-
-def _metric_number(metrics: dict[str, Any], key: str) -> float | None:
-    value = metrics.get(key)
-    try:
-        number_value = float(value)
-    except (TypeError, ValueError):
-        return None
-    return number_value
 
 
 def _strategy_signal_count(strategy: dict[str, Any] | None) -> int | None:
