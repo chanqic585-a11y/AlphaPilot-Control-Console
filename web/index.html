@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AlphaPilot Control Console</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <p class="kicker">V13.6 Control Console Bridge</p>
+          <h1>AlphaPilot Control Console</h1>
+          <p class="subtitle">Local research control, strategy package review, and mobile status bridge.</p>
+        </div>
+        <div class="actions">
+          <button id="refreshButton" type="button">Refresh</button>
+          <button id="importButton" type="button">Import Reports</button>
+        </div>
+      </header>
+
+      <section class="safety">
+        <strong>Research control only.</strong>
+        No API keys, no Trade API, no Withdraw API, no account reads, no position reads, no orders, no auto trading.
+      </section>
+
+      <section class="grid stats" aria-label="Console summary">
+        <div class="stat">
+          <span>Strategies</span>
+          <strong id="strategyCount">--</strong>
+        </div>
+        <div class="stat">
+          <span>Reports</span>
+          <strong id="reportCount">--</strong>
+        </div>
+        <div class="stat">
+          <span>Dry-run Approved</span>
+          <strong id="dryRunStatus">False</strong>
+        </div>
+        <div class="stat">
+          <span>Live Approved</span>
+          <strong id="liveStatus">False</strong>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-header">
+          <div>
+            <h2>Strategy Packages</h2>
+            <p>Imported from local Quant Engine reports. Status changes are local console labels only.</p>
+          </div>
+        </div>
+        <div id="strategyList" class="table-wrap"></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-header">
+          <div>
+            <h2>Mobile Bridge</h2>
+            <p>Read-only endpoint for the phone console. It exposes status, not execution.</p>
+          </div>
+        </div>
+        <code id="mobileBridgeUrl">http://127.0.0.1:8766/api/mobile/status</code>
+        <pre id="mobilePreview" class="preview">Loading...</pre>
+      </section>
+
+      <section class="split">
+        <div class="panel">
+          <div class="section-header">
+            <div>
+              <h2>Latest Reports</h2>
+              <p>Compact view of recent Quant Engine reports.</p>
+            </div>
+          </div>
+          <div id="reportList" class="list"></div>
+        </div>
+
+        <div class="panel">
+          <div class="section-header">
+            <div>
+              <h2>Audit Log</h2>
+              <p>Local console actions and imports.</p>
+            </div>
+          </div>
+          <div id="auditList" class="list"></div>
+        </div>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>
