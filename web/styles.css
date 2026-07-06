@@ -681,15 +681,124 @@ small {
   margin-top: 12px;
 }
 
+.artifact-controls {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.4fr) minmax(180px, 0.8fr) minmax(180px, 0.8fr);
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.artifact-controls label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.artifact-result-line {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 10px;
+}
+
+.artifact-detail {
+  margin-top: 12px;
+}
+
+.artifact-detail-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid rgba(24, 211, 166, 0.26);
+  border-radius: 8px 8px 0 0;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(24, 211, 166, 0.11), transparent 36%),
+    #0a1015;
+  padding: 14px;
+}
+
+.artifact-detail-main h3 {
+  margin-bottom: 6px;
+  font-size: 18px;
+}
+
+.artifact-detail-status {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.artifact-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  border: 1px solid rgba(24, 211, 166, 0.18);
+  border-top: 0;
+  background: var(--line);
+}
+
+.artifact-detail-grid div {
+  min-height: 68px;
+  background: #0a1015;
+  padding: 10px;
+}
+
+.artifact-detail-grid span,
+.artifact-detail-note span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.artifact-detail-grid strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--text);
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.artifact-detail-note {
+  border: 1px solid rgba(24, 211, 166, 0.18);
+  border-top: 0;
+  background: #0a1015;
+  padding: 10px 14px;
+}
+
+.artifact-detail-note:last-child {
+  border-radius: 0 0 8px 8px;
+}
+
+.artifact-detail-note strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
 .artifact-row {
   display: grid;
   grid-template-columns: minmax(240px, 1.4fr) minmax(140px, 0.5fr) minmax(360px, 1.4fr) minmax(220px, 1fr);
   gap: 12px;
   align-items: center;
+  width: 100%;
+  min-height: 0;
+  color: inherit;
+  text-align: left;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #0a1015;
   padding: 12px;
+}
+
+.artifact-row:hover,
+.artifact-row.selected {
+  border-color: rgba(24, 211, 166, 0.5);
+  background:
+    linear-gradient(90deg, rgba(24, 211, 166, 0.1), transparent),
+    #0a1015;
+  filter: none;
 }
 
 .artifact-row strong,
@@ -962,6 +1071,9 @@ code {
     .runtime-grid,
     .runtime-tape,
     .runtime-lists,
+    .artifact-controls,
+    .artifact-detail-main,
+    .artifact-detail-grid,
     .artifact-row,
     .exchange-grid,
   .slot-grid,

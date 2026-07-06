@@ -232,3 +232,28 @@ GET /api/strategy-artifacts
 
 It cannot place orders, read real accounts, read real positions, use API keys,
 run exchange Dry-run, run live trading, or trigger automatic trading.
+
+## V13.7.5 Strategy Artifact Interaction Polish
+
+V13.7.5 turns the Strategy Artifact Center into a faster review console.
+
+What changed:
+
+- Added strategy artifact search by title, report id, version, and source file.
+- Added readiness-tier filters for paper-observation candidates, research
+  watchlist items, review-needed items, archived/failed reports, and blocked
+  reports.
+- Added sorting by readiness, research score, return, profit factor, drawdown,
+  and source update time.
+- Added a selected-artifact detail panel with signal sample count, win rate,
+  profit factor, reward/risk, max drawdown, return, paper observation
+  eligibility, safety status, recommended action, and readiness reasons.
+- Expanded the mobile status payload to include more compact artifact rows for
+  phone-side filtering.
+
+Safety boundary:
+
+- This is still a read-only console view.
+- It does not add Trade API, Withdraw API, raw API key storage, real account
+  reads, real position reads, order creation, dry-run execution, live trading,
+  or automatic trading.

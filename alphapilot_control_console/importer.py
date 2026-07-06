@@ -7,8 +7,8 @@ from typing import Any
 from .config import SAFETY_BOUNDARY, get_quant_engine_path
 from .state_store import append_audit, load_state, now_iso, read_exchange_probe_results, write_mobile_status
 
-CONTROL_CONSOLE_VERSION = "V13.7.4"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_4"
+CONTROL_CONSOLE_VERSION = "V13.7.5"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_5"
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -193,9 +193,9 @@ def scan_quant_engine() -> dict[str, Any]:
     return payload
 
 
-def _compact_strategy_artifact_index(index: dict[str, Any], limit: int = 12) -> dict[str, Any]:
+def _compact_strategy_artifact_index(index: dict[str, Any], limit: int = 30) -> dict[str, Any]:
     artifacts = index.get("artifacts") if isinstance(index.get("artifacts"), list) else []
-    top_artifacts = index.get("topArtifacts") if isinstance(index.get("topArtifacts"), list) else artifacts
+    top_artifacts = artifacts if artifacts else index.get("topArtifacts") if isinstance(index.get("topArtifacts"), list) else []
     return {
         "version": index.get("version"),
         "generatedAt": index.get("generatedAt"),

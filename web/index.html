@@ -294,6 +294,36 @@
             <strong>索引更新时间</strong>
             <span id="artifactGeneratedAt">--</span>
           </div>
+          <div class="artifact-controls">
+            <label>
+              <span>搜索策略</span>
+              <input id="artifactSearch" autocomplete="off" placeholder="策略名 / report / 文件名" />
+            </label>
+            <label>
+              <span>候选状态</span>
+              <select id="artifactTierFilter" autocomplete="off">
+                <option value="all">全部状态</option>
+                <option value="paper_observation_ready">纸面观察候选</option>
+                <option value="research_watchlist">研究观察</option>
+                <option value="needs_review">需要复核</option>
+                <option value="archived_or_failed">归档 / 失败</option>
+                <option value="blocked_by_safety_review">安全复核阻断</option>
+              </select>
+            </label>
+            <label>
+              <span>排序</span>
+              <select id="artifactSort" autocomplete="off">
+                <option value="tier_score">候选优先</option>
+                <option value="score_desc">研究评分高到低</option>
+                <option value="return_desc">收益高到低</option>
+                <option value="profit_factor_desc">PF 高到低</option>
+                <option value="drawdown_asc">回撤低到高</option>
+                <option value="generated_desc">更新时间新到旧</option>
+              </select>
+            </label>
+          </div>
+          <div class="artifact-result-line" id="artifactResultLine">等待策略资产索引。</div>
+          <div id="artifactDetail" class="artifact-detail"></div>
           <div id="artifactList" class="artifact-list"></div>
         </section>
 

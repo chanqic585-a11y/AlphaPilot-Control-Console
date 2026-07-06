@@ -46,6 +46,13 @@ const sectionLabels = {
 };
 
 let latestStrategies = [];
+let latestArtifactIndex = {};
+let selectedArtifactId = null;
+const artifactFilters = {
+  search: "",
+  tier: "all",
+  sort: "tier_score",
+};
 
 function el(id) {
   return document.getElementById(id);
@@ -90,6 +97,15 @@ function formatDate(value) {
     minute: "2-digit",
     hour12: false,
   }).format(date);
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function tStatus(value) {
@@ -253,24 +269,136 @@ function artifactBadge(value) {
   return `<span class="badge ${kind}">${tArtifactTier(normalized)}</span>`;
 }
 
+function getArtifactMetric(item, key) {
+  const value = item?.metrics?.[key];
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function artifactTierRank(value) {
+  const ranks = {
+    paper_observation_ready: 0,
+    research_watchlist: 1,
+    needs_review: 2,
+    blocked_by_safety_review: 3,
+    archived_or_failed: 4,
+  };
+  return ranks[value] ?? 9;
+}
+
+function getArtifactRows(index) {
+  const artifacts = Array.isArray(index.artifacts) ? index.artifacts : [];
+  const fallback = Array.isArray(index.topArtifacts) ? index.topArtifacts : [];
+  return artifacts.length ? artifacts : fallback;
+}
+
+function filterAndSortArtifacts(index) {
+  const query = artifactFilters.search.trim().toLowerCase();
+  const rows = getArtifactRows(index).filter((item) => {
+    if (artifactFilters.tier !== "all" && item.readinessTier !== artifactFilters.tier) return false;
+    if (!query) return true;
+    return [
+      item.title,
+      item.strategyId,
+      item.reportId,
+      item.version,
+      item.sourceFile,
+      item.readinessTier,
+      item.recommendedAction,
+    ].some((field) => String(field ?? "").toLowerCase().includes(query));
+  });
+
+  const sorted = rows.slice();
+  sorted.sort((a, b) => {
+    if (artifactFilters.sort === "score_desc") {
+      return Number(b.researchScore ?? -1) - Number(a.researchScore ?? -1);
+    }
+    if (artifactFilters.sort === "return_desc") {
+      return Number(getArtifactMetric(b, "totalReturnPct") ?? -Infinity) - Number(getArtifactMetric(a, "totalReturnPct") ?? -Infinity);
+    }
+    if (artifactFilters.sort === "profit_factor_desc") {
+      return Number(getArtifactMetric(b, "profitFactor") ?? -Infinity) - Number(getArtifactMetric(a, "profitFactor") ?? -Infinity);
+    }
+    if (artifactFilters.sort === "drawdown_asc") {
+      return Number(getArtifactMetric(a, "maxDrawdownPct") ?? Infinity) - Number(getArtifactMetric(b, "maxDrawdownPct") ?? Infinity);
+    }
+    if (artifactFilters.sort === "generated_desc") {
+      return new Date(b.generatedAt || 0).getTime() - new Date(a.generatedAt || 0).getTime();
+    }
+    const tierDelta = artifactTierRank(a.readinessTier) - artifactTierRank(b.readinessTier);
+    if (tierDelta !== 0) return tierDelta;
+    return Number(b.researchScore ?? -1) - Number(a.researchScore ?? -1);
+  });
+  return sorted;
+}
+
+function renderArtifactDetail(item) {
+  if (!item) {
+    el("artifactDetail").innerHTML = '<div class="item">请选择一个策略资产查看详情。</div>';
+    return;
+  }
+  const metrics = item.metrics || {};
+  const reasons = Array.isArray(item.readinessReasons) ? item.readinessReasons : [];
+  el("artifactDetail").innerHTML = `
+    <div class="artifact-detail-main">
+      <div>
+        <p class="panel-eyebrow">SELECTED ARTIFACT</p>
+        <h3>${escapeHtml(item.title || item.strategyId || "--")}</h3>
+        <small>${escapeHtml(item.version || "--")} · ${escapeHtml(item.sourceFile || "--")}</small>
+      </div>
+      <div class="artifact-detail-status">
+        ${artifactBadge(item.readinessTier)}
+        <span class="status-pill neutral">评分 ${formatNumber(item.researchScore, 0)}</span>
+      </div>
+    </div>
+    <div class="artifact-detail-grid">
+      <div><span>样本</span><strong>${metrics.sampleCount ?? metrics.tradeCount ?? "--"}</strong></div>
+      <div><span>胜率</span><strong>${formatPercent(metrics.winRatePct)}</strong></div>
+      <div><span>PF</span><strong>${formatNumber(metrics.profitFactor)}</strong></div>
+      <div><span>盈亏比</span><strong>${formatNumber(metrics.rewardRiskRatio)}</strong></div>
+      <div><span>回撤</span><strong>${formatPercent(metrics.maxDrawdownPct)}</strong></div>
+      <div><span>收益</span><strong>${formatPercent(metrics.totalReturnPct)}</strong></div>
+      <div><span>纸面观察</span><strong>${item.paperObservationEligible ? "可观察" : "不可观察"}</strong></div>
+      <div><span>实盘权限</span><strong>${item.liveTradingApproved ? "异常开启" : "关闭"}</strong></div>
+    </div>
+    <div class="artifact-detail-note">
+      <strong>建议动作</strong>
+      <span>${escapeHtml(item.recommendedAction || "本地研究资产，不代表交易指令。")}</span>
+    </div>
+    <div class="artifact-detail-note">
+      <strong>候选原因</strong>
+      <span>${reasons.length ? reasons.map(escapeHtml).join(" / ") : "未记录额外原因"}</span>
+    </div>
+  `;
+}
+
 function renderStrategyArtifacts(indexPayload) {
   const index = indexPayload?.strategyArtifactIndex || indexPayload || {};
   const summary = index.summary || {};
-  const artifacts = index.topArtifacts || index.artifacts || [];
+  latestArtifactIndex = index;
+  const allArtifacts = getArtifactRows(index);
+  const artifacts = filterAndSortArtifacts(index);
 
   el("artifactTotal").textContent = summary.totalArtifacts ?? "--";
   el("artifactPaperReady").textContent = summary.paperObservationReadyCount ?? "--";
   el("artifactWatchlist").textContent = summary.researchWatchlistCount ?? "--";
   el("artifactNeedsReview").textContent = summary.needsReviewCount ?? "--";
   el("artifactGeneratedAt").textContent = formatDate(index.generatedAt);
+  el("artifactResultLine").textContent = `当前显示 ${artifacts.length}/${allArtifacts.length} 个策略资产，排序：${el("artifactSort")?.selectedOptions?.[0]?.textContent || "候选优先"}`;
 
-  el("artifactList").innerHTML = artifacts.slice(0, 10).map((item) => {
+  if (!artifacts.some((item) => item.artifactId === selectedArtifactId)) {
+    selectedArtifactId = artifacts[0]?.artifactId || null;
+  }
+  renderArtifactDetail(artifacts.find((item) => item.artifactId === selectedArtifactId));
+
+  el("artifactList").innerHTML = artifacts.slice(0, 18).map((item) => {
     const metrics = item.metrics || {};
+    const selected = item.artifactId === selectedArtifactId ? " selected" : "";
     return `
-      <div class="artifact-row">
+      <button class="artifact-row${selected}" data-artifact-id="${escapeHtml(item.artifactId)}" type="button">
         <div>
-          <strong>${item.title || item.strategyId || "--"}</strong>
-          <small>${item.version || "--"} · ${item.sourceFile || "--"}</small>
+          <strong>${escapeHtml(item.title || item.strategyId || "--")}</strong>
+          <small>${escapeHtml(item.version || "--")} · ${escapeHtml(item.sourceFile || "--")}</small>
         </div>
         <div>${artifactBadge(item.readinessTier)}</div>
         <div class="artifact-metrics">
@@ -281,10 +409,17 @@ function renderStrategyArtifacts(indexPayload) {
           <span>回撤 ${formatPercent(metrics.maxDrawdownPct)}</span>
           <span>收益 ${formatPercent(metrics.totalReturnPct)}</span>
         </div>
-        <div class="artifact-note">${item.recommendedAction || "本地研究资产，不代表交易指令。"}</div>
-      </div>
+        <div class="artifact-note">${escapeHtml(item.recommendedAction || "本地研究资产，不代表交易指令。")}</div>
+      </button>
     `;
   }).join("") || '<div class="item">暂无策略资产索引。请先在 Quant Engine 生成 strategy_artifact_index.json。</div>';
+
+  document.querySelectorAll("[data-artifact-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      selectedArtifactId = button.getAttribute("data-artifact-id");
+      renderStrategyArtifacts(latestArtifactIndex);
+    });
+  });
 }
 
 function renderStrategies(strategies) {
@@ -542,6 +677,20 @@ el("probeExchangesButton").addEventListener("click", async () => {
 });
 
 el("backHomeButton").addEventListener("click", scrollToOverview);
+el("artifactSearch").addEventListener("input", (event) => {
+  artifactFilters.search = event.target.value || "";
+  selectedArtifactId = null;
+  renderStrategyArtifacts(latestArtifactIndex);
+});
+el("artifactTierFilter").addEventListener("change", (event) => {
+  artifactFilters.tier = event.target.value || "all";
+  selectedArtifactId = null;
+  renderStrategyArtifacts(latestArtifactIndex);
+});
+el("artifactSort").addEventListener("change", (event) => {
+  artifactFilters.sort = event.target.value || "tier_score";
+  renderStrategyArtifacts(latestArtifactIndex);
+});
 window.addEventListener("scroll", updateCurrentSection, { passive: true });
 window.addEventListener("hashchange", updateCurrentSection);
 
