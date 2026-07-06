@@ -30,6 +30,9 @@ const healthLabels = {
   healthy_research_runtime: "研究运行状态良好",
   partial_research_runtime: "研究运行状态部分就绪",
   needs_more_data: "需要更多数据",
+  runtime_contract_ready: "运行契约就绪",
+  runtime_contract_partial: "运行契约部分就绪",
+  runtime_contract_needs_data: "运行契约需要数据",
 };
 
 const sectionLabels = {
@@ -177,21 +180,56 @@ function renderRuntimeMonitor(strategies, mobile) {
   const primary = pickPrimaryStrategy(strategies);
   const summary = mobile.commandSummary || {};
   const exchange = mobile.exchangeConnectivity || {};
+  const runtimeStatus = mobile.runtimeStatus || {};
+  const signalTape = mobile.signalTape || {};
+  const paperLedger = mobile.paperObservationLedger || {};
+  const runtimeHealth = runtimeStatus.runtimeHealth || {};
+  const signalSummary = signalTape.summary || {};
+  const paperSummary = paperLedger.summary || {};
   const connected = exchange.connectedExchangeCount ?? 0;
   const total = exchange.resultCount ?? 0;
   const executionLocked = !mobile.safetyBoundary?.orderCreationAllowed;
 
-  el("runtimeStrategy").textContent = summary.activeStrategyTitle || primary?.title || "--";
+  el("runtimeStrategy").textContent =
+    runtimeStatus.activeStrategy?.strategyTitle || summary.activeStrategyTitle || primary?.title || "--";
   el("runtimeStrategyMeta").textContent = [
-    summary.activeStrategyVersion || primary?.version || "--",
-    tStatus(summary.activeStatus || primary?.consoleStatus),
+    runtimeStatus.activeStrategy?.strategyVersion || summary.activeStrategyVersion || primary?.version || "--",
+    tStatus(runtimeStatus.activeStrategy?.status || summary.activeStatus || primary?.consoleStatus),
   ].filter(Boolean).join(" / ");
-  el("runtimeSignals").textContent = summary.signalCount ?? getSignalCount(primary) ?? "--";
-  el("runtimeHealth").textContent = summary.healthScore === undefined ? "--" : `${summary.healthScore}/100`;
-  el("runtimeHealthLabel").textContent = tHealth(summary.healthLabel);
+  el("runtimeSignals").textContent = runtimeStatus.signalTapeCount ?? summary.signalCount ?? getSignalCount(primary) ?? "--";
+  el("runtimeHealth").textContent = runtimeHealth.score === undefined
+    ? summary.healthScore === undefined ? "--" : `${summary.healthScore}/100`
+    : `${runtimeHealth.score}/100`;
+  el("runtimeHealthLabel").textContent = tHealth(runtimeHealth.label || summary.healthLabel);
   el("runtimeExecutionLock").textContent = executionLocked ? "关闭" : "异常开启";
-  el("runtimeNextStep").textContent = summary.nextStep || "等待本地策略报告导入。";
+  el("runtimeNextStep").textContent = runtimeStatus.nextStep || summary.nextStep || "等待本地策略报告导入。";
   el("runtimeDataHealth").textContent = `公共行情连接 ${connected}/${total}，最近探测 ${formatDate(exchange.latestProbeAt)}。`;
+  el("runtimeSignalTapeSummary").textContent =
+    `源信号 ${signalSummary.totalSourceSignals ?? "--"}，展示 ${signalSummary.publishedSignalCount ?? "--"}，最近 ${formatDate(signalSummary.latestSignalTime)}。`;
+  el("runtimePaperLedgerSummary").textContent =
+    `观察 ${paperSummary.totalObservations ?? "--"}，胜率 ${formatPercent(paperSummary.winRatePct)}，PF ${formatNumber(paperSummary.profitFactor)}。`;
+  renderRuntimeSignalTape(signalTape.signals || []);
+  renderRuntimePaperObservations(paperLedger.observations || []);
+}
+
+function renderRuntimeSignalTape(signals) {
+  el("runtimeSignalTapeList").innerHTML = signals.slice(0, 6).map((item) => `
+    <div class="compact-row">
+      <strong>${item.symbol || "--"}</strong>
+      <span>${item.direction || "--"} · ${item.timeframe || "--"}</span>
+      <span>${formatDate(item.entryReferenceTime)} · R ${formatNumber(item.rMultiple)}</span>
+    </div>
+  `).join("") || '<div class="compact-empty">暂无信号流水。</div>';
+}
+
+function renderRuntimePaperObservations(observations) {
+  el("runtimePaperObservationList").innerHTML = observations.slice(0, 6).map((item) => `
+    <div class="compact-row">
+      <strong>${item.symbol || "--"}</strong>
+      <span>${item.exitReason || "--"} · ${item.status || "--"}</span>
+      <span>${formatDate(item.exitTime)} · R ${formatNumber(item.rMultiple)}</span>
+    </div>
+  `).join("") || '<div class="compact-empty">暂无纸面观察。</div>';
 }
 
 function renderStrategies(strategies) {

@@ -32,8 +32,8 @@ def list_strategy_slots() -> dict[str, Any]:
         })
 
     return {
-        "version": "V13.7.0",
-        "source": "alphapilot_control_console_v13_7_0",
+        "version": "V13.7.1",
+        "source": "alphapilot_control_console_v13_7_1",
         "generatedAt": now_iso(),
         "safetyBoundary": SAFETY_BOUNDARY,
         "slots": slots,

@@ -7,8 +7,8 @@ from typing import Any
 from .config import SAFETY_BOUNDARY, get_quant_engine_path
 from .state_store import append_audit, load_state, now_iso, read_exchange_probe_results, write_mobile_status
 
-CONTROL_CONSOLE_VERSION = "V13.7.0"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_0"
+CONTROL_CONSOLE_VERSION = "V13.7.1"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_1"
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -162,6 +162,10 @@ def scan_quant_engine() -> dict[str, Any]:
         if alpha191_report:
             strategies.append(_strategy_from_alpha191_report(alpha191_report, alpha191_path))
 
+    runtime_status = _read_json(reports_dir / "runtime_status.json") if reports_dir.exists() else None
+    signal_tape = _read_json(reports_dir / "signal_tape.json") if reports_dir.exists() else None
+    paper_observation_ledger = _read_json(reports_dir / "paper_observation_ledger.json") if reports_dir.exists() else None
+
     state_by_strategy = state.get("strategies", {})
     for strategy in strategies:
         override = state_by_strategy.get(strategy["strategyId"], {})
@@ -179,9 +183,60 @@ def scan_quant_engine() -> dict[str, Any]:
         "safetyBoundary": SAFETY_BOUNDARY,
         "strategies": strategies,
         "reports": sorted(reports, key=lambda item: item.get("generatedAt") or "", reverse=True)[:30],
+        "runtimeStatus": runtime_status or {},
+        "signalTape": signal_tape or {},
+        "paperObservationLedger": paper_observation_ledger or {},
     }
     write_mobile_status(build_mobile_status(payload))
     return payload
+
+
+def _compact_signal_tape(signal_tape: dict[str, Any], limit: int = 20) -> dict[str, Any]:
+    signals = signal_tape.get("signals") if isinstance(signal_tape.get("signals"), list) else []
+    return {
+        "version": signal_tape.get("version"),
+        "generatedAt": signal_tape.get("generatedAt"),
+        "source": signal_tape.get("source"),
+        "summary": signal_tape.get("summary") if isinstance(signal_tape.get("summary"), dict) else {},
+        "signals": signals[:limit],
+    }
+
+
+def _compact_paper_observation_ledger(paper_ledger: dict[str, Any], limit: int = 20) -> dict[str, Any]:
+    observations = paper_ledger.get("observations") if isinstance(paper_ledger.get("observations"), list) else []
+    return {
+        "version": paper_ledger.get("version"),
+        "generatedAt": paper_ledger.get("generatedAt"),
+        "source": paper_ledger.get("source"),
+        "summary": paper_ledger.get("summary") if isinstance(paper_ledger.get("summary"), dict) else {},
+        "observations": observations[:limit],
+    }
+
+
+def _compact_runtime_status(runtime_status: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "version": runtime_status.get("version"),
+        "generatedAt": runtime_status.get("generatedAt"),
+        "source": runtime_status.get("source"),
+        "activeStrategy": runtime_status.get("activeStrategy")
+        if isinstance(runtime_status.get("activeStrategy"), dict)
+        else None,
+        "strategyCount": runtime_status.get("strategyCount"),
+        "reportCount": runtime_status.get("reportCount"),
+        "signalTapeCount": runtime_status.get("signalTapeCount"),
+        "paperObservationCount": runtime_status.get("paperObservationCount"),
+        "runtimeHealth": runtime_status.get("runtimeHealth")
+        if isinstance(runtime_status.get("runtimeHealth"), dict)
+        else {},
+        "latestSignalTime": runtime_status.get("latestSignalTime"),
+        "paperObservationSummary": runtime_status.get("paperObservationSummary")
+        if isinstance(runtime_status.get("paperObservationSummary"), dict)
+        else {},
+        "nextStep": runtime_status.get("nextStep"),
+        "contractFiles": runtime_status.get("contractFiles")
+        if isinstance(runtime_status.get("contractFiles"), dict)
+        else {},
+    }
 
 
 def _metric_number(metrics: dict[str, Any], key: str) -> float | None:
@@ -284,6 +339,9 @@ def build_mobile_status(payload: dict[str, Any]) -> dict[str, Any]:
         "safetyBoundary": payload["safetyBoundary"],
         "strategyCount": len(payload["strategies"]),
         "commandSummary": _build_command_summary(payload),
+        "runtimeStatus": _compact_runtime_status(payload.get("runtimeStatus", {})),
+        "signalTape": _compact_signal_tape(payload.get("signalTape", {})),
+        "paperObservationLedger": _compact_paper_observation_ledger(payload.get("paperObservationLedger", {})),
         "exchangeConnectivity": _mobile_exchange_connectivity(),
         "strategies": [
             {

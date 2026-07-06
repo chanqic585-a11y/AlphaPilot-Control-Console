@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.0 - Read-Only Strategy Runtime Monitor
+AlphaPilot V13.7.1 - Runtime Contract Signal Tape Bridge
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -75,6 +75,17 @@ position access, order creation, exchange Dry-run, live trading, or automation.
 V13.7.0 does not add API key input, private exchange access, account access,
 position access, order creation, exchange Dry-run, live trading, or automation.
 
+## What V13.7.1 Adds
+
+- Reads Quant Engine `reports/runtime_status.json`, `reports/signal_tape.json`, and `reports/paper_observation_ledger.json`.
+- Adds `GET /api/runtime` for the full read-only runtime contract payload.
+- Extends `GET /api/mobile/status` with compact runtime status, latest signal tape rows, and paper observation rows.
+- Displays signal tape and paper observation ledger summaries in the desktop runtime monitor.
+- Keeps all runtime data display-only; no signal row can create an order.
+
+V13.7.1 does not add API key input, private exchange access, account access,
+position access, order creation, exchange Dry-run, live trading, or automation.
+
 ## What V13.6 Does Not Do
 
 ```text
@@ -121,6 +132,7 @@ GET  /api/strategies
 GET  /api/reports
 GET  /api/mobile/status
 GET  /api/mobile/connection-info
+GET  /api/runtime
 GET  /api/audit
 GET  /api/exchanges
 GET  /api/strategy-slots

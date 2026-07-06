@@ -627,6 +627,50 @@ small {
   gap: 10px;
 }
 
+.runtime-lists {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.runtime-lists h3 {
+  margin: 0 0 8px;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.compact-list {
+  display: grid;
+  gap: 8px;
+}
+
+.compact-row,
+.compact-empty {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #0a1015;
+  padding: 10px;
+  min-height: 66px;
+}
+
+.compact-row strong,
+.compact-row span {
+  display: block;
+}
+
+.compact-row strong {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.compact-row span,
+.compact-empty {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .content-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(360px, 0.85fr);
@@ -870,6 +914,7 @@ code {
   .metric-grid,
   .runtime-grid,
   .runtime-tape,
+  .runtime-lists,
   .exchange-grid,
   .slot-grid,
   .mobile-helper,

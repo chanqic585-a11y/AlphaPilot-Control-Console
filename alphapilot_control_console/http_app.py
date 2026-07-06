@@ -27,7 +27,7 @@ def _safe_int(value: object, fallback: int) -> int:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.7.0"
+    server_version = "AlphaPilotControlConsole/13.7.1"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -68,8 +68,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.7.0",
-                "source": "alphapilot_control_console_v13_7_0",
+                "version": "V13.7.1",
+                "source": "alphapilot_control_console_v13_7_1",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -81,6 +81,15 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/mobile/status":
             self._send_json(build_mobile_status(scan_quant_engine()))
+            return
+        if path == "/api/runtime":
+            payload = scan_quant_engine()
+            self._send_json({
+                "runtimeStatus": payload["runtimeStatus"],
+                "signalTape": payload["signalTape"],
+                "paperObservationLedger": payload["paperObservationLedger"],
+                "safetyBoundary": SAFETY_BOUNDARY,
+            })
             return
         if path == "/api/mobile/connection-info":
             self._send_json(build_mobile_connection_info(str(self.server.server_address[0]), int(self.server.server_address[1])))
