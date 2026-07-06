@@ -334,3 +334,29 @@ Safety boundary:
 - They do not create orders, read real positions, read real accounts, access
   private exchange endpoints, use API keys, run exchange Dry-run, run live
   trading, or enable automatic trading.
+
+## V13.7.10 ML Coverage Strategy Screening
+
+V13.7.10 adds a strategy ML coverage and candidate-decision layer to the
+desktop Strategy Artifact Center.
+
+What changed:
+
+- Each strategy artifact is classified as rule-based, factor-based, ML model,
+  benchmark, or report-only.
+- Each artifact receives label readiness, walk-forward readiness, ML readiness,
+  and a candidate decision such as forward-validation candidate, ML evaluation
+  queue, needs backtest, needs labels, research-only, paused, or rejected.
+- Added an ML coverage summary card and candidate-decision filter to the web
+  console.
+- Added `GET /api/ml-coverage` for read-only diagnostics.
+- Expanded `/api/mobile/status` so the phone console can show the same ML
+  coverage summary.
+
+Safety boundary:
+
+- ML coverage describes research-data readiness only.
+- It is not a trading signal and not a profit probability.
+- This version does not train a live trading model, does not create orders,
+  does not use API keys, does not read accounts or positions, does not run
+  exchange Dry-run, and does not enable live or automatic trading.

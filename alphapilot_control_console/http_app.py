@@ -48,7 +48,7 @@ def _find_artifact(index: dict, artifact_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.7.9"
+    server_version = "AlphaPilotControlConsole/13.7.10"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -89,8 +89,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.7.9",
-                "source": "alphapilot_control_console_v13_7_9",
+                "version": "V13.7.10",
+                "source": "alphapilot_control_console_v13_7_10",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -142,6 +142,16 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             payload = build_mobile_status(scan_quant_engine())
             self._send_json({
                 "forwardValidation": payload.get("forwardValidation"),
+                "safetyBoundary": SAFETY_BOUNDARY,
+            })
+            return
+        if path == "/api/ml-coverage":
+            payload = scan_quant_engine()
+            index = payload.get("strategyArtifactIndex") if isinstance(payload.get("strategyArtifactIndex"), dict) else {}
+            summary = index.get("summary") if isinstance(index.get("summary"), dict) else {}
+            self._send_json({
+                "mlCoverage": summary.get("mlCoverage") if isinstance(summary.get("mlCoverage"), dict) else {},
+                "strategyArtifactIndex": index,
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return

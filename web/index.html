@@ -293,6 +293,35 @@
               <strong id="artifactNeedsReview">--</strong>
             </div>
           </div>
+          <div class="ml-coverage-card">
+            <div class="forward-validation-head">
+              <div>
+                <p class="panel-eyebrow">ML COVERAGE CHECK</p>
+                <h3>策略机器学习覆盖体检</h3>
+                <p>区分规则策略、因子策略、机器学习模型和报告资产；ML 只用于研究筛选，不生成交易指令。</p>
+              </div>
+              <span id="mlCoverageSummaryBadge" class="badge warn">等待体检</span>
+            </div>
+            <div class="metric-grid compact">
+              <div class="metric-cell">
+                <span>ML 数据集就绪</span>
+                <strong id="mlDatasetReady">--</strong>
+              </div>
+              <div class="metric-cell">
+                <span>已报告模型</span>
+                <strong id="mlTrainedModel">--</strong>
+              </div>
+              <div class="metric-cell">
+                <span>可前向验证</span>
+                <strong id="mlForwardCandidates">--</strong>
+              </div>
+              <div class="metric-cell">
+                <span>ML 评价队列</span>
+                <strong id="mlEvaluationQueue">--</strong>
+              </div>
+            </div>
+            <div id="mlCoverageBreakdown" class="forward-validation-method"></div>
+          </div>
           <div class="item artifact-updated">
             <strong>索引更新时间</strong>
             <span id="artifactGeneratedAt">--</span>
@@ -322,6 +351,19 @@
                 <option value="paper_observation">纸面观察</option>
                 <option value="paused">暂停</option>
                 <option value="rejected">淘汰</option>
+              </select>
+            </label>
+            <label>
+              <span>ML / 候选决策</span>
+              <select id="artifactMlDecisionFilter" autocomplete="off">
+                <option value="all">全部决策</option>
+                <option value="can_forward_validate">可进入前向验证</option>
+                <option value="ml_evaluation_queue">ML 评价队列</option>
+                <option value="needs_backtest">需要补回测</option>
+                <option value="needs_labels">需要补标签</option>
+                <option value="research_only">只做研究观察</option>
+                <option value="paused">暂停</option>
+                <option value="rejected_or_archived">淘汰 / 归档</option>
               </select>
             </label>
             <label>

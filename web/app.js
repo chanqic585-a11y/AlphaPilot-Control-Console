@@ -76,6 +76,41 @@ const forwardGateLabels = {
   eligible_for_paper_review: "可进入纸面模拟观察复核",
 };
 
+const methodTypeLabels = {
+  rule_based: "规则策略",
+  factor_based: "因子策略",
+  ml_model: "机器学习模型",
+  benchmark: "基准策略",
+  report_only: "报告资产",
+};
+
+const mlStatusLabels = {
+  trained_model_reported: "已报告训练模型",
+  ml_dataset_ready: "可生成 ML 训练集",
+  label_ready_needs_more_samples: "有标签但样本偏少",
+  factor_features_available: "有因子特征",
+  missing_labels: "缺少 ML 标签",
+  not_ml_strategy: "非 ML 策略",
+};
+
+const labelStatusLabels = {
+  has_2r_and_win_loss_labels: "已有 2R / 胜负标签",
+  has_win_loss_labels: "已有胜负标签",
+  has_path_quality_labels: "已有路径质量标签",
+  has_sample_labels: "已有样本标签",
+  missing_labels: "缺标签",
+};
+
+const candidateDecisionLabels = {
+  can_forward_validate: "可进入前向验证",
+  ml_evaluation_queue: "ML 评价队列",
+  needs_backtest: "需要补回测",
+  needs_labels: "需要补标签",
+  research_only: "只做研究观察",
+  paused: "暂停",
+  rejected_or_archived: "淘汰 / 归档",
+};
+
 const readinessLabels = {
   local_paper_review_ready: "本地模拟复核就绪",
   research_observer_ready: "研究观察就绪",
@@ -110,6 +145,7 @@ const artifactFilters = {
   search: "",
   tier: "all",
   reviewStatus: "all",
+  mlDecision: "all",
   sort: "tier_score",
 };
 
@@ -348,6 +384,22 @@ function tForwardGate(value) {
   return forwardGateLabels[value] || value || "--";
 }
 
+function tMethodType(value) {
+  return methodTypeLabels[value] || value || "--";
+}
+
+function tMlStatus(value) {
+  return mlStatusLabels[value] || value || "--";
+}
+
+function tLabelStatus(value) {
+  return labelStatusLabels[value] || value || "--";
+}
+
+function tCandidateDecision(value) {
+  return candidateDecisionLabels[value] || value || "--";
+}
+
 function paperTaskBadge(value) {
   const normalized = String(value || "planned");
   let kind = "";
@@ -369,6 +421,13 @@ function forwardGateBadge(value) {
   if (value === "eligible_for_paper_review") kind = "ok";
   if (value === "needs_active_validation" || value === "needs_risk_review") kind = "danger";
   return `<span class="badge ${kind}">${escapeHtml(tForwardGate(value))}</span>`;
+}
+
+function candidateDecisionBadge(value) {
+  let kind = "warn";
+  if (value === "can_forward_validate" || value === "ml_evaluation_queue") kind = "ok";
+  if (value === "paused" || value === "rejected_or_archived") kind = "danger";
+  return `<span class="badge ${kind}">${escapeHtml(tCandidateDecision(value))}</span>`;
 }
 
 function tBaselineComparison(value) {
@@ -410,8 +469,10 @@ function getArtifactRows(index) {
 function filterAndSortArtifacts(index) {
   const query = artifactFilters.search.trim().toLowerCase();
   const rows = getArtifactRows(index).filter((item) => {
+    const ml = item.mlCoverage || {};
     if (artifactFilters.tier !== "all" && item.readinessTier !== artifactFilters.tier) return false;
     if (artifactFilters.reviewStatus !== "all" && (item.reviewStatus || "unreviewed") !== artifactFilters.reviewStatus) return false;
+    if (artifactFilters.mlDecision !== "all" && (ml.candidateDecision || "research_only") !== artifactFilters.mlDecision) return false;
     if (!query) return true;
     return [
       item.displayName,
@@ -423,6 +484,13 @@ function filterAndSortArtifacts(index) {
       item.sourceFile,
       item.readinessTier,
       item.recommendedAction,
+      ml.methodType,
+      ml.methodLabel,
+      ml.mlStatus,
+      ml.mlStatusLabel,
+      ml.labelStatus,
+      ml.candidateDecision,
+      ml.candidateDecisionLabel,
     ].some((field) => String(field ?? "").toLowerCase().includes(query));
   });
 
@@ -450,6 +518,37 @@ function filterAndSortArtifacts(index) {
   return sorted;
 }
 
+function renderCountGroup(title, counts, labeler) {
+  const entries = Object.entries(counts || {});
+  if (!entries.length) {
+    return `<div class="ml-count-group"><strong>${escapeHtml(title)}</strong><span>暂无数据</span></div>`;
+  }
+  return `
+    <div class="ml-count-group">
+      <strong>${escapeHtml(title)}</strong>
+      ${entries.map(([key, value]) => `
+        <span>${escapeHtml(labeler(key))}<b>${formatNumber(value, 0)}</b></span>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderMlCoverage(summary) {
+  const ml = summary?.mlCoverage || {};
+  if (!el("mlCoverageSummaryBadge")) return;
+  el("mlCoverageSummaryBadge").textContent = `ML 体检完成 · ${formatNumber(ml.totalArtifacts, 0)} 个资产`;
+  el("mlDatasetReady").textContent = formatNumber(ml.mlDatasetReadyCount, 0);
+  el("mlTrainedModel").textContent = formatNumber(ml.trainedModelReportedCount, 0);
+  el("mlForwardCandidates").textContent = formatNumber(ml.forwardCandidateCount, 0);
+  el("mlEvaluationQueue").textContent = formatNumber(ml.mlEvaluationQueueCount, 0);
+  el("mlCoverageBreakdown").innerHTML = [
+    renderCountGroup("方法类型", ml.methodTypeCounts, tMethodType),
+    renderCountGroup("ML 状态", ml.mlStatusCounts, tMlStatus),
+    renderCountGroup("标签状态", ml.labelStatusCounts, tLabelStatus),
+    renderCountGroup("候选决策", ml.candidateDecisionCounts, tCandidateDecision),
+  ].join("");
+}
+
 function renderArtifactDetail(item) {
   if (!item) {
     el("artifactDetail").innerHTML = '<div class="item">请选择一个策略资产查看详情。</div>';
@@ -462,6 +561,8 @@ function renderArtifactDetail(item) {
   const task = item.paperObservationTask || {};
   const health = task.health || {};
   const recentLogs = Array.isArray(task.recentLogs) ? task.recentLogs : [];
+  const ml = item.mlCoverage || {};
+  const decisionReasons = Array.isArray(ml.decisionReasons) ? ml.decisionReasons : [];
   el("artifactDetail").innerHTML = `
     <div class="artifact-detail-main">
       <div>
@@ -473,6 +574,7 @@ function renderArtifactDetail(item) {
         ${artifactBadge(item.readinessTier)}
         ${artifactReviewBadge(item.reviewStatus)}
         ${paperHealthBadge(health)}
+        ${candidateDecisionBadge(ml.candidateDecision)}
         <span class="status-pill neutral">评分 ${formatNumber(item.researchScore, 0)}</span>
       </div>
     </div>
@@ -485,6 +587,13 @@ function renderArtifactDetail(item) {
       <div><span>收益</span><strong>${formatPercent(metrics.totalReturnPct)}</strong></div>
       <div><span>纸面观察</span><strong>${item.paperObservationEligible ? "可观察" : "不可观察"}</strong></div>
       <div><span>实盘权限</span><strong>${item.liveTradingApproved ? "异常开启" : "关闭"}</strong></div>
+    </div>
+    <div class="artifact-ml-grid">
+      <div><span>方法类型</span><strong>${escapeHtml(tMethodType(ml.methodType))}</strong></div>
+      <div><span>ML 状态</span><strong>${escapeHtml(tMlStatus(ml.mlStatus))}</strong></div>
+      <div><span>标签状态</span><strong>${escapeHtml(tLabelStatus(ml.labelStatus))}</strong></div>
+      <div><span>前向验证</span><strong>${escapeHtml(ml.walkForwardStatusLabel || ml.walkForwardStatus || "--")}</strong></div>
+      <div><span>候选决策</span><strong>${escapeHtml(tCandidateDecision(ml.candidateDecision))}</strong></div>
     </div>
     <div class="artifact-score-grid">
       <div><span>胜率贡献</span><strong>${formatNumber(score.winRateContribution, 1)}</strong></div>
@@ -512,6 +621,11 @@ function renderArtifactDetail(item) {
       <div><span>规则匹配</span><strong>${health.ruleMatchedCount ?? 0}</strong></div>
       <div><span>风险提醒</span><strong>${health.riskWarningCount ?? 0}</strong></div>
       <div><span>最新日志</span><strong>${formatDate(health.latestLogAt)}</strong></div>
+    </div>
+    <div class="artifact-detail-note">
+      <strong>ML 覆盖说明</strong>
+      <span>${escapeHtml(ml.note || "ML 状态只代表研究数据准备度，不是交易信号。")}</span>
+      ${decisionReasons.length ? `<small>决策原因：${decisionReasons.map(escapeHtml).join(" / ")}</small>` : ""}
     </div>
     <div class="artifact-review-actions">
       <input id="artifactReviewNote" value="${escapeHtml(item.reviewNote || "")}" placeholder="复核备注，只保存在本地，不会触发交易…" autocomplete="off" />
@@ -643,6 +757,7 @@ function renderStrategyArtifacts(indexPayload) {
   el("artifactNeedsReview").textContent = summary.manualReviewCount ?? summary.needsReviewCount ?? "--";
   el("artifactGeneratedAt").textContent = formatDate(index.generatedAt);
   el("artifactResultLine").textContent = `当前显示 ${artifacts.length}/${allArtifacts.length} 个策略资产，排序：${el("artifactSort")?.selectedOptions?.[0]?.textContent || "候选优先"}`;
+  renderMlCoverage(summary);
 
   if (!artifacts.some((item) => item.artifactId === selectedArtifactId)) {
     selectedArtifactId = artifacts[0]?.artifactId || null;
@@ -651,6 +766,7 @@ function renderStrategyArtifacts(indexPayload) {
 
   el("artifactList").innerHTML = artifacts.slice(0, 18).map((item) => {
     const metrics = item.metrics || {};
+    const ml = item.mlCoverage || {};
     const selected = item.artifactId === selectedArtifactId ? " selected" : "";
     return `
       <button class="artifact-row${selected}" data-artifact-id="${escapeHtml(item.artifactId)}" type="button">
@@ -661,6 +777,7 @@ function renderStrategyArtifacts(indexPayload) {
         <div>
           ${artifactBadge(item.readinessTier)}
           ${artifactReviewBadge(item.reviewStatus)}
+          ${candidateDecisionBadge(ml.candidateDecision)}
         </div>
         <div class="artifact-metrics">
           <span>样本 ${metrics.sampleCount ?? "--"}</span>
@@ -670,7 +787,10 @@ function renderStrategyArtifacts(indexPayload) {
           <span>回撤 ${formatPercent(metrics.maxDrawdownPct)}</span>
           <span>收益 ${formatPercent(metrics.totalReturnPct)}</span>
         </div>
-        <div class="artifact-note">${escapeHtml(item.recommendedAction || "本地研究资产，不代表交易指令。")}</div>
+        <div class="artifact-note">
+          ${escapeHtml(item.recommendedAction || "本地研究资产，不代表交易指令。")}
+          <br />方法 ${escapeHtml(tMethodType(ml.methodType))} · ML ${escapeHtml(tMlStatus(ml.mlStatus))} · 标签 ${escapeHtml(tLabelStatus(ml.labelStatus))}
+        </div>
       </button>
     `;
   }).join("") || '<div class="item">暂无策略资产索引。请先在 Quant Engine 生成 strategy_artifact_index.json。</div>';
@@ -1022,6 +1142,11 @@ el("artifactTierFilter").addEventListener("change", (event) => {
 });
 el("artifactReviewFilter").addEventListener("change", (event) => {
   artifactFilters.reviewStatus = event.target.value || "all";
+  selectedArtifactId = null;
+  renderStrategyArtifacts(latestArtifactIndex);
+});
+el("artifactMlDecisionFilter").addEventListener("change", (event) => {
+  artifactFilters.mlDecision = event.target.value || "all";
   selectedArtifactId = null;
   renderStrategyArtifacts(latestArtifactIndex);
 });

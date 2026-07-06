@@ -366,12 +366,18 @@ small {
   word-break: break-word;
 }
 
-.forward-validation-card {
+.forward-validation-card,
+.ml-coverage-card {
   border: 1px solid rgba(24, 211, 166, 0.26);
   background: linear-gradient(135deg, rgba(24, 211, 166, 0.11), rgba(122, 168, 255, 0.055));
   border-radius: 8px;
   margin-bottom: 16px;
   padding: 14px;
+}
+
+.ml-coverage-card {
+  border-color: rgba(122, 168, 255, 0.26);
+  background: linear-gradient(135deg, rgba(122, 168, 255, 0.1), rgba(255, 209, 61, 0.045));
 }
 
 .forward-validation-head {
@@ -409,6 +415,29 @@ small {
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.18);
   padding: 10px;
+}
+
+.ml-count-group {
+  display: grid;
+  gap: 7px;
+}
+
+.ml-count-group strong {
+  color: var(--text);
+}
+
+.ml-count-group span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.ml-count-group b {
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
 }
 
 .forward-validation-method strong,
@@ -844,7 +873,8 @@ small {
 
 .artifact-score-grid,
 .artifact-checklist-grid,
-.artifact-health-grid {
+.artifact-health-grid,
+.artifact-ml-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 1px;
@@ -861,9 +891,14 @@ small {
   grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
+.artifact-ml-grid {
+  border-color: rgba(122, 168, 255, 0.22);
+}
+
 .artifact-score-grid div,
 .artifact-checklist-grid div,
-.artifact-health-grid div {
+.artifact-health-grid div,
+.artifact-ml-grid div {
   min-height: 64px;
   background: #0a1015;
   padding: 10px;
@@ -871,7 +906,8 @@ small {
 
 .artifact-score-grid span,
 .artifact-checklist-grid span,
-.artifact-health-grid span {
+.artifact-health-grid span,
+.artifact-ml-grid span {
   display: block;
   color: var(--muted);
   font-size: 12px;
@@ -879,7 +915,8 @@ small {
 
 .artifact-score-grid strong,
 .artifact-checklist-grid strong,
-.artifact-health-grid strong {
+.artifact-health-grid strong,
+.artifact-ml-grid strong {
   display: block;
   margin-top: 6px;
   color: var(--text);
@@ -1357,6 +1394,7 @@ code {
     .artifact-score-grid,
     .artifact-checklist-grid,
     .artifact-health-grid,
+    .artifact-ml-grid,
     .artifact-review-actions,
     .paper-task-actions,
     .paper-log-actions,

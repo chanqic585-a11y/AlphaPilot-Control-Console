@@ -16,8 +16,8 @@ from .state_store import (
     write_mobile_status,
 )
 
-CONTROL_CONSOLE_VERSION = "V13.7.9"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_9"
+CONTROL_CONSOLE_VERSION = "V13.7.10"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_10"
 BEIJING_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 FORWARD_VALIDATION_REVIEW_DATE = date(2026, 7, 10)
 FORWARD_VALIDATION_REVIEW_LABEL = "2026年7月10日（北京时间）"
@@ -496,6 +496,181 @@ def _task_status_counts(artifacts: list[dict[str, Any]]) -> dict[str, int]:
     return counts
 
 
+def _count_by_key(rows: list[dict[str, Any]], key: str) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        value = str(row.get(key) or "unknown")
+        counts[value] = counts.get(value, 0) + 1
+    return counts
+
+
+def _artifact_search_text(artifact: dict[str, Any]) -> str:
+    values = [
+        artifact.get("artifactId"),
+        artifact.get("strategyId"),
+        artifact.get("title"),
+        artifact.get("displayName"),
+        artifact.get("displaySubtitle"),
+        artifact.get("version"),
+        artifact.get("sourceFile"),
+        artifact.get("sourceKind"),
+        artifact.get("recommendedAction"),
+    ]
+    return " ".join(str(value or "").lower() for value in values)
+
+
+def _classify_method_type(artifact: dict[str, Any]) -> tuple[str, str]:
+    text = _artifact_search_text(artifact)
+    source_kind = str(artifact.get("sourceKind") or "").lower()
+    if "benchmark" in text or "buyhold" in text or "no_trade" in text:
+        return "benchmark", "基准策略"
+    if "ml" in text or "machine" in text or "model" in text or "classifier" in text:
+        return "ml_model", "机器学习模型"
+    if "alpha191" in text or "factor" in text or "因子" in text or source_kind in {"best_exit_aware_policy"}:
+        return "factor_based", "因子策略"
+    if source_kind.endswith("report") or source_kind == "report_summary":
+        if any(token in text for token in ("trend", "pullback", "rebound", "rejection", "directional", "ema", "volume")):
+            return "rule_based", "规则策略"
+        return "report_only", "报告资产"
+    return "rule_based", "规则策略"
+
+
+def _classify_label_status(metrics: dict[str, Any], artifact: dict[str, Any]) -> tuple[str, str]:
+    has_trade_count = _metric_value(metrics, "tradeCount", "sampleCount", "filledSignalCount") is not None
+    has_win_rate = _metric_value(metrics, "winRatePct") is not None
+    has_r = _metric_value(metrics, "rewardRiskRatio") is not None or "rmultiple" in _artifact_search_text(artifact)
+    has_path = _metric_value(metrics, "maxDrawdownPct", "maxConsecutiveLosses") is not None
+    if has_r and has_win_rate:
+        return "has_2r_and_win_loss_labels", "已有 2R / 胜负标签"
+    if has_win_rate and has_trade_count:
+        return "has_win_loss_labels", "已有胜负标签"
+    if has_path and has_trade_count:
+        return "has_path_quality_labels", "已有路径质量标签"
+    if has_trade_count:
+        return "has_sample_labels", "已有样本标签"
+    return "missing_labels", "缺标签"
+
+
+def _classify_walk_forward_status(artifact: dict[str, Any]) -> tuple[str, str]:
+    text = _artifact_search_text(artifact)
+    if "walk_forward" in text or "walk-forward" in text:
+        return "walk_forward_validated", "已 walk-forward 验证"
+    if "forward" in text or "paper" in text or "monitoring" in text:
+        return "forward_observation_artifact", "前向观察资产"
+    if "expanded_validation" in text or "validation" in text:
+        return "expanded_backtest_validated", "扩展回测验证"
+    return "not_walk_forward_validated", "未 walk-forward 验证"
+
+
+def _classify_ml_status(method_type: str, label_status: str, metrics: dict[str, Any]) -> tuple[str, str]:
+    sample_count = int(_metric_value(metrics, "sampleCount", "tradeCount", "filledSignalCount") or 0)
+    if method_type == "ml_model":
+        return "trained_model_reported", "已报告训练模型"
+    if sample_count >= 300 and label_status != "missing_labels":
+        return "ml_dataset_ready", "可生成 ML 训练集"
+    if sample_count >= 80 and label_status != "missing_labels":
+        return "label_ready_needs_more_samples", "有标签但样本偏少"
+    if method_type == "factor_based":
+        return "factor_features_available", "有因子特征，待补标签/样本"
+    if label_status == "missing_labels":
+        return "missing_labels", "缺少 ML 标签"
+    return "not_ml_strategy", "非 ML 策略"
+
+
+def _candidate_decision(
+    artifact: dict[str, Any],
+    method_type: str,
+    ml_status: str,
+    label_status: str,
+    walk_forward_status: str,
+) -> tuple[str, str, list[str]]:
+    metrics = artifact.get("metrics") if isinstance(artifact.get("metrics"), dict) else {}
+    readiness = str(artifact.get("readinessTier") or "")
+    review_status = str(artifact.get("reviewStatus") or "")
+    sample_count = int(_metric_value(metrics, "sampleCount", "tradeCount", "filledSignalCount") or 0)
+    profit_factor = _metric_value(metrics, "profitFactor")
+    reward_risk = _metric_value(metrics, "rewardRiskRatio")
+    drawdown = _metric_value(metrics, "maxDrawdownPct")
+    reasons: list[str] = []
+    if review_status == "rejected" or readiness == "archived_or_failed":
+        reasons.append("已归档/失败或人工淘汰，不进入当前前向验证。")
+        return "rejected_or_archived", "淘汰/归档", reasons
+    if method_type in {"benchmark", "report_only"}:
+        reasons.append("属于基准或报告资产，用于对照研究，不直接前向验证。")
+        return "research_only", "只做研究观察", reasons
+    if sample_count < 30:
+        reasons.append("样本数低于 30，需要先补回测。")
+        return "needs_backtest", "需要补回测", reasons
+    if label_status == "missing_labels":
+        reasons.append("缺少胜负、2R 或路径质量标签。")
+        return "needs_labels", "需要补标签", reasons
+    if drawdown is not None and drawdown > 60:
+        reasons.append("历史最大回撤过高，先暂停。")
+        return "paused", "暂停", reasons
+    if profit_factor is not None and profit_factor < 1:
+        reasons.append("Profit Factor 低于 1，暂不进入前向验证。")
+        return "paused", "暂停", reasons
+    if reward_risk is not None and reward_risk < 1.5:
+        reasons.append("盈亏比不足，优先继续研究。")
+        return "research_only", "只做研究观察", reasons
+    if ml_status in {"ml_dataset_ready", "trained_model_reported"} and walk_forward_status in {
+        "forward_observation_artifact",
+        "walk_forward_validated",
+        "expanded_backtest_validated",
+    }:
+        reasons.append("样本、标签和验证记录较完整，可进入前向验证候选池。")
+        return "can_forward_validate", "可进入前向验证", reasons
+    if ml_status in {"ml_dataset_ready", "factor_features_available", "label_ready_needs_more_samples"}:
+        reasons.append("可用于 ML 评价或因子筛选，但还需要前向观察。")
+        return "ml_evaluation_queue", "进入 ML 评价队列", reasons
+    reasons.append("规则资产可继续观察，但暂不作为主验证策略。")
+    return "research_only", "只做研究观察", reasons
+
+
+def _build_ml_coverage(artifact: dict[str, Any]) -> dict[str, Any]:
+    metrics = artifact.get("metrics") if isinstance(artifact.get("metrics"), dict) else {}
+    method_type, method_label = _classify_method_type(artifact)
+    label_status, label_label = _classify_label_status(metrics, artifact)
+    walk_status, walk_label = _classify_walk_forward_status(artifact)
+    ml_status, ml_label = _classify_ml_status(method_type, label_status, metrics)
+    decision, decision_label, reasons = _candidate_decision(
+        artifact, method_type, ml_status, label_status, walk_status
+    )
+    return {
+        "methodType": method_type,
+        "methodLabel": method_label,
+        "mlStatus": ml_status,
+        "mlStatusLabel": ml_label,
+        "labelStatus": label_status,
+        "labelStatusLabel": label_label,
+        "walkForwardStatus": walk_status,
+        "walkForwardStatusLabel": walk_label,
+        "candidateDecision": decision,
+        "candidateDecisionLabel": decision_label,
+        "decisionReasons": reasons,
+        "note": "ML status describes research-data readiness. It is not a trading signal.",
+    }
+
+
+def _ml_coverage_summary(artifacts: list[dict[str, Any]]) -> dict[str, Any]:
+    rows = [item.get("mlCoverage") for item in artifacts if isinstance(item.get("mlCoverage"), dict)]
+    return {
+        "version": CONTROL_CONSOLE_VERSION,
+        "source": CONTROL_CONSOLE_SOURCE,
+        "totalArtifacts": len(artifacts),
+        "methodTypeCounts": _count_by_key(rows, "methodType"),
+        "mlStatusCounts": _count_by_key(rows, "mlStatus"),
+        "labelStatusCounts": _count_by_key(rows, "labelStatus"),
+        "walkForwardStatusCounts": _count_by_key(rows, "walkForwardStatus"),
+        "candidateDecisionCounts": _count_by_key(rows, "candidateDecision"),
+        "mlDatasetReadyCount": sum(1 for item in rows if item.get("mlStatus") == "ml_dataset_ready"),
+        "trainedModelReportedCount": sum(1 for item in rows if item.get("mlStatus") == "trained_model_reported"),
+        "forwardCandidateCount": sum(1 for item in rows if item.get("candidateDecision") == "can_forward_validate"),
+        "mlEvaluationQueueCount": sum(1 for item in rows if item.get("candidateDecision") == "ml_evaluation_queue"),
+        "safetyNote": "ML coverage is for research screening only. It does not create orders.",
+    }
+
+
 def _apply_artifact_reviews(index: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:
     reviews = state.get("artifactReviews") if isinstance(state.get("artifactReviews"), dict) else {}
     tasks = state.get("paperObservationTasks") if isinstance(state.get("paperObservationTasks"), dict) else {}
@@ -522,6 +697,7 @@ def _apply_artifact_reviews(index: dict[str, Any], state: dict[str, Any]) -> dic
             item["reviewNote"] = str(review.get("reviewNote") or "")
             item["reviewedAt"] = review.get("reviewedAt")
             item["reviewSource"] = review.get("source") or CONTROL_CONSOLE_SOURCE
+            item["mlCoverage"] = _build_ml_coverage(item)
             item["scoreBreakdown"] = _build_artifact_score_breakdown(item)
             checklist = _build_paper_observation_checklist(item, review)
             item["paperObservationChecklist"] = checklist
@@ -540,6 +716,7 @@ def _apply_artifact_reviews(index: dict[str, Any], state: dict[str, Any]) -> dic
     summary["paperObservationLogCount"] = sum(
         len(rows) for rows in logs_by_artifact.values() if isinstance(rows, list)
     )
+    summary["mlCoverage"] = _ml_coverage_summary([item for item in artifacts if isinstance(item, dict)])
     index["summary"] = summary
     return index
 
