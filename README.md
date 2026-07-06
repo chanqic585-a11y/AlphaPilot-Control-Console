@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.6.6 - Desktop and Mobile Command Console UI Polish
+AlphaPilot V13.7.0 - Read-Only Strategy Runtime Monitor
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -62,6 +62,17 @@ position access, order creation, exchange Dry-run, live trading, or automation.
 - Keeps mobile focused on current strategy, signal count, simulated PnL context, backtest metrics, public connectivity, and execution locks.
 
 V13.6.6 does not add API key input, private exchange access, account access,
+position access, order creation, exchange Dry-run, live trading, or automation.
+
+## What V13.7.0 Adds
+
+- Adds a "return to cockpit" navigation control and active section status.
+- Adds a read-only Strategy Runtime Monitor panel for current strategy, signal samples, health score, execution lock, and next research step.
+- Adds a shared `commandSummary` payload for desktop and mobile clients.
+- Displays command health and runtime readiness in the one-screen strategy matrix.
+- Keeps the desktop and mobile console focused on strategy, signal, simulated research context, and safety locks.
+
+V13.7.0 does not add API key input, private exchange access, account access,
 position access, order creation, exchange Dry-run, live trading, or automation.
 
 ## What V13.6 Does Not Do

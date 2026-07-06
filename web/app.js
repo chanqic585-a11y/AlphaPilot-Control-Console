@@ -20,6 +20,27 @@ const statusLabels = {
   not_probed: "未探测",
 };
 
+const readinessLabels = {
+  local_paper_review_ready: "本地模拟复核就绪",
+  research_observer_ready: "研究观察就绪",
+  needs_quant_report_import: "等待导入策略报告",
+};
+
+const healthLabels = {
+  healthy_research_runtime: "研究运行状态良好",
+  partial_research_runtime: "研究运行状态部分就绪",
+  needs_more_data: "需要更多数据",
+};
+
+const sectionLabels = {
+  overview: "驾驶舱",
+  command: "策略总控",
+  runtime: "运行监控",
+  exchanges: "公共行情",
+  mobile: "手机控制台",
+  audit: "审计日志",
+};
+
 let latestStrategies = [];
 
 function el(id) {
@@ -71,6 +92,14 @@ function tStatus(value) {
   return statusLabels[value] || value || "--";
 }
 
+function tReadiness(value) {
+  return readinessLabels[value] || value || "--";
+}
+
+function tHealth(value) {
+  return healthLabels[value] || value || "--";
+}
+
 function badge(value) {
   const normalized = String(value ?? "--");
   const label = tStatus(normalized);
@@ -102,6 +131,7 @@ function getSignalCount(strategy) {
 function renderCommandCenter(strategies, reports, mobile) {
   const primary = pickPrimaryStrategy(strategies);
   const metrics = getMetrics(primary);
+  const summary = mobile.commandSummary || {};
   const readyCount = strategies.filter((item) => item.consoleStatus === "local_paper_ready").length;
   const researchCount = strategies.filter((item) => item.consoleStatus === "research_only").length;
   const connected = mobile.exchangeConnectivity?.connectedExchangeCount ?? 0;
@@ -139,6 +169,29 @@ function renderCommandCenter(strategies, reports, mobile) {
   el("metricStopLoss").textContent = primary?.stopLossPct ? formatPercent(primary.stopLossPct * 100, 1) : "--";
   el("metricTargetR").textContent = primary?.targetRMultiple ? `${formatNumber(primary.targetRMultiple, 1)}R` : "--";
   el("executionLock").textContent = mobile.safetyBoundary?.orderCreationAllowed ? "异常开启" : "关闭";
+  el("metricHealthScore").textContent = summary.healthScore === undefined ? "--" : `${summary.healthScore}/100`;
+  el("metricReadiness").textContent = tReadiness(summary.readiness);
+}
+
+function renderRuntimeMonitor(strategies, mobile) {
+  const primary = pickPrimaryStrategy(strategies);
+  const summary = mobile.commandSummary || {};
+  const exchange = mobile.exchangeConnectivity || {};
+  const connected = exchange.connectedExchangeCount ?? 0;
+  const total = exchange.resultCount ?? 0;
+  const executionLocked = !mobile.safetyBoundary?.orderCreationAllowed;
+
+  el("runtimeStrategy").textContent = summary.activeStrategyTitle || primary?.title || "--";
+  el("runtimeStrategyMeta").textContent = [
+    summary.activeStrategyVersion || primary?.version || "--",
+    tStatus(summary.activeStatus || primary?.consoleStatus),
+  ].filter(Boolean).join(" / ");
+  el("runtimeSignals").textContent = summary.signalCount ?? getSignalCount(primary) ?? "--";
+  el("runtimeHealth").textContent = summary.healthScore === undefined ? "--" : `${summary.healthScore}/100`;
+  el("runtimeHealthLabel").textContent = tHealth(summary.healthLabel);
+  el("runtimeExecutionLock").textContent = executionLocked ? "关闭" : "异常开启";
+  el("runtimeNextStep").textContent = summary.nextStep || "等待本地策略报告导入。";
+  el("runtimeDataHealth").textContent = `公共行情连接 ${connected}/${total}，最近探测 ${formatDate(exchange.latestProbeAt)}。`;
 }
 
 function renderStrategies(strategies) {
@@ -321,6 +374,7 @@ async function refreshAll() {
   const strategyItems = strategies.strategies || [];
   const reportItems = reports.reports || [];
   renderCommandCenter(strategyItems, reportItems, mobile);
+  renderRuntimeMonitor(strategyItems, mobile);
   renderStrategies(strategyItems);
   renderReports(reportItems);
   renderAudit(audit.events || []);
@@ -344,6 +398,27 @@ function renderMobileConnectionInfo(connection) {
     </div>
     ${notes.map((note) => `<div class="item">${translateConnectionNote(note)}</div>`).join("")}
   `;
+}
+
+function updateCurrentSection() {
+  const sections = Object.keys(sectionLabels)
+    .map((id) => document.getElementById(id))
+    .filter(Boolean);
+  const active = sections.reduce((best, section) => {
+    const top = Math.abs(section.getBoundingClientRect().top - 84);
+    if (!best || top < best.top) return { id: section.id, top };
+    return best;
+  }, null);
+  if (!active) return;
+  document.querySelectorAll(".rail-item").forEach((item) => {
+    item.classList.toggle("active", item.getAttribute("href") === `#${active.id}`);
+  });
+  const current = el("currentSectionLabel");
+  if (current) current.textContent = `当前：${sectionLabels[active.id] || active.id}`;
+}
+
+function scrollToOverview() {
+  document.getElementById("overview")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 el("refreshButton").addEventListener("click", refreshAll);
@@ -371,6 +446,11 @@ el("probeExchangesButton").addEventListener("click", async () => {
   }
 });
 
+el("backHomeButton").addEventListener("click", scrollToOverview);
+window.addEventListener("scroll", updateCurrentSection, { passive: true });
+window.addEventListener("hashchange", updateCurrentSection);
+
 refreshAll().catch((error) => {
   el("strategyList").innerHTML = `<div class="item">加载失败：${error.message}</div>`;
 });
+updateCurrentSection();

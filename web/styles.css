@@ -335,6 +335,12 @@ small {
   border: 1px solid var(--line-strong);
 }
 
+.status-pill.location {
+  background: rgba(122, 168, 255, 0.12);
+  border: 1px solid rgba(122, 168, 255, 0.28);
+  color: var(--blue);
+}
+
 .status-pill.danger,
 .badge.danger {
   background: var(--red-soft);
@@ -561,7 +567,7 @@ small {
 
 .metric-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   min-width: 0;
   margin-top: 12px;
@@ -573,6 +579,52 @@ small {
     linear-gradient(180deg, rgba(255, 209, 61, 0.035), transparent),
     #0c1218;
   min-height: 72px;
+}
+
+.runtime-panel {
+  border-color: rgba(122, 168, 255, 0.22);
+}
+
+.runtime-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.runtime-card {
+  min-height: 112px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(122, 168, 255, 0.11), transparent 36%),
+    #0c1218;
+  padding: 14px;
+}
+
+.runtime-card span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.runtime-card strong {
+  display: block;
+  color: var(--text);
+  font-size: 22px;
+  overflow-wrap: anywhere;
+}
+
+.runtime-card small {
+  display: block;
+  margin-top: 8px;
+}
+
+.runtime-tape {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
 }
 
 .content-grid {
@@ -747,6 +799,17 @@ code {
   font-weight: 800;
 }
 
+.back-home-button {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 20;
+  min-height: 42px;
+  border-radius: 999px;
+  padding: 0 18px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+}
+
 @media (max-width: 1180px) {
   body {
     min-width: 0;
@@ -771,13 +834,18 @@ code {
 
   .rail-nav {
     grid-auto-flow: column;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     justify-content: stretch;
     overflow-x: auto;
   }
 
   .rail-footer {
     display: none;
+  }
+
+  .back-home-button {
+    right: 14px;
+    bottom: 14px;
   }
 
   .workspace {
@@ -800,6 +868,8 @@ code {
   .content-grid,
   .command-grid,
   .metric-grid,
+  .runtime-grid,
+  .runtime-tape,
   .exchange-grid,
   .slot-grid,
   .mobile-helper,

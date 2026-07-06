@@ -7,6 +7,9 @@ from typing import Any
 from .config import SAFETY_BOUNDARY, get_quant_engine_path
 from .state_store import append_audit, load_state, now_iso, read_exchange_probe_results, write_mobile_status
 
+CONTROL_CONSOLE_VERSION = "V13.7.0"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_0"
+
 
 def _read_json(path: Path) -> dict[str, Any] | None:
     if not path.exists():
@@ -167,8 +170,8 @@ def scan_quant_engine() -> dict[str, Any]:
         strategy["consoleUpdatedAt"] = override.get("updatedAt")
 
     payload = {
-        "version": "V13.6.6",
-        "source": "alphapilot_control_console_v13_6_6",
+        "version": CONTROL_CONSOLE_VERSION,
+        "source": CONTROL_CONSOLE_SOURCE,
         "quantEnginePath": str(quant_path),
         "quantEngineAvailable": quant_path.exists(),
         "reportsDirAvailable": reports_dir.exists(),
@@ -181,6 +184,98 @@ def scan_quant_engine() -> dict[str, Any]:
     return payload
 
 
+def _metric_number(metrics: dict[str, Any], key: str) -> float | None:
+    value = metrics.get(key)
+    try:
+        number_value = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number_value
+
+
+def _strategy_signal_count(strategy: dict[str, Any] | None) -> int | None:
+    if not strategy:
+        return None
+    metrics = strategy.get("metrics") if isinstance(strategy.get("metrics"), dict) else {}
+    value = strategy.get("selectedSignalCount") or metrics.get("filledSignalCount") or metrics.get("tradeCount")
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _pick_primary_strategy(strategies: list[dict[str, Any]]) -> dict[str, Any] | None:
+    for status in ("local_paper_ready", "forward_testing", "research_only"):
+        strategy = next((item for item in strategies if item.get("consoleStatus") == status), None)
+        if strategy:
+            return strategy
+    return strategies[0] if strategies else None
+
+
+def _build_command_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    strategies = payload.get("strategies") if isinstance(payload.get("strategies"), list) else []
+    reports = payload.get("reports") if isinstance(payload.get("reports"), list) else []
+    primary = _pick_primary_strategy(strategies)
+    metrics = primary.get("metrics", {}) if primary else {}
+    ready_count = sum(1 for item in strategies if item.get("consoleStatus") == "local_paper_ready")
+    research_count = sum(1 for item in strategies if item.get("consoleStatus") == "research_only")
+    signal_count = _strategy_signal_count(primary)
+    win_rate = _metric_number(metrics, "winRatePct")
+    profit_factor = _metric_number(metrics, "profitFactor")
+    reward_risk = _metric_number(metrics, "rewardRiskRatio")
+    max_drawdown = _metric_number(metrics, "maxDrawdownPct")
+
+    health_score = 0
+    if primary:
+        health_score += 20
+    if ready_count > 0:
+        health_score += 20
+    if signal_count and signal_count >= 10:
+        health_score += 15
+    if profit_factor is not None and profit_factor >= 1:
+        health_score += 15
+    if reward_risk is not None and reward_risk >= 1.5:
+        health_score += 15
+    if max_drawdown is not None and max_drawdown <= 25:
+        health_score += 15
+    health_score = min(100, health_score)
+
+    if ready_count > 0:
+        readiness = "local_paper_review_ready"
+    elif primary:
+        readiness = "research_observer_ready"
+    else:
+        readiness = "needs_quant_report_import"
+
+    if health_score >= 75:
+        health_label = "healthy_research_runtime"
+    elif health_score >= 45:
+        health_label = "partial_research_runtime"
+    else:
+        health_label = "needs_more_data"
+
+    return {
+        "activeStrategyId": primary.get("strategyId") if primary else None,
+        "activeStrategyTitle": primary.get("title") if primary else None,
+        "activeStrategyVersion": primary.get("version") if primary else None,
+        "activeStatus": primary.get("consoleStatus") if primary else None,
+        "readyCount": ready_count,
+        "researchCount": research_count,
+        "reportCount": len(reports),
+        "strategyCount": len(strategies),
+        "signalCount": signal_count,
+        "winRatePct": win_rate,
+        "profitFactor": profit_factor,
+        "rewardRiskRatio": reward_risk,
+        "maxDrawdownPct": max_drawdown,
+        "healthScore": health_score,
+        "healthLabel": health_label,
+        "readiness": readiness,
+        "executionLockLabel": "read_only_no_trade_execution",
+        "nextStep": "Review strategy, signal, risk, and local paper evidence before any future manual action.",
+    }
+
+
 def build_mobile_status(payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "version": payload["version"],
@@ -188,6 +283,7 @@ def build_mobile_status(payload: dict[str, Any]) -> dict[str, Any]:
         "source": payload["source"],
         "safetyBoundary": payload["safetyBoundary"],
         "strategyCount": len(payload["strategies"]),
+        "commandSummary": _build_command_summary(payload),
         "exchangeConnectivity": _mobile_exchange_connectivity(),
         "strategies": [
             {

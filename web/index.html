@@ -23,6 +23,9 @@
           <a class="rail-item" href="#command" title="策略总控" aria-label="策略总控">
             <span class="nav-key">S</span><span>策略总控</span>
           </a>
+          <a class="rail-item" href="#runtime" title="运行监控" aria-label="运行监控">
+            <span class="nav-key">R</span><span>运行监控</span>
+          </a>
           <a class="rail-item" href="#exchanges" title="公共行情" aria-label="公共行情">
             <span class="nav-key">M</span><span>公共行情</span>
           </a>
@@ -50,6 +53,7 @@
             <p class="subtitle">把策略、信号、模拟持仓、回测结果和手机连接放在一张本地总控台里。</p>
           </div>
           <div class="top-status">
+            <span class="status-pill location" id="currentSectionLabel">当前：驾驶舱</span>
             <span class="status-pill ok">本地记录模式</span>
             <span class="status-pill neutral">公共行情</span>
             <span class="status-pill danger">实盘关闭</span>
@@ -184,6 +188,57 @@
               <span>执行锁</span>
               <strong id="executionLock">关闭</strong>
             </div>
+            <div class="metric-cell">
+              <span>运行健康度</span>
+              <strong id="metricHealthScore">--</strong>
+            </div>
+            <div class="metric-cell">
+              <span>运行状态</span>
+              <strong id="metricReadiness">--</strong>
+            </div>
+          </div>
+        </section>
+
+        <section id="runtime" class="panel runtime-panel">
+          <div class="section-header">
+            <div>
+              <p class="panel-eyebrow">READ-ONLY RUNTIME MONITOR</p>
+              <h2>策略运行监控</h2>
+              <p>集中查看当前策略、信号、风险锁和下一步研究动作；这里不创建订单，也不执行交易。</p>
+            </div>
+            <span class="status-pill danger">执行能力关闭</span>
+          </div>
+          <div class="runtime-grid">
+            <div class="runtime-card">
+              <span>当前策略</span>
+              <strong id="runtimeStrategy">--</strong>
+              <small id="runtimeStrategyMeta">--</small>
+            </div>
+            <div class="runtime-card">
+              <span>最近信号样本</span>
+              <strong id="runtimeSignals">--</strong>
+              <small>来自本地报告，不是交易指令</small>
+            </div>
+            <div class="runtime-card">
+              <span>健康度</span>
+              <strong id="runtimeHealth">--</strong>
+              <small id="runtimeHealthLabel">--</small>
+            </div>
+            <div class="runtime-card">
+              <span>执行锁</span>
+              <strong id="runtimeExecutionLock">关闭</strong>
+              <small>Trade API / Withdraw API / 自动交易均关闭</small>
+            </div>
+          </div>
+          <div class="runtime-tape">
+            <div class="item">
+              <strong>下一步研究动作</strong>
+              <div id="runtimeNextStep">等待本地策略报告导入。</div>
+            </div>
+            <div class="item">
+              <strong>数据健康</strong>
+              <div id="runtimeDataHealth">等待状态刷新。</div>
+            </div>
           </div>
         </section>
 
@@ -293,6 +348,7 @@
             <pre id="mobilePreview" class="preview">加载中…</pre>
           </details>
         </section>
+        <button class="back-home-button" id="backHomeButton" type="button" aria-label="回到驾驶舱">回到驾驶舱</button>
       </main>
     </div>
     <script src="/app.js"></script>
