@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.8 - Paper Observation Execution Console
+AlphaPilot V13.7.9 - Forward Validation Acceptance Console
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -99,6 +99,19 @@ V13.7.8 does not add API key input, private exchange access, account access,
 position access, order creation, exchange Dry-run, live trading, or automation.
 The health score is a local review-completeness score, not a probability of
 profit.
+
+## What V13.7.9 Adds
+
+- Adds a forward-validation acceptance summary for the July 10 Beijing-time review window.
+- Separates strict active validation from system active tasks and smoke/test-only tasks.
+- Adds `GET /api/forward-validation`.
+- Extends `/api/mobile/status` with `forwardValidation`.
+- Shows formal active validation count, raw active count, test-only active count, candidate pool count, observation-log count, rule-match count, review date, and acceptance gate.
+- Defines minimum acceptance checks before a strategy can be reviewed for paper-simulation observation.
+
+V13.7.9 does not add API key input, private exchange access, account access,
+position access, order creation, exchange Dry-run, live trading, or automation.
+Forward validation is a research acceptance workflow only.
 
 ## What V13.6 Does Not Do
 

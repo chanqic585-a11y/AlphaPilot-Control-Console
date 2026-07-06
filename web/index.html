@@ -374,6 +374,51 @@
             </div>
             <span class="status-pill danger">执行能力关闭</span>
           </div>
+          <div class="forward-validation-card">
+            <div class="forward-validation-head">
+              <div>
+                <p class="panel-eyebrow">FORWARD VALIDATION</p>
+                <h3>前向验证验收台</h3>
+                <p id="forwardValidationAnswer">正在读取验证口径…</p>
+              </div>
+              <span id="forwardValidationGate" class="badge warn">等待验收</span>
+            </div>
+            <div class="metric-grid compact">
+              <div class="metric-cell">
+                <span>正式验证中</span>
+                <strong id="forwardStrictActive">--</strong>
+              </div>
+              <div class="metric-cell">
+                <span>系统 active</span>
+                <strong id="forwardRawActive">--</strong>
+              </div>
+              <div class="metric-cell">
+                <span>测试任务</span>
+                <strong id="forwardTestTasks">--</strong>
+              </div>
+              <div class="metric-cell">
+                <span>候选池</span>
+                <strong id="forwardCandidatePool">--</strong>
+              </div>
+              <div class="metric-cell">
+                <span>观察日志</span>
+                <strong id="forwardLogCount">--</strong>
+              </div>
+              <div class="metric-cell">
+                <span>规则匹配</span>
+                <strong id="forwardRuleMatches">--</strong>
+              </div>
+              <div class="metric-cell">
+                <span>验收日期</span>
+                <strong id="forwardReviewDate">--</strong>
+              </div>
+              <div class="metric-cell">
+                <span>剩余天数</span>
+                <strong id="forwardDaysLeft">--</strong>
+              </div>
+            </div>
+            <div id="forwardValidationMethod" class="forward-validation-method"></div>
+          </div>
           <div class="metric-grid">
             <div class="metric-cell">
               <span>任务总数</span>

@@ -67,6 +67,15 @@ const paperHealthLabels = {
   rejected: "已淘汰",
 };
 
+const forwardGateLabels = {
+  needs_active_validation: "还没有正式验证中的策略",
+  waiting_until_review_date: "等待 7 月 10 日前向验收",
+  needs_observation_logs: "需要补观察日志",
+  needs_rule_match: "需要至少一次规则匹配",
+  needs_risk_review: "需要先复核风险/失效记录",
+  eligible_for_paper_review: "可进入纸面模拟观察复核",
+};
+
 const readinessLabels = {
   local_paper_review_ready: "本地模拟复核就绪",
   research_observer_ready: "研究观察就绪",
@@ -335,6 +344,10 @@ function tPaperHealth(value) {
   return paperHealthLabels[value] || value || "--";
 }
 
+function tForwardGate(value) {
+  return forwardGateLabels[value] || value || "--";
+}
+
 function paperTaskBadge(value) {
   const normalized = String(value || "planned");
   let kind = "";
@@ -349,6 +362,13 @@ function paperHealthBadge(health) {
   const tone = health?.healthTone || "warn";
   const kind = tone === "good" ? "ok" : tone === "danger" ? "danger" : "warn";
   return `<span class="badge ${kind}">${tPaperHealth(label)} · ${formatNumber(health?.healthScore, 0)}分</span>`;
+}
+
+function forwardGateBadge(value) {
+  let kind = "warn";
+  if (value === "eligible_for_paper_review") kind = "ok";
+  if (value === "needs_active_validation" || value === "needs_risk_review") kind = "danger";
+  return `<span class="badge ${kind}">${escapeHtml(tForwardGate(value))}</span>`;
 }
 
 function tBaselineComparison(value) {
@@ -706,6 +726,32 @@ function renderPaperObservationTasks(taskPayload) {
   }).join("") || '<div class="item">暂无纸面观察任务。请在策略资产详情中点击“进入纸面观察”或“启动任务”。</div>';
 }
 
+function renderForwardValidation(forwardValidation) {
+  const summary = forwardValidation || {};
+  el("forwardValidationAnswer").textContent = summary.answerSummary || "等待前向验证数据。";
+  el("forwardValidationGate").outerHTML = forwardGateBadge(summary.acceptanceGate).replace("<span ", '<span id="forwardValidationGate" ');
+  el("forwardStrictActive").textContent = String(summary.strictActiveValidationCount ?? 0);
+  el("forwardRawActive").textContent = String(summary.rawActiveTaskCount ?? 0);
+  el("forwardTestTasks").textContent = String(summary.testOnlyActiveTaskCount ?? 0);
+  el("forwardCandidatePool").textContent = String(summary.candidatePoolCount ?? 0);
+  el("forwardLogCount").textContent = String(summary.totalObservationLogCount ?? 0);
+  el("forwardRuleMatches").textContent = String(summary.ruleMatchedCount ?? 0);
+  el("forwardReviewDate").textContent = summary.reviewDateLabel || "--";
+  el("forwardDaysLeft").textContent = `${summary.daysUntilReview ?? "--"} 天`;
+  const checks = Array.isArray(summary.minimumAcceptanceChecks) ? summary.minimumAcceptanceChecks : [];
+  const method = Array.isArray(summary.validationMethod) ? summary.validationMethod : [];
+  el("forwardValidationMethod").innerHTML = `
+    <div>
+      <strong>如何验证</strong>
+      ${method.map((item) => `<small>${escapeHtml(item)}</small>`).join("")}
+    </div>
+    <div>
+      <strong>最低验收门槛</strong>
+      ${checks.map((item) => `<small>${escapeHtml(item)}</small>`).join("")}
+    </div>
+  `;
+}
+
 function renderStrategies(strategies) {
   latestStrategies = strategies;
 
@@ -895,6 +941,7 @@ async function refreshAll() {
   renderExchanges(exchanges.sources || [], mobile);
   renderStrategySlots(slots.slots || []);
   renderStrategyArtifacts(artifacts);
+  renderForwardValidation(mobile.forwardValidation);
   renderPaperObservationTasks(paperTasks);
   renderMobileConnectionInfo(connection);
   el("mobilePreview").textContent = JSON.stringify(mobile, null, 2);

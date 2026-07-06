@@ -48,7 +48,7 @@ def _find_artifact(index: dict, artifact_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.7.8"
+    server_version = "AlphaPilotControlConsole/13.7.9"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -89,8 +89,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.7.8",
-                "source": "alphapilot_control_console_v13_7_8",
+                "version": "V13.7.9",
+                "source": "alphapilot_control_console_v13_7_9",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -137,6 +137,13 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                         "metrics": item.get("metrics") if isinstance(item.get("metrics"), dict) else {},
                     })
             self._send_json({"tasks": tasks, "safetyBoundary": SAFETY_BOUNDARY})
+            return
+        if path == "/api/forward-validation":
+            payload = build_mobile_status(scan_quant_engine())
+            self._send_json({
+                "forwardValidation": payload.get("forwardValidation"),
+                "safetyBoundary": SAFETY_BOUNDARY,
+            })
             return
         if path == "/api/paper-observation-logs":
             query = parse_qs(parsed.query or "")

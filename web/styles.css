@@ -366,6 +366,67 @@ small {
   word-break: break-word;
 }
 
+.forward-validation-card {
+  border: 1px solid rgba(24, 211, 166, 0.26);
+  background: linear-gradient(135deg, rgba(24, 211, 166, 0.11), rgba(122, 168, 255, 0.055));
+  border-radius: 8px;
+  margin-bottom: 16px;
+  padding: 14px;
+}
+
+.forward-validation-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.forward-validation-head h3 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.forward-validation-head p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.metric-grid.compact {
+  margin-top: 10px;
+}
+
+.forward-validation-method {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.forward-validation-method div {
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.18);
+  padding: 10px;
+}
+
+.forward-validation-method strong,
+.forward-validation-method small {
+  display: block;
+}
+
+.forward-validation-method strong {
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.forward-validation-method small {
+  color: var(--muted);
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
 .hero-grid {
   display: grid;
   grid-template-columns: minmax(0, 2.1fr) minmax(330px, 1fr);

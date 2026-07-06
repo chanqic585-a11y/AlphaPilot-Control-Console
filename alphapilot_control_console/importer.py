@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -15,8 +16,11 @@ from .state_store import (
     write_mobile_status,
 )
 
-CONTROL_CONSOLE_VERSION = "V13.7.8"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_8"
+CONTROL_CONSOLE_VERSION = "V13.7.9"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_9"
+BEIJING_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
+FORWARD_VALIDATION_REVIEW_DATE = date(2026, 7, 10)
+FORWARD_VALIDATION_REVIEW_LABEL = "2026年7月10日（北京时间）"
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -657,6 +661,128 @@ def _compact_paper_observation_tasks(index: dict[str, Any], limit: int = 30) -> 
     }
 
 
+def _is_smoke_task(task: dict[str, Any]) -> bool:
+    text = " ".join(
+        str(task.get(key) or "").lower()
+        for key in ("note", "source", "taskLabel", "title", "originalTitle")
+    )
+    return any(marker in text for marker in ("smoke", "test-only", "接口 smoke", "测试任务"))
+
+
+def _forward_gate_label(value: str) -> str:
+    labels = {
+        "needs_active_validation": "还没有正式验证中的策略",
+        "waiting_until_review_date": "等待 7 月 10 日前向验收",
+        "needs_observation_logs": "需要补观察日志",
+        "needs_rule_match": "需要至少一次规则匹配",
+        "needs_risk_review": "需要先复核风险/失效记录",
+        "eligible_for_paper_review": "可进入纸面模拟观察复核",
+    }
+    return labels.get(value, value)
+
+
+def _build_forward_validation_summary(index: dict[str, Any]) -> dict[str, Any]:
+    artifacts = index.get("artifacts") if isinstance(index.get("artifacts"), list) else []
+    tasks: list[dict[str, Any]] = []
+    for artifact in artifacts:
+        if not isinstance(artifact, dict):
+            continue
+        task = artifact.get("paperObservationTask") if isinstance(artifact.get("paperObservationTask"), dict) else None
+        if not task:
+            continue
+        task = {
+            **task,
+            "title": artifact.get("displayName") or artifact.get("title"),
+            "originalTitle": artifact.get("title"),
+            "displaySubtitle": artifact.get("displaySubtitle"),
+            "strategyId": artifact.get("strategyId"),
+            "version": artifact.get("version"),
+            "readinessTier": artifact.get("readinessTier"),
+            "reviewStatus": artifact.get("reviewStatus"),
+            "metrics": artifact.get("metrics") if isinstance(artifact.get("metrics"), dict) else {},
+        }
+        task["isTestTask"] = _is_smoke_task(task)
+        tasks.append(task)
+
+    active_tasks = [task for task in tasks if task.get("taskStatus") == "active"]
+    test_active_tasks = [task for task in active_tasks if task.get("isTestTask")]
+    effective_active_tasks = [task for task in active_tasks if not task.get("isTestTask")]
+    planned_tasks = [task for task in tasks if task.get("taskStatus") == "planned"]
+    health_rows = [task.get("health") for task in tasks if isinstance(task.get("health"), dict)]
+    total_logs = sum(int(row.get("logCount") or 0) for row in health_rows)
+    rule_matched = sum(int(row.get("ruleMatchedCount") or 0) for row in health_rows)
+    invalidated = sum(int(row.get("invalidatedCount") or 0) for row in health_rows)
+    risk_warnings = sum(int(row.get("riskWarningCount") or 0) for row in health_rows)
+
+    today = datetime.now(BEIJING_TZ).date()
+    days_until_review = (FORWARD_VALIDATION_REVIEW_DATE - today).days
+    if not effective_active_tasks:
+        gate = "needs_active_validation"
+    elif days_until_review > 0:
+        gate = "waiting_until_review_date"
+    elif total_logs < 3:
+        gate = "needs_observation_logs"
+    elif rule_matched < 1:
+        gate = "needs_rule_match"
+    elif invalidated > 0 or risk_warnings > 0:
+        gate = "needs_risk_review"
+    else:
+        gate = "eligible_for_paper_review"
+
+    top_candidates = sorted(
+        planned_tasks,
+        key=lambda item: (
+            float(item.get("progressPct") or 0),
+            float((item.get("health") or {}).get("healthScore") or 0),
+        ),
+        reverse=True,
+    )[:8]
+
+    return {
+        "version": CONTROL_CONSOLE_VERSION,
+        "generatedAt": now_iso(),
+        "source": CONTROL_CONSOLE_SOURCE,
+        "reviewDate": FORWARD_VALIDATION_REVIEW_DATE.isoformat(),
+        "reviewDateLabel": FORWARD_VALIDATION_REVIEW_LABEL,
+        "daysUntilReview": max(days_until_review, 0),
+        "strictActiveValidationCount": len(effective_active_tasks),
+        "rawActiveTaskCount": len(active_tasks),
+        "testOnlyActiveTaskCount": len(test_active_tasks),
+        "plannedCandidateCount": len(planned_tasks),
+        "candidatePoolCount": len(tasks),
+        "artifactPoolCount": len(artifacts),
+        "totalObservationLogCount": total_logs,
+        "ruleMatchedCount": rule_matched,
+        "invalidatedCount": invalidated,
+        "riskWarningCount": risk_warnings,
+        "acceptanceGate": gate,
+        "acceptanceGateLabel": _forward_gate_label(gate),
+        "canEnterPaperSimulationReview": gate == "eligible_for_paper_review",
+        "validationMethod": [
+            "先把候选策略标记为纸面观察，形成 active 验证任务。",
+            "每天记录无信号、看到信号、规则匹配、错过、失效、风险提醒。",
+            "7 月 10 日只做验收复核，不自动进入实盘或下单。",
+            "至少需要观察日志、规则匹配记录和风险记录，不能只看历史回测。",
+        ],
+        "minimumAcceptanceChecks": [
+            "至少 1 条正式 active 验证任务，且不是 smoke/test 任务。",
+            "至少 3 条前向观察日志。",
+            "至少 1 次规则匹配记录。",
+            "没有未处理的条件失效或风险提醒。",
+            "继续保持 Trade API / Withdraw API / API Key / 自动交易全部关闭。",
+        ],
+        "activeValidationTasks": effective_active_tasks[:5],
+        "testOnlyActiveTasks": test_active_tasks[:5],
+        "topCandidatesForPromotion": top_candidates,
+        "answerSummary": (
+            f"严格口径：{len(effective_active_tasks)} 条正式验证中；"
+            f"系统 active 口径：{len(active_tasks)} 条，其中测试任务 {len(test_active_tasks)} 条；"
+            f"候选池：{len(tasks)} 条。"
+        ),
+        "safetyNote": "Forward validation is a research acceptance workflow only. It does not create orders.",
+    }
+
+
 def _compact_signal_tape(signal_tape: dict[str, Any], limit: int = 20) -> dict[str, Any]:
     signals = signal_tape.get("signals") if isinstance(signal_tape.get("signals"), list) else []
     return {
@@ -801,6 +927,7 @@ def build_mobile_status(payload: dict[str, Any]) -> dict[str, Any]:
         "paperObservationLedger": _compact_paper_observation_ledger(payload.get("paperObservationLedger", {})),
         "strategyArtifactIndex": _compact_strategy_artifact_index(payload.get("strategyArtifactIndex", {})),
         "paperObservationTasks": _compact_paper_observation_tasks(payload.get("strategyArtifactIndex", {})),
+        "forwardValidation": _build_forward_validation_summary(payload.get("strategyArtifactIndex", {})),
         "exchangeConnectivity": _mobile_exchange_connectivity(),
         "strategies": [
             {
