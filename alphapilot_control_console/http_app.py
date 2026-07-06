@@ -8,7 +8,9 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from .config import ALLOWED_STRATEGY_STATUSES, SAFETY_BOUNDARY, WEB_DIR
+from .exchange_connectors.public_exchange_registry import list_public_exchange_sources, probe_public_exchanges
 from .importer import build_mobile_status, import_now, scan_quant_engine
+from .strategy_slots import list_strategy_slots
 from .state_store import list_audit, update_strategy_status
 
 
@@ -16,8 +18,15 @@ def _json_bytes(payload: object) -> bytes:
     return json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
 
 
+def _safe_int(value: object, fallback: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.6"
+    server_version = "AlphaPilotControlConsole/13.6.1"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -58,8 +67,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.6",
-                "source": "alphapilot_control_console_v13_6",
+                "version": "V13.6.1",
+                "source": "alphapilot_control_console_v13_6_1",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -74,6 +83,12 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/audit":
             self._send_json({"events": list_audit()})
+            return
+        if path == "/api/exchanges":
+            self._send_json(list_public_exchange_sources())
+            return
+        if path == "/api/strategy-slots":
+            self._send_json(list_strategy_slots())
             return
         if path in {"/", "/index.html"}:
             self._send_static(WEB_DIR / "index.html")
@@ -102,6 +117,16 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 return
             updated = update_strategy_status(strategy_id, status, note)
             self._send_json({"updated": updated, "safetyBoundary": SAFETY_BOUNDARY})
+            return
+        if parsed.path == "/api/exchanges/probe-public":
+            payload = self._read_body_json()
+            exchanges = payload.get("exchanges")
+            if not isinstance(exchanges, list):
+                exchanges = None
+            symbol = str(payload.get("symbol") or "").strip() or "BTC/USDT:USDT"
+            timeframe = str(payload.get("timeframe") or "").strip() or "1h"
+            limit = _safe_int(payload.get("limit") or 2, 2)
+            self._send_json(probe_public_exchanges(exchanges=exchanges, symbol=symbol, timeframe=timeframe, limit=limit))
             return
         self._send_json({"error": "not_found"}, 404)
 

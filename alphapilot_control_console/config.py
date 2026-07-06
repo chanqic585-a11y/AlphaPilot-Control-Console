@@ -31,6 +31,50 @@ SAFETY_BOUNDARY = {
     "automaticTradingAllowed": False,
 }
 
+DEFAULT_EXCHANGE_PROBE_SYMBOL = "BTC/USDT:USDT"
+DEFAULT_EXCHANGE_PROBE_TIMEFRAME = "1h"
+DEFAULT_EXCHANGE_PROBE_LIMIT = 2
+
+PUBLIC_EXCHANGE_IDS = ("okx", "binance", "bybit")
+
+DEFAULT_STRATEGY_SLOTS = [
+    {
+        "slotId": "active_candidate",
+        "label": "Active Local Paper Candidate",
+        "role": "active_candidate",
+        "expectedStrategyId": "v13_5_21_local_paper_refresh_candidate",
+        "status": "waiting_for_import",
+    },
+    {
+        "slotId": "observer_alpha191",
+        "label": "Alpha191 Observer",
+        "role": "observer",
+        "expectedStrategyId": "v13_5_23_alpha191_crypto_subset_observer",
+        "status": "waiting_for_import",
+    },
+    {
+        "slotId": "backup_1",
+        "label": "Backup Strategy Slot 1",
+        "role": "backup",
+        "expectedStrategyId": None,
+        "status": "empty",
+    },
+    {
+        "slotId": "backup_2",
+        "label": "Backup Strategy Slot 2",
+        "role": "backup",
+        "expectedStrategyId": None,
+        "status": "empty",
+    },
+    {
+        "slotId": "backup_3",
+        "label": "Backup Strategy Slot 3",
+        "role": "backup",
+        "expectedStrategyId": None,
+        "status": "empty",
+    },
+]
+
 
 def get_quant_engine_path() -> Path:
     configured = os.environ.get("ALPHAPILOT_QUANT_ENGINE_PATH")

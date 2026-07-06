@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.6 - Control Console Bridge
+AlphaPilot V13.6.1 - Public Exchange Connectivity and Strategy Slots
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -19,6 +19,18 @@ It is not a trading execution system.
 - Shows strategy status, gate results, and report summaries.
 - Provides a read-only mobile bridge endpoint.
 - Stores local console status and audit logs.
+
+## What V13.6.1 Adds
+
+- Adds a public-only exchange connectivity panel.
+- Probes OKX, Binance USD-M Futures, and Bybit USDT perpetual public market data.
+- Checks public ticker, OHLCV, funding-rate, and open-interest availability when the exchange endpoint supports it.
+- Stores the latest public probe result locally in `data/exchange_probe_results.json`.
+- Adds a strategy slot registry for active, observer, and backup strategy packages.
+- Exposes exchange status and strategy slots through local API endpoints.
+
+V13.6.1 does not add API key input, private exchange access, account access,
+position access, order creation, exchange Dry-run, live trading, or automation.
 
 ## What V13.6 Does Not Do
 
@@ -60,12 +72,18 @@ GET  /api/strategies
 GET  /api/reports
 GET  /api/mobile/status
 GET  /api/audit
+GET  /api/exchanges
+GET  /api/strategy-slots
 POST /api/import
 POST /api/strategy-status
+POST /api/exchanges/probe-public
 ```
 
 The POST endpoints only rescan local files or update local console state. They
 cannot place orders or access exchanges.
+
+`POST /api/exchanges/probe-public` only calls public market-data endpoints. It
+does not accept, store, or transmit API keys.
 
 ## Quant Engine Source
 
@@ -91,3 +109,30 @@ http://127.0.0.1:8766/api/mobile/status
 
 Future mobile App work can consume this endpoint to display strategy status.
 V13.6 does not add a mobile trading button or execution path.
+
+## Public Exchange Connectivity
+
+The console can probe public market endpoints for a selected symbol, timeframe,
+and small candle limit. The probe is meant to verify connectivity and data
+availability before later research workflows use these sources.
+
+Supported source profiles:
+
+- OKX public market data
+- Binance USD-M Futures public market data
+- Bybit USDT perpetual public market data
+
+The probe is deliberately not a trading connector. It does not use credentials,
+private endpoints, account data, position data, order endpoints, or emergency
+execution paths.
+
+## Strategy Slots
+
+Strategy slots reserve visible places for:
+
+- the active local-paper candidate
+- observer research candidates
+- future backup candidates
+
+Slots are metadata and review containers only. Empty backup slots do not create
+strategy logic, and loaded slots do not execute trades.

@@ -246,6 +246,55 @@ code {
   gap: 10px;
 }
 
+.exchange-grid,
+.slot-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.exchange-card,
+.slot-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfdff;
+}
+
+.exchange-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: minmax(110px, 1fr) minmax(80px, auto);
+  gap: 6px 10px;
+  margin: 10px 0;
+  font-size: 13px;
+}
+
+.kv span {
+  color: var(--muted);
+}
+
+.probe-controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(140px, 180px) minmax(120px, 160px);
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.probe-controls label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .item {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -280,6 +329,9 @@ code {
   }
 
   .grid,
+  .exchange-grid,
+  .slot-grid,
+  .probe-controls,
   .split {
     grid-template-columns: 1fr;
   }

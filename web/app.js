@@ -36,9 +36,9 @@ function formatNumber(value, digits = 2) {
 function badge(value) {
   const normalized = String(value ?? "--");
   let kind = "";
-  if (normalized === "local_paper_ready") kind = "ok";
+  if (normalized === "local_paper_ready" || normalized === "ok" || normalized === "public_only") kind = "ok";
   if (normalized === "disabled" || normalized === "research_only") kind = "warn";
-  if (normalized.includes("false")) kind = "danger";
+  if (normalized.includes("false") || normalized === "failed") kind = "danger";
   return `<span class="badge ${kind}">${normalized}</span>`;
 }
 
@@ -132,6 +132,57 @@ function renderReports(reports) {
   `).join("") || '<div class="item">No reports found.</div>';
 }
 
+function renderExchanges(sources, mobile) {
+  const connectivity = mobile.exchangeConnectivity || {};
+  const latestByExchange = {};
+  (connectivity.exchanges || []).forEach((item) => {
+    latestByExchange[item.exchange] = item;
+  });
+
+  el("exchangeList").innerHTML = (sources || []).map((item) => {
+    const latest = latestByExchange[item.exchange] || {};
+    const status = latest.ok === true ? "ok" : latest.ok === false ? "failed" : "not_probed";
+    return `
+      <div class="exchange-card">
+        <div class="exchange-card-head">
+          <strong>${item.displayName}</strong>
+          ${badge(item.publicOnly ? "public_only" : "private_disabled")}
+        </div>
+        <div>${badge(status)}</div>
+        <div class="kv">
+          <span>Ticker</span><strong>${item.supportsTicker ? "yes" : "no"}</strong>
+          <span>OHLCV</span><strong>${item.supportsOhlcv ? "yes" : "no"}</strong>
+          <span>Funding</span><strong>${item.supportsFundingRate ? "yes" : "no"}</strong>
+          <span>Open Interest</span><strong>${item.supportsOpenInterest ? "yes" : "no"}</strong>
+          <span>Latest latency</span><strong>${formatNumber(latest.latencyMs, 0)} ms</strong>
+        </div>
+        <small>${item.documentationUrl}</small>
+      </div>
+    `;
+  }).join("") || '<div class="item">No public exchange sources configured.</div>';
+}
+
+function renderStrategySlots(slots) {
+  el("strategySlotList").innerHTML = (slots || []).map((slot) => {
+    const strategy = slot.strategy || {};
+    return `
+      <div class="slot-card">
+        <div class="exchange-card-head">
+          <strong>${slot.label}</strong>
+          ${badge(slot.status)}
+        </div>
+        <div class="kv">
+          <span>Role</span><strong>${slot.role}</strong>
+          <span>Expected</span><strong>${slot.expectedStrategyId || "--"}</strong>
+          <span>Loaded</span><strong>${strategy.strategyId || "--"}</strong>
+          <span>Manual import</span><strong>${slot.manualImportOnly ? "yes" : "no"}</strong>
+          <span>Execution</span><strong>${slot.executionAllowed ? "enabled" : "disabled"}</strong>
+        </div>
+      </div>
+    `;
+  }).join("") || '<div class="item">No strategy slots configured.</div>';
+}
+
 function renderAudit(events) {
   el("auditList").innerHTML = events.slice().reverse().slice(0, 12).map((item) => `
     <div class="item">
@@ -143,15 +194,19 @@ function renderAudit(events) {
 }
 
 async function refreshAll() {
-  const [strategies, reports, mobile, audit] = await Promise.all([
+  const [strategies, reports, mobile, audit, exchanges, slots] = await Promise.all([
     getJson("/api/strategies"),
     getJson("/api/reports"),
     getJson("/api/mobile/status"),
     getJson("/api/audit"),
+    getJson("/api/exchanges"),
+    getJson("/api/strategy-slots"),
   ]);
   renderStrategies(strategies.strategies || []);
   renderReports(reports.reports || []);
   renderAudit(audit.events || []);
+  renderExchanges(exchanges.sources || [], mobile);
+  renderStrategySlots(slots.slots || []);
   el("mobilePreview").textContent = JSON.stringify(mobile, null, 2);
 }
 
@@ -163,6 +218,20 @@ el("importButton").addEventListener("click", async () => {
     await refreshAll();
   } finally {
     el("importButton").disabled = false;
+  }
+});
+
+el("probeExchangesButton").addEventListener("click", async () => {
+  el("probeExchangesButton").disabled = true;
+  try {
+    await postJson("/api/exchanges/probe-public", {
+      symbol: el("probeSymbol").value,
+      timeframe: el("probeTimeframe").value,
+      limit: Number(el("probeLimit").value || 2),
+    });
+    await refreshAll();
+  } finally {
+    el("probeExchangesButton").disabled = false;
   }
 });
 

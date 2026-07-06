@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from .config import SAFETY_BOUNDARY, get_quant_engine_path
-from .state_store import append_audit, load_state, now_iso, write_mobile_status
+from .state_store import append_audit, load_state, now_iso, read_exchange_probe_results, write_mobile_status
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -167,8 +167,8 @@ def scan_quant_engine() -> dict[str, Any]:
         strategy["consoleUpdatedAt"] = override.get("updatedAt")
 
     payload = {
-        "version": "V13.6",
-        "source": "alphapilot_control_console_v13_6",
+        "version": "V13.6.1",
+        "source": "alphapilot_control_console_v13_6_1",
         "quantEnginePath": str(quant_path),
         "quantEngineAvailable": quant_path.exists(),
         "reportsDirAvailable": reports_dir.exists(),
@@ -188,6 +188,7 @@ def build_mobile_status(payload: dict[str, Any]) -> dict[str, Any]:
         "source": payload["source"],
         "safetyBoundary": payload["safetyBoundary"],
         "strategyCount": len(payload["strategies"]),
+        "exchangeConnectivity": _mobile_exchange_connectivity(),
         "strategies": [
             {
                 "strategyId": item["strategyId"],
@@ -200,6 +201,37 @@ def build_mobile_status(payload: dict[str, Any]) -> dict[str, Any]:
                 "metrics": item["metrics"],
             }
             for item in payload["strategies"]
+        ],
+    }
+
+
+def _mobile_exchange_connectivity() -> dict[str, Any]:
+    probe = read_exchange_probe_results()
+    if not probe:
+        return {
+            "latestProbeAt": None,
+            "publicOnly": True,
+            "resultCount": 0,
+            "connectedExchangeCount": 0,
+            "message": "No public exchange probe has been run yet.",
+        }
+    results = probe.get("results") if isinstance(probe.get("results"), list) else []
+    return {
+        "latestProbeAt": probe.get("generatedAt"),
+        "publicOnly": True,
+        "symbol": probe.get("symbol"),
+        "timeframe": probe.get("timeframe"),
+        "resultCount": len(results),
+        "connectedExchangeCount": sum(1 for item in results if item.get("ok")),
+        "exchanges": [
+            {
+                "exchange": item.get("exchange"),
+                "ok": item.get("ok"),
+                "latencyMs": item.get("latencyMs"),
+                "apiKeyUsed": item.get("apiKeyUsed"),
+                "ordersAllowed": item.get("ordersAllowed"),
+            }
+            for item in results
         ],
     }
 

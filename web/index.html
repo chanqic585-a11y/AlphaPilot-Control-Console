@@ -17,6 +17,7 @@
         <div class="actions">
           <button id="refreshButton" type="button">Refresh</button>
           <button id="importButton" type="button">Import Reports</button>
+          <button id="probeExchangesButton" type="button">Probe Public Exchanges</button>
         </div>
       </header>
 
@@ -42,6 +43,45 @@
           <span>Live Approved</span>
           <strong id="liveStatus">False</strong>
         </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-header">
+          <div>
+            <h2>Exchange Public Connectivity</h2>
+            <p>Public market-data probes only. No API key input, no private endpoints, no account access, no orders.</p>
+          </div>
+        </div>
+        <div class="probe-controls">
+          <label>
+            <span>Symbol</span>
+            <input id="probeSymbol" value="BTC/USDT:USDT" />
+          </label>
+          <label>
+            <span>Timeframe</span>
+            <select id="probeTimeframe">
+              <option value="15m">15m</option>
+              <option value="1h" selected>1h</option>
+              <option value="4h">4h</option>
+              <option value="1d">1d</option>
+            </select>
+          </label>
+          <label>
+            <span>Candles</span>
+            <input id="probeLimit" type="number" min="1" max="10" value="2" />
+          </label>
+        </div>
+        <div id="exchangeList" class="exchange-grid"></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-header">
+          <div>
+            <h2>Strategy Slots</h2>
+            <p>Manual import registry for active, observer, and backup strategies. Slots do not execute anything.</p>
+          </div>
+        </div>
+        <div id="strategySlotList" class="slot-grid"></div>
       </section>
 
       <section class="panel">

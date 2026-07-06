@@ -11,6 +11,7 @@ from .config import ALLOWED_STRATEGY_STATUSES, DATA_DIR, ensure_data_dir
 STATE_PATH = DATA_DIR / "console_state.json"
 AUDIT_PATH = DATA_DIR / "audit_log.jsonl"
 MOBILE_STATUS_PATH = DATA_DIR / "mobile_control_status.json"
+EXCHANGE_PROBE_PATH = DATA_DIR / "exchange_probe_results.json"
 
 
 def now_iso() -> str:
@@ -51,7 +52,7 @@ def append_audit(event_type: str, payload: dict[str, Any]) -> dict[str, Any]:
         "eventType": event_type,
         "payload": payload,
         "createdAt": now_iso(),
-        "source": "alphapilot_control_console_v13_6",
+        "source": "alphapilot_control_console_v13_6_1",
     }
     with AUDIT_PATH.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(event, ensure_ascii=False) + "\n")
@@ -90,3 +91,21 @@ def update_strategy_status(strategy_id: str, status: str, note: str = "") -> dic
 
 def write_mobile_status(payload: dict[str, Any]) -> None:
     write_json(MOBILE_STATUS_PATH, payload)
+
+
+def read_exchange_probe_results() -> dict[str, Any] | None:
+    payload = read_json(EXCHANGE_PROBE_PATH, None)
+    return payload if isinstance(payload, dict) else None
+
+
+def write_exchange_probe_results(payload: dict[str, Any]) -> None:
+    write_json(EXCHANGE_PROBE_PATH, payload)
+    append_audit(
+        "public_exchange_probe_completed",
+        {
+            "symbol": payload.get("symbol"),
+            "timeframe": payload.get("timeframe"),
+            "resultCount": len(payload.get("results") or []),
+            "publicOnly": True,
+        },
+    )

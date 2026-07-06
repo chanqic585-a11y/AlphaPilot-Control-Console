@@ -5,3 +5,4 @@ __pycache__/
 data/console_state.json
 data/audit_log.jsonl
 data/mobile_control_status.json
+data/exchange_probe_results.json
