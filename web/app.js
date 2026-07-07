@@ -161,7 +161,9 @@ const sectionLabels = {
 let latestStrategies = [];
 let latestArtifactIndex = {};
 let latestPaperTasks = [];
+let latestStrategyLearningLoopPayload = {};
 let selectedArtifactId = null;
+let selectedStrategyPlaybookTaskId = null;
 const artifactFilters = {
   search: "",
   tier: "all",
@@ -285,6 +287,10 @@ function getObservationTasksFromLoop(loopPayload) {
 
 function pickPrimaryObservationTask(loopPayload) {
   const tasks = getObservationTasksFromLoop(loopPayload);
+  if (selectedStrategyPlaybookTaskId) {
+    const selected = tasks.find((task) => task.taskId === selectedStrategyPlaybookTaskId);
+    if (selected) return selected;
+  }
   return tasks.find((task) => task.rank === 1) || tasks[0] || null;
 }
 
@@ -325,7 +331,35 @@ function getStrategyPlainTemplate(task) {
   };
 }
 
+function renderStrategyPlaybookSelector(tasks, selectedTaskId) {
+  const target = el("strategyPlaybookSelector");
+  if (!target) return;
+  if (!tasks.length) {
+    target.innerHTML = '<div class="item">等待纸面观察任务包导入。</div>';
+    return;
+  }
+  target.innerHTML = tasks.slice(0, 8).map((task) => {
+    const metrics = task.historicalMetrics || {};
+    const quality = task.observationQuality || {};
+    const selected = task.taskId === selectedTaskId ? " selected" : "";
+    return `
+      <button class="strategy-playbook-tab${selected}" data-playbook-task-id="${escapeHtml(task.taskId)}" type="button">
+        <span>策略 ${task.rank ?? "--"} · ${escapeHtml(task.timeframe || "--")}</span>
+        <strong>${escapeHtml(task.title || task.candidateId || "--")}</strong>
+        <small>样本 ${metrics.tradeCount ?? "--"} · 胜率 ${formatPercent(metrics.winRatePct)} · PF ${formatNumber(metrics.profitFactor)} · ${escapeHtml(quality.qualityLabelCn || "未开始")}</small>
+      </button>
+    `;
+  }).join("");
+  document.querySelectorAll("[data-playbook-task-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      selectedStrategyPlaybookTaskId = button.getAttribute("data-playbook-task-id");
+      renderStrategyPlaybook(latestStrategies, {}, latestStrategyLearningLoopPayload);
+    });
+  });
+}
+
 function renderStrategyPlaybook(strategies, mobile, loopPayload) {
+  const tasks = getObservationTasksFromLoop(loopPayload);
   const task = pickPrimaryObservationTask(loopPayload);
   const primary = task || pickPrimaryStrategy(strategies);
   const template = getStrategyPlainTemplate(primary);
@@ -338,6 +372,11 @@ function renderStrategyPlaybook(strategies, mobile, loopPayload) {
   const btcRegimes = Array.isArray(primary?.btcRegimes) ? primary.btcRegimes : [];
   const targetClosedSamples = observation.targetClosedSamples ?? quality.targetClosedSamples ?? primary?.targetClosedSamples;
   const minRuleMatches = observation.minimumRuleMatchedSignals ?? quality.minimumRuleMatchedSignals;
+
+  if (task?.taskId) {
+    selectedStrategyPlaybookTaskId = task.taskId;
+  }
+  renderStrategyPlaybookSelector(tasks, primary?.taskId || selectedStrategyPlaybookTaskId);
 
   if (!primary) {
     el("strategyPlainName").textContent = "策略说明书";
@@ -1524,6 +1563,7 @@ async function refreshAll() {
   ]);
   const strategyItems = strategies.strategies || [];
   const reportItems = reports.reports || [];
+  latestStrategyLearningLoopPayload = strategyLearningLoop;
   renderCommandCenter(strategyItems, reportItems, mobile);
   renderRuntimeMonitor(strategyItems, mobile);
   renderStrategies(strategyItems);

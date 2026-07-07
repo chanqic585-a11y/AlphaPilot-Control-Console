@@ -1472,6 +1472,42 @@ code {
   color: var(--muted);
 }
 
+.strategy-playbook-selector {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.strategy-playbook-tab {
+  display: grid;
+  gap: 6px;
+  min-height: 112px;
+  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--text);
+  padding: 11px;
+  cursor: pointer;
+}
+
+.strategy-playbook-tab:hover,
+.strategy-playbook-tab.selected {
+  border-color: rgba(38, 210, 170, 0.55);
+  background: rgba(38, 210, 170, 0.12);
+}
+
+.strategy-playbook-tab span,
+.strategy-playbook-tab small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.strategy-playbook-tab strong {
+  line-height: 1.35;
+}
+
 .strategy-clarity-grid {
   display: grid;
   grid-template-columns: 1.2fr repeat(3, minmax(0, 1fr));
@@ -1651,6 +1687,7 @@ code {
     .paper-log-actions,
     .task-pack-log-form,
     .quality-progress-grid,
+    .strategy-playbook-selector,
     .strategy-clarity-grid,
     .artifact-row,
     .paper-task-row,
