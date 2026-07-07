@@ -63,7 +63,7 @@ PAPER_OBSERVATION_LOG_LABELS = {
     "risk_warning": "风险提醒",
 }
 
-CONTROL_CONSOLE_STATE_SOURCE = "alphapilot_control_console_v13_7_30"
+CONTROL_CONSOLE_STATE_SOURCE = "alphapilot_control_console_v13_7_31"
 
 
 def now_iso() -> str:
@@ -96,6 +96,8 @@ def load_state() -> dict[str, Any]:
         state["paperObservationTasks"] = {}
     if not isinstance(state.get("paperObservationLogs"), dict):
         state["paperObservationLogs"] = {}
+    if not isinstance(state.get("localSandboxRuns"), list):
+        state["localSandboxRuns"] = []
     return state
 
 
@@ -229,6 +231,7 @@ def add_paper_observation_log(
     rule_matched: bool | None = None,
     outcome: str = "",
     artifact: dict[str, Any] | None = None,
+    extra_fields: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if log_type not in ALLOWED_PAPER_OBSERVATION_LOG_TYPES:
         raise ValueError(f"Unsupported paper observation log type: {log_type}")
@@ -252,6 +255,13 @@ def add_paper_observation_log(
         "createdAt": now,
         "source": CONTROL_CONSOLE_STATE_SOURCE,
     }
+    if isinstance(extra_fields, dict):
+        protected_keys = set(log.keys())
+        for key, value in extra_fields.items():
+            safe_key = str(key).strip()
+            if not safe_key or safe_key in protected_keys:
+                continue
+            log[safe_key] = value
     rows.append(log)
     logs_by_artifact[artifact_id] = rows[-200:]
     save_state(state)
@@ -267,6 +277,39 @@ def add_paper_observation_log(
         },
     )
     return log
+
+
+def save_local_sandbox_run(run: dict[str, Any]) -> dict[str, Any]:
+    state = load_state()
+    runs = state.get("localSandboxRuns")
+    if not isinstance(runs, list):
+        runs = []
+    run = {
+        **run,
+        "source": run.get("source") or CONTROL_CONSOLE_STATE_SOURCE,
+        "createdAt": run.get("createdAt") or now_iso(),
+    }
+    runs.append(run)
+    state["localSandboxRuns"] = runs[-50:]
+    save_state(state)
+    append_audit(
+        "local_sandbox_run_completed",
+        {
+            "runId": run.get("runId"),
+            "taskCount": run.get("taskCount"),
+            "generatedLogCount": run.get("generatedLogCount"),
+            "closedSampleCount": run.get("closedSampleCount"),
+            "dataGapCount": run.get("dataGapCount"),
+        },
+    )
+    return run
+
+
+def list_local_sandbox_runs(limit: int = 20) -> list[dict[str, Any]]:
+    state = load_state()
+    runs = state.get("localSandboxRuns") if isinstance(state.get("localSandboxRuns"), list) else []
+    safe_limit = max(1, min(int(limit or 20), 50))
+    return [run for run in runs if isinstance(run, dict)][-safe_limit:][::-1]
 
 
 def upsert_paper_observation_task(

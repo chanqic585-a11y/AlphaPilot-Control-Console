@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.30 - Local Sandbox Simulation Lane
+AlphaPilot V13.7.31 - Local Sandbox Runner
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,19 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.7.31 Adds
+
+- Adds a local sandbox runner for the five paper-observation candidate strategies.
+- Generates local virtual observation logs from the V13.7.21 task pack and available public OHLCV cache.
+- Uses 1,000 USDT virtual capital per strategy and a 1% virtual risk unit for replayable `R` outcomes.
+- Records pair, timeframe, local data status, virtual equity, and reference-only safety metadata on each generated log.
+- Stores sandbox run summaries in ignored local state under `data/console_state.json`.
+- Reuses external repository notes only as reference-only safety metadata: factor context, risk gateway, human confirmation, and audit-first concepts.
+- Does not use API keys, exchange accounts, exchange testnet, real positions, real orders, exchange Dry-run, or automation.
+
+V13.7.31 does not add API key input, private exchange access, account access,
+position access, order creation, exchange Dry-run, live trading, or automation.
 
 ## What V13.7.30 Adds
 

@@ -542,6 +542,7 @@ function buildSandboxSimulationRows(observationTasks, qualityRows) {
     const row = qualityMap.get(task.taskId) || {};
     const localObservation = task.localObservation || {};
     const recentLogs = Array.isArray(task.recentLogs) ? task.recentLogs : [];
+    const latestLog = recentLogs[0] || {};
     const parsedRValues = recentLogs
       .map((log) => parsePaperOutcomeR(log.rMultiple ?? log.outcome))
       .filter((value) => value !== null);
@@ -581,6 +582,10 @@ function buildSandboxSimulationRows(observationTasks, qualityRows) {
       logCount: Number(localObservation.logCount ?? row.logCount ?? 0),
       latestLogAt: row.latestLogAt || localObservation.latestLogAt,
       historicalMetrics: task.historicalMetrics || row.historicalMetrics || {},
+      pair: latestLog.pair || task.replayPair || task.pair || "",
+      timeframe: latestLog.timeframe || task.timeframe || row.timeframe || "",
+      dataStatus: latestLog.dataStatus || "",
+      dataMode: latestLog.dataMode || "",
       nextAction: status === "needs_review"
         ? "先记录风险原因和失效条件，再继续沙盒观察。"
         : "继续记录信号、无信号日、规则匹配和虚拟结果 R。",
@@ -625,6 +630,12 @@ function renderSandboxSimulationLane(observationTasks, qualityRows) {
           <span>规则 ${row.ruleMatchedCount}</span>
         </div>
         <div class="artifact-metrics">
+          <span>观察币种 ${escapeHtml(row.pair || "--")}</span>
+          <span>周期 ${escapeHtml(row.timeframe || "--")}</span>
+          <span>数据状态 ${escapeHtml(row.dataStatus || "等待")}</span>
+          <span>数据模式 ${escapeHtml(row.dataMode || "本地沙盒")}</span>
+        </div>
+        <div class="artifact-metrics">
           <span>历史样本 ${metrics.tradeCount ?? "--"}</span>
           <span>历史胜率 ${formatPercent(metrics.winRatePct)}</span>
           <span>历史 PF ${formatNumber(metrics.profitFactor)}</span>
@@ -634,6 +645,25 @@ function renderSandboxSimulationLane(observationTasks, qualityRows) {
       </div>
     `;
   }).join("") || '<div class="sandbox-lane-empty">暂无可运行的本地沙盒策略。</div>';
+}
+
+async function runLocalSandboxNow() {
+  const button = el("runLocalSandboxButton");
+  const status = el("learningSandboxRunStatus");
+  if (!button || !status) return;
+  button.disabled = true;
+  status.textContent = "正在生成本地虚拟观察数据...";
+  try {
+    const response = await postJson("/api/local-sandbox/run", {});
+    const run = response.localSandboxRun || {};
+    await refreshAll();
+    status.textContent =
+      `已生成 ${run.generatedLogCount ?? 0} 条虚拟观察，闭合 ${run.closedSampleCount ?? 0} 个样本，数据缺口 ${run.dataGapCount ?? 0}。`;
+  } catch (error) {
+    status.textContent = `本地沙盒运行失败：${error.message}`;
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function renderSimulationAdmissionGate(observationTasks, qualityRows) {
@@ -2158,6 +2188,7 @@ el("probeExchangesButton").addEventListener("click", async () => {
 });
 
 el("backHomeButton").addEventListener("click", scrollToOverview);
+el("runLocalSandboxButton")?.addEventListener("click", runLocalSandboxNow);
 el("strategyQuickLogType").addEventListener("change", () => {
   const logType = el("strategyQuickLogType").value || "no_signal";
   el("strategyQuickSignalObserved").checked = ["signal_seen", "rule_matched"].includes(logType);

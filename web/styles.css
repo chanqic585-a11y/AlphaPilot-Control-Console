@@ -1850,6 +1850,19 @@ code {
   margin-top: 12px;
 }
 
+.sandbox-lane-controls {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.sandbox-lane-controls span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .sandbox-lane-list {
   display: grid;
   gap: 10px;

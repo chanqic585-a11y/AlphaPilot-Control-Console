@@ -10,6 +10,7 @@ from urllib.parse import parse_qs, urlparse
 from .config import ALLOWED_STRATEGY_STATUSES, SAFETY_BOUNDARY, WEB_DIR
 from .exchange_connectors.public_exchange_registry import list_public_exchange_sources, probe_public_exchanges
 from .importer import build_mobile_status, import_now, scan_quant_engine
+from .local_sandbox_runner import run_local_sandbox
 from .mobile_connection import build_mobile_connection_info
 from .strategy_slots import list_strategy_slots
 from .state_store import (
@@ -17,6 +18,7 @@ from .state_store import (
     ALLOWED_PAPER_OBSERVATION_LOG_TYPES,
     ALLOWED_PAPER_OBSERVATION_TASK_STATUSES,
     add_paper_observation_log,
+    list_local_sandbox_runs,
     list_audit,
     list_paper_observation_logs,
     update_artifact_review,
@@ -59,7 +61,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
             "strategyId": item.get("strategyId"),
             "title": item.get("title") or item.get("candidateId") or task_id,
             "displayName": item.get("title") or item.get("candidateId") or task_id,
-            "version": item.get("version") or learning.get("version") or "V13.7.30",
+            "version": item.get("version") or learning.get("version") or "V13.7.31",
             "sourceFile": item.get("sourceReport"),
             "readinessTier": item.get("status") or "planned_paper_observation",
             "metrics": item.get("historicalMetrics") if isinstance(item.get("historicalMetrics"), dict) else {},
@@ -68,7 +70,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.7.30"
+    server_version = "AlphaPilotControlConsole/13.7.31"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -109,8 +111,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.7.30",
-                "source": "alphapilot_control_console_v13_7_30",
+                "version": "V13.7.31",
+                "source": "alphapilot_control_console_v13_7_31",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -206,6 +208,11 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                     flattened.extend(row for row in rows if isinstance(row, dict))
                 logs = sorted(flattened, key=lambda item: str(item.get("createdAt") or ""), reverse=True)[:200]
             self._send_json({"logs": logs, "safetyBoundary": SAFETY_BOUNDARY})
+            return
+        if path == "/api/local-sandbox/runs":
+            query = parse_qs(parsed.query or "")
+            limit = _safe_int((query.get("limit") or [20])[0], 20)
+            self._send_json({"runs": list_local_sandbox_runs(limit), "safetyBoundary": SAFETY_BOUNDARY})
             return
         if path == "/api/mobile/connection-info":
             self._send_json(build_mobile_connection_info(str(self.server.server_address[0]), int(self.server.server_address[1])))
@@ -351,6 +358,17 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             self._send_json({
                 "updated": updated,
                 "strategyArtifactIndex": latest["strategyArtifactIndex"],
+                "strategyLearningLoop": latest.get("strategyLearningLoop") or {},
+                "paperObservationTasks": build_mobile_status(latest).get("paperObservationTasks"),
+                "safetyBoundary": SAFETY_BOUNDARY,
+            })
+            return
+        if parsed.path == "/api/local-sandbox/run":
+            payload = self._read_body_json()
+            run = run_local_sandbox(payload)
+            latest = scan_quant_engine()
+            self._send_json({
+                "localSandboxRun": run,
                 "strategyLearningLoop": latest.get("strategyLearningLoop") or {},
                 "paperObservationTasks": build_mobile_status(latest).get("paperObservationTasks"),
                 "safetyBoundary": SAFETY_BOUNDARY,
