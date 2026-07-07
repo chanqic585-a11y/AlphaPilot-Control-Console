@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.19 - LF Factor Confluence Backtest Import
+AlphaPilot V13.7.20 - Five Strategy Candidate Factory Import
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -506,3 +506,46 @@ Safety boundary:
 - It does not run exchange Dry-run, use API keys, read accounts or positions,
   create orders, enable paper execution, enable live trading, or enable
   automatic trading.
+
+## V13.7.20 Five Strategy Candidate Factory Import
+
+V13.7.20 imports the Quant Engine batch candidate factory report:
+
+```text
+reports/v13_7_20_five_strategy_candidate_factory_report.json
+```
+
+What changed:
+
+- Adds the V13.7.20 five-strategy candidate factory report to the local report
+  list.
+- Extends `/api/strategy-learning-loop` with candidateCount, approvedCount,
+  targetApprovedCount, and paper-observation approval count.
+- Imports the five approved candidates into the desktop strategy panel as local
+  paper-observation strategy assets.
+- Shows five-strategy candidate counts in the learning-loop panel.
+
+Current imported result:
+
+- candidateCount: 120
+- approvedCount: 5
+- targetApprovedCount: 5
+- paperObservationApprovedCount: 5
+- targetRewardRiskRatio: 2.0
+- dryRunApproved: false
+- liveTradingApproved: false
+
+Imported candidate names:
+
+- 1D 趋势突破确认 ATR2.0
+- 1D 横盘超卖修复 ATR1.2
+- 1D 横盘超卖修复 ATR1.0
+- 1D 趋势低波突破 ATR2.0
+- 1D 广谱低波突破 ATR2.0
+
+Safety boundary:
+
+- These are local paper-observation candidates, not live strategies.
+- The console does not run exchange Dry-run, use API keys, read accounts or
+  positions, create orders, enable paper execution, enable live trading, or
+  enable automatic trading.

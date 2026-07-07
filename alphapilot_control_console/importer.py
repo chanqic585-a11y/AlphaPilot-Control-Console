@@ -16,8 +16,8 @@ from .state_store import (
     write_mobile_status,
 )
 
-CONTROL_CONSOLE_VERSION = "V13.7.19"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_19"
+CONTROL_CONSOLE_VERSION = "V13.7.20"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_20"
 BEIJING_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 FORWARD_VALIDATION_REVIEW_DATE = date(2026, 7, 10)
 FORWARD_VALIDATION_REVIEW_LABEL = "2026年7月10日（北京时间）"
@@ -145,6 +145,22 @@ def _compact_report_summary(report: dict[str, Any]) -> dict[str, Any]:
             "dryRunApproved": summary.get("dryRunApproved"),
             "liveTradingApproved": summary.get("liveTradingApproved"),
         }
+    if report.get("reportId") == "v13_7_20_five_strategy_candidate_factory" and report.get("factory"):
+        summary = report.get("summary") if isinstance(report.get("summary"), dict) else {}
+        factory = report.get("factory") if isinstance(report.get("factory"), dict) else {}
+        approved = factory.get("approvedCandidates") if isinstance(factory.get("approvedCandidates"), list) else []
+        return {
+            "kind": "five_strategy_candidate_factory",
+            "candidateCount": summary.get("candidateCount"),
+            "approvedCount": summary.get("approvedCount"),
+            "targetApprovedCount": summary.get("targetApprovedCount"),
+            "paperObservationApprovedCount": summary.get("paperObservationApprovedCount"),
+            "approvedCandidateIds": [
+                item.get("candidateId") for item in approved if isinstance(item, dict) and item.get("candidateId")
+            ],
+            "dryRunApproved": summary.get("dryRunApproved"),
+            "liveTradingApproved": summary.get("liveTradingApproved"),
+        }
     return {"kind": "report"}
 
 
@@ -154,16 +170,25 @@ def _build_strategy_learning_loop(reports_dir: Path) -> dict[str, Any]:
     experiment_specs = _read_json(reports_dir / "v13_7_17_regime_filtered_experiment_specs_report.json")
     paper_rereview = _read_json(reports_dir / "v13_7_18_paper_observation_rereview_report.json")
     factor_confluence_backtest = _read_json(reports_dir / "v13_7_19_lf_factor_confluence_backtest_report.json")
+    five_strategy_factory = _read_json(reports_dir / "v13_7_20_five_strategy_candidate_factory_report.json")
 
     learning_summary = learning_loop.get("summary") if isinstance(learning_loop, dict) else {}
     refactor_summary = refactor_candidates.get("summary") if isinstance(refactor_candidates, dict) else {}
     experiment_summary = experiment_specs.get("summary") if isinstance(experiment_specs, dict) else {}
     rereview_summary = paper_rereview.get("summary") if isinstance(paper_rereview, dict) else {}
     backtest_summary = factor_confluence_backtest.get("summary") if isinstance(factor_confluence_backtest, dict) else {}
+    factory_summary = five_strategy_factory.get("summary") if isinstance(five_strategy_factory, dict) else {}
 
     generated_at_values = [
         str(report.get("generatedAt"))
-        for report in (learning_loop, refactor_candidates, experiment_specs, paper_rereview, factor_confluence_backtest)
+        for report in (
+            learning_loop,
+            refactor_candidates,
+            experiment_specs,
+            paper_rereview,
+            factor_confluence_backtest,
+            five_strategy_factory,
+        )
         if isinstance(report, dict) and report.get("generatedAt")
     ]
 
@@ -176,6 +201,7 @@ def _build_strategy_learning_loop(reports_dir: Path) -> dict[str, Any]:
         "experimentSpecs": experiment_specs or {},
         "paperReReview": paper_rereview or {},
         "factorConfluenceBacktest": factor_confluence_backtest or {},
+        "fiveStrategyCandidateFactory": five_strategy_factory or {},
         "summary": {
             "learningItemCount": learning_summary.get("learningItemCount", 0),
             "graveyardCount": learning_summary.get("graveyardCount", 0),
@@ -191,17 +217,36 @@ def _build_strategy_learning_loop(reports_dir: Path) -> dict[str, Any]:
             "deterministicBacktestProfitFactor": backtest_summary.get("profitFactor"),
             "deterministicBacktestGatePassed": backtest_summary.get("passGatePassed", False),
             "deterministicBacktestPaperApproved": backtest_summary.get("paperObservationApproved", False),
+            "fiveStrategyCandidateCount": factory_summary.get("candidateCount", 0),
+            "fiveStrategyApprovedCount": factory_summary.get("approvedCount", 0),
+            "fiveStrategyTargetApprovedCount": factory_summary.get("targetApprovedCount", 0),
+            "fiveStrategyPaperObservationApprovedCount": factory_summary.get("paperObservationApprovedCount", 0),
             "dryRunApproved": any(
                 bool(summary.get("dryRunApproved"))
-                for summary in (learning_summary, refactor_summary, experiment_summary, rereview_summary, backtest_summary)
+                for summary in (
+                    learning_summary,
+                    refactor_summary,
+                    experiment_summary,
+                    rereview_summary,
+                    backtest_summary,
+                    factory_summary,
+                )
                 if isinstance(summary, dict)
             ),
             "liveTradingApproved": any(
                 bool(summary.get("liveTradingApproved"))
-                for summary in (learning_summary, refactor_summary, experiment_summary, rereview_summary, backtest_summary)
+                for summary in (
+                    learning_summary,
+                    refactor_summary,
+                    experiment_summary,
+                    rereview_summary,
+                    backtest_summary,
+                    factory_summary,
+                )
                 if isinstance(summary, dict)
             ),
-            "nextExecutableResearchStep": backtest_summary.get("nextStep")
+            "nextExecutableResearchStep": factory_summary.get("nextStep")
+            or backtest_summary.get("nextStep")
             or rereview_summary.get("nextExecutableResearchStep")
             or experiment_summary.get("nextStep")
             or refactor_summary.get("nextStep")
@@ -279,6 +324,76 @@ def _strategy_from_alpha191_report(report: dict[str, Any], path: Path) -> dict[s
             "exitAwareGatePassed": decision.get("exitAwareGatePassed"),
             "localPaperGatePassed": decision.get("localPaperGatePassed"),
         },
+    }
+
+
+def _paper_candidate_title(candidate: dict[str, Any]) -> tuple[str, str]:
+    spec = candidate.get("spec") if isinstance(candidate.get("spec"), dict) else {}
+    family = str(spec.get("family") or "")
+    timeframe = str(spec.get("timeframe") or "")
+    display_name = str(candidate.get("displayName") or "")
+    atr = spec.get("atrMultiplier")
+    family_titles = {
+        "breakout": "趋势突破确认",
+        "squeeze_breakout": "低波突破延续",
+        "mean_reversion": "横盘超卖修复",
+        "trend_pullback": "趋势回撤确认",
+        "continuation": "趋势延续确认",
+        "recovery_reclaim": "修复重回均线",
+        "low_vol_trend": "低波趋势跟随",
+    }
+    if family == "squeeze_breakout" and "broad" in display_name.lower():
+        family_title = "广谱低波突破"
+    elif family == "squeeze_breakout" and "trend" in display_name.lower():
+        family_title = "趋势低波突破"
+    else:
+        family_title = family_titles.get(family, display_name or "低频候选策略")
+    title = f"{timeframe.upper()} {family_title}"
+    if atr is not None:
+        title = f"{title} ATR{atr}"
+    regimes = ", ".join(spec.get("btcRegimes") or [])
+    subtitle = f"2R 固定目标 · BTC状态 {regimes or '--'} · 本地纸面观察"
+    return title, subtitle
+
+
+def _strategy_from_five_strategy_candidate(
+    candidate: dict[str, Any],
+    report: dict[str, Any],
+    path: Path,
+) -> dict[str, Any]:
+    metrics = candidate.get("metrics") if isinstance(candidate.get("metrics"), dict) else {}
+    spec = candidate.get("spec") if isinstance(candidate.get("spec"), dict) else {}
+    approval = candidate.get("approval") if isinstance(candidate.get("approval"), dict) else {}
+    title, subtitle = _paper_candidate_title(candidate)
+    candidate_id = str(candidate.get("candidateId") or candidate.get("displayName") or path.stem)
+    return {
+        "strategyId": f"v13_7_20_{candidate_id}",
+        "title": title,
+        "displayName": title,
+        "displaySubtitle": subtitle,
+        "version": report.get("version"),
+        "candidateId": candidate_id,
+        "selectedPolicyId": spec.get("family"),
+        "sourcePath": str(path),
+        "sourceReport": str(path),
+        "suggestedStatus": "local_paper_ready" if approval.get("paperObservationApproved") else "research_only",
+        "selectedSignalCount": metrics.get("tradeCount"),
+        "stopLossPct": None,
+        "targetRMultiple": metrics.get("targetRewardRiskRatio") or spec.get("targetRewardRiskRatio"),
+        "maxConcurrentPositions": None,
+        "riskPerSignalPct": None,
+        "localSimulationOnly": True,
+        "exchangeDryRunApproved": bool(approval.get("dryRunApproved", False)),
+        "liveTradingApproved": bool(approval.get("liveTradingApproved", False)),
+        "metrics": {
+            "tradeCount": metrics.get("tradeCount"),
+            "winRatePct": metrics.get("winRatePct"),
+            "profitFactor": metrics.get("profitFactor"),
+            "rewardRiskRatio": metrics.get("targetRewardRiskRatio") or spec.get("targetRewardRiskRatio"),
+            "maxDrawdownPct": metrics.get("maxDrawdownPct"),
+            "totalReturnPct": metrics.get("totalReturnPct"),
+        },
+        "gate": approval,
     }
 
 
@@ -1196,7 +1311,7 @@ def scan_quant_engine() -> dict[str, Any]:
 
     if reports_dir.exists():
         report_paths: dict[str, Path] = {}
-        for pattern in ("v13_5_*_report.json", "v13_7_1*_report.json"):
+        for pattern in ("v13_5_*_report.json", "v13_7_1*_report.json", "v13_7_2*_report.json"):
             for report_path in sorted(reports_dir.glob(pattern)):
                 report_paths[str(report_path)] = report_path
         for report_path in sorted(report_paths.values()):
@@ -1214,6 +1329,19 @@ def scan_quant_engine() -> dict[str, Any]:
         alpha191_report = _read_json(alpha191_path)
         if alpha191_report:
             strategies.append(_strategy_from_alpha191_report(alpha191_report, alpha191_path))
+
+        five_strategy_path = reports_dir / "v13_7_20_five_strategy_candidate_factory_report.json"
+        five_strategy_report = _read_json(five_strategy_path)
+        factory = five_strategy_report.get("factory") if isinstance(five_strategy_report, dict) else {}
+        approved_candidates = factory.get("approvedCandidates") if isinstance(factory, dict) else []
+        if isinstance(approved_candidates, list):
+            for candidate in approved_candidates:
+                if isinstance(candidate, dict):
+                    strategies.append(_strategy_from_five_strategy_candidate(
+                        candidate,
+                        five_strategy_report or {},
+                        five_strategy_path,
+                    ))
 
     runtime_status = _read_json(reports_dir / "runtime_status.json") if reports_dir.exists() else None
     signal_tape = _read_json(reports_dir / "signal_tape.json") if reports_dir.exists() else None
