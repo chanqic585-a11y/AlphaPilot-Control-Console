@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.31 - Local Sandbox Runner
+AlphaPilot V13.7.32 - Sandbox Daily Review And Health Trend
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,18 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.7.32 Adds
+
+- Adds a local sandbox daily report builder.
+- Summarizes today's virtual observation logs, closed samples, daily `R`, cumulative `R`, wins, losses, and virtual equity.
+- Adds per-strategy health scores and health trend deltas from saved local snapshots.
+- Adds `POST /api/local-sandbox/build-daily-report` and `GET /api/local-sandbox/daily-report`.
+- Updates the learning-loop panel with a "Sandbox Daily Review" section.
+- Keeps reports as local review artifacts only; they do not change strategy rules, create signals, or move strategies to testnet/live execution.
+
+V13.7.32 does not add API key input, private exchange access, account access,
+position access, order creation, exchange Dry-run, live trading, or automation.
 
 ## What V13.7.31 Adds
 

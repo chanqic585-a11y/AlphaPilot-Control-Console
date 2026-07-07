@@ -1815,7 +1815,20 @@ code {
     rgba(10, 15, 24, 0.88);
 }
 
+.sandbox-daily-panel {
+  border-color: rgba(122, 168, 255, 0.24);
+  background:
+    linear-gradient(135deg, rgba(122, 168, 255, 0.08), transparent 34%),
+    rgba(10, 15, 24, 0.88);
+}
+
 .sandbox-lane-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.sandbox-daily-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 10px;
@@ -1869,7 +1882,14 @@ code {
   margin-top: 14px;
 }
 
+.sandbox-daily-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
 .sandbox-lane-row,
+.sandbox-daily-row,
 .sandbox-lane-empty {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
@@ -1877,9 +1897,22 @@ code {
   padding: 12px;
 }
 
-.sandbox-lane-row {
+.sandbox-lane-row,
+.sandbox-daily-row {
   display: grid;
   gap: 10px;
+}
+
+.text-ok {
+  color: var(--green);
+}
+
+.text-warn {
+  color: var(--gold);
+}
+
+.text-danger {
+  color: var(--red);
 }
 
 .sandbox-lane-row-head {
@@ -2091,6 +2124,7 @@ code {
     .observation-daily-grid,
     .observation-daily-columns,
     .sandbox-lane-grid,
+    .sandbox-daily-grid,
     .sandbox-lane-row-head,
     .simulation-gate-grid,
     .simulation-gate-row-head,

@@ -770,6 +770,47 @@
             </div>
             <div id="learningSandboxLaneList" class="sandbox-lane-list"></div>
           </div>
+          <div class="section-subpanel sandbox-daily-panel">
+            <div class="section-header compact">
+              <div>
+                <p class="panel-eyebrow">SANDBOX DAILY REVIEW</p>
+                <h4>沙盒观察日报与健康趋势</h4>
+                <p>读取本地虚拟观察日志，汇总今日样本、累计 R、健康分和趋势变化；不生成交易指令。</p>
+              </div>
+              <span id="learningSandboxDailyStatus" class="status-pill ok">本地复盘</span>
+            </div>
+            <div class="sandbox-daily-grid">
+              <div class="sandbox-lane-card">
+                <span>日报日期</span>
+                <strong id="learningSandboxDailyDate">--</strong>
+              </div>
+              <div class="sandbox-lane-card">
+                <span>今日日志</span>
+                <strong id="learningSandboxDailyLogs">--</strong>
+              </div>
+              <div class="sandbox-lane-card">
+                <span>今日闭合</span>
+                <strong id="learningSandboxDailyClosed">--</strong>
+              </div>
+              <div class="sandbox-lane-card">
+                <span>平均健康分</span>
+                <strong id="learningSandboxAverageHealth">--</strong>
+              </div>
+              <div class="sandbox-lane-card">
+                <span>改善策略</span>
+                <strong id="learningSandboxImprovingCount">--</strong>
+              </div>
+              <div class="sandbox-lane-card">
+                <span>转弱策略</span>
+                <strong id="learningSandboxDecliningCount">--</strong>
+              </div>
+            </div>
+            <div class="sandbox-lane-controls">
+              <button id="buildSandboxDailyReportButton" class="secondary" type="button">生成沙盒日报</button>
+              <span id="learningSandboxDailyRunStatus">等待日报生成。</span>
+            </div>
+            <div id="learningSandboxDailyList" class="sandbox-daily-list"></div>
+          </div>
           <div class="section-subpanel simulation-gate-panel">
             <div class="section-header compact">
               <div>

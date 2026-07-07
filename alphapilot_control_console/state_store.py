@@ -63,7 +63,7 @@ PAPER_OBSERVATION_LOG_LABELS = {
     "risk_warning": "风险提醒",
 }
 
-CONTROL_CONSOLE_STATE_SOURCE = "alphapilot_control_console_v13_7_31"
+CONTROL_CONSOLE_STATE_SOURCE = "alphapilot_control_console_v13_7_32"
 
 
 def now_iso() -> str:
@@ -98,6 +98,10 @@ def load_state() -> dict[str, Any]:
         state["paperObservationLogs"] = {}
     if not isinstance(state.get("localSandboxRuns"), list):
         state["localSandboxRuns"] = []
+    if not isinstance(state.get("localSandboxDailyReports"), list):
+        state["localSandboxDailyReports"] = []
+    if not isinstance(state.get("localSandboxHealthSnapshots"), list):
+        state["localSandboxHealthSnapshots"] = []
     return state
 
 
@@ -310,6 +314,68 @@ def list_local_sandbox_runs(limit: int = 20) -> list[dict[str, Any]]:
     runs = state.get("localSandboxRuns") if isinstance(state.get("localSandboxRuns"), list) else []
     safe_limit = max(1, min(int(limit or 20), 50))
     return [run for run in runs if isinstance(run, dict)][-safe_limit:][::-1]
+
+
+def save_local_sandbox_daily_report(report: dict[str, Any]) -> dict[str, Any]:
+    state = load_state()
+    reports = state.get("localSandboxDailyReports")
+    if not isinstance(reports, list):
+        reports = []
+    snapshots = state.get("localSandboxHealthSnapshots")
+    if not isinstance(snapshots, list):
+        snapshots = []
+    report = {
+        **report,
+        "source": report.get("source") or CONTROL_CONSOLE_STATE_SOURCE,
+        "generatedAt": report.get("generatedAt") or now_iso(),
+    }
+    report.pop("recentReports", None)
+    reports.append(report)
+    rows = report.get("strategyHealthRows") if isinstance(report.get("strategyHealthRows"), list) else []
+    for row in rows:
+        if isinstance(row, dict):
+            snapshots.append({
+                **row,
+                "reportId": report.get("reportId"),
+                "dateKey": report.get("dateKey"),
+                "generatedAt": report.get("generatedAt"),
+                "source": report.get("source") or CONTROL_CONSOLE_STATE_SOURCE,
+            })
+    state["localSandboxDailyReports"] = reports[-60:]
+    state["localSandboxHealthSnapshots"] = snapshots[-500:]
+    save_state(state)
+    append_audit(
+        "local_sandbox_daily_report_built",
+        {
+            "reportId": report.get("reportId"),
+            "dateKey": report.get("dateKey"),
+            "strategyCount": report.get("summary", {}).get("strategyCount") if isinstance(report.get("summary"), dict) else None,
+            "dailyLogCount": report.get("summary", {}).get("dailyLogCount") if isinstance(report.get("summary"), dict) else None,
+            "averageHealthScore": report.get("summary", {}).get("averageHealthScore") if isinstance(report.get("summary"), dict) else None,
+        },
+    )
+    return report
+
+
+def list_local_sandbox_daily_reports(limit: int = 20) -> list[dict[str, Any]]:
+    state = load_state()
+    reports = state.get("localSandboxDailyReports") if isinstance(state.get("localSandboxDailyReports"), list) else []
+    safe_limit = max(1, min(int(limit or 20), 60))
+    safe_reports: list[dict[str, Any]] = []
+    for report in reports:
+        if not isinstance(report, dict):
+            continue
+        item = dict(report)
+        item.pop("recentReports", None)
+        safe_reports.append(item)
+    return safe_reports[-safe_limit:][::-1]
+
+
+def list_local_sandbox_health_snapshots(limit: int = 100) -> list[dict[str, Any]]:
+    state = load_state()
+    snapshots = state.get("localSandboxHealthSnapshots") if isinstance(state.get("localSandboxHealthSnapshots"), list) else []
+    safe_limit = max(1, min(int(limit or 100), 500))
+    return [row for row in snapshots if isinstance(row, dict)][-safe_limit:][::-1]
 
 
 def upsert_paper_observation_task(

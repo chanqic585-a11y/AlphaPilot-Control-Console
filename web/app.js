@@ -666,6 +666,67 @@ async function runLocalSandboxNow() {
   }
 }
 
+function renderSandboxDailyReport(payload) {
+  if (!el("learningSandboxDailyList")) return;
+  const report = payload?.latestReport || payload?.localSandboxDailyReport || {};
+  const summary = report.summary || {};
+  const rows = Array.isArray(report.strategyHealthRows) ? report.strategyHealthRows : [];
+  el("learningSandboxDailyDate").textContent = report.dateKey || "--";
+  el("learningSandboxDailyLogs").textContent = String(summary.dailyLogCount ?? "--");
+  el("learningSandboxDailyClosed").textContent = String(summary.dailyClosedSampleCount ?? "--");
+  el("learningSandboxAverageHealth").textContent = summary.averageHealthScore !== undefined
+    ? formatNumber(summary.averageHealthScore, 0)
+    : "--";
+  el("learningSandboxImprovingCount").textContent = String(summary.improvingCount ?? "--");
+  el("learningSandboxDecliningCount").textContent = String(summary.decliningCount ?? "--");
+  el("learningSandboxDailyStatus").textContent = rows.length ? "本地复盘" : "等待日报";
+  el("learningSandboxDailyRunStatus").textContent = rows.length
+    ? `最近日报：${formatDate(report.generatedAt)} · ${summary.nextAction || "继续观察。"}`
+    : "还没有沙盒日报，点击生成后会读取本地虚拟观察日志。";
+
+  el("learningSandboxDailyList").innerHTML = rows.map((row) => {
+    const trend = row.trend || {};
+    const trendTone = trend.direction === "up" ? "ok" : trend.direction === "down" ? "danger" : "warn";
+    return `
+      <div class="sandbox-daily-row">
+        <div class="sandbox-lane-row-head">
+          <div>
+            <strong>${escapeHtml(row.title || row.taskId || "--")}</strong>
+            <small>${escapeHtml(row.taskId || "--")} · 最近 ${formatDate(row.latestLogAt)}</small>
+          </div>
+          <span class="badge ${row.healthTone || "warn"}">${escapeHtml(row.healthStatusLabel || "--")} · ${formatNumber(row.healthScore, 0)}分</span>
+        </div>
+        <div class="artifact-metrics">
+          <span>趋势 <b class="text-${trendTone}">${escapeHtml(trend.label || "--")} ${formatNumber(trend.delta || 0, 1)}</b></span>
+          <span>累计 ${formatNumber(row.totalR, 2)}R</span>
+          <span>今日 ${formatNumber(row.dailyR, 2)}R</span>
+          <span>闭合 ${row.closedPaperSampleCount ?? 0}</span>
+          <span>胜/负 ${row.winCount ?? 0}/${row.lossCount ?? 0}</span>
+          <span>权益 ${formatUsd(row.virtualEquity || row.virtualCapital || 0)}</span>
+        </div>
+        <div class="sandbox-lane-next">${escapeHtml(row.nextAction || "继续本地沙盒观察。")}</div>
+      </div>
+    `;
+  }).join("") || '<div class="sandbox-lane-empty">暂无沙盒日报。点击“生成沙盒日报”后会汇总本地虚拟观察日志。</div>';
+}
+
+async function buildSandboxDailyReportNow() {
+  const button = el("buildSandboxDailyReportButton");
+  const status = el("learningSandboxDailyRunStatus");
+  if (!button || !status) return;
+  button.disabled = true;
+  status.textContent = "正在汇总本地沙盒日报...";
+  try {
+    const response = await postJson("/api/local-sandbox/build-daily-report", {});
+    await refreshAll();
+    status.textContent = `已生成沙盒日报：${response.localSandboxDailyReport?.summary?.dailyLogCount ?? 0} 条今日日志。`;
+  } catch (error) {
+    status.textContent = `日报生成失败：${error.message}`;
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function renderSimulationAdmissionGate(observationTasks, qualityRows) {
   if (!el("learningSimulationGateList")) return;
   const rows = buildSimulationGateRows(observationTasks, qualityRows);
@@ -2090,7 +2151,7 @@ function renderAudit(events) {
 }
 
 async function refreshAll() {
-  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, researchTaskBoard, strategyLearningLoop] = await Promise.all([
+  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, researchTaskBoard, strategyLearningLoop, sandboxDailyReport] = await Promise.all([
     getJson("/api/strategies"),
     getJson("/api/reports"),
     getJson("/api/mobile/status"),
@@ -2103,6 +2164,7 @@ async function refreshAll() {
     getJson("/api/candidate-queue"),
     getJson("/api/research-task-board"),
     getJson("/api/strategy-learning-loop"),
+    getJson("/api/local-sandbox/daily-report?limit=10"),
   ]);
   const strategyItems = strategies.strategies || [];
   const reportItems = reports.reports || [];
@@ -2118,6 +2180,7 @@ async function refreshAll() {
   renderCandidateQueue(candidateQueue);
   renderResearchTaskBoard(researchTaskBoard);
   renderStrategyLearningLoop(strategyLearningLoop);
+  renderSandboxDailyReport(sandboxDailyReport);
   renderStrategyPlaybook(strategyItems, mobile, strategyLearningLoop);
   renderForwardValidation(mobile.forwardValidation);
   renderPaperObservationTasks(paperTasks);
@@ -2189,6 +2252,7 @@ el("probeExchangesButton").addEventListener("click", async () => {
 
 el("backHomeButton").addEventListener("click", scrollToOverview);
 el("runLocalSandboxButton")?.addEventListener("click", runLocalSandboxNow);
+el("buildSandboxDailyReportButton")?.addEventListener("click", buildSandboxDailyReportNow);
 el("strategyQuickLogType").addEventListener("change", () => {
   const logType = el("strategyQuickLogType").value || "no_signal";
   el("strategyQuickSignalObserved").checked = ["signal_seen", "rule_matched"].includes(logType);
