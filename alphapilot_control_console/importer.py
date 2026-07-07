@@ -16,8 +16,8 @@ from .state_store import (
     write_mobile_status,
 )
 
-CONTROL_CONSOLE_VERSION = "V13.7.29"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_29"
+CONTROL_CONSOLE_VERSION = "V13.7.30"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_30"
 BEIJING_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 FORWARD_VALIDATION_REVIEW_DATE = date(2026, 7, 10)
 FORWARD_VALIDATION_REVIEW_LABEL = "2026年7月10日（北京时间）"
@@ -1826,7 +1826,7 @@ def _forward_gate_label(value: str) -> str:
         "needs_observation_logs": "需要补观察日志",
         "needs_rule_match": "需要至少一次规则匹配",
         "needs_risk_review": "需要先复核风险/失效记录",
-        "eligible_for_paper_review": "可进入纸面模拟观察复核",
+        "eligible_for_paper_review": "可进入纸面观察复核",
     }
     return labels.get(value, value)
 

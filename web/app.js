@@ -82,7 +82,7 @@ const forwardGateLabels = {
   needs_observation_logs: "需要补观察日志",
   needs_rule_match: "需要至少一次规则匹配",
   needs_risk_review: "需要先复核风险/失效记录",
-  eligible_for_paper_review: "可进入纸面模拟观察复核",
+  eligible_for_paper_review: "可进入纸面观察复核",
 };
 
 const methodTypeLabels = {
@@ -201,6 +201,14 @@ function formatNumber(value, digits = 2) {
 function formatPercent(value, digits = 2) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return "--";
   return `${Number(value).toFixed(digits)}%`;
+}
+
+function formatUsd(value, digits = 0) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "--";
+  return `$${Number(value).toLocaleString("en-US", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  })}`;
 }
 
 function formatDate(value) {
@@ -479,14 +487,14 @@ function buildSimulationGateRows(observationTasks, qualityRows) {
       tone = "danger";
     } else if (missing.length === 0) {
       status = "simulation_review_ready";
-      statusLabel = "可进入模拟观察复核";
+      statusLabel = "可升级 testnet 复核";
       tone = "ok";
     }
 
     const nextAction = status === "simulation_review_ready"
-      ? "可以进入本地模拟观察复核；仍需人工确认，不创建真实订单。"
+      ? "可以进入 testnet 升级复核；仍不连接交易所、不创建订单。"
       : status === "pause_review"
-        ? "先复盘风险或失效记录，暂不进入模拟观察复核。"
+        ? "先复盘风险或失效记录，暂不进入 testnet 升级复核。"
         : missing[0] || "继续补齐本地观察样本。";
 
     return {
@@ -515,6 +523,119 @@ function buildSimulationGateRows(observationTasks, qualityRows) {
   });
 }
 
+const sandboxSimulationSettings = {
+  virtualCapitalPerStrategy: 1000,
+  riskUnitPercent: 1,
+};
+
+function parsePaperOutcomeR(value) {
+  if (value === null || value === undefined) return null;
+  const match = String(value).match(/-?\d+(?:\.\d+)?/);
+  if (!match) return null;
+  const parsed = Number(match[0]);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function buildSandboxSimulationRows(observationTasks, qualityRows) {
+  const qualityMap = new Map((qualityRows || []).map((row) => [row.taskId, row]));
+  return (observationTasks || []).map((task) => {
+    const row = qualityMap.get(task.taskId) || {};
+    const localObservation = task.localObservation || {};
+    const recentLogs = Array.isArray(task.recentLogs) ? task.recentLogs : [];
+    const parsedRValues = recentLogs
+      .map((log) => parsePaperOutcomeR(log.rMultiple ?? log.outcome))
+      .filter((value) => value !== null);
+    const realizedR = parsedRValues.reduce((sum, value) => sum + value, 0);
+    const capital = sandboxSimulationSettings.virtualCapitalPerStrategy;
+    const equity = capital * (1 + ((realizedR * sandboxSimulationSettings.riskUnitPercent) / 100));
+    const pnl = equity - capital;
+    const closedPaperSampleCount = Number(row.closedPaperSampleCount ?? localObservation.closedPaperSampleCount ?? 0);
+    const riskWarningCount = Number(row.riskWarningCount ?? localObservation.riskWarningCount ?? 0);
+    const invalidatedCount = Number(row.invalidatedCount ?? localObservation.invalidatedCount ?? 0);
+    let status = "waiting_samples";
+    let statusLabel = "等待信号样本";
+    let tone = "warn";
+    if (riskWarningCount > 0 || invalidatedCount > 0) {
+      status = "needs_review";
+      statusLabel = "需要复盘";
+      tone = "danger";
+    } else if (Number(localObservation.logCount ?? row.logCount ?? 0) > 0) {
+      status = "sandbox_running";
+      statusLabel = "沙盒运行中";
+      tone = "ok";
+    }
+
+    return {
+      taskId: task.taskId || row.taskId || "",
+      title: task.title || row.title || task.candidateId || row.candidateId || "--",
+      status,
+      statusLabel,
+      tone,
+      capital,
+      equity,
+      pnl,
+      realizedR,
+      closedPaperSampleCount,
+      signalObservedCount: Number(localObservation.signalObservedCount ?? row.signalObservedCount ?? 0),
+      ruleMatchedCount: Number(localObservation.ruleMatchedCount ?? row.ruleMatchedCount ?? 0),
+      logCount: Number(localObservation.logCount ?? row.logCount ?? 0),
+      latestLogAt: row.latestLogAt || localObservation.latestLogAt,
+      historicalMetrics: task.historicalMetrics || row.historicalMetrics || {},
+      nextAction: status === "needs_review"
+        ? "先记录风险原因和失效条件，再继续沙盒观察。"
+        : "继续记录信号、无信号日、规则匹配和虚拟结果 R。",
+    };
+  });
+}
+
+function renderSandboxSimulationLane(observationTasks, qualityRows) {
+  if (!el("learningSandboxLaneList")) return;
+  const rows = buildSandboxSimulationRows(observationTasks, qualityRows);
+  const totalCapital = rows.reduce((sum, row) => sum + row.capital, 0);
+  const totalEquity = rows.reduce((sum, row) => sum + row.equity, 0);
+  const closedSamples = rows.reduce((sum, row) => sum + row.closedPaperSampleCount, 0);
+  const signalCount = rows.reduce((sum, row) => sum + row.signalObservedCount, 0);
+  el("learningSandboxStatus").textContent = "本地虚拟运行";
+  el("learningSandboxStrategyCount").textContent = String(rows.length);
+  el("learningSandboxActiveCount").textContent = String(rows.length);
+  el("learningSandboxCapitalTotal").textContent = formatUsd(totalCapital);
+  el("learningSandboxEquityTotal").textContent = formatUsd(totalEquity);
+  el("learningSandboxClosedSamples").textContent = String(closedSamples);
+  el("learningSandboxSignalCount").textContent = String(signalCount);
+  el("learningSandboxNextAction").textContent =
+    `全部候选策略先进入本地沙盒；每条策略虚拟本金 ${formatUsd(sandboxSimulationSettings.virtualCapitalPerStrategy)}，继续补信号、闭合样本和结果 R。`;
+
+  el("learningSandboxLaneList").innerHTML = rows.map((row) => {
+    const metrics = row.historicalMetrics || {};
+    return `
+      <div class="sandbox-lane-row">
+        <div class="sandbox-lane-row-head">
+          <div>
+            <strong>${escapeHtml(row.title)}</strong>
+            <small>${escapeHtml(row.taskId || "--")} · 最近 ${formatDate(row.latestLogAt)}</small>
+          </div>
+          <span class="badge ${row.tone}">${escapeHtml(row.statusLabel)}</span>
+        </div>
+        <div class="artifact-metrics">
+          <span>本金 ${formatUsd(row.capital)}</span>
+          <span>权益 ${formatUsd(row.equity)}</span>
+          <span>浮动 ${formatUsd(row.pnl, 2)}</span>
+          <span>累计 ${formatNumber(row.realizedR, 2)}R</span>
+          <span>闭合 ${row.closedPaperSampleCount}</span>
+          <span>规则 ${row.ruleMatchedCount}</span>
+        </div>
+        <div class="artifact-metrics">
+          <span>历史样本 ${metrics.tradeCount ?? "--"}</span>
+          <span>历史胜率 ${formatPercent(metrics.winRatePct)}</span>
+          <span>历史 PF ${formatNumber(metrics.profitFactor)}</span>
+          <span>历史回撤 ${formatPercent(metrics.maxDrawdownPct)}</span>
+        </div>
+        <div class="sandbox-lane-next">${escapeHtml(row.nextAction)}</div>
+      </div>
+    `;
+  }).join("") || '<div class="sandbox-lane-empty">暂无可运行的本地沙盒策略。</div>';
+}
+
 function renderSimulationAdmissionGate(observationTasks, qualityRows) {
   if (!el("learningSimulationGateList")) return;
   const rows = buildSimulationGateRows(observationTasks, qualityRows);
@@ -529,9 +650,9 @@ function renderSimulationAdmissionGate(observationTasks, qualityRows) {
   el("learningSimulationMinClosed").textContent = String(simulationAdmissionThresholds.minClosedPaperSamples);
   el("learningSimulationGateStatus").textContent = "执行关闭";
 
-  let nextAction = "当前没有策略达到模拟观察复核门槛：先继续记录无信号日、规则匹配、闭合结果和失效原因。";
+  let nextAction = "当前没有策略达到 testnet 升级门槛：本地沙盒可以继续跑，先补无信号日、规则匹配、闭合结果和失效原因。";
   if (readyCount > 0) {
-    nextAction = `已有 ${readyCount} 条策略达到本地模拟观察复核门槛，但仍然只允许人工复核，不连接交易所。`;
+    nextAction = `已有 ${readyCount} 条策略达到 testnet 升级复核门槛，但当前仍不连接交易所、不创建订单。`;
   } else if (pauseCount > 0) {
     nextAction = `有 ${pauseCount} 条策略需要暂停复核：先解释风险或失效记录，再继续观察。`;
   }
@@ -556,11 +677,11 @@ function renderSimulationAdmissionGate(observationTasks, qualityRows) {
         <span>失效 ${row.invalidatedCount}</span>
       </div>
       <div class="simulation-gate-missing">
-        ${(row.missing.length ? row.missing : ["全部准入门槛已满足"]).map((item) => `<small>${escapeHtml(item)}</small>`).join("")}
+        ${(row.missing.length ? row.missing : ["testnet 升级门槛已满足"]).map((item) => `<small>${escapeHtml(item)}</small>`).join("")}
       </div>
       <div class="simulation-gate-next">${escapeHtml(row.nextAction)}</div>
     </div>
-  `).join("") || '<div class="simulation-gate-empty">暂无可复核的策略观察任务。</div>';
+  `).join("") || '<div class="simulation-gate-empty">暂无可做 testnet 升级复核的策略观察任务。</div>';
 }
 
 function pickPrimaryObservationTask(loopPayload) {
@@ -1583,6 +1704,7 @@ function renderStrategyLearningLoop(loopPayload) {
   const qualityRows = Array.isArray(observationQualityPanel.qualityRows)
     ? observationQualityPanel.qualityRows
     : [];
+  renderSandboxSimulationLane(observationTasks, qualityRows);
   renderStrategyObservationDailyReport(observationTasks, qualityRows);
   renderSimulationAdmissionGate(observationTasks, qualityRows);
 

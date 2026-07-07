@@ -728,18 +728,56 @@
               </div>
             </div>
           </div>
+          <div class="section-subpanel sandbox-lane-panel">
+            <div class="section-header compact">
+              <div>
+                <p class="panel-eyebrow">LOCAL SANDBOX SIMULATION</p>
+                <h4>本地沙盒模拟通道</h4>
+                <p>所有候选策略都可以先进入本地虚拟资金模拟；这里只记录虚拟状态，不连接交易所、不创建订单。</p>
+              </div>
+              <span id="learningSandboxStatus" class="status-pill ok">本地虚拟运行</span>
+            </div>
+            <div class="sandbox-lane-grid">
+              <div class="sandbox-lane-card">
+                <span>沙盒策略</span>
+                <strong id="learningSandboxStrategyCount">--</strong>
+              </div>
+              <div class="sandbox-lane-card">
+                <span>运行中</span>
+                <strong id="learningSandboxActiveCount">--</strong>
+              </div>
+              <div class="sandbox-lane-card">
+                <span>虚拟本金</span>
+                <strong id="learningSandboxCapitalTotal">--</strong>
+              </div>
+              <div class="sandbox-lane-card">
+                <span>虚拟权益</span>
+                <strong id="learningSandboxEquityTotal">--</strong>
+              </div>
+              <div class="sandbox-lane-card">
+                <span>闭合样本</span>
+                <strong id="learningSandboxClosedSamples">--</strong>
+              </div>
+              <div class="sandbox-lane-card">
+                <span>观察信号</span>
+                <strong id="learningSandboxSignalCount">--</strong>
+              </div>
+            </div>
+            <div class="sandbox-lane-action" id="learningSandboxNextAction">等待本地沙盒模拟数据。</div>
+            <div id="learningSandboxLaneList" class="sandbox-lane-list"></div>
+          </div>
           <div class="section-subpanel simulation-gate-panel">
             <div class="section-header compact">
               <div>
-                <p class="panel-eyebrow">SIMULATION ADMISSION GATE</p>
-                <h4>模拟盘准入门槛</h4>
-                <p>把策略进入模拟观察前需要补齐的证据列清楚。本面板只做本地复核，不连接交易所，不进入 Dry-run。</p>
+                <p class="panel-eyebrow">TESTNET UPGRADE GATE</p>
+                <h4>Testnet 升级门槛</h4>
+                <p>本地沙盒模拟可以先跑；这里仅判断策略未来是否值得升级到交易所 testnet 复核。</p>
               </div>
               <span id="learningSimulationGateStatus" class="status-pill danger">执行关闭</span>
             </div>
             <div class="simulation-gate-grid">
               <div class="simulation-gate-card">
-                <span>可进入模拟观察</span>
+                <span>可升级复核</span>
                 <strong id="learningSimulationReadyCount">--</strong>
               </div>
               <div class="simulation-gate-card">

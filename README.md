@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.29 - Simulation Admission Gate
+AlphaPilot V13.7.30 - Local Sandbox Simulation Lane
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -12,13 +12,25 @@ status bridge.
 
 It is not a trading execution system.
 
+## What V13.7.30 Adds
+
+- Adds a local sandbox simulation lane to the learning-loop panel.
+- Enrolls all five paper-observation candidates into local virtual-capital tracking.
+- Uses 1,000 USDT virtual capital per strategy and paper-result `R` logs when available.
+- Keeps local sandbox simulation separate from the Testnet Upgrade Gate.
+- Lets local sandbox observation run before any strategy qualifies for future testnet review.
+- Does not connect an exchange testnet, create orders, run exchange Dry-run, or add automation.
+
+V13.7.30 does not add API key input, private exchange access, account access,
+position access, order creation, exchange Dry-run, live trading, or automation.
+
 ## What V13.7.29 Adds
 
-- Adds a local Simulation Admission Gate to the learning-loop panel.
+- Renames the local review gate into a Testnet Upgrade Gate.
 - Scores every paper-observation strategy against minimum evidence gates:
   quality score, observation logs, rule matches, closed paper samples, risk warnings, and invalidations.
-- Separates strategies into simulation-review ready, continue observing, and pause-review states.
-- Shows exactly which evidence is missing before a strategy can move toward local simulation review.
+- Separates strategies into future-testnet-review ready, continue observing, and pause-review states.
+- Shows exactly which evidence is missing before a strategy can move toward future testnet review.
 - Keeps the gate as a read-only local review layer; it does not connect exchanges, start testnet, create orders, or run automation.
 
 V13.7.29 does not add API key input, private exchange access, account access,

@@ -1808,6 +1808,86 @@ code {
   justify-self: start;
 }
 
+.sandbox-lane-panel {
+  border-color: rgba(31, 211, 162, 0.28);
+  background:
+    linear-gradient(135deg, rgba(31, 211, 162, 0.09), transparent 36%),
+    rgba(10, 15, 24, 0.88);
+}
+
+.sandbox-lane-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.sandbox-lane-card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(5, 12, 20, 0.78);
+  padding: 12px;
+}
+
+.sandbox-lane-card span,
+.sandbox-lane-row small,
+.sandbox-lane-empty {
+  color: var(--muted);
+}
+
+.sandbox-lane-card strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 22px;
+  color: var(--green);
+}
+
+.sandbox-lane-action {
+  border-left: 3px solid var(--green);
+  border-radius: 8px;
+  background: rgba(31, 211, 162, 0.10);
+  color: var(--text);
+  padding: 12px;
+  margin-top: 12px;
+}
+
+.sandbox-lane-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.sandbox-lane-row,
+.sandbox-lane-empty {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.20);
+  padding: 12px;
+}
+
+.sandbox-lane-row {
+  display: grid;
+  gap: 10px;
+}
+
+.sandbox-lane-row-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sandbox-lane-row-head strong,
+.sandbox-lane-row-head small {
+  display: block;
+}
+
+.sandbox-lane-next {
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text);
+  padding: 10px;
+}
+
 .simulation-gate-panel {
   border-color: rgba(255, 209, 102, 0.28);
   background:
@@ -1997,6 +2077,8 @@ code {
     .quality-progress-grid,
     .observation-daily-grid,
     .observation-daily-columns,
+    .sandbox-lane-grid,
+    .sandbox-lane-row-head,
     .simulation-gate-grid,
     .simulation-gate-row-head,
     .strategy-playbook-selector,
