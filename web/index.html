@@ -286,6 +286,22 @@
                   <ul id="strategyDetailLogFields"></ul>
                 </div>
               </div>
+              <div class="strategy-quick-log-panel">
+                <div>
+                  <span>今日快速记录</span>
+                  <strong id="strategyQuickTaskLabel">等待选择策略</strong>
+                </div>
+                <div class="strategy-quick-log-form">
+                  <select id="strategyQuickLogType" autocomplete="off"></select>
+                  <label><input id="strategyQuickSignalObserved" type="checkbox" /> 看到信号</label>
+                  <label><input id="strategyQuickRuleMatched" type="checkbox" /> 规则匹配</label>
+                  <input id="strategyQuickOutcome" placeholder="纸面结果 R，例如 0 / 1.2 / -1" autocomplete="off" />
+                  <input id="strategyQuickNote" placeholder="备注：币种、形态、无效原因、截图说明" autocomplete="off" />
+                  <button id="strategyQuickLogButton" type="button">记录今天观察</button>
+                </div>
+                <small id="strategyQuickLogStatus">只保存本地纸面观察日志，不会创建订单。</small>
+                <div id="strategyQuickRecentLogs" class="strategy-quick-log-list"></div>
+              </div>
             </details>
           </div>
         </section>

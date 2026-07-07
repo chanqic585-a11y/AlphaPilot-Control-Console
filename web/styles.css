@@ -1638,6 +1638,74 @@ code {
   line-height: 1.45;
 }
 
+.strategy-quick-log-panel {
+  display: grid;
+  gap: 10px;
+  margin: 0 14px 14px;
+  border: 1px solid rgba(38, 210, 170, 0.18);
+  border-radius: 8px;
+  background: rgba(38, 210, 170, 0.055);
+  padding: 12px;
+}
+
+.strategy-quick-log-panel span,
+.strategy-quick-log-panel small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.strategy-quick-log-panel strong {
+  display: block;
+  margin-top: 4px;
+}
+
+.strategy-quick-log-form {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.8fr) auto auto minmax(150px, 1fr) minmax(220px, 1.3fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.strategy-quick-log-form label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.strategy-quick-log-form select,
+.strategy-quick-log-form input {
+  min-width: 0;
+}
+
+.strategy-quick-log-form button {
+  background: var(--green);
+  border-color: var(--green);
+}
+
+.strategy-quick-log-list {
+  display: grid;
+  gap: 8px;
+}
+
+.strategy-quick-log-row,
+.strategy-quick-log-empty {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.18);
+  padding: 8px 10px;
+}
+
+.strategy-quick-log-row strong,
+.strategy-quick-log-row span,
+.strategy-quick-log-row small,
+.strategy-quick-log-empty {
+  display: block;
+  line-height: 1.45;
+}
+
 .quality-progress-grid,
 .quality-score-components {
   display: grid;
@@ -1752,6 +1820,7 @@ code {
     .strategy-playbook-selector,
     .strategy-clarity-grid,
     .strategy-detail-grid,
+    .strategy-quick-log-form,
     .artifact-row,
     .paper-task-row,
     .exchange-grid,

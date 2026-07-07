@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.26 - Strategy Detail Drawer
+AlphaPilot V13.7.27 - Strategy Detail Quick Observation Log
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,17 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.7.27 Adds
+
+- Adds a quick paper-observation log form inside the Strategy Detail Drawer.
+- Lets the user record no-signal days, seen signals, rule matches, missed observations, invalidations, and risk warnings from the currently selected strategy.
+- Saves the log through the existing local `/api/paper-observation-log` endpoint with the selected task `taskId`.
+- Refreshes the strategy quality and recent-log panels after saving.
+- Keeps all trading execution abilities disabled.
+
+V13.7.27 does not add API key input, private exchange access, account access,
+position access, order creation, exchange Dry-run, live trading, or automation.
 
 ## What V13.7.26 Adds
 

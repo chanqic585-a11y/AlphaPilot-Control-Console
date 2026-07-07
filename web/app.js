@@ -164,6 +164,7 @@ let latestPaperTasks = [];
 let latestStrategyLearningLoopPayload = {};
 let selectedArtifactId = null;
 let selectedStrategyPlaybookTaskId = null;
+let latestStrategyPlaybookTask = null;
 const artifactFilters = {
   search: "",
   tier: "all",
@@ -368,6 +369,7 @@ function renderStrategyDetailDrawer(primary, template, metrics, recommendedPairs
     setList("strategyDetailExit", []);
     setList("strategyDetailWeakness", []);
     setList("strategyDetailLogFields", []);
+    renderStrategyQuickLog(null);
     return;
   }
 
@@ -410,6 +412,32 @@ function renderStrategyDetailDrawer(primary, template, metrics, recommendedPairs
   setList("strategyDetailLogFields", dailyLogFields.length
     ? dailyLogFields.map((field) => translateLogField(field))
     : ["日期", "币种", "周期", "是否看到信号", "是否规则匹配", "纸面结果 R", "风险备注"]);
+  renderStrategyQuickLog(primary);
+}
+
+function renderStrategyQuickLog(primary) {
+  const taskId = primary?.taskId || "";
+  const recentLogs = Array.isArray(primary?.recentLogs) ? primary.recentLogs.slice(0, 4) : [];
+  const localObservation = primary?.localObservation || {};
+  const canLog = Boolean(taskId);
+  const typeSelect = el("strategyQuickLogType");
+  if (typeSelect && !typeSelect.innerHTML.trim()) {
+    typeSelect.innerHTML = renderPaperLogTypeOptions("no_signal");
+  }
+  el("strategyQuickTaskLabel").textContent = canLog
+    ? `${primary.title || primary.candidateId || taskId} · 已记录 ${localObservation.logCount ?? recentLogs.length} 条`
+    : "等待选择策略";
+  el("strategyQuickLogButton").disabled = !canLog;
+  el("strategyQuickLogStatus").textContent = canLog
+    ? "只保存本地纸面观察日志，不会创建订单。"
+    : "请先选择一条纸面观察策略。";
+  el("strategyQuickRecentLogs").innerHTML = recentLogs.length ? recentLogs.map((log) => `
+    <div class="strategy-quick-log-row">
+      <strong>${escapeHtml(tPaperLogType(log.logType))}</strong>
+      <span>${formatDate(log.createdAt)} · ${escapeHtml(log.outcome || "未写结果")}</span>
+      <small>${escapeHtml(log.note || "无备注")}</small>
+    </div>
+  `).join("") : '<div class="strategy-quick-log-empty">暂无最近观察日志。先记录无信号、看到信号、规则匹配或失效原因。</div>';
 }
 
 function renderStrategyPlaybookSelector(tasks, selectedTaskId) {
@@ -443,6 +471,7 @@ function renderStrategyPlaybook(strategies, mobile, loopPayload) {
   const tasks = getObservationTasksFromLoop(loopPayload);
   const task = pickPrimaryObservationTask(loopPayload);
   const primary = task || pickPrimaryStrategy(strategies);
+  latestStrategyPlaybookTask = primary || null;
   const template = getStrategyPlainTemplate(primary);
   const metrics = primary?.historicalMetrics || primary?.metrics || {};
   const observation = primary?.observationPlan || {};
@@ -1728,6 +1757,40 @@ el("probeExchangesButton").addEventListener("click", async () => {
 });
 
 el("backHomeButton").addEventListener("click", scrollToOverview);
+el("strategyQuickLogType").addEventListener("change", () => {
+  const logType = el("strategyQuickLogType").value || "no_signal";
+  el("strategyQuickSignalObserved").checked = ["signal_seen", "rule_matched"].includes(logType);
+  el("strategyQuickRuleMatched").checked = logType === "rule_matched";
+});
+el("strategyQuickLogButton").addEventListener("click", async () => {
+  const task = latestStrategyPlaybookTask;
+  const taskId = task?.taskId || "";
+  if (!taskId) {
+    el("strategyQuickLogStatus").textContent = "请先选择一条纸面观察策略。";
+    return;
+  }
+  const button = el("strategyQuickLogButton");
+  button.disabled = true;
+  el("strategyQuickLogStatus").textContent = "正在保存本地观察日志...";
+  try {
+    await postJson("/api/paper-observation-log", {
+      artifactId: taskId,
+      logType: el("strategyQuickLogType")?.value || "no_signal",
+      signalObserved: Boolean(el("strategyQuickSignalObserved")?.checked),
+      ruleMatched: Boolean(el("strategyQuickRuleMatched")?.checked),
+      outcome: el("strategyQuickOutcome")?.value || "",
+      note: el("strategyQuickNote")?.value || "",
+    });
+    el("strategyQuickOutcome").value = "";
+    el("strategyQuickNote").value = "";
+    await refreshAll();
+    el("strategyQuickLogStatus").textContent = "已保存本地纸面观察日志；不会创建订单。";
+  } catch (error) {
+    el("strategyQuickLogStatus").textContent = `保存失败：${error.message}`;
+  } finally {
+    button.disabled = false;
+  }
+});
 el("artifactSearch").addEventListener("input", (event) => {
   artifactFilters.search = event.target.value || "";
   selectedArtifactId = null;
