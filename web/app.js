@@ -143,6 +143,7 @@ const sectionLabels = {
   runtime: "运行监控",
   artifacts: "策略资产",
   observationTasks: "观察任务",
+  learning: "学习闭环",
   exchanges: "公共行情",
   mobile: "手机控制台",
   audit: "审计日志",
@@ -980,6 +981,72 @@ function renderForwardValidation(forwardValidation) {
   `;
 }
 
+function renderStrategyLearningLoop(loopPayload) {
+  const payload = loopPayload?.strategyLearningLoop || loopPayload || {};
+  const summary = payload.summary || {};
+  const learningLoop = payload.learningLoop || {};
+  const refactorReport = payload.refactorCandidates || {};
+  const experimentReport = payload.experimentSpecs || {};
+  const rereviewReport = payload.paperReReview || {};
+  const graveyard = Array.isArray(learningLoop.strategyGraveyard) ? learningLoop.strategyGraveyard : [];
+  const refactors = Array.isArray(refactorReport.refactorCandidates) ? refactorReport.refactorCandidates : [];
+  const experiments = Array.isArray(experimentReport.experimentSpecs) ? experimentReport.experimentSpecs : [];
+  const reviews = Array.isArray(rereviewReport.paperObservationReviews) ? rereviewReport.paperObservationReviews : [];
+
+  el("learningItemCount").textContent = String(summary.learningItemCount ?? "--");
+  el("learningGraveyardCount").textContent = String(summary.graveyardCount ?? graveyard.length);
+  el("learningWatchlistCount").textContent = String(summary.researchWatchlistCount ?? "--");
+  el("learningRefactorCount").textContent = String(summary.refactorCandidateCount ?? refactors.length);
+  el("learningExperimentCount").textContent = String(summary.experimentSpecCount ?? experiments.length);
+  el("learningPaperApproved").textContent = String(summary.paperObservationApprovedCount ?? 0);
+  el("learningDryRun").textContent = summary.dryRunApproved ? "异常：开启" : "关闭";
+  el("learningLive").textContent = summary.liveTradingApproved ? "异常：开启" : "关闭";
+  el("learningNextStep").textContent = summary.nextExecutableResearchStep || "等待下一轮确定性回测实现。";
+
+  el("learningRefactorList").innerHTML = refactors.slice(0, 8).map((item) => `
+    <div class="research-task-row">
+      <strong>${escapeHtml(item.title || item.candidateId || "--")}</strong>
+      <small>${escapeHtml(item.candidateId || "--")} · 优先级 ${escapeHtml(item.priority || "--")}</small>
+      <div>${escapeHtml(item.hypothesis || "等待研究假设。")}</div>
+      <div>
+        <span class="badge ${item.specReadyForResearchBacktest ? "ok" : "warn"}">${item.specReadyForResearchBacktest ? "可转研究回测规格" : "需要补证据"}</span>
+        <span class="badge danger">${item.paperObservationAllowed ? "纸面观察异常开启" : "纸面观察未开放"}</span>
+      </div>
+    </div>
+  `).join("") || '<div class="item">暂无重构候选。</div>';
+
+  el("learningExperimentList").innerHTML = experiments.slice(0, 8).map((item) => {
+    const gates = item.passGate || {};
+    const gateText = Object.entries(gates).slice(0, 4).map(([key, value]) => `${key}: ${value}`).join(" / ");
+    return `
+      <div class="research-task-row">
+        <strong>${escapeHtml(item.experimentId || "--")}</strong>
+        <small>${escapeHtml((item.timeframes || []).join(" / ") || "--")} · ${escapeHtml(item.sourceCandidateId || "--")}</small>
+        <div>${escapeHtml((item.entryResearchConditions || []).slice(0, 3).join("；") || "等待入场研究条件。")}</div>
+        <div><span class="badge warn">${escapeHtml(gateText || "等待回测门槛")}</span></div>
+      </div>
+    `;
+  }).join("") || '<div class="item">暂无实验规格。</div>';
+
+  el("learningGraveyardList").innerHTML = graveyard.slice(0, 8).map((item) => `
+    <div class="item">
+      <strong>${escapeHtml(item.title || item.subjectId || "--")}</strong>
+      <small>${escapeHtml(item.subjectId || "--")}</small>
+      <div>${escapeHtml(item.reason || "失败原因待补充。")}</div>
+      <div>复活条件：${escapeHtml(item.resurrectionRule || "暂无")}</div>
+    </div>
+  `).join("") || '<div class="item">暂无失败归档。</div>';
+
+  el("learningPaperReviewList").innerHTML = reviews.slice(0, 8).map((item) => `
+    <div class="item">
+      <strong>${escapeHtml(item.experimentId || "--")}</strong>
+      <small>${escapeHtml(item.paperObservationStatus || "--")} · readiness ${formatNumber(item.readinessScore, 0)}</small>
+      <div>缺失证据：${escapeHtml((item.missingEvidence || []).join(" / ") || "无")}</div>
+      <div>允许下一步：${escapeHtml(item.allowedNextAction || "研究回测")}</div>
+    </div>
+  `).join("") || '<div class="item">暂无纸面观察复审。</div>';
+}
+
 function renderStrategies(strategies) {
   latestStrategies = strategies;
 
@@ -1148,7 +1215,7 @@ function renderAudit(events) {
 }
 
 async function refreshAll() {
-  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, researchTaskBoard] = await Promise.all([
+  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, researchTaskBoard, strategyLearningLoop] = await Promise.all([
     getJson("/api/strategies"),
     getJson("/api/reports"),
     getJson("/api/mobile/status"),
@@ -1160,6 +1227,7 @@ async function refreshAll() {
     getJson("/api/paper-observation-tasks"),
     getJson("/api/candidate-queue"),
     getJson("/api/research-task-board"),
+    getJson("/api/strategy-learning-loop"),
   ]);
   const strategyItems = strategies.strategies || [];
   const reportItems = reports.reports || [];
@@ -1173,6 +1241,7 @@ async function refreshAll() {
   renderStrategyArtifacts(artifacts);
   renderCandidateQueue(candidateQueue);
   renderResearchTaskBoard(researchTaskBoard);
+  renderStrategyLearningLoop(strategyLearningLoop);
   renderForwardValidation(mobile.forwardValidation);
   renderPaperObservationTasks(paperTasks);
   renderMobileConnectionInfo(connection);

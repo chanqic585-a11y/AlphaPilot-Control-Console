@@ -32,6 +32,9 @@
           <a class="rail-item" href="#observationTasks" title="观察任务" aria-label="观察任务">
             <span class="nav-key">O</span><span>观察任务</span>
           </a>
+          <a class="rail-item" href="#learning" title="学习闭环" aria-label="学习闭环">
+            <span class="nav-key">L</span><span>学习闭环</span>
+          </a>
           <a class="rail-item" href="#exchanges" title="公共行情" aria-label="公共行情">
             <span class="nav-key">M</span><span>公共行情</span>
           </a>
@@ -473,6 +476,81 @@
             </div>
             <div id="reportList" class="list"></div>
           </section>
+        </section>
+
+        <section id="learning" class="panel learning-loop-panel">
+          <div class="section-header">
+            <div>
+              <p class="panel-eyebrow">STRATEGY LEARNING LOOP</p>
+              <h2>策略学习闭环</h2>
+              <p>把多智能体复盘结果沉淀成失败记忆、重构候选、实验规格和纸面观察复审；这里只做研究排序，不创建订单。</p>
+            </div>
+            <span class="status-pill danger">执行能力关闭</span>
+          </div>
+          <div class="metric-grid">
+            <div class="metric-cell">
+              <span>学习条目</span>
+              <strong id="learningItemCount">--</strong>
+            </div>
+            <div class="metric-cell">
+              <span>失败归档</span>
+              <strong id="learningGraveyardCount">--</strong>
+            </div>
+            <div class="metric-cell">
+              <span>研究观察</span>
+              <strong id="learningWatchlistCount">--</strong>
+            </div>
+            <div class="metric-cell">
+              <span>重构候选</span>
+              <strong id="learningRefactorCount">--</strong>
+            </div>
+            <div class="metric-cell">
+              <span>实验规格</span>
+              <strong id="learningExperimentCount">--</strong>
+            </div>
+            <div class="metric-cell">
+              <span>纸面通过</span>
+              <strong id="learningPaperApproved">--</strong>
+            </div>
+            <div class="metric-cell">
+              <span>Dry-run</span>
+              <strong id="learningDryRun">关闭</strong>
+            </div>
+            <div class="metric-cell">
+              <span>实盘</span>
+              <strong id="learningLive">关闭</strong>
+            </div>
+          </div>
+          <div class="runtime-tape">
+            <div class="item">
+              <strong>下一步研究动作</strong>
+              <div id="learningNextStep">等待 V13.7.15-18 报告导入。</div>
+            </div>
+            <div class="item">
+              <strong>边界说明</strong>
+              <div>学习闭环不会生成交易指令，不会进入 Dry-run，也不会进入实盘。</div>
+            </div>
+          </div>
+          <div class="research-task-columns">
+            <div>
+              <h4>重构候选</h4>
+              <div id="learningRefactorList" class="research-task-list"></div>
+            </div>
+            <div>
+              <h4>实验规格</h4>
+              <div id="learningExperimentList" class="research-task-list"></div>
+            </div>
+          </div>
+          <div class="research-task-columns">
+            <div>
+              <h4>失败记忆</h4>
+              <div id="learningGraveyardList" class="compact-list"></div>
+            </div>
+            <div>
+              <h4>纸面观察复审</h4>
+              <div id="learningPaperReviewList" class="compact-list"></div>
+            </div>
+          </div>
         </section>
 
         <section id="observationTasks" class="panel observation-task-panel">

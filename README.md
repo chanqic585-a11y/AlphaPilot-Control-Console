@@ -443,3 +443,31 @@ Safety boundary:
 - It does not call LLMs from the console, run backtests, use API keys, read
   accounts or positions, create orders, execute exchange Dry-run, or enable live
   or automatic trading.
+
+## V13.7.18 Strategy Learning Loop Import
+
+V13.7.18 imports the cumulative Quant Engine learning-loop reports:
+
+```text
+reports/v13_7_15_strategy_learning_loop_report.json
+reports/v13_7_16_strategy_refactor_candidates_report.json
+reports/v13_7_17_regime_filtered_experiment_specs_report.json
+reports/v13_7_18_paper_observation_rereview_report.json
+```
+
+What changed:
+
+- Adds `/api/strategy-learning-loop` for read-only access to the combined
+  learning-loop payload.
+- Adds a desktop `学习闭环` panel showing failure memory, refactor candidates,
+  experiment specs, and paper-observation re-review status.
+- Extends the report importer so the V13.7.15-V13.7.18 reports appear in the
+  latest report list.
+- Keeps all paper observation approvals at zero until deterministic backtest
+  evidence exists.
+
+Safety boundary:
+
+- The panel is a research planning view only.
+- It does not run backtests, use API keys, read accounts or positions, create
+  orders, execute exchange Dry-run, or enable live or automatic trading.

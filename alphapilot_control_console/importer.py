@@ -16,8 +16,8 @@ from .state_store import (
     write_mobile_status,
 )
 
-CONTROL_CONSOLE_VERSION = "V13.7.14"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_14"
+CONTROL_CONSOLE_VERSION = "V13.7.18"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_18"
 BEIJING_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 FORWARD_VALIDATION_REVIEW_DATE = date(2026, 7, 10)
 FORWARD_VALIDATION_REVIEW_LABEL = "2026年7月10日（北京时间）"
@@ -87,7 +87,104 @@ def _compact_report_summary(report: dict[str, Any]) -> dict[str, Any]:
             "dryRunApproved": summary.get("dryRunApproved"),
             "liveTradingApproved": summary.get("liveTradingApproved"),
         }
+    if report.get("learningLedger"):
+        summary = report.get("summary") if isinstance(report.get("summary"), dict) else {}
+        return {
+            "kind": "strategy_learning_loop",
+            "learningItemCount": summary.get("learningItemCount"),
+            "graveyardCount": summary.get("graveyardCount"),
+            "researchWatchlistCount": summary.get("researchWatchlistCount"),
+            "dryRunApproved": summary.get("dryRunApproved"),
+            "liveTradingApproved": summary.get("liveTradingApproved"),
+        }
+    if report.get("refactorCandidates"):
+        summary = report.get("summary") if isinstance(report.get("summary"), dict) else {}
+        return {
+            "kind": "strategy_refactor_candidates",
+            "candidateCount": summary.get("candidateCount"),
+            "researchBacktestSpecReadyCount": summary.get("researchBacktestSpecReadyCount"),
+            "paperObservationAllowedCount": summary.get("paperObservationAllowedCount"),
+            "topCandidateId": summary.get("topCandidateId"),
+            "dryRunApproved": summary.get("dryRunApproved"),
+            "liveTradingApproved": summary.get("liveTradingApproved"),
+        }
+    if report.get("experimentSpecs"):
+        summary = report.get("summary") if isinstance(report.get("summary"), dict) else {}
+        return {
+            "kind": "regime_filtered_experiment_specs",
+            "experimentSpecCount": summary.get("experimentSpecCount"),
+            "readyForBacktestImplementationCount": summary.get("readyForBacktestImplementationCount"),
+            "paperObservationAllowedCount": summary.get("paperObservationAllowedCount"),
+            "nextStep": summary.get("nextStep"),
+            "dryRunApproved": summary.get("dryRunApproved"),
+            "liveTradingApproved": summary.get("liveTradingApproved"),
+        }
+    if report.get("paperObservationReviews"):
+        summary = report.get("summary") if isinstance(report.get("summary"), dict) else {}
+        return {
+            "kind": "paper_observation_rereview",
+            "reviewedExperimentCount": summary.get("reviewedExperimentCount"),
+            "paperObservationApprovedCount": summary.get("paperObservationApprovedCount"),
+            "researchBacktestOnlyCount": summary.get("researchBacktestOnlyCount"),
+            "nextExecutableResearchStep": summary.get("nextExecutableResearchStep"),
+            "dryRunApproved": summary.get("dryRunApproved"),
+            "liveTradingApproved": summary.get("liveTradingApproved"),
+        }
     return {"kind": "report"}
+
+
+def _build_strategy_learning_loop(reports_dir: Path) -> dict[str, Any]:
+    learning_loop = _read_json(reports_dir / "v13_7_15_strategy_learning_loop_report.json")
+    refactor_candidates = _read_json(reports_dir / "v13_7_16_strategy_refactor_candidates_report.json")
+    experiment_specs = _read_json(reports_dir / "v13_7_17_regime_filtered_experiment_specs_report.json")
+    paper_rereview = _read_json(reports_dir / "v13_7_18_paper_observation_rereview_report.json")
+
+    learning_summary = learning_loop.get("summary") if isinstance(learning_loop, dict) else {}
+    refactor_summary = refactor_candidates.get("summary") if isinstance(refactor_candidates, dict) else {}
+    experiment_summary = experiment_specs.get("summary") if isinstance(experiment_specs, dict) else {}
+    rereview_summary = paper_rereview.get("summary") if isinstance(paper_rereview, dict) else {}
+
+    generated_at_values = [
+        str(report.get("generatedAt"))
+        for report in (learning_loop, refactor_candidates, experiment_specs, paper_rereview)
+        if isinstance(report, dict) and report.get("generatedAt")
+    ]
+
+    return {
+        "version": "V13.7.18",
+        "source": CONTROL_CONSOLE_SOURCE,
+        "generatedAt": max(generated_at_values) if generated_at_values else None,
+        "learningLoop": learning_loop or {},
+        "refactorCandidates": refactor_candidates or {},
+        "experimentSpecs": experiment_specs or {},
+        "paperReReview": paper_rereview or {},
+        "summary": {
+            "learningItemCount": learning_summary.get("learningItemCount", 0),
+            "graveyardCount": learning_summary.get("graveyardCount", 0),
+            "researchWatchlistCount": learning_summary.get("researchWatchlistCount", 0),
+            "factorMemoryCount": learning_summary.get("factorMemoryCount", 0),
+            "refactorCandidateCount": refactor_summary.get("candidateCount", 0),
+            "researchBacktestSpecReadyCount": refactor_summary.get("researchBacktestSpecReadyCount", 0),
+            "experimentSpecCount": experiment_summary.get("experimentSpecCount", 0),
+            "readyForBacktestImplementationCount": experiment_summary.get("readyForBacktestImplementationCount", 0),
+            "paperObservationApprovedCount": rereview_summary.get("paperObservationApprovedCount", 0),
+            "researchBacktestOnlyCount": rereview_summary.get("researchBacktestOnlyCount", 0),
+            "dryRunApproved": any(
+                bool(summary.get("dryRunApproved"))
+                for summary in (learning_summary, refactor_summary, experiment_summary, rereview_summary)
+                if isinstance(summary, dict)
+            ),
+            "liveTradingApproved": any(
+                bool(summary.get("liveTradingApproved"))
+                for summary in (learning_summary, refactor_summary, experiment_summary, rereview_summary)
+                if isinstance(summary, dict)
+            ),
+            "nextExecutableResearchStep": rereview_summary.get("nextExecutableResearchStep")
+            or experiment_summary.get("nextStep")
+            or refactor_summary.get("nextStep")
+            or learning_summary.get("nextStep"),
+        },
+    }
 
 
 def _strategy_from_package(package: dict[str, Any], report: dict[str, Any] | None, path: Path) -> dict[str, Any]:
@@ -1076,7 +1173,7 @@ def scan_quant_engine() -> dict[str, Any]:
 
     if reports_dir.exists():
         report_paths: dict[str, Path] = {}
-        for pattern in ("v13_5_*_report.json", "v13_7_14_*_report.json"):
+        for pattern in ("v13_5_*_report.json", "v13_7_1*_report.json"):
             for report_path in sorted(reports_dir.glob(pattern)):
                 report_paths[str(report_path)] = report_path
         for report_path in sorted(report_paths.values()):
@@ -1102,6 +1199,7 @@ def scan_quant_engine() -> dict[str, Any]:
     backtest_task_completion = (
         _read_json(reports_dir / "v13_7_13_backtest_task_completion_report.json") if reports_dir.exists() else None
     )
+    strategy_learning_loop = _build_strategy_learning_loop(reports_dir) if reports_dir.exists() else {}
     if strategy_artifact_index:
         strategy_artifact_index = _apply_artifact_reviews(strategy_artifact_index, state)
 
@@ -1127,6 +1225,7 @@ def scan_quant_engine() -> dict[str, Any]:
         "paperObservationLedger": paper_observation_ledger or {},
         "strategyArtifactIndex": strategy_artifact_index or {},
         "backtestTaskCompletion": backtest_task_completion or {},
+        "strategyLearningLoop": strategy_learning_loop,
     }
     payload["strategyCandidateQueue"] = _apply_backtest_completion_to_candidate_queue(
         _build_strategy_candidate_queue(payload["strategyArtifactIndex"]),
