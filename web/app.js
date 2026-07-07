@@ -419,6 +419,150 @@ function renderStrategyObservationDailyReport(observationTasks, qualityRows) {
   `).join("") || '<div class="observation-daily-empty">暂无本地观察日志。今天可以先记录“无信号日”。</div>';
 }
 
+const simulationAdmissionThresholds = {
+  minQualityScore: 60,
+  minLogCount: 10,
+  minRuleMatchedCount: 3,
+  minClosedPaperSamples: 5,
+  maxRiskWarningCount: 1,
+  maxInvalidatedCount: 0,
+};
+
+function buildSimulationGateRows(observationTasks, qualityRows) {
+  return (qualityRows && qualityRows.length ? qualityRows : observationTasks).map((row) => {
+    const taskId = row.taskId || "";
+    const matchingTask = (observationTasks || []).find((task) => task.taskId === taskId) || {};
+    const localObservation = matchingTask.localObservation || {};
+    const logCount = Number(row.logCount ?? localObservation.logCount ?? 0);
+    const ruleMatchedCount = Number(row.ruleMatchedCount ?? localObservation.ruleMatchedCount ?? 0);
+    const closedPaperSampleCount = Number(row.closedPaperSampleCount ?? localObservation.closedPaperSampleCount ?? 0);
+    const riskWarningCount = Number(row.riskWarningCount ?? 0);
+    const invalidatedCount = Number(row.invalidatedCount ?? 0);
+    const qualityScore = Number(row.qualityScore ?? 0);
+    const targetClosedSamples = Number(row.targetClosedSamples ?? matchingTask.observationPlan?.targetClosedSamples ?? 0);
+    const missing = [];
+    const passed = [];
+
+    if (qualityScore >= simulationAdmissionThresholds.minQualityScore) passed.push("质量分达标");
+    else missing.push(`质量分还差 ${formatNumber(simulationAdmissionThresholds.minQualityScore - qualityScore, 0)}`);
+
+    if (logCount >= simulationAdmissionThresholds.minLogCount) passed.push("日志数量达标");
+    else missing.push(`还需 ${simulationAdmissionThresholds.minLogCount - logCount} 条观察日志`);
+
+    if (ruleMatchedCount >= simulationAdmissionThresholds.minRuleMatchedCount) passed.push("规则匹配达标");
+    else missing.push(`还需 ${simulationAdmissionThresholds.minRuleMatchedCount - ruleMatchedCount} 次规则匹配`);
+
+    if (closedPaperSampleCount >= simulationAdmissionThresholds.minClosedPaperSamples) passed.push("闭合样本达标");
+    else missing.push(`还需 ${simulationAdmissionThresholds.minClosedPaperSamples - closedPaperSampleCount} 个闭合样本`);
+
+    if (riskWarningCount <= simulationAdmissionThresholds.maxRiskWarningCount) passed.push("风险记录可控");
+    else missing.push("风险记录过多，需要先复盘");
+
+    if (invalidatedCount <= simulationAdmissionThresholds.maxInvalidatedCount) passed.push("暂无失效记录");
+    else missing.push("存在失效记录，需要暂停复核");
+
+    const gateScore = Math.max(0, Math.min(100,
+      (qualityScore * 0.35)
+      + (Math.min(logCount / simulationAdmissionThresholds.minLogCount, 1) * 20)
+      + (Math.min(ruleMatchedCount / simulationAdmissionThresholds.minRuleMatchedCount, 1) * 15)
+      + (Math.min(closedPaperSampleCount / simulationAdmissionThresholds.minClosedPaperSamples, 1) * 20)
+      + (riskWarningCount <= simulationAdmissionThresholds.maxRiskWarningCount ? 5 : 0)
+      + (invalidatedCount <= simulationAdmissionThresholds.maxInvalidatedCount ? 5 : 0)
+    ));
+
+    let status = "continue_observing";
+    let statusLabel = "继续观察";
+    let tone = "warn";
+    if (invalidatedCount > 0 || riskWarningCount > simulationAdmissionThresholds.maxRiskWarningCount) {
+      status = "pause_review";
+      statusLabel = "暂停复核";
+      tone = "danger";
+    } else if (missing.length === 0) {
+      status = "simulation_review_ready";
+      statusLabel = "可进入模拟观察复核";
+      tone = "ok";
+    }
+
+    const nextAction = status === "simulation_review_ready"
+      ? "可以进入本地模拟观察复核；仍需人工确认，不创建真实订单。"
+      : status === "pause_review"
+        ? "先复盘风险或失效记录，暂不进入模拟观察复核。"
+        : missing[0] || "继续补齐本地观察样本。";
+
+    return {
+      taskId,
+      title: row.title || matchingTask.title || row.candidateId || matchingTask.candidateId || "--",
+      qualityLabel: row.qualityLabelCn || tObservationQuality(row.qualityLabel) || "等待观察",
+      qualityScore,
+      gateScore,
+      status,
+      statusLabel,
+      tone,
+      logCount,
+      ruleMatchedCount,
+      closedPaperSampleCount,
+      targetClosedSamples,
+      riskWarningCount,
+      invalidatedCount,
+      latestLogAt: row.latestLogAt || localObservation.latestLogAt,
+      missing,
+      passed,
+      nextAction,
+    };
+  }).sort((a, b) => {
+    const rank = { simulation_review_ready: 0, continue_observing: 1, pause_review: 2 };
+    return (rank[a.status] ?? 9) - (rank[b.status] ?? 9) || b.gateScore - a.gateScore;
+  });
+}
+
+function renderSimulationAdmissionGate(observationTasks, qualityRows) {
+  if (!el("learningSimulationGateList")) return;
+  const rows = buildSimulationGateRows(observationTasks, qualityRows);
+  const readyCount = rows.filter((row) => row.status === "simulation_review_ready").length;
+  const watchCount = rows.filter((row) => row.status === "continue_observing").length;
+  const pauseCount = rows.filter((row) => row.status === "pause_review").length;
+  el("learningSimulationReadyCount").textContent = String(readyCount);
+  el("learningSimulationWatchCount").textContent = String(watchCount);
+  el("learningSimulationPauseCount").textContent = String(pauseCount);
+  el("learningSimulationMinLogs").textContent = String(simulationAdmissionThresholds.minLogCount);
+  el("learningSimulationMinRules").textContent = String(simulationAdmissionThresholds.minRuleMatchedCount);
+  el("learningSimulationMinClosed").textContent = String(simulationAdmissionThresholds.minClosedPaperSamples);
+  el("learningSimulationGateStatus").textContent = "执行关闭";
+
+  let nextAction = "当前没有策略达到模拟观察复核门槛：先继续记录无信号日、规则匹配、闭合结果和失效原因。";
+  if (readyCount > 0) {
+    nextAction = `已有 ${readyCount} 条策略达到本地模拟观察复核门槛，但仍然只允许人工复核，不连接交易所。`;
+  } else if (pauseCount > 0) {
+    nextAction = `有 ${pauseCount} 条策略需要暂停复核：先解释风险或失效记录，再继续观察。`;
+  }
+  el("learningSimulationNextAction").textContent = nextAction;
+
+  el("learningSimulationGateList").innerHTML = rows.map((row) => `
+    <div class="simulation-gate-row">
+      <div class="simulation-gate-row-head">
+        <div>
+          <strong>${escapeHtml(row.title)}</strong>
+          <small>${escapeHtml(row.taskId || "--")} · ${escapeHtml(row.qualityLabel)} · 最近 ${formatDate(row.latestLogAt)}</small>
+        </div>
+        <span class="badge ${row.tone}">${escapeHtml(row.statusLabel)} · ${formatNumber(row.gateScore, 0)}分</span>
+      </div>
+      <div class="artifact-metrics">
+        <span>质量 ${formatNumber(row.qualityScore, 0)}</span>
+        <span>日志 ${row.logCount}/${simulationAdmissionThresholds.minLogCount}</span>
+        <span>规则 ${row.ruleMatchedCount}/${simulationAdmissionThresholds.minRuleMatchedCount}</span>
+        <span>闭合 ${row.closedPaperSampleCount}/${simulationAdmissionThresholds.minClosedPaperSamples}</span>
+        <span>目标 ${row.targetClosedSamples || "--"}</span>
+        <span>风险 ${row.riskWarningCount}</span>
+        <span>失效 ${row.invalidatedCount}</span>
+      </div>
+      <div class="simulation-gate-missing">
+        ${(row.missing.length ? row.missing : ["全部准入门槛已满足"]).map((item) => `<small>${escapeHtml(item)}</small>`).join("")}
+      </div>
+      <div class="simulation-gate-next">${escapeHtml(row.nextAction)}</div>
+    </div>
+  `).join("") || '<div class="simulation-gate-empty">暂无可复核的策略观察任务。</div>';
+}
+
 function pickPrimaryObservationTask(loopPayload) {
   const tasks = getObservationTasksFromLoop(loopPayload);
   if (selectedStrategyPlaybookTaskId) {
@@ -1440,6 +1584,7 @@ function renderStrategyLearningLoop(loopPayload) {
     ? observationQualityPanel.qualityRows
     : [];
   renderStrategyObservationDailyReport(observationTasks, qualityRows);
+  renderSimulationAdmissionGate(observationTasks, qualityRows);
 
   el("learningItemCount").textContent = String(summary.learningItemCount ?? "--");
   el("learningGraveyardCount").textContent = String(summary.graveyardCount ?? graveyard.length);

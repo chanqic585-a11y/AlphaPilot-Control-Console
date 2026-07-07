@@ -1808,6 +1808,101 @@ code {
   justify-self: start;
 }
 
+.simulation-gate-panel {
+  border-color: rgba(255, 209, 102, 0.28);
+  background:
+    linear-gradient(135deg, rgba(255, 209, 102, 0.08), transparent 36%),
+    rgba(255, 255, 255, 0.025);
+}
+
+.simulation-gate-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.simulation-gate-card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(5, 12, 20, 0.78);
+  padding: 12px;
+}
+
+.simulation-gate-card span,
+.simulation-gate-row small,
+.simulation-gate-empty {
+  color: var(--muted);
+}
+
+.simulation-gate-card strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 22px;
+  color: var(--text);
+}
+
+.simulation-gate-action {
+  border-left: 3px solid var(--gold);
+  border-radius: 8px;
+  background: rgba(255, 209, 102, 0.10);
+  color: var(--text);
+  font-weight: 800;
+  line-height: 1.55;
+  padding: 10px 12px;
+}
+
+.simulation-gate-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.simulation-gate-row,
+.simulation-gate-empty {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.20);
+  padding: 12px;
+}
+
+.simulation-gate-row {
+  display: grid;
+  gap: 10px;
+}
+
+.simulation-gate-row-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.simulation-gate-row-head strong,
+.simulation-gate-row-head small {
+  display: block;
+}
+
+.simulation-gate-missing {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.simulation-gate-missing small {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 6px 10px;
+}
+
+.simulation-gate-next {
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text);
+  padding: 8px 10px;
+}
+
 .debug-panel summary {
   cursor: pointer;
   color: var(--gold);
@@ -1902,6 +1997,8 @@ code {
     .quality-progress-grid,
     .observation-daily-grid,
     .observation-daily-columns,
+    .simulation-gate-grid,
+    .simulation-gate-row-head,
     .strategy-playbook-selector,
     .strategy-clarity-grid,
     .strategy-detail-grid,

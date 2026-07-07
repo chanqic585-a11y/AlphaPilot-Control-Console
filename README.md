@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.28 - Strategy Observation Daily Report
+AlphaPilot V13.7.29 - Simulation Admission Gate
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,18 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.7.29 Adds
+
+- Adds a local Simulation Admission Gate to the learning-loop panel.
+- Scores every paper-observation strategy against minimum evidence gates:
+  quality score, observation logs, rule matches, closed paper samples, risk warnings, and invalidations.
+- Separates strategies into simulation-review ready, continue observing, and pause-review states.
+- Shows exactly which evidence is missing before a strategy can move toward local simulation review.
+- Keeps the gate as a read-only local review layer; it does not connect exchanges, start testnet, create orders, or run automation.
+
+V13.7.29 does not add API key input, private exchange access, account access,
+position access, order creation, exchange Dry-run, live trading, or automation.
 
 ## What V13.7.28 Adds
 
