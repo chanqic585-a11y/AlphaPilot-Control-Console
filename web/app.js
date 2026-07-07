@@ -154,6 +154,7 @@ const sectionLabels = {
   observationTasks: "观察任务",
   learning: "学习闭环",
   liveReadiness: "实盘准备",
+  forwardReview: "前向复核",
   exchanges: "公共行情",
   mobile: "手机控制台",
   audit: "审计日志",
@@ -921,6 +922,114 @@ function renderLiveReadiness(payload) {
       }
     });
   });
+}
+
+function forwardReviewBadge(row) {
+  const tone = row?.tone || "warn";
+  return `<span class="badge ${tone}">${escapeHtml(row?.reviewLabel || "--")} · ${formatNumber(row?.readinessScore, 0)}分</span>`;
+}
+
+function renderForwardReview(payload) {
+  if (!el("forwardReviewList")) return;
+  const summary = payload?.summary || {};
+  const rows = Array.isArray(payload?.rows) ? payload.rows : [];
+  const expansion = payload?.candidateExpansion || {};
+  const expansionSummary = expansion.summary || {};
+  const expansionRows = Array.isArray(expansion.topCandidates) ? expansion.topCandidates : [];
+  const readyCount = Number(summary.readyForManualReviewCount || 0);
+
+  el("forwardReviewCandidateCount").textContent = String(summary.candidateCount ?? rows.length ?? 0);
+  el("forwardReviewReadyCount").textContent = String(readyCount);
+  el("forwardReviewManualLogs").textContent = String(summary.manualForwardLogCount ?? 0);
+  el("forwardReviewClosedSamples").textContent = String(summary.manualClosedSampleCount ?? 0);
+  el("forwardReviewVirtualLogs").textContent = String(summary.virtualReplayLogCount ?? 0);
+  el("forwardReviewExpandableCount").textContent = String(expansionSummary.expandableCandidateCount ?? expansionRows.length ?? 0);
+  el("forwardReviewNextAction").textContent = summary.nextAction || "继续收集真实前向观察日志。";
+  el("forwardReviewStatus").textContent = readyCount > 0 ? "可人工复核" : "等待前向数据";
+  el("forwardReviewStatus").className = `status-pill ${readyCount > 0 ? "warn" : "danger"}`;
+
+  el("forwardReviewList").innerHTML = rows.map((row) => {
+    const logSummary = row.logSummary || {};
+    const blockers = Array.isArray(row.blockers) ? row.blockers : [];
+    const latestLogs = Array.isArray(row.latestLogs) ? row.latestLogs : [];
+    const recommendedPairs = Array.isArray(row.recommendedPairs) ? row.recommendedPairs : [];
+    return `
+      <div class="forward-review-row">
+        <div class="forward-review-row-head">
+          <div>
+            <strong>${escapeHtml(row.title || row.taskId || "--")}</strong>
+            <small>${escapeHtml(row.taskId || "--")} · ${escapeHtml(row.timeframe || "--")} · ${recommendedPairs.length ? recommendedPairs.map(escapeHtml).join(" / ") : "等待推荐币种"}</small>
+          </div>
+          ${forwardReviewBadge(row)}
+        </div>
+        <div class="artifact-metrics">
+          <span>真实日志 ${logSummary.manualForwardLogCount ?? 0}</span>
+          <span>真实闭合 ${logSummary.manualClosedSampleCount ?? 0}</span>
+          <span>虚拟样本 ${logSummary.virtualReplayLogCount ?? 0}</span>
+          <span>规则匹配 ${logSummary.ruleMatchedCount ?? 0}</span>
+          <span>风险 ${logSummary.riskWarningCount ?? 0}</span>
+          <span>失效 ${logSummary.invalidatedCount ?? 0}</span>
+          <span>R合计 ${formatNumber(logSummary.outcomeRTotal, 2)}</span>
+          <span>最近 ${formatDate(logSummary.latestLogAt)}</span>
+        </div>
+        <div class="forward-review-blockers">
+          ${(blockers.length ? blockers : ["前向复核材料已满足本地检查；仍需人工确认。"])
+            .slice(0, 8)
+            .map((item) => `<small>${escapeHtml(item)}</small>`)
+            .join("")}
+        </div>
+        <div class="forward-review-action">${escapeHtml(row.nextAction || "继续观察，不自动执行。")}</div>
+        <details class="forward-review-latest">
+          <summary>最近观察日志</summary>
+          ${latestLogs.length ? latestLogs.map((log) => `
+            <div class="forward-review-log-line">
+              <span>${formatDate(log.createdAt)} · ${escapeHtml(log.pair || "--")} · ${escapeHtml(log.logType || "--")}</span>
+              <strong>${escapeHtml(log.outcome || log.outcomeR || "未闭合")}</strong>
+            </div>
+          `).join("") : '<div class="forward-review-log-line"><span>暂无真实前向日志。</span><strong>--</strong></div>'}
+        </details>
+      </div>
+    `;
+  }).join("") || '<div class="forward-review-empty">暂无可复核策略。请先导入 Quant Engine 报告。</div>';
+
+  el("forwardReviewExpansionAnswer").textContent = expansion.answer || "等待候选扩展池。";
+  el("forwardReviewExpansionList").innerHTML = expansionRows.map((item) => `
+    <div class="forward-review-expansion-row">
+      <div class="forward-review-row-head">
+        <div>
+          <strong>${escapeHtml(item.title || item.artifactId || "--")}</strong>
+          <small>${escapeHtml(item.queueLabel || item.queueType || "研究候选")} · ${escapeHtml(item.strategyId || "--")}</small>
+        </div>
+        <span class="badge warn">${formatNumber(item.priorityScore, 0)}分</span>
+      </div>
+      <div class="artifact-metrics">
+        <span>样本 ${item.sampleCount ?? "--"}</span>
+        <span>胜率 ${formatPercent(item.winRatePct)}</span>
+        <span>PF ${formatNumber(item.profitFactor)}</span>
+        <span>盈亏比 ${formatNumber(item.rewardRiskRatio)}</span>
+        <span>回撤 ${formatPercent(item.maxDrawdownPct)}</span>
+      </div>
+      <div class="forward-review-action">${escapeHtml(item.nextAction || "先补研究材料，再决定是否进入前向观察。")}</div>
+      <small>${escapeHtml(item.safetyNote || "候选扩展不创建订单。")}</small>
+    </div>
+  `).join("") || '<div class="forward-review-empty">当前没有新的高优先级候选。</div>';
+}
+
+async function refreshForwardReview() {
+  const button = el("refreshForwardReviewButton");
+  const status = el("forwardReviewRefreshStatus");
+  if (!button) return;
+  button.disabled = true;
+  if (status) status.textContent = "正在刷新本地前向复核材料...";
+  try {
+    await postJson("/api/forward-review/refresh", {});
+    await refreshAll();
+    if (status) status.textContent = "已刷新前向复核；未请求交易权限。";
+  } catch (error) {
+    if (status) status.textContent = `前向复核刷新失败：${error.message}`;
+  } finally {
+    button.disabled = false;
+  }
 }
 
 async function saveSandboxAutoRunnerSettings() {
@@ -2376,7 +2485,7 @@ function renderAudit(events) {
 }
 
 async function refreshAll() {
-  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, researchTaskBoard, strategyLearningLoop, sandboxDailyReport, sandboxAutoRunner, liveReadiness] = await Promise.all([
+  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, researchTaskBoard, strategyLearningLoop, sandboxDailyReport, sandboxAutoRunner, liveReadiness, forwardReview] = await Promise.all([
     getJson("/api/strategies"),
     getJson("/api/reports"),
     getJson("/api/mobile/status"),
@@ -2392,6 +2501,7 @@ async function refreshAll() {
     getJson("/api/local-sandbox/daily-report?limit=10"),
     getJson("/api/local-sandbox/auto-runner"),
     getJson("/api/live-readiness"),
+    getJson("/api/forward-review"),
   ]);
   const strategyItems = strategies.strategies || [];
   const reportItems = reports.reports || [];
@@ -2410,6 +2520,7 @@ async function refreshAll() {
   renderSandboxDailyReport(sandboxDailyReport);
   renderSandboxAutoRunner(sandboxAutoRunner);
   renderLiveReadiness(liveReadiness);
+  renderForwardReview(forwardReview);
   renderStrategyPlaybook(strategyItems, mobile, strategyLearningLoop);
   renderForwardValidation(mobile.forwardValidation);
   renderPaperObservationTasks(paperTasks);
@@ -2484,6 +2595,7 @@ el("runLocalSandboxButton")?.addEventListener("click", runLocalSandboxNow);
 el("buildSandboxDailyReportButton")?.addEventListener("click", buildSandboxDailyReportNow);
 el("saveSandboxAutoRunnerButton")?.addEventListener("click", saveSandboxAutoRunnerSettings);
 el("runSandboxAutoOnceButton")?.addEventListener("click", runSandboxAutoRunnerOnce);
+el("refreshForwardReviewButton")?.addEventListener("click", refreshForwardReview);
 el("strategyQuickLogType").addEventListener("change", () => {
   const logType = el("strategyQuickLogType").value || "no_signal";
   el("strategyQuickSignalObserved").checked = ["signal_seen", "rule_matched"].includes(logType);

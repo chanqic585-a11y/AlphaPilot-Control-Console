@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.35 - Live Readiness Gate and Manual Execution Tickets
+AlphaPilot V13.7.36 - Forward Review Workbench and Candidate Expansion Queue
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,20 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.7.36 Adds
+
+- Adds a "Forward Review Workbench" panel for the July 10 forward-review window.
+- Separates real manual forward logs from local virtual sandbox replay logs so sandbox samples cannot be mistaken for real forward evidence.
+- Shows each of the five current observation strategies with blockers, rule matches, risk warnings, invalidations, latest logs, and next review action.
+- Adds a candidate expansion pool from the existing 60-strategy candidate queue. Expansion candidates remain research candidates only; they are not automatically promoted to live trading.
+- Adds `GET /api/forward-review` and `POST /api/forward-review/refresh`.
+- Keeps all execution capability disabled: no API key input, no Trade API, no Withdraw API, no account access, no position access, no real orders, no exchange Dry-run, no live trading, and no automatic trading.
+
+V13.7.36 answers the strategy-candidate question directly: yes, more
+strategies can be nominated, but only through the research queue, backtest
+evidence, forward observation, and the same pre-live review gate. It does not
+auto-add candidates to a live list.
 
 ## What V13.7.35 Adds
 

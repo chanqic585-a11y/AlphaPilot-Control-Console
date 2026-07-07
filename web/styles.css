@@ -2206,6 +2206,169 @@ code {
   line-height: 1.5;
 }
 
+.forward-review-panel {
+  border-top: 2px solid rgba(255, 209, 61, 0.50);
+}
+
+.forward-review-safety {
+  border-left: 3px solid var(--green);
+  border-radius: 8px;
+  background: rgba(24, 211, 166, 0.10);
+  color: var(--text);
+  font-weight: 700;
+  line-height: 1.55;
+  padding: 10px 12px;
+}
+
+.forward-review-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.forward-review-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #0b1117;
+  box-shadow: var(--inner);
+  padding: 12px;
+}
+
+.forward-review-card span,
+.forward-review-expansion-row small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.forward-review-card strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--gold);
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.forward-review-action {
+  border-left: 3px solid var(--gold);
+  border-radius: 8px;
+  background: rgba(255, 209, 102, 0.10);
+  color: var(--text);
+  font-weight: 800;
+  line-height: 1.55;
+  padding: 10px 12px;
+}
+
+.forward-review-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 14px 0;
+}
+
+.forward-review-controls span {
+  color: var(--muted);
+}
+
+.forward-review-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.forward-review-list,
+.forward-review-expansion-list {
+  display: grid;
+  gap: 10px;
+}
+
+.forward-review-row,
+.forward-review-expansion-row,
+.forward-review-empty {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 42%),
+    #0b1117;
+  box-shadow: var(--inner);
+  padding: 12px;
+}
+
+.forward-review-row-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.forward-review-row-head strong,
+.forward-review-row-head small {
+  display: block;
+}
+
+.forward-review-row-head small {
+  margin-top: 4px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.forward-review-blockers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.forward-review-blockers small {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  padding: 6px 10px;
+}
+
+.forward-review-latest {
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+  padding: 8px 10px;
+}
+
+.forward-review-latest summary {
+  cursor: pointer;
+  color: var(--gold);
+  font-weight: 800;
+}
+
+.forward-review-log-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--muted);
+  padding: 8px 0;
+}
+
+.forward-review-log-line strong {
+  color: var(--text);
+}
+
+.forward-review-expansion-answer {
+  border: 1px solid rgba(24, 211, 166, 0.22);
+  border-radius: 8px;
+  background: rgba(24, 211, 166, 0.08);
+  color: var(--text);
+  font-weight: 800;
+  line-height: 1.55;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+}
+
 .debug-panel summary {
   cursor: pointer;
   color: var(--gold);
@@ -2309,6 +2472,9 @@ code {
     .live-readiness-columns,
     .live-readiness-row-head,
     .live-readiness-ticket-line,
+    .forward-review-grid,
+    .forward-review-columns,
+    .forward-review-row-head,
     .strategy-playbook-selector,
     .strategy-clarity-grid,
     .strategy-detail-grid,

@@ -38,6 +38,9 @@
           <a class="rail-item" href="#liveReadiness" title="实盘准备" aria-label="实盘准备">
             <span class="nav-key">G</span><span>实盘准备</span>
           </a>
+          <a class="rail-item" href="#forwardReview" title="前向复核" aria-label="前向复核">
+            <span class="nav-key">F</span><span>前向复核</span>
+          </a>
           <a class="rail-item" href="#exchanges" title="公共行情" aria-label="公共行情">
             <span class="nav-key">M</span><span>公共行情</span>
           </a>
@@ -994,6 +997,62 @@
             <div>
               <h3>本地人工票据</h3>
               <div id="liveTicketList" class="live-ticket-list"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="forwardReview" class="panel forward-review-panel">
+          <div class="section-header">
+            <div>
+              <p class="panel-eyebrow">FORWARD REVIEW WORKBENCH</p>
+              <h2>7月10日前向复核工作台</h2>
+              <p>这里把实盘准备闸门、真实前向观察日志、本地虚拟样本和候选扩展池放在一起。当前仍不连接交易所，不创建订单。</p>
+            </div>
+            <span id="forwardReviewStatus" class="status-pill warn">等待前向数据</span>
+          </div>
+          <div class="forward-review-safety">
+            前向复核只读取本地报告和观察日志；候选扩展只进入研究队列，不自动加入实盘。
+          </div>
+          <div class="forward-review-grid">
+            <div class="forward-review-card">
+              <span>复核策略</span>
+              <strong id="forwardReviewCandidateCount">--</strong>
+            </div>
+            <div class="forward-review-card">
+              <span>可人工复核</span>
+              <strong id="forwardReviewReadyCount">--</strong>
+            </div>
+            <div class="forward-review-card">
+              <span>真实前向日志</span>
+              <strong id="forwardReviewManualLogs">--</strong>
+            </div>
+            <div class="forward-review-card">
+              <span>真实闭合样本</span>
+              <strong id="forwardReviewClosedSamples">--</strong>
+            </div>
+            <div class="forward-review-card">
+              <span>本地虚拟样本</span>
+              <strong id="forwardReviewVirtualLogs">--</strong>
+            </div>
+            <div class="forward-review-card">
+              <span>可扩候选</span>
+              <strong id="forwardReviewExpandableCount">--</strong>
+            </div>
+          </div>
+          <div id="forwardReviewNextAction" class="forward-review-action">等待前向复核数据。</div>
+          <div class="forward-review-controls">
+            <button id="refreshForwardReviewButton" class="primary-button" type="button">刷新前向复核</button>
+            <span id="forwardReviewRefreshStatus">只刷新本地报告和观察状态，不请求交易权限。</span>
+          </div>
+          <div class="forward-review-columns">
+            <div>
+              <h3>5 条策略复核队列</h3>
+              <div id="forwardReviewList" class="forward-review-list"></div>
+            </div>
+            <div>
+              <h3>候选扩展池</h3>
+              <div id="forwardReviewExpansionAnswer" class="forward-review-expansion-answer">等待候选扩展数据。</div>
+              <div id="forwardReviewExpansionList" class="forward-review-expansion-list"></div>
             </div>
           </div>
         </section>

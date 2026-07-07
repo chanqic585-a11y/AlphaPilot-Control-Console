@@ -7,8 +7,8 @@ from .config import SAFETY_BOUNDARY
 from .state_store import list_manual_execution_tickets, now_iso, save_manual_execution_ticket
 
 
-CONTROL_CONSOLE_VERSION = "V13.7.35"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_35"
+CONTROL_CONSOLE_VERSION = "V13.7.36"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_36"
 BEIJING_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 LIVE_READINESS_REVIEW_DATE = date(2026, 7, 10)
 LIVE_READINESS_REVIEW_LABEL = "2026年7月10日（北京时间）"

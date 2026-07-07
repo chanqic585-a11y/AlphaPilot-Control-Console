@@ -9,6 +9,7 @@ from urllib.parse import parse_qs, urlparse
 
 from .config import ALLOWED_STRATEGY_STATUSES, SAFETY_BOUNDARY, WEB_DIR
 from .exchange_connectors.public_exchange_registry import list_public_exchange_sources, probe_public_exchanges
+from .forward_review import build_forward_review, refresh_forward_review
 from .importer import build_mobile_status, import_now, scan_quant_engine
 from .live_readiness import build_live_readiness, create_manual_execution_ticket
 from .local_sandbox_runner import run_local_sandbox
@@ -81,7 +82,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.7.35"
+    server_version = "AlphaPilotControlConsole/13.7.36"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -122,8 +123,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.7.35",
-                "source": "alphapilot_control_console_v13_7_35",
+                "version": "V13.7.36",
+                "source": "alphapilot_control_console_v13_7_36",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -242,6 +243,10 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             payload = scan_quant_engine()
             self._send_json(build_live_readiness(payload))
             return
+        if path == "/api/forward-review":
+            payload = scan_quant_engine()
+            self._send_json(build_forward_review(payload))
+            return
         if path == "/api/manual-execution-tickets":
             query = parse_qs(parsed.query or "")
             limit = _safe_int((query.get("limit") or [20])[0], 20)
@@ -275,6 +280,10 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/api/import":
             self._send_json(import_now())
+            return
+        if parsed.path == "/api/forward-review/refresh":
+            self._read_body_json()
+            self._send_json(refresh_forward_review())
             return
         if parsed.path == "/api/strategy-status":
             payload = self._read_body_json()
