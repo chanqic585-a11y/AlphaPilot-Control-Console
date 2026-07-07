@@ -105,6 +105,7 @@ const candidateDecisionLabels = {
   can_forward_validate: "可进入前向验证",
   ml_evaluation_queue: "ML 评价队列",
   needs_backtest: "需要补回测",
+  backtest_completed_not_ready: "补测完成未通过",
   needs_labels: "需要补标签",
   research_only: "只做研究观察",
   paused: "暂停",

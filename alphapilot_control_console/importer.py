@@ -16,8 +16,8 @@ from .state_store import (
     write_mobile_status,
 )
 
-CONTROL_CONSOLE_VERSION = "V13.7.12"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_12"
+CONTROL_CONSOLE_VERSION = "V13.7.13"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_13"
 BEIJING_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 FORWARD_VALIDATION_REVIEW_DATE = date(2026, 7, 10)
 FORWARD_VALIDATION_REVIEW_LABEL = "2026年7月10日（北京时间）"
@@ -713,6 +713,21 @@ def _candidate_next_action(queue_type: str) -> str:
     return actions.get(queue_type, "继续人工复核。")
 
 
+def _backtest_completion_map(completion_report: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
+    if not isinstance(completion_report, dict):
+        return {}
+    tasks = completion_report.get("tasks") if isinstance(completion_report.get("tasks"), list) else []
+    rows: dict[str, dict[str, Any]] = {}
+    for task in tasks:
+        if not isinstance(task, dict):
+            continue
+        task_id = str(task.get("taskId") or "").strip()
+        if task_id:
+            rows[task_id] = task
+            rows[f"v13_7_12_backtest_gap_{task_id}"] = task
+    return rows
+
+
 def _candidate_priority_score(artifact: dict[str, Any], queue_type: str) -> float:
     metrics = artifact.get("metrics") if isinstance(artifact.get("metrics"), dict) else {}
     weights = {
@@ -804,6 +819,69 @@ def _build_strategy_candidate_queue(index: dict[str, Any], limit: int = 60) -> d
         "summary": summary,
         "candidates": rows[:limit],
         "safetyBoundary": SAFETY_BOUNDARY,
+    }
+
+
+def _candidate_queue_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "totalCandidates": len(rows),
+        "forwardReadyCount": sum(1 for item in rows if item.get("queueType") == "priority_forward_validation"),
+        "mlEvaluationCount": sum(1 for item in rows if item.get("queueType") == "ml_evaluation"),
+        "needsBacktestCount": sum(1 for item in rows if item.get("queueType") == "needs_backtest"),
+        "needsLabelsCount": sum(1 for item in rows if item.get("queueType") == "needs_labels"),
+        "researchWatchlistCount": sum(1 for item in rows if item.get("queueType") == "research_watchlist"),
+        "pausedCount": sum(1 for item in rows if item.get("queueType") == "paused"),
+        "rejectedCount": sum(1 for item in rows if item.get("queueType") == "rejected"),
+        "backtestCompletedNotReadyCount": sum(
+            1 for item in rows if item.get("candidateDecision") == "backtest_completed_not_ready"
+        ),
+        "topQueueType": rows[0].get("queueType") if rows else None,
+        "topCandidateTitle": rows[0].get("title") if rows else None,
+        "queueMethod": "candidateDecision, ML readiness, label readiness, research score, sample count, PF, reward-risk, drawdown penalty, and backtest completion status",
+        "safetyNote": "Queue ranking is research triage only. It is not a trading signal or execution instruction.",
+    }
+
+
+def _apply_backtest_completion_to_candidate_queue(
+    candidate_queue: dict[str, Any],
+    completion_report: dict[str, Any] | None,
+) -> dict[str, Any]:
+    completed = _backtest_completion_map(completion_report)
+    if not completed:
+        return candidate_queue
+    rows = candidate_queue.get("candidates") if isinstance(candidate_queue.get("candidates"), list) else []
+    updated_rows: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        task = completed.get(str(row.get("artifactId") or "")) or completed.get(str(row.get("taskId") or ""))
+        row = dict(row)
+        if task and row.get("queueType") == "needs_backtest":
+            row["queueType"] = "research_watchlist"
+            row["queueLabel"] = "补测已完成"
+            row["candidateDecision"] = "backtest_completed_not_ready"
+            row["candidateDecisionLabel"] = "补测完成未通过"
+            row["nextAction"] = task.get("nextAction") or "补测完成但未通过观察门槛，继续研究观察。"
+            row["decisionReasons"] = [
+                "V13.7.13 补测已完成。",
+                str(task.get("finding") or "补测未通过观察/模拟盘门槛。"),
+            ]
+            row["backtestCompletion"] = {
+                "completionStatus": task.get("completionStatus"),
+                "result": task.get("result"),
+                "paperOrShadowApproved": task.get("paperOrShadowApproved"),
+                "evidenceFiles": task.get("evidenceFiles") if isinstance(task.get("evidenceFiles"), list) else [],
+            }
+            row["priorityScore"] = min(float(row.get("priorityScore") or 0), 260.0)
+        updated_rows.append(row)
+    updated_rows = sorted(updated_rows, key=lambda item: float(item.get("priorityScore") or 0), reverse=True)
+    for rank, row in enumerate(updated_rows, start=1):
+        row["rank"] = rank
+    return {
+        **candidate_queue,
+        "summary": _candidate_queue_summary(updated_rows),
+        "candidates": updated_rows[: len(rows)],
+        "backtestTaskCompletionSummary": completion_report.get("summary") if isinstance(completion_report, dict) else {},
     }
 
 
@@ -1005,6 +1083,9 @@ def scan_quant_engine() -> dict[str, Any]:
     signal_tape = _read_json(reports_dir / "signal_tape.json") if reports_dir.exists() else None
     paper_observation_ledger = _read_json(reports_dir / "paper_observation_ledger.json") if reports_dir.exists() else None
     strategy_artifact_index = _read_json(reports_dir / "strategy_artifact_index.json") if reports_dir.exists() else None
+    backtest_task_completion = (
+        _read_json(reports_dir / "v13_7_13_backtest_task_completion_report.json") if reports_dir.exists() else None
+    )
     if strategy_artifact_index:
         strategy_artifact_index = _apply_artifact_reviews(strategy_artifact_index, state)
 
@@ -1029,8 +1110,12 @@ def scan_quant_engine() -> dict[str, Any]:
         "signalTape": signal_tape or {},
         "paperObservationLedger": paper_observation_ledger or {},
         "strategyArtifactIndex": strategy_artifact_index or {},
+        "backtestTaskCompletion": backtest_task_completion or {},
     }
-    payload["strategyCandidateQueue"] = _build_strategy_candidate_queue(payload["strategyArtifactIndex"])
+    payload["strategyCandidateQueue"] = _apply_backtest_completion_to_candidate_queue(
+        _build_strategy_candidate_queue(payload["strategyArtifactIndex"]),
+        payload["backtestTaskCompletion"],
+    )
     payload["forwardValidation"] = _build_forward_validation_summary(payload["strategyArtifactIndex"])
     payload["researchTaskBoard"] = _build_research_task_board(
         payload["strategyCandidateQueue"],

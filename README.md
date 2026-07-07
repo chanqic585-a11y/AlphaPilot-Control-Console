@@ -400,3 +400,24 @@ Safety boundary:
 
 - Research tasks are planning records only.
 - They do not run strategy backtests automatically, do not create orders, do not use API keys, do not read accounts or positions, do not run exchange Dry-run, and do not enable live or automatic trading.
+
+## V13.7.13 Backtest Completion Import
+
+V13.7.13 reads the Quant Engine completion report:
+
+```text
+reports/v13_7_13_backtest_task_completion_report.json
+```
+
+What changed:
+
+- Completed needs-backtest items are marked as `补测完成未通过`.
+- The candidate queue no longer counts those items as active needs-backtest tasks.
+- The research task board no longer shows the six completed V13.7.12 backtest-gap rows.
+- The underlying completion report remains read-only evidence from Quant Engine.
+
+Safety boundary:
+
+- The console only imports local report status.
+- It does not run backtests, use API keys, read accounts or positions, create
+  orders, execute exchange Dry-run, or enable live or automatic trading.
