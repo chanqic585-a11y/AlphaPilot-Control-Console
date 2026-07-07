@@ -14,8 +14,8 @@ from .state_store import (
 )
 
 
-CONTROL_CONSOLE_VERSION = "V13.7.32"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_32"
+CONTROL_CONSOLE_VERSION = "V13.7.33"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_33"
 BEIJING_TZ = timezone(timedelta(hours=8))
 
 

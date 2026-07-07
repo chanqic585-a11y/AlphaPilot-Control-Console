@@ -727,6 +727,86 @@ async function buildSandboxDailyReportNow() {
   }
 }
 
+function renderSandboxAutoRunner(payload) {
+  if (!el("learningSandboxAutoStatus")) return;
+  const runner = payload?.autoRunner || {};
+  const events = Array.isArray(payload?.events) ? payload.events : [];
+  const learningSnapshots = Array.isArray(payload?.learningSnapshots) ? payload.learningSnapshots : [];
+  const latestLearning = learningSnapshots[0] || {};
+  const enabled = Boolean(runner.enabled);
+  const statusText = enabled
+    ? runner.status === "running"
+      ? "运行中"
+      : runner.status === "daily_limit_reached"
+        ? "今日上限"
+        : "已开启"
+    : "未开启";
+  el("learningSandboxAutoStatus").textContent = statusText;
+  el("learningSandboxAutoStatus").className = `status-pill ${enabled ? "ok" : "warn"}`;
+  el("learningSandboxAutoEnabled").textContent = enabled ? "开启" : "关闭";
+  el("learningSandboxAutoInterval").textContent = `${runner.intervalMinutes ?? "--"} 分钟`;
+  el("learningSandboxAutoToday").textContent = `${runner.todayRunCount ?? 0}/${runner.maxRunsPerDay ?? "--"}`;
+  el("learningSandboxAutoNext").textContent = runner.nextRunAt ? formatDate(runner.nextRunAt) : "--";
+  el("learningSandboxAutoFailures").textContent = String(runner.consecutiveFailures ?? 0);
+  el("learningSandboxMlStatus").textContent = latestLearning.mlReadiness === "ready_for_baseline_model"
+    ? "可做基线模型"
+    : "继续收集";
+  el("sandboxAutoEnabledInput").checked = enabled;
+  el("sandboxAutoIntervalInput").value = String(runner.intervalMinutes || 360);
+  el("sandboxAutoMaxRunsInput").value = String(runner.maxRunsPerDay || 4);
+  const learningText = latestLearning.closedSampleCount !== undefined
+    ? `学习样本：${latestLearning.closedSampleCount}/${latestLearning.minimumBaselineModelSamples || 100} 个闭合样本；${latestLearning.nextAction || "继续收集本地观察数据。"}`
+    : "学习样本：等待自动沙盒生成。";
+  el("learningSandboxAutoAction").textContent = runner.lastError
+    ? `最近错误：${runner.lastError}`
+    : `${enabled ? "自动沙盒已开启" : "自动沙盒未开启"}；上次运行 ${runner.lastRunAt ? formatDate(runner.lastRunAt) : "--"}。${learningText}`;
+  el("learningSandboxAutoEvents").innerHTML = events.slice(0, 8).map((event) => `
+    <div class="sandbox-daily-row compact">
+      <div class="sandbox-lane-row-head">
+        <div>
+          <strong>${escapeHtml(event.eventType || "--")}</strong>
+          <small>${formatDate(event.createdAt)} · ${escapeHtml(event.reason || event.status || "")}</small>
+        </div>
+        <span class="badge ${event.error ? "danger" : "ok"}">${event.generatedLogCount ?? event.closedSampleCount ?? "local"}</span>
+      </div>
+      <div class="artifact-metrics">
+        <span>run ${escapeHtml(event.runId || "--")}</span>
+        <span>report ${escapeHtml(event.reportId || "--")}</span>
+        <span>learning ${escapeHtml(event.learningSnapshotId || "--")}</span>
+      </div>
+    </div>
+  `).join("") || '<div class="sandbox-lane-empty">暂无自动沙盒运行记录。</div>';
+}
+
+async function saveSandboxAutoRunnerSettings() {
+  const button = el("saveSandboxAutoRunnerButton");
+  if (!button) return;
+  button.disabled = true;
+  try {
+    await postJson("/api/local-sandbox/auto-runner", {
+      enabled: Boolean(el("sandboxAutoEnabledInput")?.checked),
+      intervalMinutes: Number(el("sandboxAutoIntervalInput")?.value || 360),
+      maxRunsPerDay: Number(el("sandboxAutoMaxRunsInput")?.value || 4),
+    });
+    await refreshAll();
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function runSandboxAutoRunnerOnce() {
+  const button = el("runSandboxAutoOnceButton");
+  if (!button) return;
+  button.disabled = true;
+  el("learningSandboxAutoAction").textContent = "正在执行一轮自动沙盒观察...";
+  try {
+    await postJson("/api/local-sandbox/auto-runner/run-now", {});
+    await refreshAll();
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function renderSimulationAdmissionGate(observationTasks, qualityRows) {
   if (!el("learningSimulationGateList")) return;
   const rows = buildSimulationGateRows(observationTasks, qualityRows);
@@ -2151,7 +2231,7 @@ function renderAudit(events) {
 }
 
 async function refreshAll() {
-  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, researchTaskBoard, strategyLearningLoop, sandboxDailyReport] = await Promise.all([
+  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, researchTaskBoard, strategyLearningLoop, sandboxDailyReport, sandboxAutoRunner] = await Promise.all([
     getJson("/api/strategies"),
     getJson("/api/reports"),
     getJson("/api/mobile/status"),
@@ -2165,6 +2245,7 @@ async function refreshAll() {
     getJson("/api/research-task-board"),
     getJson("/api/strategy-learning-loop"),
     getJson("/api/local-sandbox/daily-report?limit=10"),
+    getJson("/api/local-sandbox/auto-runner"),
   ]);
   const strategyItems = strategies.strategies || [];
   const reportItems = reports.reports || [];
@@ -2181,6 +2262,7 @@ async function refreshAll() {
   renderResearchTaskBoard(researchTaskBoard);
   renderStrategyLearningLoop(strategyLearningLoop);
   renderSandboxDailyReport(sandboxDailyReport);
+  renderSandboxAutoRunner(sandboxAutoRunner);
   renderStrategyPlaybook(strategyItems, mobile, strategyLearningLoop);
   renderForwardValidation(mobile.forwardValidation);
   renderPaperObservationTasks(paperTasks);
@@ -2253,6 +2335,8 @@ el("probeExchangesButton").addEventListener("click", async () => {
 el("backHomeButton").addEventListener("click", scrollToOverview);
 el("runLocalSandboxButton")?.addEventListener("click", runLocalSandboxNow);
 el("buildSandboxDailyReportButton")?.addEventListener("click", buildSandboxDailyReportNow);
+el("saveSandboxAutoRunnerButton")?.addEventListener("click", saveSandboxAutoRunnerSettings);
+el("runSandboxAutoOnceButton")?.addEventListener("click", runSandboxAutoRunnerOnce);
 el("strategyQuickLogType").addEventListener("change", () => {
   const logType = el("strategyQuickLogType").value || "no_signal";
   el("strategyQuickSignalObserved").checked = ["signal_seen", "rule_matched"].includes(logType);

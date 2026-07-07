@@ -10,8 +10,8 @@ from .config import DEFAULT_QUANT_ENGINE_PATH, SAFETY_BOUNDARY, get_quant_engine
 from .state_store import add_paper_observation_log, list_paper_observation_logs, now_iso, save_local_sandbox_run
 
 
-CONTROL_CONSOLE_VERSION = "V13.7.32"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_32"
+CONTROL_CONSOLE_VERSION = "V13.7.33"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_33"
 VIRTUAL_CAPITAL_PER_STRATEGY = 1000.0
 RISK_UNIT_PERCENT = 1.0
 TASK_PACK_REPORT = "v13_7_21_paper_observation_task_pack_report.json"
@@ -162,7 +162,7 @@ def _build_artifact(task: dict[str, Any]) -> dict[str, Any]:
 
 def _build_run_id() -> str:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    return f"local_sandbox_v13_7_32::{stamp}"
+    return f"local_sandbox_v13_7_33::{stamp}"
 
 
 def run_local_sandbox(payload: dict[str, Any] | None = None) -> dict[str, Any]:

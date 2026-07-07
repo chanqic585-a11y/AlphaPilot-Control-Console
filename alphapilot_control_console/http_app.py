@@ -12,6 +12,13 @@ from .exchange_connectors.public_exchange_registry import list_public_exchange_s
 from .importer import build_mobile_status, import_now, scan_quant_engine
 from .local_sandbox_runner import run_local_sandbox
 from .mobile_connection import build_mobile_connection_info
+from .sandbox_auto_runner import (
+    get_local_sandbox_auto_runner_status,
+    run_local_sandbox_auto_runner_now,
+    start_local_sandbox_auto_runner,
+    stop_local_sandbox_auto_runner,
+    update_local_sandbox_auto_runner_settings,
+)
 from .sandbox_observation_reporter import build_local_sandbox_daily_report
 from .strategy_slots import list_strategy_slots
 from .state_store import (
@@ -63,7 +70,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
             "strategyId": item.get("strategyId"),
             "title": item.get("title") or item.get("candidateId") or task_id,
             "displayName": item.get("title") or item.get("candidateId") or task_id,
-            "version": item.get("version") or learning.get("version") or "V13.7.32",
+            "version": item.get("version") or learning.get("version") or "V13.7.33",
             "sourceFile": item.get("sourceReport"),
             "readinessTier": item.get("status") or "planned_paper_observation",
             "metrics": item.get("historicalMetrics") if isinstance(item.get("historicalMetrics"), dict) else {},
@@ -72,7 +79,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.7.32"
+    server_version = "AlphaPilotControlConsole/13.7.33"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -113,8 +120,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.7.32",
-                "source": "alphapilot_control_console_v13_7_32",
+                "version": "V13.7.33",
+                "source": "alphapilot_control_console_v13_7_33",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -225,6 +232,9 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 "reports": reports,
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
+            return
+        if path == "/api/local-sandbox/auto-runner":
+            self._send_json(get_local_sandbox_auto_runner_status())
             return
         if path == "/api/mobile/connection-info":
             self._send_json(build_mobile_connection_info(str(self.server.server_address[0]), int(self.server.server_address[1])))
@@ -395,6 +405,14 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
+        if parsed.path == "/api/local-sandbox/auto-runner":
+            payload = self._read_body_json()
+            self._send_json(update_local_sandbox_auto_runner_settings(payload))
+            return
+        if parsed.path == "/api/local-sandbox/auto-runner/run-now":
+            self._read_body_json()
+            self._send_json(run_local_sandbox_auto_runner_now())
+            return
         if parsed.path == "/api/exchanges/probe-public":
             payload = self._read_body_json()
             exchanges = payload.get("exchanges")
@@ -413,9 +431,13 @@ class ConsoleHandler(BaseHTTPRequestHandler):
 
 def run_server(host: str, port: int) -> None:
     server = ThreadingHTTPServer((host, port), ConsoleHandler)
+    start_local_sandbox_auto_runner()
     print(f"AlphaPilot Control Console running at http://{host}:{port}")
     print("Research control only. No Trade API, no API keys, no orders, no auto trading.")
-    server.serve_forever()
+    try:
+        server.serve_forever()
+    finally:
+        stop_local_sandbox_auto_runner()
 
 
 def smoke() -> None:

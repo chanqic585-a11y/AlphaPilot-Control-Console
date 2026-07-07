@@ -63,7 +63,22 @@ PAPER_OBSERVATION_LOG_LABELS = {
     "risk_warning": "风险提醒",
 }
 
-CONTROL_CONSOLE_STATE_SOURCE = "alphapilot_control_console_v13_7_32"
+CONTROL_CONSOLE_STATE_SOURCE = "alphapilot_control_console_v13_7_33"
+DEFAULT_LOCAL_SANDBOX_AUTO_RUNNER = {
+    "enabled": False,
+    "intervalMinutes": 360,
+    "maxRunsPerDay": 4,
+    "status": "disabled",
+    "todayKey": None,
+    "todayRunCount": 0,
+    "lastRunAt": None,
+    "nextRunAt": None,
+    "lastRunId": None,
+    "lastReportId": None,
+    "lastError": None,
+    "consecutiveFailures": 0,
+    "source": CONTROL_CONSOLE_STATE_SOURCE,
+}
 
 
 def now_iso() -> str:
@@ -102,6 +117,12 @@ def load_state() -> dict[str, Any]:
         state["localSandboxDailyReports"] = []
     if not isinstance(state.get("localSandboxHealthSnapshots"), list):
         state["localSandboxHealthSnapshots"] = []
+    if not isinstance(state.get("localSandboxAutoRunner"), dict):
+        state["localSandboxAutoRunner"] = dict(DEFAULT_LOCAL_SANDBOX_AUTO_RUNNER)
+    if not isinstance(state.get("localSandboxAutoRunEvents"), list):
+        state["localSandboxAutoRunEvents"] = []
+    if not isinstance(state.get("localSandboxLearningSnapshots"), list):
+        state["localSandboxLearningSnapshots"] = []
     return state
 
 
@@ -376,6 +397,93 @@ def list_local_sandbox_health_snapshots(limit: int = 100) -> list[dict[str, Any]
     snapshots = state.get("localSandboxHealthSnapshots") if isinstance(state.get("localSandboxHealthSnapshots"), list) else []
     safe_limit = max(1, min(int(limit or 100), 500))
     return [row for row in snapshots if isinstance(row, dict)][-safe_limit:][::-1]
+
+
+def get_local_sandbox_auto_runner_state() -> dict[str, Any]:
+    state = load_state()
+    raw = state.get("localSandboxAutoRunner") if isinstance(state.get("localSandboxAutoRunner"), dict) else {}
+    runner = {**DEFAULT_LOCAL_SANDBOX_AUTO_RUNNER, **raw}
+    runner["enabled"] = bool(runner.get("enabled"))
+    runner["intervalMinutes"] = max(1, min(int(runner.get("intervalMinutes") or 360), 1440))
+    runner["maxRunsPerDay"] = max(1, min(int(runner.get("maxRunsPerDay") or 4), 48))
+    runner["todayRunCount"] = max(0, int(runner.get("todayRunCount") or 0))
+    runner["source"] = runner.get("source") or CONTROL_CONSOLE_STATE_SOURCE
+    return runner
+
+
+def update_local_sandbox_auto_runner_state(fields: dict[str, Any], event: dict[str, Any] | None = None) -> dict[str, Any]:
+    state = load_state()
+    current = get_local_sandbox_auto_runner_state()
+    updates = fields if isinstance(fields, dict) else {}
+    runner = {**current, **updates, "source": CONTROL_CONSOLE_STATE_SOURCE}
+    runner["enabled"] = bool(runner.get("enabled"))
+    runner["intervalMinutes"] = max(1, min(int(runner.get("intervalMinutes") or 360), 1440))
+    runner["maxRunsPerDay"] = max(1, min(int(runner.get("maxRunsPerDay") or 4), 48))
+    runner["todayRunCount"] = max(0, int(runner.get("todayRunCount") or 0))
+    state["localSandboxAutoRunner"] = runner
+    if isinstance(event, dict):
+        events = state.get("localSandboxAutoRunEvents")
+        if not isinstance(events, list):
+            events = []
+        event_payload = {
+            **event,
+            "createdAt": event.get("createdAt") or now_iso(),
+            "source": event.get("source") or CONTROL_CONSOLE_STATE_SOURCE,
+        }
+        events.append(event_payload)
+        state["localSandboxAutoRunEvents"] = events[-200:]
+    save_state(state)
+    if isinstance(event, dict):
+        append_audit(
+            "local_sandbox_auto_runner_event",
+            {
+                "eventType": event.get("eventType"),
+                "status": runner.get("status"),
+                "enabled": runner.get("enabled"),
+                "todayRunCount": runner.get("todayRunCount"),
+                "lastRunId": runner.get("lastRunId"),
+                "lastReportId": runner.get("lastReportId"),
+            },
+        )
+    return runner
+
+
+def list_local_sandbox_auto_run_events(limit: int = 20) -> list[dict[str, Any]]:
+    state = load_state()
+    events = state.get("localSandboxAutoRunEvents") if isinstance(state.get("localSandboxAutoRunEvents"), list) else []
+    safe_limit = max(1, min(int(limit or 20), 200))
+    return [row for row in events if isinstance(row, dict)][-safe_limit:][::-1]
+
+
+def save_local_sandbox_learning_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
+    state = load_state()
+    rows = state.get("localSandboxLearningSnapshots")
+    if not isinstance(rows, list):
+        rows = []
+    snapshot = {
+        **snapshot,
+        "createdAt": snapshot.get("createdAt") or now_iso(),
+        "source": snapshot.get("source") or CONTROL_CONSOLE_STATE_SOURCE,
+    }
+    rows.append(snapshot)
+    state["localSandboxLearningSnapshots"] = rows[-500:]
+    save_state(state)
+    append_audit(
+        "local_sandbox_learning_snapshot_saved",
+        {
+            "sampleCount": snapshot.get("sampleCount"),
+            "closedSampleCount": snapshot.get("closedSampleCount"),
+            "mlReadiness": snapshot.get("mlReadiness"),
+        },
+    )
+    return snapshot
+
+
+def list_local_sandbox_learning_snapshots(limit: int = 20) -> list[dict[str, Any]]:
+    state = load_state()
+    rows = state.get("localSandboxLearningSnapshots") if isinstance(state.get("localSandboxLearningSnapshots"), list) else []
+    safe_limit = max(1, min(int(limit or 20), 500))
+    return [row for row in rows if isinstance(row, dict)][-safe_limit:][::-1]
 
 
 def upsert_paper_observation_task(

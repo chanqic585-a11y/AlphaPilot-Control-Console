@@ -770,6 +770,66 @@
             </div>
             <div id="learningSandboxLaneList" class="sandbox-lane-list"></div>
           </div>
+          <div class="section-subpanel sandbox-auto-panel">
+            <div class="section-header compact">
+              <div>
+                <p class="panel-eyebrow">LOCAL AUTO OBSERVATION</p>
+                <h4>自动沙盒观察循环</h4>
+                <p>控制台打开期间自动生成本地虚拟观察日志、日报和学习样本摘要；不连接交易所，不创建订单。</p>
+              </div>
+              <span id="learningSandboxAutoStatus" class="status-pill warn">未开启</span>
+            </div>
+            <div class="sandbox-daily-grid">
+              <div class="sandbox-lane-card">
+                <span>自动运行</span>
+                <strong id="learningSandboxAutoEnabled">--</strong>
+              </div>
+              <div class="sandbox-lane-card">
+                <span>运行间隔</span>
+                <strong id="learningSandboxAutoInterval">--</strong>
+              </div>
+              <div class="sandbox-lane-card">
+                <span>今日次数</span>
+                <strong id="learningSandboxAutoToday">--</strong>
+              </div>
+              <div class="sandbox-lane-card">
+                <span>下次运行</span>
+                <strong id="learningSandboxAutoNext">--</strong>
+              </div>
+              <div class="sandbox-lane-card">
+                <span>ML 数据状态</span>
+                <strong id="learningSandboxMlStatus">--</strong>
+              </div>
+              <div class="sandbox-lane-card">
+                <span>连续失败</span>
+                <strong id="learningSandboxAutoFailures">--</strong>
+              </div>
+            </div>
+            <div class="sandbox-auto-controls">
+              <label>
+                <input id="sandboxAutoEnabledInput" type="checkbox" />
+                开启本机自动沙盒
+              </label>
+              <label>
+                间隔
+                <select id="sandboxAutoIntervalInput">
+                  <option value="60">每 1 小时</option>
+                  <option value="240">每 4 小时</option>
+                  <option value="360" selected>每 6 小时</option>
+                  <option value="720">每 12 小时</option>
+                  <option value="1440">每天 1 次</option>
+                </select>
+              </label>
+              <label>
+                每日上限
+                <input id="sandboxAutoMaxRunsInput" type="number" min="1" max="48" value="4" />
+              </label>
+              <button id="saveSandboxAutoRunnerButton" class="secondary" type="button">保存自动设置</button>
+              <button id="runSandboxAutoOnceButton" class="secondary" type="button">立即自动跑一轮</button>
+            </div>
+            <div class="sandbox-lane-action" id="learningSandboxAutoAction">自动沙盒默认关闭；开启后仅在本机控制台进程运行期间生效。</div>
+            <div id="learningSandboxAutoEvents" class="sandbox-daily-list"></div>
+          </div>
           <div class="section-subpanel sandbox-daily-panel">
             <div class="section-header compact">
               <div>

@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.32 - Sandbox Daily Review And Health Trend
+AlphaPilot V13.7.33 - Local Sandbox Auto Observation Runner
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,21 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.7.33 Adds
+
+- Adds a local auto observation runner for the sandbox lane.
+- The runner works only while this desktop control-console process is open.
+- Adds configurable interval minutes and max auto-runs per Beijing day.
+- Adds `GET /api/local-sandbox/auto-runner`, `POST /api/local-sandbox/auto-runner`, and `POST /api/local-sandbox/auto-runner/run-now`.
+- Adds a learning snapshot after each auto run so future ML can use structured local sandbox samples.
+- Keeps ML in data-collection mode until enough closed sandbox samples exist; it does not train a trading model in this version.
+- Updates the learning-loop panel with auto runner status, next run time, run history, and ML data readiness.
+
+V13.7.33 does not add API key input, private exchange access, account access,
+position access, order creation, exchange Dry-run, live trading, or automatic
+trading. The auto runner only creates local virtual observation logs and
+research summaries.
 
 ## What V13.7.32 Adds
 

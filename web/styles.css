@@ -1822,6 +1822,13 @@ code {
     rgba(10, 15, 24, 0.88);
 }
 
+.sandbox-auto-panel {
+  border-color: rgba(255, 209, 61, 0.26);
+  background:
+    linear-gradient(135deg, rgba(255, 209, 61, 0.08), transparent 34%),
+    rgba(10, 15, 24, 0.88);
+}
+
 .sandbox-lane-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -1874,6 +1881,31 @@ code {
 .sandbox-lane-controls span {
   color: var(--muted);
   font-size: 13px;
+}
+
+.sandbox-auto-controls {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.sandbox-auto-controls label {
+  align-items: center;
+  color: var(--muted);
+  display: inline-flex;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.sandbox-auto-controls input,
+.sandbox-auto-controls select {
+  min-height: 34px;
+}
+
+.sandbox-auto-controls input[type="number"] {
+  width: 76px;
 }
 
 .sandbox-lane-list {
