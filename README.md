@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.34 - Continuous Sandbox Runner and Sample Deduplication
+AlphaPilot V13.7.35 - Live Readiness Gate and Manual Execution Tickets
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,19 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.7.35 Adds
+
+- Adds a local "Live Readiness Gate" panel to the desktop console.
+- Checks candidate strategies against local observation quality, rule matches, closed samples, historical sample count, profit factor, reward/risk, drawdown, risk warnings, and invalidation records.
+- Uses `2026-07-10` Beijing time as the first forward-review gate; before that date, candidates stay in shadow observation even if local metrics look good.
+- Adds local manual execution tickets as review records only. They are not exchange orders and do not connect to any trading endpoint.
+- Adds `GET /api/live-readiness`, `GET /api/manual-execution-tickets`, and `POST /api/manual-execution-ticket`.
+- Keeps the console read-only toward exchanges: no API key input, no Trade API, no Withdraw API, no account access, no position access, no real orders, no exchange Dry-run, no live trading, and no automatic trading.
+
+V13.7.35 is a pre-live engineering gate, not a live trading release. Passing the
+gate only means the console can save a local manual-review ticket; the user must
+still make any future external exchange decision manually outside this system.
 
 ## What V13.7.34 Adds
 

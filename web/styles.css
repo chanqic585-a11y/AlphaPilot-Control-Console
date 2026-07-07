@@ -2070,6 +2070,142 @@ code {
   padding: 8px 10px;
 }
 
+.live-readiness-panel {
+  border-color: rgba(255, 209, 102, 0.28);
+  background:
+    linear-gradient(135deg, rgba(255, 209, 102, 0.08), transparent 34%),
+    rgba(255, 255, 255, 0.025);
+}
+
+.live-readiness-safety {
+  border: 1px solid rgba(255, 209, 102, 0.20);
+  border-radius: 8px;
+  background: rgba(255, 209, 102, 0.08);
+  color: var(--text);
+  font-weight: 800;
+  line-height: 1.55;
+  padding: 10px 12px;
+}
+
+.live-readiness-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.live-readiness-card,
+.live-readiness-row,
+.live-ticket-row,
+.live-readiness-empty {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(5, 12, 20, 0.78);
+  padding: 12px;
+}
+
+.live-readiness-card span,
+.live-readiness-row small,
+.live-ticket-row small,
+.live-readiness-empty {
+  color: var(--muted);
+}
+
+.live-readiness-card strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--text);
+  font-size: 20px;
+}
+
+.live-readiness-action {
+  border-left: 3px solid var(--gold);
+  border-radius: 8px;
+  background: rgba(255, 209, 102, 0.10);
+  color: var(--text);
+  font-weight: 800;
+  line-height: 1.55;
+  padding: 10px 12px;
+}
+
+.live-readiness-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.55fr);
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.live-readiness-list,
+.live-ticket-list {
+  display: grid;
+  gap: 10px;
+}
+
+.live-readiness-row,
+.live-ticket-row {
+  display: grid;
+  gap: 10px;
+}
+
+.live-readiness-row-head,
+.live-readiness-ticket-line {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.live-readiness-row-head strong,
+.live-readiness-row-head small,
+.live-ticket-row strong,
+.live-ticket-row small {
+  display: block;
+}
+
+.live-readiness-blockers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.live-readiness-blockers small,
+.live-readiness-checks small {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 6px 10px;
+}
+
+.live-readiness-checks {
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+  padding: 8px 10px;
+}
+
+.live-readiness-checks summary {
+  cursor: pointer;
+  color: var(--gold);
+  font-weight: 800;
+}
+
+.live-readiness-checks div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.live-readiness-ticket-line {
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+  padding: 8px 10px;
+}
+
+.live-readiness-ticket-line span {
+  color: var(--text);
+  line-height: 1.5;
+}
+
 .debug-panel summary {
   cursor: pointer;
   color: var(--gold);
@@ -2169,6 +2305,10 @@ code {
     .sandbox-lane-row-head,
     .simulation-gate-grid,
     .simulation-gate-row-head,
+    .live-readiness-grid,
+    .live-readiness-columns,
+    .live-readiness-row-head,
+    .live-readiness-ticket-line,
     .strategy-playbook-selector,
     .strategy-clarity-grid,
     .strategy-detail-grid,

@@ -63,7 +63,7 @@ PAPER_OBSERVATION_LOG_LABELS = {
     "risk_warning": "风险提醒",
 }
 
-CONTROL_CONSOLE_STATE_SOURCE = "alphapilot_control_console_v13_7_34"
+CONTROL_CONSOLE_STATE_SOURCE = "alphapilot_control_console_v13_7_35"
 DEFAULT_LOCAL_SANDBOX_AUTO_RUNNER = {
     "enabled": False,
     "intervalMinutes": 360,
@@ -123,6 +123,8 @@ def load_state() -> dict[str, Any]:
         state["localSandboxAutoRunEvents"] = []
     if not isinstance(state.get("localSandboxLearningSnapshots"), list):
         state["localSandboxLearningSnapshots"] = []
+    if not isinstance(state.get("manualExecutionTickets"), list):
+        state["manualExecutionTickets"] = []
     return state
 
 
@@ -560,3 +562,45 @@ def write_exchange_probe_results(payload: dict[str, Any]) -> None:
             "publicOnly": True,
         },
     )
+
+
+def save_manual_execution_ticket(ticket: dict[str, Any]) -> dict[str, Any]:
+    state = load_state()
+    tickets = state.get("manualExecutionTickets")
+    if not isinstance(tickets, list):
+        tickets = []
+    ticket = {
+        **ticket,
+        "ticketId": ticket.get("ticketId") or f"manual_ticket::{len(tickets) + 1}",
+        "createdAt": ticket.get("createdAt") or now_iso(),
+        "source": ticket.get("source") or CONTROL_CONSOLE_STATE_SOURCE,
+        "safetyBoundary": {
+            "localRecordOnly": True,
+            "notAnOrder": True,
+            "apiKeyUsed": False,
+            "tradeApiUsed": False,
+            "withdrawApiUsed": False,
+            "realAccountRead": False,
+            "realPositionRead": False,
+        },
+    }
+    tickets.append(ticket)
+    state["manualExecutionTickets"] = tickets[-200:]
+    save_state(state)
+    append_audit(
+        "manual_execution_ticket_saved",
+        {
+            "ticketId": ticket.get("ticketId"),
+            "taskId": ticket.get("taskId"),
+            "status": ticket.get("status"),
+            "localRecordOnly": True,
+        },
+    )
+    return ticket
+
+
+def list_manual_execution_tickets(limit: int = 20) -> list[dict[str, Any]]:
+    state = load_state()
+    tickets = state.get("manualExecutionTickets") if isinstance(state.get("manualExecutionTickets"), list) else []
+    safe_limit = max(1, min(int(limit or 20), 200))
+    return [row for row in tickets if isinstance(row, dict)][-safe_limit:][::-1]

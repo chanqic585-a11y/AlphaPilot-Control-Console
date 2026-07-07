@@ -35,6 +35,9 @@
           <a class="rail-item" href="#learning" title="学习闭环" aria-label="学习闭环">
             <span class="nav-key">L</span><span>学习闭环</span>
           </a>
+          <a class="rail-item" href="#liveReadiness" title="实盘准备" aria-label="实盘准备">
+            <span class="nav-key">G</span><span>实盘准备</span>
+          </a>
           <a class="rail-item" href="#exchanges" title="公共行情" aria-label="公共行情">
             <span class="nav-key">M</span><span>公共行情</span>
           </a>
@@ -941,6 +944,57 @@
             <h4>观察质量面板</h4>
             <p>按本地观察日志评估每条策略的记录质量和复核优先级，不代表交易安全或盈利概率。</p>
             <div id="learningObservationQualityList" class="research-task-list"></div>
+          </div>
+        </section>
+
+        <section id="liveReadiness" class="panel live-readiness-panel">
+          <div class="section-header">
+            <div>
+              <p class="panel-eyebrow">LIVE READINESS GATE</p>
+              <h2>实盘前准备闸门</h2>
+              <p>7月10日前后只做前向复核和人工票据准备。人工票据是本地记录，不是订单；本控制台仍不接交易权限。</p>
+            </div>
+            <span id="liveReadinessStatus" class="status-pill danger">实盘关闭</span>
+          </div>
+          <div class="live-readiness-safety">
+            不保存 API Key，不接 Trade API，不接 Withdraw API，不读取真实账户，不读取真实持仓，不创建订单，不自动交易。
+          </div>
+          <div class="live-readiness-grid">
+            <div class="live-readiness-card">
+              <span>候选策略</span>
+              <strong id="liveCandidateCount">--</strong>
+            </div>
+            <div class="live-readiness-card">
+              <span>可生成人工票据</span>
+              <strong id="liveManualReadyCount">--</strong>
+            </div>
+            <div class="live-readiness-card">
+              <span>影子观察</span>
+              <strong id="liveShadowCount">--</strong>
+            </div>
+            <div class="live-readiness-card">
+              <span>暂停复核</span>
+              <strong id="liveBlockedCount">--</strong>
+            </div>
+            <div class="live-readiness-card">
+              <span>已存票据</span>
+              <strong id="liveTicketCount">--</strong>
+            </div>
+            <div class="live-readiness-card">
+              <span>复核日期</span>
+              <strong id="liveReviewDate">--</strong>
+            </div>
+          </div>
+          <div id="liveReadinessNextAction" class="live-readiness-action">等待实盘前准备数据。</div>
+          <div class="live-readiness-columns">
+            <div>
+              <h3>策略晋级检查</h3>
+              <div id="liveReadinessList" class="live-readiness-list"></div>
+            </div>
+            <div>
+              <h3>本地人工票据</h3>
+              <div id="liveTicketList" class="live-ticket-list"></div>
+            </div>
           </div>
         </section>
 

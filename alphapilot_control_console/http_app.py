@@ -10,6 +10,7 @@ from urllib.parse import parse_qs, urlparse
 from .config import ALLOWED_STRATEGY_STATUSES, SAFETY_BOUNDARY, WEB_DIR
 from .exchange_connectors.public_exchange_registry import list_public_exchange_sources, probe_public_exchanges
 from .importer import build_mobile_status, import_now, scan_quant_engine
+from .live_readiness import build_live_readiness, create_manual_execution_ticket
 from .local_sandbox_runner import run_local_sandbox
 from .mobile_connection import build_mobile_connection_info
 from .sandbox_auto_runner import (
@@ -27,6 +28,7 @@ from .state_store import (
     ALLOWED_PAPER_OBSERVATION_TASK_STATUSES,
     add_paper_observation_log,
     list_local_sandbox_daily_reports,
+    list_manual_execution_tickets,
     list_local_sandbox_runs,
     list_audit,
     list_paper_observation_logs,
@@ -79,7 +81,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.7.34"
+    server_version = "AlphaPilotControlConsole/13.7.35"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -120,8 +122,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.7.34",
-                "source": "alphapilot_control_console_v13_7_34",
+                "version": "V13.7.35",
+                "source": "alphapilot_control_console_v13_7_35",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -235,6 +237,18 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/local-sandbox/auto-runner":
             self._send_json(get_local_sandbox_auto_runner_status())
+            return
+        if path == "/api/live-readiness":
+            payload = scan_quant_engine()
+            self._send_json(build_live_readiness(payload))
+            return
+        if path == "/api/manual-execution-tickets":
+            query = parse_qs(parsed.query or "")
+            limit = _safe_int((query.get("limit") or [20])[0], 20)
+            self._send_json({
+                "tickets": list_manual_execution_tickets(limit),
+                "safetyBoundary": SAFETY_BOUNDARY,
+            })
             return
         if path == "/api/mobile/connection-info":
             self._send_json(build_mobile_connection_info(str(self.server.server_address[0]), int(self.server.server_address[1])))
@@ -422,6 +436,27 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             timeframe = str(payload.get("timeframe") or "").strip() or "1h"
             limit = _safe_int(payload.get("limit") or 2, 2)
             self._send_json(probe_public_exchanges(exchanges=exchanges, symbol=symbol, timeframe=timeframe, limit=limit))
+            return
+        if parsed.path == "/api/manual-execution-ticket":
+            payload = self._read_body_json()
+            latest = scan_quant_engine()
+            try:
+                ticket = create_manual_execution_ticket(payload, latest)
+            except ValueError as error:
+                self._send_json({"error": str(error)}, 400)
+                return
+            except PermissionError as error:
+                self._send_json({
+                    "error": str(error),
+                    "liveReadiness": build_live_readiness(latest),
+                    "safetyBoundary": SAFETY_BOUNDARY,
+                }, 409)
+                return
+            self._send_json({
+                "ticket": ticket,
+                "liveReadiness": build_live_readiness(latest),
+                "safetyBoundary": SAFETY_BOUNDARY,
+            })
             return
         self._send_json({"error": "not_found"}, 404)
 

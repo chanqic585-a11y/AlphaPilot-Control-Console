@@ -153,6 +153,7 @@ const sectionLabels = {
   artifacts: "策略资产",
   observationTasks: "观察任务",
   learning: "学习闭环",
+  liveReadiness: "实盘准备",
   exchanges: "公共行情",
   mobile: "手机控制台",
   audit: "审计日志",
@@ -811,6 +812,115 @@ function renderSandboxAutoRunner(payload) {
       </div>
     </div>
   `).join("") || '<div class="sandbox-lane-empty">暂无自动沙盒运行记录。</div>';
+}
+
+function liveReadinessBadge(row) {
+  const tone = row?.tone || "warn";
+  return `<span class="badge ${tone}">${escapeHtml(row?.statusLabel || "--")} ? ${formatNumber(row?.readinessScore, 0)}?</span>`;
+}
+
+function renderLiveReadiness(payload) {
+  if (!el("liveReadinessList")) return;
+  const summary = payload?.summary || {};
+  const rows = Array.isArray(payload?.rows) ? payload.rows : [];
+  const tickets = Array.isArray(payload?.tickets) ? payload.tickets : [];
+  const thresholds = payload?.thresholds || {};
+  el("liveCandidateCount").textContent = String(summary.candidateCount ?? rows.length ?? 0);
+  el("liveManualReadyCount").textContent = String(summary.manualTicketReadyCount ?? 0);
+  el("liveShadowCount").textContent = String(summary.shadowObservationCount ?? 0);
+  el("liveBlockedCount").textContent = String(summary.blockedForReviewCount ?? 0);
+  el("liveTicketCount").textContent = String(summary.ticketCount ?? tickets.length ?? 0);
+  el("liveReviewDate").textContent = payload?.reviewDateLabel || "--";
+  el("liveReadinessStatus").textContent = summary.manualTicketReadyCount > 0 ? "??????" : "????";
+  el("liveReadinessStatus").className = `status-pill ${summary.manualTicketReadyCount > 0 ? "warn" : "danger"}`;
+  el("liveReadinessNextAction").textContent = summary.nextAction || "?? 7?10? ????????????";
+
+  el("liveReadinessList").innerHTML = rows.map((row) => {
+    const metrics = row.metrics || {};
+    const quality = row.quality || {};
+    const blockers = Array.isArray(row.blockers) ? row.blockers : [];
+    const passed = Array.isArray(row.passedChecks) ? row.passedChecks : [];
+    const buttonDisabled = row.manualTicketAllowed ? "" : "disabled";
+    const buttonLabel = row.manualTicketAllowed ? "??????" : "????";
+    return `
+      <div class="live-readiness-row">
+        <div class="live-readiness-row-head">
+          <div>
+            <strong>${escapeHtml(row.title || row.taskId || "--")}</strong>
+            <small>${escapeHtml(row.taskId || "--")} ? ${escapeHtml(row.timeframe || "--")} ? ?? ${formatDate(quality.latestLogAt)}</small>
+          </div>
+          ${liveReadinessBadge(row)}
+        </div>
+        <div class="artifact-metrics">
+          <span>?? ${metrics.tradeCount ?? metrics.filledSignalCount ?? "--"}/${thresholds.minHistoricalTrades ?? "--"}</span>
+          <span>?? ${formatPercent(metrics.winRatePct)}</span>
+          <span>PF ${formatNumber(metrics.profitFactor)}</span>
+          <span>??? ${formatNumber(metrics.rewardRiskRatio || metrics.targetRewardRiskRatio)}</span>
+          <span>?? ${formatPercent(metrics.maxDrawdownPct)}</span>
+          <span>?? ${formatNumber(quality.qualityScore, 0)}</span>
+          <span>?? ${quality.logCount ?? 0}</span>
+          <span>?? ${quality.ruleMatchedCount ?? 0}</span>
+          <span>?? ${quality.closedPaperSampleCount ?? 0}</span>
+        </div>
+        <div class="live-readiness-blockers">
+          ${(blockers.length ? blockers : ["??????????????????"])
+            .slice(0, 8)
+            .map((item) => `<small>${escapeHtml(item)}</small>`)
+            .join("")}
+        </div>
+        <details class="live-readiness-checks">
+          <summary>?????????????</summary>
+          <div>
+            <strong>???</strong>
+            ${(passed.length ? passed : ["?????"])
+              .map((item) => `<small>${escapeHtml(item)}</small>`)
+              .join("")}
+          </div>
+          <div>
+            <strong>?????</strong>
+            ${(row.hardExecutionBlockers || [])
+              .map((item) => `<small>${escapeHtml(item)}</small>`)
+              .join("")}
+          </div>
+        </details>
+        <div class="live-readiness-ticket-line">
+          <span>${escapeHtml(row.nextAction || "???????")}</span>
+          <button type="button" data-live-ticket="${escapeHtml(row.taskId || "")}" ${buttonDisabled}>${buttonLabel}</button>
+        </div>
+      </div>
+    `;
+  }).join("") || '<div class="live-readiness-empty">????????????? Quant Engine ??????????</div>';
+
+  el("liveTicketList").innerHTML = tickets.slice(0, 10).map((ticket) => `
+    <div class="live-ticket-row">
+      <strong>${escapeHtml(ticket.title || ticket.taskId || "--")}</strong>
+      <small>${formatDate(ticket.createdAt)} ? ${escapeHtml(ticket.status || "draft_manual_review")}</small>
+      <div class="artifact-metrics">
+        <span>?? ${formatNumber(ticket.readinessScore, 0)}</span>
+        <span>?? ${escapeHtml(ticket.timeframe || "--")}</span>
+        <span>?? ${escapeHtml(ticket.selectedPair || "?????")}</span>
+      </div>
+      <div>?????????????????????????????????</div>
+    </div>
+  `).join("") || '<div class="live-readiness-empty">?????????????????</div>';
+
+  el("liveReadinessList").querySelectorAll("[data-live-ticket]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const taskId = button.getAttribute("data-live-ticket") || "";
+      button.disabled = true;
+      try {
+        await postJson("/api/manual-execution-ticket", {
+          taskId,
+          note: "?????????????????????????",
+        });
+        await refreshAll();
+      } catch (error) {
+        el("liveReadinessNextAction").textContent = `??????${error.message}??????????`;
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
 }
 
 async function saveSandboxAutoRunnerSettings() {
@@ -2266,7 +2376,7 @@ function renderAudit(events) {
 }
 
 async function refreshAll() {
-  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, researchTaskBoard, strategyLearningLoop, sandboxDailyReport, sandboxAutoRunner] = await Promise.all([
+  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, researchTaskBoard, strategyLearningLoop, sandboxDailyReport, sandboxAutoRunner, liveReadiness] = await Promise.all([
     getJson("/api/strategies"),
     getJson("/api/reports"),
     getJson("/api/mobile/status"),
@@ -2281,6 +2391,7 @@ async function refreshAll() {
     getJson("/api/strategy-learning-loop"),
     getJson("/api/local-sandbox/daily-report?limit=10"),
     getJson("/api/local-sandbox/auto-runner"),
+    getJson("/api/live-readiness"),
   ]);
   const strategyItems = strategies.strategies || [];
   const reportItems = reports.reports || [];
@@ -2298,6 +2409,7 @@ async function refreshAll() {
   renderStrategyLearningLoop(strategyLearningLoop);
   renderSandboxDailyReport(sandboxDailyReport);
   renderSandboxAutoRunner(sandboxAutoRunner);
+  renderLiveReadiness(liveReadiness);
   renderStrategyPlaybook(strategyItems, mobile, strategyLearningLoop);
   renderForwardValidation(mobile.forwardValidation);
   renderPaperObservationTasks(paperTasks);
