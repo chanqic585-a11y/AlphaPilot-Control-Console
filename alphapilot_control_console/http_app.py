@@ -48,7 +48,7 @@ def _find_artifact(index: dict, artifact_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.7.13"
+    server_version = "AlphaPilotControlConsole/13.7.14"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -89,8 +89,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.7.13",
-                "source": "alphapilot_control_console_v13_7_13",
+                "version": "V13.7.14",
+                "source": "alphapilot_control_console_v13_7_14",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return

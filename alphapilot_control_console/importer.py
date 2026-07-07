@@ -16,8 +16,8 @@ from .state_store import (
     write_mobile_status,
 )
 
-CONTROL_CONSOLE_VERSION = "V13.7.13"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_13"
+CONTROL_CONSOLE_VERSION = "V13.7.14"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_14"
 BEIJING_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 FORWARD_VALIDATION_REVIEW_DATE = date(2026, 7, 10)
 FORWARD_VALIDATION_REVIEW_LABEL = "2026年7月10日（北京时间）"
@@ -74,6 +74,18 @@ def _compact_report_summary(report: dict[str, Any]) -> dict[str, Any]:
             "profitFactor": metrics.get("profitFactor"),
             "rewardRiskRatio": metrics.get("rewardRiskRatio"),
             "rawGatePassed": candidate.get("gate", {}).get("passed"),
+        }
+    if report.get("reviewProtocol") and report.get("reviews"):
+        summary = report.get("summary") if isinstance(report.get("summary"), dict) else {}
+        status_counts = summary.get("statusCounts") if isinstance(summary.get("statusCounts"), dict) else {}
+        return {
+            "kind": "multi_agent_strategy_review",
+            "reviewedSubjectCount": summary.get("reviewedSubjectCount"),
+            "paperObservationCandidateCount": summary.get("paperObservationCandidateCount"),
+            "keepResearchingCount": status_counts.get("keep_researching"),
+            "rejectForNowCount": status_counts.get("reject_for_now"),
+            "dryRunApproved": summary.get("dryRunApproved"),
+            "liveTradingApproved": summary.get("liveTradingApproved"),
         }
     return {"kind": "report"}
 
@@ -1063,7 +1075,11 @@ def scan_quant_engine() -> dict[str, Any]:
     reports: list[dict[str, Any]] = []
 
     if reports_dir.exists():
-        for report_path in sorted(reports_dir.glob("v13_5_*_report.json")):
+        report_paths: dict[str, Path] = {}
+        for pattern in ("v13_5_*_report.json", "v13_7_14_*_report.json"):
+            for report_path in sorted(reports_dir.glob(pattern)):
+                report_paths[str(report_path)] = report_path
+        for report_path in sorted(report_paths.values()):
             report = _read_json(report_path)
             if report:
                 reports.append(_report_summary(report, report_path))

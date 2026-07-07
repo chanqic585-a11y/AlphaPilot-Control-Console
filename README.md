@@ -421,3 +421,25 @@ Safety boundary:
 - The console only imports local report status.
 - It does not run backtests, use API keys, read accounts or positions, create
   orders, execute exchange Dry-run, or enable live or automatic trading.
+
+## V13.7.14 Multi-Agent Strategy Review Import
+
+V13.7.14 imports the Quant Engine research review report:
+
+```text
+reports/v13_7_14_multi_agent_strategy_review_report.json
+```
+
+What changed:
+
+- The report list now includes the V13.7.14 multi-agent strategy review.
+- The report summary shows reviewed subject count, research status counts, and
+  whether any paper observation candidate exists.
+- The review is based on local Quant Engine artifacts only.
+
+Safety boundary:
+
+- This is a research committee-style review only.
+- It does not call LLMs from the console, run backtests, use API keys, read
+  accounts or positions, create orders, execute exchange Dry-run, or enable live
+  or automatic trading.
