@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.22 - Paper Observation Logbook
+AlphaPilot V13.7.23 - Paper Observation Quality Panel
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,17 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.7.23 Adds
+
+- Imports the Quant Engine V13.7.23 paper-observation quality panel baseline.
+- Scores each of the five local paper-observation tasks from local logs.
+- Shows priority watch, continue observing, needs risk review, pause candidate, and not started states.
+- Adds quality score, log coverage, rule-match coverage, closed-sample coverage, risk warnings, invalidations, and next action notes.
+- Keeps the score as local observation completeness only, not trade safety or profit probability.
+
+V13.7.23 does not add API key input, private exchange access, account access,
+position access, order creation, exchange Dry-run, live trading, or automation.
 
 ## What V13.7.22 Adds
 

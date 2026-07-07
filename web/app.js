@@ -67,6 +67,15 @@ const paperHealthLabels = {
   rejected: "已淘汰",
 };
 
+const observationQualityLabels = {
+  not_started: "未开始",
+  needs_more_logs: "需要补日志",
+  continue_observing: "继续观察",
+  priority_watch: "优先观察",
+  needs_risk_review: "需要风险复核",
+  pause_candidate: "暂停候选",
+};
+
 const forwardGateLabels = {
   needs_active_validation: "还没有正式验证中的策略",
   waiting_until_review_date: "等待 7 月 10 日前向验收",
@@ -396,6 +405,10 @@ function renderPaperLogTypeOptions(selected = "no_signal") {
 
 function tPaperHealth(value) {
   return paperHealthLabels[value] || value || "--";
+}
+
+function tObservationQuality(value) {
+  return observationQualityLabels[value] || value || "--";
 }
 
 function tForwardGate(value) {
@@ -995,6 +1008,7 @@ function renderStrategyLearningLoop(loopPayload) {
   const experimentReport = payload.experimentSpecs || {};
   const rereviewReport = payload.paperReReview || {};
   const observationTaskPack = payload.paperObservationTaskPack || {};
+  const observationQualityPanel = payload.paperObservationQualityPanel || {};
   const graveyard = Array.isArray(learningLoop.strategyGraveyard) ? learningLoop.strategyGraveyard : [];
   const refactors = Array.isArray(refactorReport.refactorCandidates) ? refactorReport.refactorCandidates : [];
   const experiments = Array.isArray(experimentReport.experimentSpecs) ? experimentReport.experimentSpecs : [];
@@ -1004,6 +1018,10 @@ function renderStrategyLearningLoop(loopPayload) {
     : [];
   const logbook = payload.paperObservationLogbook || {};
   const logbookSummary = logbook.summary || {};
+  const qualitySummary = observationQualityPanel.summary || {};
+  const qualityRows = Array.isArray(observationQualityPanel.qualityRows)
+    ? observationQualityPanel.qualityRows
+    : [];
 
   el("learningItemCount").textContent = String(summary.learningItemCount ?? "--");
   el("learningGraveyardCount").textContent = String(summary.graveyardCount ?? graveyard.length);
@@ -1025,6 +1043,18 @@ function renderStrategyLearningLoop(loopPayload) {
   }
   if (el("learningObservationClosedSamples")) {
     el("learningObservationClosedSamples").textContent = String(summary.observationClosedPaperSampleCount ?? logbookSummary.closedPaperSampleCount ?? 0);
+  }
+  if (el("learningObservationQualityScore")) {
+    el("learningObservationQualityScore").textContent = formatNumber(summary.observationQualityAverageScore ?? qualitySummary.averageQualityScore, 1);
+  }
+  if (el("learningObservationPriorityCount")) {
+    el("learningObservationPriorityCount").textContent = String(summary.observationPriorityWatchCount ?? qualitySummary.priorityWatchCount ?? 0);
+  }
+  if (el("learningObservationRiskReviewCount")) {
+    el("learningObservationRiskReviewCount").textContent = String(summary.observationNeedsRiskReviewCount ?? qualitySummary.needsRiskReviewCount ?? 0);
+  }
+  if (el("learningObservationPauseCount")) {
+    el("learningObservationPauseCount").textContent = String(summary.observationPauseCandidateCount ?? qualitySummary.pauseCandidateCount ?? 0);
   }
   el("learningDryRun").textContent = summary.dryRunApproved ? "异常：开启" : "关闭";
   el("learningLive").textContent = summary.liveTradingApproved ? "异常：开启" : "关闭";
@@ -1141,6 +1171,40 @@ function renderStrategyLearningLoop(loopPayload) {
       }
     });
   });
+  if (el("learningObservationQualityList")) {
+    el("learningObservationQualityList").innerHTML = qualityRows.slice(0, 5).map((row) => {
+      const tone = row.qualityTone === "good" ? "ok" : row.qualityTone === "danger" ? "danger" : "warn";
+      const progress = row.progress || {};
+      const components = row.scoreComponents || {};
+      return `
+        <div class="research-task-row observation-quality-card">
+          <div class="research-task-head">
+            <strong>${escapeHtml(row.title || row.candidateId || row.taskId || "--")}</strong>
+            <span class="badge ${tone}">${escapeHtml(row.qualityLabelCn || tObservationQuality(row.qualityLabel))} · ${formatNumber(row.qualityScore, 0)}分</span>
+          </div>
+          <small>${escapeHtml(row.displaySubtitle || "本地观察质量")} · ${escapeHtml(row.taskId || "--")}</small>
+          <div class="artifact-metrics">
+            <span>日志 ${row.logCount ?? 0}</span>
+            <span>规则匹配 ${row.ruleMatchedCount ?? 0}</span>
+            <span>闭合样本 ${row.closedPaperSampleCount ?? 0}/${row.targetClosedSamples ?? "--"}</span>
+            <span>剩余 ${row.remainingClosedSamples ?? "--"}</span>
+            <span>风险 ${row.riskWarningCount ?? 0}</span>
+            <span>失效 ${row.invalidatedCount ?? 0}</span>
+          </div>
+          <div class="quality-progress-grid">
+            <span>日志覆盖 ${formatPercent(progress.logCoveragePct, 0)}</span>
+            <span>规则覆盖 ${formatPercent(progress.ruleMatchCoveragePct, 0)}</span>
+            <span>闭合覆盖 ${formatPercent(progress.closedSampleCoveragePct, 0)}</span>
+            <span>最近 ${formatDate(row.latestLogAt)}</span>
+          </div>
+          <div class="quality-score-components">
+            <small>得分：日志 ${formatNumber(components.logCoverage, 1)} / 规则 ${formatNumber(components.ruleMatchCoverage, 1)} / 闭合 ${formatNumber(components.closedSampleCoverage, 1)} / 新鲜度 ${formatNumber(components.recency, 1)} / 风险 ${formatNumber(components.riskHygiene, 1)}</small>
+          </div>
+          <div>下一步：${escapeHtml(row.nextAction || "继续本地观察，不进入 Dry-run。")}</div>
+        </div>
+      `;
+    }).join("") || '<div class="item">暂无观察质量数据。请先导入 V13.7.23 报告。</div>';
+  }
 }
 
 function renderStrategies(strategies) {

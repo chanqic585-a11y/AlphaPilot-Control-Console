@@ -549,6 +549,22 @@
               <strong id="learningObservationClosedSamples">--</strong>
             </div>
             <div class="metric-cell">
+              <span>质量均分</span>
+              <strong id="learningObservationQualityScore">--</strong>
+            </div>
+            <div class="metric-cell">
+              <span>优先观察</span>
+              <strong id="learningObservationPriorityCount">--</strong>
+            </div>
+            <div class="metric-cell">
+              <span>风险复核</span>
+              <strong id="learningObservationRiskReviewCount">--</strong>
+            </div>
+            <div class="metric-cell">
+              <span>暂停候选</span>
+              <strong id="learningObservationPauseCount">--</strong>
+            </div>
+            <div class="metric-cell">
               <span>Dry-run</span>
               <strong id="learningDryRun">关闭</strong>
             </div>
@@ -591,6 +607,11 @@
             <h4>五策略纸面观察任务包</h4>
             <p>这里只显示前向纸面观察安排，不创建订单，不进入 Dry-run。</p>
             <div id="learningObservationTaskPackList" class="research-task-list"></div>
+          </div>
+          <div class="section-subpanel">
+            <h4>观察质量面板</h4>
+            <p>按本地观察日志评估每条策略的记录质量和复核优先级，不代表交易安全或盈利概率。</p>
+            <div id="learningObservationQualityList" class="research-task-list"></div>
           </div>
         </section>
 

@@ -63,7 +63,7 @@ PAPER_OBSERVATION_LOG_LABELS = {
     "risk_warning": "风险提醒",
 }
 
-CONTROL_CONSOLE_STATE_SOURCE = "alphapilot_control_console_v13_7_22"
+CONTROL_CONSOLE_STATE_SOURCE = "alphapilot_control_console_v13_7_23"
 
 
 def now_iso() -> str:

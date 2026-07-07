@@ -16,8 +16,8 @@ from .state_store import (
     write_mobile_status,
 )
 
-CONTROL_CONSOLE_VERSION = "V13.7.22"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_22"
+CONTROL_CONSOLE_VERSION = "V13.7.23"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_23"
 BEIJING_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 FORWARD_VALIDATION_REVIEW_DATE = date(2026, 7, 10)
 FORWARD_VALIDATION_REVIEW_LABEL = "2026年7月10日（北京时间）"
@@ -188,6 +188,20 @@ def _compact_report_summary(report: dict[str, Any]) -> dict[str, Any]:
             "dryRunApproved": summary.get("dryRunApproved"),
             "liveTradingApproved": summary.get("liveTradingApproved"),
         }
+    if report.get("reportId") == "v13_7_23_paper_observation_quality_panel":
+        summary = report.get("summary") if isinstance(report.get("summary"), dict) else {}
+        rows = report.get("qualityRows") if isinstance(report.get("qualityRows"), list) else []
+        return {
+            "kind": "paper_observation_quality_panel",
+            "taskCount": summary.get("taskCount"),
+            "notStartedCount": summary.get("notStartedCount"),
+            "prioritySeedCount": summary.get("prioritySeedCount"),
+            "targetClosedSamplesTotal": summary.get("targetClosedSamplesTotal"),
+            "qualityScoreMax": summary.get("qualityScoreMax"),
+            "taskIds": [item.get("taskId") for item in rows if isinstance(item, dict) and item.get("taskId")],
+            "dryRunApproved": summary.get("dryRunApproved"),
+            "liveTradingApproved": summary.get("liveTradingApproved"),
+        }
     return {"kind": "report"}
 
 
@@ -198,6 +212,134 @@ def _logs_for_task_pack(logs_by_artifact: dict[str, Any], task_id: str, limit: i
     logs = [row for row in rows if isinstance(row, dict)]
     logs.sort(key=lambda item: str(item.get("createdAt") or ""), reverse=True)
     return logs[:limit]
+
+
+def _parse_iso_datetime(value: Any) -> datetime | None:
+    if not value:
+        return None
+    try:
+        text = str(value).replace("Z", "+00:00")
+        parsed = datetime.fromisoformat(text)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    except ValueError:
+        return None
+
+
+def _paper_observation_quality_label(score: float, counts: dict[str, int], target_samples: int) -> dict[str, str]:
+    log_count = counts.get("logCount", 0)
+    rule_count = counts.get("ruleMatchedCount", 0)
+    risk_count = counts.get("riskWarningCount", 0)
+    invalidated_count = counts.get("invalidatedCount", 0)
+    closed_count = counts.get("closedPaperSampleCount", 0)
+    risk_pressure = risk_count + invalidated_count
+    if log_count <= 0:
+        return {
+            "qualityLabel": "not_started",
+            "qualityLabelCn": "未开始",
+            "qualityTone": "warn",
+            "nextAction": "先记录无信号日、看到信号、规则匹配和失效原因。",
+        }
+    if log_count >= 10 and risk_pressure / max(log_count, 1) >= 0.4:
+        return {
+            "qualityLabel": "pause_candidate",
+            "qualityLabelCn": "暂停候选",
+            "qualityTone": "danger",
+            "nextAction": "风险或失效占比过高，先人工复核弱币种、流动性和规则边界。",
+        }
+    if risk_pressure >= 3:
+        return {
+            "qualityLabel": "needs_risk_review",
+            "qualityLabelCn": "需要风险复核",
+            "qualityTone": "danger",
+            "nextAction": "复核失效、风险提醒、数据质量和行情状态，不进入更高阶段。",
+        }
+    if log_count >= 15 and rule_count == 0:
+        return {
+            "qualityLabel": "pause_candidate",
+            "qualityLabelCn": "暂停候选",
+            "qualityTone": "danger",
+            "nextAction": "观察足够多但没有规则匹配，考虑暂停或重写触发条件。",
+        }
+    if score >= 75 and closed_count >= max(3, round(target_samples * 0.2)):
+        return {
+            "qualityLabel": "priority_watch",
+            "qualityLabelCn": "优先观察",
+            "qualityTone": "good",
+            "nextAction": "优先复盘这条策略的本地观察记录，继续补闭合样本。",
+        }
+    if score >= 40:
+        return {
+            "qualityLabel": "continue_observing",
+            "qualityLabelCn": "继续观察",
+            "qualityTone": "good",
+            "nextAction": "继续记录，重点补规则匹配和闭合纸面结果。",
+        }
+    return {
+        "qualityLabel": "needs_more_logs",
+        "qualityLabelCn": "需要补日志",
+        "qualityTone": "warn",
+        "nextAction": "样本太少，不能判断优先级；继续每天记录。",
+    }
+
+
+def _build_task_observation_quality(task: dict[str, Any], logs: list[dict[str, Any]]) -> dict[str, Any]:
+    plan = task.get("observationPlan") if isinstance(task.get("observationPlan"), dict) else {}
+    target_samples = int(plan.get("targetClosedSamples") or 25)
+    minimum_rule_matches = int(plan.get("minimumRuleMatchedSignals") or max(5, round(target_samples * 0.4)))
+    counts = {
+        "logCount": len(logs),
+        "ruleMatchedCount": sum(1 for log in logs if log.get("ruleMatched") or log.get("logType") == "rule_matched"),
+        "signalObservedCount": sum(1 for log in logs if log.get("signalObserved")),
+        "closedPaperSampleCount": sum(1 for log in logs if str(log.get("outcome") or "").strip()),
+        "riskWarningCount": sum(1 for log in logs if log.get("logType") == "risk_warning"),
+        "invalidatedCount": sum(1 for log in logs if log.get("logType") == "invalidated"),
+        "missedCount": sum(1 for log in logs if log.get("logType") == "missed"),
+    }
+    latest_log_at = logs[0].get("createdAt") if logs else None
+    latest_dt = _parse_iso_datetime(latest_log_at)
+    days_since_latest = None
+    if latest_dt:
+        days_since_latest = max(0, (datetime.now(timezone.utc) - latest_dt).days)
+
+    log_component = min(counts["logCount"] / max(target_samples, 1), 1.0) * 30
+    rule_component = min(counts["ruleMatchedCount"] / max(minimum_rule_matches, 1), 1.0) * 25
+    closed_component = min(counts["closedPaperSampleCount"] / max(target_samples, 1), 1.0) * 25
+    recency_component = 0
+    if latest_dt:
+        recency_component = 10 if days_since_latest is not None and days_since_latest <= 3 else 6 if days_since_latest <= 7 else 2
+    risk_pressure = counts["riskWarningCount"] + counts["invalidatedCount"]
+    risk_hygiene_component = max(0, 10 - min(risk_pressure * 3, 10))
+    score = round(log_component + rule_component + closed_component + recency_component + risk_hygiene_component, 2)
+    if counts["logCount"] <= 0:
+        risk_hygiene_component = 0
+        score = 0
+    label = _paper_observation_quality_label(score, counts, target_samples)
+    progress = {
+        "logCoveragePct": round(min(counts["logCount"] / max(target_samples, 1), 1.0) * 100, 2),
+        "ruleMatchCoveragePct": round(min(counts["ruleMatchedCount"] / max(minimum_rule_matches, 1), 1.0) * 100, 2),
+        "closedSampleCoveragePct": round(min(counts["closedPaperSampleCount"] / max(target_samples, 1), 1.0) * 100, 2),
+    }
+    return {
+        **counts,
+        **label,
+        "qualityScore": score,
+        "targetClosedSamples": target_samples,
+        "minimumRuleMatchedSignals": minimum_rule_matches,
+        "remainingClosedSamples": max(0, target_samples - counts["closedPaperSampleCount"]),
+        "latestLogAt": latest_log_at,
+        "daysSinceLatestLog": days_since_latest,
+        "progress": progress,
+        "scoreComponents": {
+            "logCoverage": round(log_component, 2),
+            "ruleMatchCoverage": round(rule_component, 2),
+            "closedSampleCoverage": round(closed_component, 2),
+            "recency": round(recency_component, 2),
+            "riskHygiene": round(risk_hygiene_component, 2),
+        },
+        "safetyNote": "Quality score describes local observation completeness, not trade safety or profit probability.",
+    }
 
 
 def _apply_task_pack_logs(task_pack: dict[str, Any] | None, state: dict[str, Any]) -> dict[str, Any]:
@@ -234,6 +376,7 @@ def _apply_task_pack_logs(task_pack: dict[str, Any] | None, state: dict[str, Any
             "closedPaperSampleCount": closed_count,
             "latestLogAt": recent_logs[0].get("createdAt") if recent_logs else None,
         }
+        item["observationQuality"] = _build_task_observation_quality(item, logs)
         item["recentLogs"] = recent_logs
         enriched_tasks.append(item)
     summary = dict(task_pack.get("summary") if isinstance(task_pack.get("summary"), dict) else {})
@@ -252,6 +395,76 @@ def _apply_task_pack_logs(task_pack: dict[str, Any] | None, state: dict[str, Any
     return enriched
 
 
+def _build_paper_observation_quality_panel(
+    quality_report: dict[str, Any] | None,
+    task_pack: dict[str, Any] | None,
+) -> dict[str, Any]:
+    quality_report = quality_report if isinstance(quality_report, dict) else {}
+    task_pack = task_pack if isinstance(task_pack, dict) else {}
+    tasks = task_pack.get("paperObservationTasks") if isinstance(task_pack.get("paperObservationTasks"), list) else []
+    rows: list[dict[str, Any]] = []
+    for task in tasks:
+        if not isinstance(task, dict):
+            continue
+        quality = task.get("observationQuality") if isinstance(task.get("observationQuality"), dict) else {}
+        row = {
+            "taskId": task.get("taskId"),
+            "strategyId": task.get("strategyId"),
+            "candidateId": task.get("candidateId"),
+            "title": task.get("title"),
+            "displaySubtitle": task.get("displaySubtitle"),
+            "family": task.get("family"),
+            "timeframe": task.get("timeframe"),
+            "rank": task.get("rank"),
+            "qualityScore": quality.get("qualityScore", 0),
+            "qualityLabel": quality.get("qualityLabel", "not_started"),
+            "qualityLabelCn": quality.get("qualityLabelCn", "未开始"),
+            "qualityTone": quality.get("qualityTone", "warn"),
+            "nextAction": quality.get("nextAction"),
+            "logCount": quality.get("logCount", 0),
+            "ruleMatchedCount": quality.get("ruleMatchedCount", 0),
+            "closedPaperSampleCount": quality.get("closedPaperSampleCount", 0),
+            "riskWarningCount": quality.get("riskWarningCount", 0),
+            "invalidatedCount": quality.get("invalidatedCount", 0),
+            "remainingClosedSamples": quality.get("remainingClosedSamples"),
+            "targetClosedSamples": quality.get("targetClosedSamples"),
+            "latestLogAt": quality.get("latestLogAt"),
+            "progress": quality.get("progress") if isinstance(quality.get("progress"), dict) else {},
+            "scoreComponents": quality.get("scoreComponents") if isinstance(quality.get("scoreComponents"), dict) else {},
+        }
+        rows.append(row)
+    rows.sort(key=lambda item: (float(item.get("qualityScore") or 0), int(item.get("ruleMatchedCount") or 0)), reverse=True)
+    label_counts = _count_by_key(rows, "qualityLabel")
+    summary = {
+        "taskCount": len(rows),
+        "priorityWatchCount": label_counts.get("priority_watch", 0),
+        "continueObservingCount": label_counts.get("continue_observing", 0),
+        "needsMoreLogsCount": label_counts.get("needs_more_logs", 0),
+        "needsRiskReviewCount": label_counts.get("needs_risk_review", 0),
+        "pauseCandidateCount": label_counts.get("pause_candidate", 0),
+        "notStartedCount": label_counts.get("not_started", 0),
+        "averageQualityScore": round(
+            sum(float(row.get("qualityScore") or 0) for row in rows) / len(rows),
+            2,
+        ) if rows else 0,
+        "topPriorityTaskId": rows[0].get("taskId") if rows else None,
+        "topPriorityTitle": rows[0].get("title") if rows else None,
+        "dryRunApproved": False,
+        "liveTradingApproved": False,
+        "nextStep": "Use quality labels to choose the next local paper-observation review; do not move to exchange Dry-run.",
+    }
+    return {
+        "version": CONTROL_CONSOLE_VERSION,
+        "source": CONTROL_CONSOLE_SOURCE,
+        "generatedAt": now_iso(),
+        "summary": summary,
+        "qualityRules": quality_report.get("qualityRules") if isinstance(quality_report.get("qualityRules"), dict) else {},
+        "qualityRows": rows,
+        "staticReportSummary": quality_report.get("summary") if isinstance(quality_report.get("summary"), dict) else {},
+        "safetyBoundary": SAFETY_BOUNDARY,
+    }
+
+
 def _build_strategy_learning_loop(reports_dir: Path, state: dict[str, Any] | None = None) -> dict[str, Any]:
     learning_loop = _read_json(reports_dir / "v13_7_15_strategy_learning_loop_report.json")
     refactor_candidates = _read_json(reports_dir / "v13_7_16_strategy_refactor_candidates_report.json")
@@ -262,6 +475,13 @@ def _build_strategy_learning_loop(reports_dir: Path, state: dict[str, Any] | Non
     raw_paper_observation_task_pack = _read_json(reports_dir / "v13_7_21_paper_observation_task_pack_report.json")
     paper_observation_task_pack = _apply_task_pack_logs(raw_paper_observation_task_pack, state or {})
     paper_observation_logbook = _read_json(reports_dir / "v13_7_22_paper_observation_logbook_report.json")
+    paper_observation_quality_report = _read_json(
+        reports_dir / "v13_7_23_paper_observation_quality_panel_report.json"
+    )
+    paper_observation_quality_panel = _build_paper_observation_quality_panel(
+        paper_observation_quality_report,
+        paper_observation_task_pack,
+    )
 
     learning_summary = learning_loop.get("summary") if isinstance(learning_loop, dict) else {}
     refactor_summary = refactor_candidates.get("summary") if isinstance(refactor_candidates, dict) else {}
@@ -287,6 +507,7 @@ def _build_strategy_learning_loop(reports_dir: Path, state: dict[str, Any] | Non
             five_strategy_factory,
             paper_observation_task_pack,
             paper_observation_logbook,
+            paper_observation_quality_report,
         )
         if isinstance(report, dict) and report.get("generatedAt")
     ]
@@ -303,6 +524,7 @@ def _build_strategy_learning_loop(reports_dir: Path, state: dict[str, Any] | Non
         "fiveStrategyCandidateFactory": five_strategy_factory or {},
         "paperObservationTaskPack": paper_observation_task_pack or {},
         "paperObservationLogbook": paper_observation_logbook or {},
+        "paperObservationQualityPanel": paper_observation_quality_panel or {},
         "summary": {
             "learningItemCount": learning_summary.get("learningItemCount", 0),
             "graveyardCount": learning_summary.get("graveyardCount", 0),
@@ -334,6 +556,26 @@ def _build_strategy_learning_loop(reports_dir: Path, state: dict[str, Any] | Non
             ),
             "observationRemainingTargetClosedSamples": task_pack_summary.get("remainingTargetClosedSamples"),
             "observationLatestLogAt": task_pack_summary.get("latestLogAt"),
+            "observationQualityAverageScore": (
+                paper_observation_quality_panel.get("summary", {}).get("averageQualityScore")
+                if isinstance(paper_observation_quality_panel.get("summary"), dict)
+                else 0
+            ),
+            "observationPriorityWatchCount": (
+                paper_observation_quality_panel.get("summary", {}).get("priorityWatchCount")
+                if isinstance(paper_observation_quality_panel.get("summary"), dict)
+                else 0
+            ),
+            "observationNeedsRiskReviewCount": (
+                paper_observation_quality_panel.get("summary", {}).get("needsRiskReviewCount")
+                if isinstance(paper_observation_quality_panel.get("summary"), dict)
+                else 0
+            ),
+            "observationPauseCandidateCount": (
+                paper_observation_quality_panel.get("summary", {}).get("pauseCandidateCount")
+                if isinstance(paper_observation_quality_panel.get("summary"), dict)
+                else 0
+            ),
             "dryRunApproved": any(
                 bool(summary.get("dryRunApproved"))
                 for summary in (
