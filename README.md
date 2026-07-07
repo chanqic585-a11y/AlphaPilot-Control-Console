@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.33 - Local Sandbox Auto Observation Runner
+AlphaPilot V13.7.34 - Continuous Sandbox Runner and Sample Deduplication
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,21 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.7.34 Adds
+
+- Changes the main "Run Local Sandbox" action into a continuous local observation starter.
+- When clicked, the console enables the local auto runner, runs one round immediately, and schedules checks every 5 minutes while the console process is open.
+- Raises the local daily auto-run limit to 288 so 5-minute checks can run for a full Beijing day.
+- Adds sandbox sample keys so repeated runs against the same task, pair, timeframe, data file, and metrics window are skipped instead of counted as new closed samples.
+- Deduplicates closed-sample reporting so existing repeated logs do not inflate strategy health and learning readiness.
+- Shows skipped duplicate samples in the run status.
+
+V13.7.34 does not make 5-minute checks equal to 5-minute valid samples. A new
+closed sample still requires a new data fingerprint or a genuinely new sandbox
+observation window. It also does not add API key input, private exchange access,
+account access, position access, order creation, exchange Dry-run, live trading,
+or automatic trading.
 
 ## What V13.7.33 Adds
 

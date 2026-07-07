@@ -652,20 +652,27 @@ async function runLocalSandboxNow() {
   const status = el("learningSandboxRunStatus");
   if (!button || !status) return;
   button.disabled = true;
-  status.textContent = "正在生成本地虚拟观察数据...";
+  status.textContent = "正在开启 5 分钟本地沙盒持续观察，并立即运行一轮...";
   try {
-    const response = await postJson("/api/local-sandbox/run", {});
+    await postJson("/api/local-sandbox/auto-runner", {
+      enabled: true,
+      intervalMinutes: 5,
+      maxRunsPerDay: 288,
+    });
+    if (el("sandboxAutoEnabledInput")) el("sandboxAutoEnabledInput").checked = true;
+    if (el("sandboxAutoIntervalInput")) el("sandboxAutoIntervalInput").value = "5";
+    if (el("sandboxAutoMaxRunsInput")) el("sandboxAutoMaxRunsInput").value = "288";
+    const response = await postJson("/api/local-sandbox/auto-runner/run-now", {});
     const run = response.localSandboxRun || {};
     await refreshAll();
     status.textContent =
-      `已生成 ${run.generatedLogCount ?? 0} 条虚拟观察，闭合 ${run.closedSampleCount ?? 0} 个样本，数据缺口 ${run.dataGapCount ?? 0}。`;
+      `已开启持续观察：每 5 分钟检查一次。本次新增 ${run.generatedLogCount ?? 0} 条观察，闭合 ${run.closedSampleCount ?? 0} 个样本，跳过重复 ${run.skippedDuplicateCount ?? 0} 个，数据缺口 ${run.dataGapCount ?? 0}。`;
   } catch (error) {
     status.textContent = `本地沙盒运行失败：${error.message}`;
   } finally {
     button.disabled = false;
   }
 }
-
 function renderSandboxDailyReport(payload) {
   if (!el("learningSandboxDailyList")) return;
   const report = payload?.latestReport || payload?.localSandboxDailyReport || {};

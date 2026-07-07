@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -10,8 +11,8 @@ from .config import DEFAULT_QUANT_ENGINE_PATH, SAFETY_BOUNDARY, get_quant_engine
 from .state_store import add_paper_observation_log, list_paper_observation_logs, now_iso, save_local_sandbox_run
 
 
-CONTROL_CONSOLE_VERSION = "V13.7.33"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_33"
+CONTROL_CONSOLE_VERSION = "V13.7.34"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_34"
 VIRTUAL_CAPITAL_PER_STRATEGY = 1000.0
 RISK_UNIT_PERCENT = 1.0
 TASK_PACK_REPORT = "v13_7_21_paper_observation_task_pack_report.json"
@@ -99,11 +100,13 @@ def _find_local_public_ohlcv_cache(quant_path: Path, pair: str, timeframe: str) 
         if timeframe_token not in path.name.lower():
             continue
         if any(token in name for token in tokens):
+            stat = path.stat()
             return {
                 "available": True,
                 "source": "local_public_ohlcv_cache",
                 "pathHint": str(path.relative_to(data_root)),
-                "fileSize": path.stat().st_size,
+                "fileSize": stat.st_size,
+                "modifiedAt": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
             }
     return {
         "available": False,
@@ -115,6 +118,82 @@ def _find_local_public_ohlcv_cache(quant_path: Path, pair: str, timeframe: str) 
 def _task_existing_log_count(task_id: str) -> int:
     rows = list_paper_observation_logs(task_id)
     return len(rows) if isinstance(rows, list) else 0
+
+
+def _digest_payload(value: Any) -> str:
+    try:
+        encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")
+    except TypeError:
+        encoded = str(value).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()[:16]
+
+
+def _sample_key(task_id: str, pair: str, timeframe: str, cache: dict[str, Any], pair_metrics: dict[str, Any]) -> str:
+    data_mode = "local_public_ohlcv_cache" if cache.get("available") else "task_pack_metrics_only"
+    payload = {
+        "version": CONTROL_CONSOLE_VERSION,
+        "taskId": task_id,
+        "pair": pair,
+        "timeframe": timeframe,
+        "dataMode": data_mode,
+        "pathHint": cache.get("pathHint"),
+        "fileSize": cache.get("fileSize"),
+        "modifiedAt": cache.get("modifiedAt"),
+        "metricsDigest": _digest_payload(pair_metrics),
+    }
+    return f"local_sandbox_sample::{_digest_payload(payload)}"
+
+
+def _utc_date_key(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = f"{text[:-1]}+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc).strftime("%Y-%m-%d")
+
+
+def _has_closed_outcome(log: dict[str, Any]) -> bool:
+    return log.get("outcomeR") is not None or bool(str(log.get("outcome") or "").strip())
+
+
+def _find_duplicate_closed_sample(
+    task_id: str,
+    sample_key: str,
+    pair: str,
+    timeframe: str,
+    cache: dict[str, Any],
+    data_mode: str,
+) -> dict[str, Any] | None:
+    rows = list_paper_observation_logs(task_id)
+    if not isinstance(rows, list):
+        return None
+    today_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    path_hint = cache.get("pathHint")
+    for row in reversed(rows):
+        if not isinstance(row, dict) or not _has_closed_outcome(row):
+            continue
+        if row.get("sampleKey") == sample_key:
+            return row
+        legacy_same_window = (
+            row.get("sampleKey") is None
+            and str(row.get("pair") or "") == pair
+            and str(row.get("timeframe") or "") == timeframe
+            and str(row.get("dataMode") or "") == data_mode
+            and row.get("dataSourcePathHint") == path_hint
+            and _utc_date_key(row.get("createdAt")) == today_key
+        )
+        if legacy_same_window:
+            return row
+    return None
 
 
 def _select_replay_pair(task: dict[str, Any]) -> tuple[dict[str, Any], str]:
@@ -162,7 +241,7 @@ def _build_artifact(task: dict[str, Any]) -> dict[str, Any]:
 
 def _build_run_id() -> str:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    return f"local_sandbox_v13_7_33::{stamp}"
+    return f"local_sandbox_v13_7_34::{stamp}"
 
 
 def run_local_sandbox(payload: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -176,6 +255,7 @@ def run_local_sandbox(payload: dict[str, Any] | None = None) -> dict[str, Any]:
     generated = 0
     closed_samples = 0
     data_gap_count = 0
+    skipped_duplicates = 0
     total_virtual_equity = 0.0
     total_virtual_capital = 0.0
 
@@ -198,6 +278,29 @@ def run_local_sandbox(payload: dict[str, Any] | None = None) -> dict[str, Any]:
         total_virtual_capital += VIRTUAL_CAPITAL_PER_STRATEGY
 
         if cache.get("available") or pair_metrics:
+            data_mode = "local_public_ohlcv_cache" if cache.get("available") else "task_pack_metrics_only"
+            sample_key = _sample_key(task_id, pair, timeframe, cache, pair_metrics)
+            duplicate = _find_duplicate_closed_sample(task_id, sample_key, pair, timeframe, cache, data_mode)
+            if duplicate:
+                skipped_duplicates += 1
+                total_virtual_equity += VIRTUAL_CAPITAL_PER_STRATEGY
+                rows.append({
+                    "taskId": task_id,
+                    "strategyId": task.get("strategyId"),
+                    "title": task.get("title"),
+                    "pair": pair,
+                    "timeframe": timeframe,
+                    "logId": None,
+                    "duplicateOfLogId": duplicate.get("logId"),
+                    "sampleKey": sample_key,
+                    "outcomeR": None,
+                    "virtualCapital": VIRTUAL_CAPITAL_PER_STRATEGY,
+                    "virtualEquity": VIRTUAL_CAPITAL_PER_STRATEGY,
+                    "dataStatus": "duplicate_sample_skipped",
+                    "dataMode": data_mode,
+                    "dataSourcePathHint": cache.get("pathHint"),
+                })
+                continue
             outcome_r, outcome_reason = _deterministic_outcome_r(task, pair_metrics, sequence)
             equity = VIRTUAL_CAPITAL_PER_STRATEGY * (1 + ((outcome_r * RISK_UNIT_PERCENT) / 100))
             total_virtual_equity += equity
@@ -217,9 +320,12 @@ def run_local_sandbox(payload: dict[str, Any] | None = None) -> dict[str, Any]:
                     "runId": run_id,
                     "autoGenerated": True,
                     "sandboxMode": "historical_replay_virtual",
-                    "dataMode": "local_public_ohlcv_cache" if cache.get("available") else "task_pack_metrics_only",
+                    "sampleKey": sample_key,
+                    "dataMode": data_mode,
                     "dataStatus": "cache_available" if cache.get("available") else "cache_missing_metrics_available",
                     "dataSourcePathHint": cache.get("pathHint"),
+                    "dataSourceFileSize": cache.get("fileSize"),
+                    "dataSourceModifiedAt": cache.get("modifiedAt"),
                     "pair": pair,
                     "timeframe": timeframe,
                     "virtualCapital": VIRTUAL_CAPITAL_PER_STRATEGY,
@@ -243,6 +349,8 @@ def run_local_sandbox(payload: dict[str, Any] | None = None) -> dict[str, Any]:
                 "outcomeR": outcome_r,
                 "virtualCapital": VIRTUAL_CAPITAL_PER_STRATEGY,
                 "virtualEquity": round(equity, 2),
+                "sampleKey": sample_key,
+                "dataMode": data_mode,
                 "dataStatus": "cache_available" if cache.get("available") else "cache_missing_metrics_available",
                 "dataSourcePathHint": cache.get("pathHint"),
             })
@@ -301,6 +409,7 @@ def run_local_sandbox(payload: dict[str, Any] | None = None) -> dict[str, Any]:
         "generatedLogCount": generated,
         "closedSampleCount": closed_samples,
         "dataGapCount": data_gap_count,
+        "skippedDuplicateCount": skipped_duplicates,
         "virtualCapitalPerStrategy": VIRTUAL_CAPITAL_PER_STRATEGY,
         "totalVirtualCapital": round(total_virtual_capital, 2),
         "totalVirtualEquity": round(total_virtual_equity, 2),

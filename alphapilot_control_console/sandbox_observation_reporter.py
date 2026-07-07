@@ -14,8 +14,8 @@ from .state_store import (
 )
 
 
-CONTROL_CONSOLE_VERSION = "V13.7.33"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_33"
+CONTROL_CONSOLE_VERSION = "V13.7.34"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_34"
 BEIJING_TZ = timezone(timedelta(hours=8))
 
 
@@ -67,6 +67,36 @@ def _parse_outcome_r(value: Any) -> float | None:
     return _safe_float(match.group(0), 0.0)
 
 
+def _closed_sample_identity(log: dict[str, Any]) -> str:
+    sample_key = str(log.get("sampleKey") or "").strip()
+    if sample_key:
+        return sample_key
+    legacy_parts = [
+        str(log.get("artifactId") or ""),
+        str(log.get("pair") or ""),
+        str(log.get("timeframe") or ""),
+        str(log.get("dataMode") or ""),
+        str(log.get("dataSourcePathHint") or ""),
+    ]
+    legacy_key = "|".join(legacy_parts).strip("|")
+    return legacy_key or str(log.get("logId") or log.get("createdAt") or id(log))
+
+
+def _unique_closed_outcomes(logs: list[dict[str, Any]]) -> list[tuple[dict[str, Any], float]]:
+    seen: set[str] = set()
+    values: list[tuple[dict[str, Any], float]] = []
+    for log in sorted(logs, key=lambda item: str(item.get("createdAt") or "")):
+        value = _parse_outcome_r(log.get("outcomeR") if log.get("outcomeR") is not None else log.get("outcome"))
+        if value is None:
+            continue
+        identity = _closed_sample_identity(log)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        values.append((log, value))
+    return values
+
+
 def _logs_for_task(task: dict[str, Any]) -> list[dict[str, Any]]:
     rows = task.get("recentLogs") if isinstance(task.get("recentLogs"), list) else []
     return [row for row in rows if isinstance(row, dict)]
@@ -111,13 +141,9 @@ def _build_health_row(task: dict[str, Any], date_key: str, previous: dict[str, d
     task_id = str(task.get("taskId") or "").strip()
     logs = _logs_for_task(task)
     daily_logs = [log for log in logs if _beijing_date_key(log.get("createdAt")) == date_key]
-    outcome_values = [_parse_outcome_r(log.get("outcomeR") if log.get("outcomeR") is not None else log.get("outcome")) for log in logs]
-    outcome_values = [value for value in outcome_values if value is not None]
-    daily_outcomes = [
-        _parse_outcome_r(log.get("outcomeR") if log.get("outcomeR") is not None else log.get("outcome"))
-        for log in daily_logs
-    ]
-    daily_outcomes = [value for value in daily_outcomes if value is not None]
+    unique_outcomes = _unique_closed_outcomes(logs)
+    outcome_values = [value for _, value in unique_outcomes]
+    daily_outcomes = [value for log, value in unique_outcomes if _beijing_date_key(log.get("createdAt")) == date_key]
     total_r = round(sum(outcome_values), 2)
     daily_r = round(sum(daily_outcomes), 2)
     closed_samples = len(outcome_values)

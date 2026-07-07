@@ -813,6 +813,9 @@
               <label>
                 间隔
                 <select id="sandboxAutoIntervalInput">
+                  <option value="5">每 5 分钟</option>
+                  <option value="15">每 15 分钟</option>
+                  <option value="30">每 30 分钟</option>
                   <option value="60">每 1 小时</option>
                   <option value="240">每 4 小时</option>
                   <option value="360" selected>每 6 小时</option>
@@ -822,7 +825,7 @@
               </label>
               <label>
                 每日上限
-                <input id="sandboxAutoMaxRunsInput" type="number" min="1" max="48" value="4" />
+                <input id="sandboxAutoMaxRunsInput" type="number" min="1" max="288" value="4" />
               </label>
               <button id="saveSandboxAutoRunnerButton" class="secondary" type="button">保存自动设置</button>
               <button id="runSandboxAutoOnceButton" class="secondary" type="button">立即自动跑一轮</button>

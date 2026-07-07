@@ -63,7 +63,7 @@ PAPER_OBSERVATION_LOG_LABELS = {
     "risk_warning": "风险提醒",
 }
 
-CONTROL_CONSOLE_STATE_SOURCE = "alphapilot_control_console_v13_7_33"
+CONTROL_CONSOLE_STATE_SOURCE = "alphapilot_control_console_v13_7_34"
 DEFAULT_LOCAL_SANDBOX_AUTO_RUNNER = {
     "enabled": False,
     "intervalMinutes": 360,
@@ -325,6 +325,7 @@ def save_local_sandbox_run(run: dict[str, Any]) -> dict[str, Any]:
             "generatedLogCount": run.get("generatedLogCount"),
             "closedSampleCount": run.get("closedSampleCount"),
             "dataGapCount": run.get("dataGapCount"),
+            "skippedDuplicateCount": run.get("skippedDuplicateCount"),
         },
     )
     return run
@@ -405,7 +406,7 @@ def get_local_sandbox_auto_runner_state() -> dict[str, Any]:
     runner = {**DEFAULT_LOCAL_SANDBOX_AUTO_RUNNER, **raw}
     runner["enabled"] = bool(runner.get("enabled"))
     runner["intervalMinutes"] = max(1, min(int(runner.get("intervalMinutes") or 360), 1440))
-    runner["maxRunsPerDay"] = max(1, min(int(runner.get("maxRunsPerDay") or 4), 48))
+    runner["maxRunsPerDay"] = max(1, min(int(runner.get("maxRunsPerDay") or 4), 288))
     runner["todayRunCount"] = max(0, int(runner.get("todayRunCount") or 0))
     runner["source"] = runner.get("source") or CONTROL_CONSOLE_STATE_SOURCE
     return runner
@@ -418,7 +419,7 @@ def update_local_sandbox_auto_runner_state(fields: dict[str, Any], event: dict[s
     runner = {**current, **updates, "source": CONTROL_CONSOLE_STATE_SOURCE}
     runner["enabled"] = bool(runner.get("enabled"))
     runner["intervalMinutes"] = max(1, min(int(runner.get("intervalMinutes") or 360), 1440))
-    runner["maxRunsPerDay"] = max(1, min(int(runner.get("maxRunsPerDay") or 4), 48))
+    runner["maxRunsPerDay"] = max(1, min(int(runner.get("maxRunsPerDay") or 4), 288))
     runner["todayRunCount"] = max(0, int(runner.get("todayRunCount") or 0))
     state["localSandboxAutoRunner"] = runner
     if isinstance(event, dict):

@@ -16,8 +16,8 @@ from .state_store import (
     write_mobile_status,
 )
 
-CONTROL_CONSOLE_VERSION = "V13.7.33"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_33"
+CONTROL_CONSOLE_VERSION = "V13.7.34"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_34"
 BEIJING_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 FORWARD_VALIDATION_REVIEW_DATE = date(2026, 7, 10)
 FORWARD_VALIDATION_REVIEW_LABEL = "2026年7月10日（北京时间）"
@@ -214,6 +214,33 @@ def _logs_for_task_pack(logs_by_artifact: dict[str, Any], task_id: str, limit: i
     return logs[:limit]
 
 
+def _closed_sample_identity(log: dict[str, Any]) -> str:
+    sample_key = str(log.get("sampleKey") or "").strip()
+    if sample_key:
+        return sample_key
+    legacy_parts = [
+        str(log.get("artifactId") or ""),
+        str(log.get("pair") or ""),
+        str(log.get("timeframe") or ""),
+        str(log.get("dataMode") or ""),
+        str(log.get("dataSourcePathHint") or ""),
+    ]
+    legacy_key = "|".join(legacy_parts).strip("|")
+    return legacy_key or str(log.get("logId") or log.get("createdAt") or id(log))
+
+
+def _closed_sample_count(logs: list[dict[str, Any]]) -> int:
+    seen: set[str] = set()
+    for log in logs:
+        if not isinstance(log, dict):
+            continue
+        has_outcome = log.get("outcomeR") is not None or bool(str(log.get("outcome") or "").strip())
+        if not has_outcome:
+            continue
+        seen.add(_closed_sample_identity(log))
+    return len(seen)
+
+
 def _parse_iso_datetime(value: Any) -> datetime | None:
     if not value:
         return None
@@ -292,7 +319,7 @@ def _build_task_observation_quality(task: dict[str, Any], logs: list[dict[str, A
         "logCount": len(logs),
         "ruleMatchedCount": sum(1 for log in logs if log.get("ruleMatched") or log.get("logType") == "rule_matched"),
         "signalObservedCount": sum(1 for log in logs if log.get("signalObserved")),
-        "closedPaperSampleCount": sum(1 for log in logs if str(log.get("outcome") or "").strip()),
+        "closedPaperSampleCount": _closed_sample_count(logs),
         "riskWarningCount": sum(1 for log in logs if log.get("logType") == "risk_warning"),
         "invalidatedCount": sum(1 for log in logs if log.get("logType") == "invalidated"),
         "missedCount": sum(1 for log in logs if log.get("logType") == "missed"),
@@ -363,7 +390,7 @@ def _apply_task_pack_logs(task_pack: dict[str, Any] | None, state: dict[str, Any
         total_logs += len(logs)
         rule_count = sum(1 for log in logs if log.get("ruleMatched") or log.get("logType") == "rule_matched")
         signal_count = sum(1 for log in logs if log.get("signalObserved"))
-        closed_count = sum(1 for log in logs if str(log.get("outcome") or "").strip())
+        closed_count = _closed_sample_count(logs)
         rule_matched += rule_count
         signal_observed += signal_count
         closed_samples += closed_count

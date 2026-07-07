@@ -5,8 +5,8 @@ from typing import Any
 from .state_store import now_iso, save_local_sandbox_learning_snapshot
 
 
-CONTROL_CONSOLE_VERSION = "V13.7.33"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_33"
+CONTROL_CONSOLE_VERSION = "V13.7.34"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_34"
 MIN_BASELINE_MODEL_SAMPLES = 100
 
 

@@ -70,7 +70,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
             "strategyId": item.get("strategyId"),
             "title": item.get("title") or item.get("candidateId") or task_id,
             "displayName": item.get("title") or item.get("candidateId") or task_id,
-            "version": item.get("version") or learning.get("version") or "V13.7.33",
+            "version": item.get("version") or learning.get("version") or "V13.7.34",
             "sourceFile": item.get("sourceReport"),
             "readinessTier": item.get("status") or "planned_paper_observation",
             "metrics": item.get("historicalMetrics") if isinstance(item.get("historicalMetrics"), dict) else {},
@@ -79,7 +79,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.7.33"
+    server_version = "AlphaPilotControlConsole/13.7.34"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -120,8 +120,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.7.33",
-                "source": "alphapilot_control_console_v13_7_33",
+                "version": "V13.7.34",
+                "source": "alphapilot_control_console_v13_7_34",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return

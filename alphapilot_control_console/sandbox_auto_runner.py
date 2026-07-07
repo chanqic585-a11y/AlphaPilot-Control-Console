@@ -19,8 +19,8 @@ from .state_store import (
 )
 
 
-CONTROL_CONSOLE_VERSION = "V13.7.33"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_33"
+CONTROL_CONSOLE_VERSION = "V13.7.34"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_34"
 BEIJING_TZ = timezone(timedelta(hours=8))
 
 
@@ -102,7 +102,7 @@ class LocalSandboxAutoRunner:
         except (TypeError, ValueError):
             max_runs_per_day = 4
         interval_minutes = max(1, min(interval_minutes, 1440))
-        max_runs_per_day = max(1, min(max_runs_per_day, 48))
+        max_runs_per_day = max(1, min(max_runs_per_day, 288))
         now = datetime.now(timezone.utc)
         today_key = _beijing_date_key(now)
         today_run_count = int(current.get("todayRunCount") or 0)
@@ -174,6 +174,7 @@ class LocalSandboxAutoRunner:
                         "learningSnapshotId": learning.get("snapshotId"),
                         "generatedLogCount": run.get("generatedLogCount"),
                         "closedSampleCount": run.get("closedSampleCount"),
+                        "skippedDuplicateCount": run.get("skippedDuplicateCount"),
                     },
                 )
                 return {
