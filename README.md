@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.37 - Short Cycle Candidate Pool
+AlphaPilot V13.7.39 - Strategy Promotion Gate
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,30 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.7.39 Adds
+
+- Adds a local Strategy Promotion Gate to separate strategy assets into:
+  - survivors
+  - lightweight watchlist
+  - needs-evidence candidates
+  - archived or rejected candidates
+  - negative samples
+- Adds `GET /api/strategy-promotion-gate`.
+- Reads the V13.7.38 Top50 short-cycle backtest report when available and
+  turns failed expanded-backtest candidates into negative samples instead of
+  letting them keep occupying forward-review attention.
+- Keeps the July 10 forward-review blockers visible: real manual forward logs
+  and manual closed samples are still required before any manual-review ticket
+  can become meaningful.
+- Shows the promotion gate in the desktop console so failed short-cycle
+  candidates are visibly separated from surviving low-frequency or factor
+  candidates.
+
+V13.7.39 does not modify strategy code, run exchange Dry-run, connect API keys,
+read accounts or positions, create orders, enable paper execution, enable live
+trading, or enable automatic trading. The gate is a read-only research triage
+layer.
 
 ## What V13.7.37 Adds
 

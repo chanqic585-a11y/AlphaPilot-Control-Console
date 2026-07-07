@@ -488,6 +488,50 @@
             <div id="shortCycleSafety" class="short-cycle-safety">短周期候选池只做研究排序，不是交易信号，不创建订单。</div>
             <div id="shortCycleCandidateList" class="short-cycle-list"></div>
           </div>
+          <div class="promotion-gate-card">
+            <div class="forward-validation-head">
+              <div>
+                <p class="panel-eyebrow">PROMOTION GATE</p>
+                <h3>策略晋级闸门</h3>
+                <p>把策略自动分成幸存者、轻量观察、需要补证据、归档和负样本；失败策略不再占用前向复核资源。</p>
+              </div>
+              <span id="promotionGateSummaryBadge" class="badge warn">等待闸门</span>
+            </div>
+            <div class="metric-grid compact">
+              <div class="metric-cell">
+                <span>幸存者</span>
+                <strong id="promotionSurvivors">--</strong>
+              </div>
+              <div class="metric-cell">
+                <span>轻量观察</span>
+                <strong id="promotionWatchlist">--</strong>
+              </div>
+              <div class="metric-cell">
+                <span>需要补证据</span>
+                <strong id="promotionNeedsWork">--</strong>
+              </div>
+              <div class="metric-cell">
+                <span>负样本</span>
+                <strong id="promotionNegative">--</strong>
+              </div>
+            </div>
+            <div id="promotionGateSafety" class="promotion-gate-safety">策略晋级闸门只做本地研究分桶，不是交易信号，不创建订单。</div>
+            <div id="promotionGateNextAction" class="promotion-gate-action">等待策略晋级数据。</div>
+            <div class="promotion-gate-columns">
+              <div>
+                <h4>幸存者 / 继续观察</h4>
+                <div id="promotionSurvivorList" class="promotion-gate-list"></div>
+              </div>
+              <div>
+                <h4>负样本 / 停止前向</h4>
+                <div id="promotionNegativeList" class="promotion-gate-list"></div>
+              </div>
+            </div>
+            <details class="promotion-gate-details">
+              <summary>需要补证据和归档策略</summary>
+              <div id="promotionNeedsWorkList" class="promotion-gate-list"></div>
+            </details>
+          </div>
           <div class="research-task-card">
             <div class="forward-validation-head">
               <div>

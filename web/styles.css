@@ -2323,6 +2323,108 @@ code {
   color: var(--gold);
 }
 
+.promotion-gate-card {
+  border: 1px solid rgba(255, 209, 61, 0.22);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(255, 209, 61, 0.045), rgba(11, 17, 23, 0.96));
+  box-shadow: var(--inner);
+  padding: 16px;
+}
+
+.promotion-gate-safety {
+  border-left: 3px solid var(--gold);
+  border-radius: 8px;
+  background: rgba(255, 209, 102, 0.10);
+  color: var(--text);
+  font-weight: 800;
+  line-height: 1.55;
+  margin: 12px 0;
+  padding: 10px 12px;
+}
+
+.promotion-gate-action {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(5, 12, 20, 0.78);
+  margin-bottom: 12px;
+  padding: 10px 12px;
+}
+
+.promotion-gate-action strong {
+  color: var(--text);
+}
+
+.promotion-gate-action span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.promotion-gate-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.promotion-gate-columns h4,
+.promotion-gate-details summary {
+  margin: 0 0 8px;
+  color: var(--text);
+}
+
+.promotion-gate-list {
+  display: grid;
+  gap: 10px;
+}
+
+.promotion-gate-row,
+.promotion-gate-empty {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(5, 12, 20, 0.78);
+  padding: 12px;
+}
+
+.promotion-gate-row.ok {
+  border-color: rgba(40, 225, 164, 0.28);
+  background: rgba(9, 54, 43, 0.44);
+}
+
+.promotion-gate-row.danger {
+  border-color: rgba(255, 74, 122, 0.32);
+  background: rgba(62, 16, 31, 0.42);
+}
+
+.promotion-gate-row-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.promotion-gate-row-head strong,
+.promotion-gate-row-head small {
+  display: block;
+}
+
+.promotion-gate-row-head small,
+.promotion-gate-empty {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.promotion-gate-details {
+  margin-top: 14px;
+}
+
+.promotion-gate-details summary {
+  cursor: pointer;
+}
+
 .forward-review-action {
   border-left: 3px solid var(--gold);
   border-radius: 8px;
@@ -2529,6 +2631,8 @@ code {
     .artifact-review-actions,
     .candidate-queue-row,
     .research-task-columns,
+    .promotion-gate-columns,
+    .promotion-gate-row-head,
     .paper-task-actions,
     .paper-log-actions,
     .task-pack-log-form,

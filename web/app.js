@@ -1797,6 +1797,78 @@ function renderShortCycleCandidatePool(poolPayload) {
   }).join("") || '<div class="item">暂无短周期候选。请先导入策略资产。</div>';
 }
 
+function promotionGateBadge(item) {
+  const tone = item?.tone || "neutral";
+  let kind = "warn";
+  if (tone === "ok") kind = "ok";
+  if (tone === "danger") kind = "danger";
+  if (tone === "neutral") kind = "neutral";
+  return `<span class="badge ${kind}">${escapeHtml(item?.gateLabel || item?.bucketLabel || "--")}</span>`;
+}
+
+function renderPromotionRows(rows, emptyText, limit = 5) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  return safeRows.slice(0, limit).map((item) => {
+    const reasons = Array.isArray(item.reasons) ? item.reasons : [];
+    const warnings = Array.isArray(item.warnings) ? item.warnings : [];
+    const checks = Array.isArray(item.passedChecks) ? item.passedChecks : [];
+    return `
+      <div class="promotion-gate-row ${escapeHtml(item.tone || "neutral")}">
+        <div class="promotion-gate-row-head">
+          <div>
+            <strong>${escapeHtml(item.title || item.strategy || item.strategyId || "--")}</strong>
+            <small>${escapeHtml(item.strategyId || item.strategy || item.sourceFile || item.version || "--")}</small>
+          </div>
+          ${promotionGateBadge(item)}
+        </div>
+        <div class="artifact-metrics">
+          <span>样本 ${item.sampleCount ?? "--"}</span>
+          <span>胜率 ${formatPercent(item.winRatePct)}</span>
+          <span>PF ${formatNumber(item.profitFactor)}</span>
+          <span>RR ${formatNumber(item.rewardRiskRatio)}</span>
+          <span>收益 ${formatPercent(item.totalReturnPct)}</span>
+          <span>回撤 ${formatPercent(item.maxDrawdownPct)}</span>
+        </div>
+        <div class="artifact-note">
+          下一步：${escapeHtml(item.nextAction || "继续人工复核。")}
+          ${reasons.length ? `<br />原因：${reasons.slice(0, 3).map(escapeHtml).join(" / ")}` : ""}
+          ${warnings.length ? `<br />提醒：${warnings.slice(0, 2).map(escapeHtml).join(" / ")}` : ""}
+          ${checks.length ? `<br />通过：${checks.slice(0, 2).map(escapeHtml).join(" / ")}` : ""}
+        </div>
+      </div>
+    `;
+  }).join("") || `<div class="promotion-gate-empty">${escapeHtml(emptyText)}</div>`;
+}
+
+function renderStrategyPromotionGate(payload) {
+  const summary = payload?.summary || {};
+  const buckets = payload?.buckets || {};
+  if (!el("promotionGateSummaryBadge")) return;
+  el("promotionGateSummaryBadge").textContent = `幸存 ${formatNumber(summary.survivorCount, 0)} · 负样本 ${formatNumber(summary.negativeSampleCount, 0)}`;
+  el("promotionSurvivors").textContent = formatNumber(summary.survivorCount, 0);
+  el("promotionWatchlist").textContent = formatNumber(summary.watchlistCount, 0);
+  el("promotionNeedsWork").textContent = formatNumber(summary.needsWorkCount, 0);
+  el("promotionNegative").textContent = formatNumber(summary.negativeSampleCount, 0);
+  const notes = Array.isArray(payload?.safetyNotes) ? payload.safetyNotes : [];
+  el("promotionGateSafety").textContent = notes[0] || "策略晋级闸门只做本地研究分桶，不是交易信号，不创建订单。";
+  const blockers = Array.isArray(summary.promotionBlockers) ? summary.promotionBlockers : [];
+  el("promotionGateNextAction").innerHTML = `
+    <strong>${escapeHtml(summary.nextAction || "等待策略晋级数据。")}</strong>
+    ${blockers.length ? `<span>阻塞：${blockers.map(escapeHtml).join(" / ")}</span>` : "<span>没有发现可执行权限，当前仍是研究控制台。</span>"}
+  `;
+  const survivorRows = [
+    ...(Array.isArray(buckets.survivors) ? buckets.survivors : []),
+    ...(Array.isArray(buckets.watchlist) ? buckets.watchlist : []),
+  ];
+  const needsRows = [
+    ...(Array.isArray(buckets.needsWork) ? buckets.needsWork : []),
+    ...(Array.isArray(buckets.archived) ? buckets.archived : []),
+  ];
+  el("promotionSurvivorList").innerHTML = renderPromotionRows(survivorRows, "暂无幸存者。先做策略换代和补证据。", 6);
+  el("promotionNegativeList").innerHTML = renderPromotionRows(buckets.negativeSamples, "暂无负样本报告。", 6);
+  el("promotionNeedsWorkList").innerHTML = renderPromotionRows(needsRows, "暂无需要补证据的策略。", 10);
+}
+
 function researchTaskBadge(taskType) {
   const labels = {
     forward_observation: "前向观察",
@@ -2548,7 +2620,7 @@ function renderAudit(events) {
 }
 
 async function refreshAll() {
-  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, shortCycleCandidates, researchTaskBoard, strategyLearningLoop, sandboxDailyReport, sandboxAutoRunner, liveReadiness, forwardReview] = await Promise.all([
+  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, shortCycleCandidates, strategyPromotionGate, researchTaskBoard, strategyLearningLoop, sandboxDailyReport, sandboxAutoRunner, liveReadiness, forwardReview] = await Promise.all([
     getJson("/api/strategies"),
     getJson("/api/reports"),
     getJson("/api/mobile/status"),
@@ -2560,6 +2632,7 @@ async function refreshAll() {
     getJson("/api/paper-observation-tasks"),
     getJson("/api/candidate-queue"),
     getJson("/api/short-cycle-candidates"),
+    getJson("/api/strategy-promotion-gate"),
     getJson("/api/research-task-board"),
     getJson("/api/strategy-learning-loop"),
     getJson("/api/local-sandbox/daily-report?limit=10"),
@@ -2580,6 +2653,7 @@ async function refreshAll() {
   renderStrategyArtifacts(artifacts);
   renderCandidateQueue(candidateQueue);
   renderShortCycleCandidatePool(shortCycleCandidates);
+  renderStrategyPromotionGate(strategyPromotionGate);
   renderResearchTaskBoard(researchTaskBoard);
   renderStrategyLearningLoop(strategyLearningLoop);
   renderSandboxDailyReport(sandboxDailyReport);

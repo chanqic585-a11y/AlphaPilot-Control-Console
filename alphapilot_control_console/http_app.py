@@ -23,6 +23,7 @@ from .sandbox_auto_runner import (
 )
 from .sandbox_observation_reporter import build_local_sandbox_daily_report
 from .short_cycle_candidates import build_short_cycle_candidate_pool
+from .strategy_promotion_gate import build_strategy_promotion_gate
 from .strategy_slots import list_strategy_slots
 from .state_store import (
     ALLOWED_ARTIFACT_REVIEW_STATUSES,
@@ -83,7 +84,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.7.37"
+    server_version = "AlphaPilotControlConsole/13.7.39"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -124,8 +125,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.7.37",
-                "source": "alphapilot_control_console_v13_7_37",
+                "version": "V13.7.39",
+                "source": "alphapilot_control_console_v13_7_39",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -200,6 +201,10 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/short-cycle-candidates":
             payload = scan_quant_engine()
             self._send_json(build_short_cycle_candidate_pool(payload))
+            return
+        if path == "/api/strategy-promotion-gate":
+            payload = scan_quant_engine()
+            self._send_json(build_strategy_promotion_gate(payload))
             return
         if path == "/api/research-task-board":
             payload = scan_quant_engine()
