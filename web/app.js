@@ -264,6 +264,139 @@ function getSignalCount(strategy) {
   return strategy?.selectedSignalCount ?? metrics.filledSignalCount ?? metrics.tradeCount ?? null;
 }
 
+function setList(elementId, items) {
+  const target = el(elementId);
+  if (!target) return;
+  target.innerHTML = (items || [])
+    .filter(Boolean)
+    .map((item) => `<li>${escapeHtml(item)}</li>`)
+    .join("") || "<li>等待本地报告导入。</li>";
+}
+
+function getLearningLoopPayload(loopPayload) {
+  return loopPayload?.strategyLearningLoop || loopPayload || {};
+}
+
+function getObservationTasksFromLoop(loopPayload) {
+  const payload = getLearningLoopPayload(loopPayload);
+  const pack = payload.paperObservationTaskPack || {};
+  return Array.isArray(pack.paperObservationTasks) ? pack.paperObservationTasks : [];
+}
+
+function pickPrimaryObservationTask(loopPayload) {
+  const tasks = getObservationTasksFromLoop(loopPayload);
+  return tasks.find((task) => task.rank === 1) || tasks[0] || null;
+}
+
+function getStrategyPlainTemplate(task) {
+  const title = task?.title || "";
+  if (title.includes("横盘超卖修复")) {
+    return {
+      name: "横盘超卖修复策略",
+      what: "等待日线横盘后的过度下跌修复，不追涨，只记录修复样本。",
+      when: "适合震荡或修复状态；重点观察 RSI/波动率修复后是否能走出 2R。",
+    };
+  }
+  if (title.includes("趋势低波突破")) {
+    return {
+      name: "趋势低波突破策略",
+      what: "等待趋势中波动收缩后的突破延续，用低波动过滤假突破。",
+      when: "适合趋势已经存在、波动暂时收敛、再度放量突破的环境。",
+    };
+  }
+  if (title.includes("广谱低波突破")) {
+    return {
+      name: "广谱低波突破策略",
+      what: "在更多币种里寻找低波动突破样本，先看覆盖面，再看稳定性。",
+      when: "适合做资产池筛选，不适合直接当作单币种执行指令。",
+    };
+  }
+  if (title.includes("趋势突破确认")) {
+    return {
+      name: "趋势突破确认策略",
+      what: "等待日线趋势突破后再次确认，只观察趋势延续是否能达到固定 2R。",
+      when: "适合 BTC 处于 bull/recovery 且主流币趋势结构较清楚的阶段。",
+    };
+  }
+  return {
+    name: title || "策略说明书",
+    what: "读取本地策略研究报告，按纸面观察标准记录信号和结果。",
+    when: "适合继续收集样本，不代表交易建议。",
+  };
+}
+
+function renderStrategyPlaybook(strategies, mobile, loopPayload) {
+  const task = pickPrimaryObservationTask(loopPayload);
+  const primary = task || pickPrimaryStrategy(strategies);
+  const template = getStrategyPlainTemplate(primary);
+  const metrics = primary?.historicalMetrics || primary?.metrics || {};
+  const observation = primary?.observationPlan || {};
+  const quality = primary?.observationQuality || {};
+  const recommendedPairs = Array.isArray(primary?.recommendedPairs) ? primary.recommendedPairs : [];
+  const weakPoints = Array.isArray(primary?.weakPoints) ? primary.weakPoints : [];
+  const blockedActions = Array.isArray(primary?.blockedActions) ? primary.blockedActions : [];
+  const btcRegimes = Array.isArray(primary?.btcRegimes) ? primary.btcRegimes : [];
+  const targetClosedSamples = observation.targetClosedSamples ?? quality.targetClosedSamples ?? primary?.targetClosedSamples;
+  const minRuleMatches = observation.minimumRuleMatchedSignals ?? quality.minimumRuleMatchedSignals;
+
+  if (!primary) {
+    el("strategyPlainName").textContent = "策略说明书";
+    el("strategyPlainPurpose").textContent = "等待本地策略报告导入后显示。";
+    el("strategyPlainStage").className = "badge warn";
+    el("strategyPlainStage").textContent = "等待导入";
+    el("heroStrategyName").textContent = "等待导入策略报告";
+    el("heroStrategyOneLine").textContent = "打开后先看这里：它会用一句话说明策略在等什么行情。";
+    el("heroStrategyGate").textContent = "交易执行能力关闭";
+    el("strategyPlainWhat").textContent = "--";
+    el("strategyPlainWhen").textContent = "--";
+    el("strategyPlainPairs").textContent = "--";
+    el("strategyPlainEvidence").textContent = "--";
+    setList("strategyPlainChecklist", []);
+    setList("strategyPlainGate", []);
+    setList("strategyPlainNext", []);
+    return;
+  }
+
+  el("strategyPlainName").textContent = `${template.name} · ${primary.title || primary.strategyId || "--"}`;
+  el("strategyPlainPurpose").textContent = "把策略编号翻译成可读规则：先说明它等待什么行情，再说明现在为什么只能纸面观察。";
+  el("strategyPlainStage").className = `badge ${quality.qualityTone === "ok" ? "ok" : "warn"}`;
+  el("strategyPlainStage").textContent = quality.qualityLabelCn || tStatus(primary.status) || "纸面观察";
+  el("heroStrategyName").textContent = `${template.name} · ${primary.timeframe || "--"}`;
+  el("heroStrategyOneLine").textContent = template.what;
+  el("heroStrategyGate").textContent = quality.nextAction || "只做纸面观察，不执行交易";
+  el("strategyPlainWhat").textContent = template.what;
+  el("strategyPlainWhen").textContent = template.when;
+  el("strategyPlainPairs").textContent = recommendedPairs.length
+    ? recommendedPairs.slice(0, 6).map((pair) => pair.pair).join(" / ")
+    : "--";
+  el("strategyPlainEvidence").textContent = [
+    `样本 ${metrics.tradeCount ?? "--"}`,
+    `胜率 ${formatPercent(metrics.winRatePct)}`,
+    `PF ${formatNumber(metrics.profitFactor)}`,
+    `最大回撤 ${formatPercent(metrics.maxDrawdownPct)}`,
+  ].join(" · ");
+
+  setList("strategyPlainChecklist", [
+    `周期：${primary.timeframe || "--"}；策略家族：${primary.family || "未标注"}`,
+    `目标盈亏比：${formatNumber(primary.targetRewardRiskRatio || primary.targetRMultiple || 2, 1)}R，不降低 2R 目标`,
+    btcRegimes.length ? `优先 BTC 状态：${btcRegimes.join(" / ")}` : "BTC 状态需要继续记录",
+    recommendedPairs.length ? `优先观察前 ${Math.min(6, recommendedPairs.length)} 个本地表现较好的币种` : "等待推荐观察币种",
+  ]);
+  setList("strategyPlainGate", [
+    "当前只允许本地纸面观察，不允许下单或自动执行。",
+    targetClosedSamples ? `至少需要 ${targetClosedSamples} 个闭合纸面样本。` : "需要补足闭合纸面样本。",
+    minRuleMatches ? `至少需要 ${minRuleMatches} 次规则匹配记录。` : "需要补足规则匹配记录。",
+    weakPoints.length ? `已知弱点：${weakPoints[0]}` : "还需要继续检查弱点和失效条件。",
+    blockedActions.length ? `已锁定：${blockedActions.join(" / ")}` : "交易执行能力保持关闭。",
+  ]);
+  setList("strategyPlainNext", [
+    quality.nextAction || "每天记录无信号日、看到信号、规则匹配和失效原因。",
+    "记录 pair、timeframe、BTC 状态、入场上下文、纸面结果 R 和风险备注。",
+    "优先记录失败样本和失效原因，不为了胜率跳过坏样本。",
+    "只有样本、风险复核和前向表现都合格后，才讨论下一阶段。",
+  ]);
+}
+
 function renderCommandCenter(strategies, reports, mobile) {
   const primary = pickPrimaryStrategy(strategies);
   const metrics = getMetrics(primary);
@@ -1402,6 +1535,7 @@ async function refreshAll() {
   renderCandidateQueue(candidateQueue);
   renderResearchTaskBoard(researchTaskBoard);
   renderStrategyLearningLoop(strategyLearningLoop);
+  renderStrategyPlaybook(strategyItems, mobile, strategyLearningLoop);
   renderForwardValidation(mobile.forwardValidation);
   renderPaperObservationTasks(paperTasks);
   renderMobileConnectionInfo(connection);

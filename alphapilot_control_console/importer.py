@@ -16,8 +16,8 @@ from .state_store import (
     write_mobile_status,
 )
 
-CONTROL_CONSOLE_VERSION = "V13.7.23"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_23"
+CONTROL_CONSOLE_VERSION = "V13.7.24"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_24"
 BEIJING_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 FORWARD_VALIDATION_REVIEW_DATE = date(2026, 7, 10)
 FORWARD_VALIDATION_REVIEW_LABEL = "2026年7月10日（北京时间）"

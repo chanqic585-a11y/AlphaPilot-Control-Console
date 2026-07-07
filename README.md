@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.23 - Paper Observation Quality Panel
+AlphaPilot V13.7.24 - Cockpit Clarity and Strategy Playbook
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,17 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.7.24 Adds
+
+- Reduces the main cockpit from a dense one-screen matrix into a conclusion-first dashboard.
+- Adds a Strategy Playbook panel that translates strategy IDs into readable Chinese strategy explanations.
+- Explains what the current strategy waits for, which conditions matter, why execution remains blocked, and what paper-observation logs should be collected next.
+- Keeps strategy, signal, simulated position, backtest evidence, and mobile bridge in one local console, but separates summary, explanation, and evidence layers.
+- Keeps all trading execution abilities disabled.
+
+V13.7.24 does not add API key input, private exchange access, account access,
+position access, order creation, exchange Dry-run, live trading, or automation.
 
 ## What V13.7.23 Adds
 

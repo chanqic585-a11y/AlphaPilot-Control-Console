@@ -59,7 +59,7 @@
           <div>
             <p class="kicker">QUANT CONTROL TERMINAL</p>
             <h1>AlphaPilot 量化控制台</h1>
-            <p class="subtitle">把策略、信号、模拟持仓、回测结果和手机连接放在一张本地总控台里。</p>
+            <p class="subtitle">总控台先给结论，再分层展开策略逻辑、信号样本、纸面观察和回测证据。</p>
           </div>
           <div class="top-status">
             <span class="status-pill location" id="currentSectionLabel">当前：驾驶舱</span>
@@ -115,6 +115,12 @@
                 <strong>0</strong>
               </div>
             </div>
+            <div class="hero-strategy-focus">
+              <span>当前主策略</span>
+              <strong id="heroStrategyName">等待导入策略报告</strong>
+              <small id="heroStrategyOneLine">打开后先看这里：它会用一句话说明策略在等什么行情。</small>
+              <em id="heroStrategyGate">交易执行能力关闭</em>
+            </div>
           </div>
 
           <div class="hero-panel market-panel">
@@ -137,9 +143,9 @@
         <section id="command" class="panel command-panel">
           <div class="section-header">
             <div>
-              <p class="panel-eyebrow">ONE SCREEN MATRIX</p>
-              <h2>策略 / 信号 / 模拟持仓 / 回测结果</h2>
-              <p>策略、信号、模拟持仓和回测指标集中在这里；所有交易执行能力保持关闭。</p>
+              <p class="panel-eyebrow">COCKPIT SUMMARY</p>
+              <h2>本地驾驶舱：先看结论，再看证据</h2>
+              <p>这里只保留最关键的运行摘要；策略逻辑、观察任务、回测证据和手机连接在下方分层展开，避免一屏信息互相打架。</p>
             </div>
             <div class="actions">
               <button id="refreshButton" type="button">刷新状态</button>
@@ -204,6 +210,49 @@
             <div class="metric-cell">
               <span>运行状态</span>
               <strong id="metricReadiness">--</strong>
+            </div>
+          </div>
+          <div class="strategy-clarity-panel">
+            <div class="strategy-clarity-head">
+              <div>
+                <p class="panel-eyebrow">STRATEGY PLAYBOOK</p>
+                <h3 id="strategyPlainName">策略说明书</h3>
+                <p id="strategyPlainPurpose">等待本地策略报告导入后显示。</p>
+              </div>
+              <span id="strategyPlainStage" class="badge warn">等待导入</span>
+            </div>
+            <div class="strategy-clarity-grid">
+              <div class="clarity-card primary">
+                <span>这条策略在做什么</span>
+                <strong id="strategyPlainWhat">--</strong>
+                <small id="strategyPlainWhen">--</small>
+              </div>
+              <div class="clarity-card">
+                <span>它主要看哪些条件</span>
+                <ul id="strategyPlainChecklist"></ul>
+              </div>
+              <div class="clarity-card">
+                <span>当前为什么还不能执行</span>
+                <ul id="strategyPlainGate"></ul>
+              </div>
+              <div class="clarity-card">
+                <span>下一步该记录什么</span>
+                <ul id="strategyPlainNext"></ul>
+              </div>
+            </div>
+            <div class="strategy-clarity-evidence">
+              <div>
+                <span>推荐观察资产</span>
+                <strong id="strategyPlainPairs">--</strong>
+              </div>
+              <div>
+                <span>回测证据</span>
+                <strong id="strategyPlainEvidence">--</strong>
+              </div>
+              <div>
+                <span>手机端角色</span>
+                <strong>只读控制台，不下单</strong>
+              </div>
             </div>
           </div>
         </section>
