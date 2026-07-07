@@ -82,6 +82,15 @@ button.secondary {
   border-color: #3c4651;
 }
 
+button.is-running {
+  background: rgba(24, 211, 166, 0.16);
+  color: var(--green);
+  border-color: rgba(24, 211, 166, 0.55);
+  box-shadow:
+    0 0 0 1px rgba(24, 211, 166, 0.18),
+    0 0 18px rgba(24, 211, 166, 0.12);
+}
+
 button:disabled {
   opacity: 0.55;
   cursor: not-allowed;

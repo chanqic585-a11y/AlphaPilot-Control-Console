@@ -647,13 +647,39 @@ function renderSandboxSimulationLane(observationTasks, qualityRows) {
   }).join("") || '<div class="sandbox-lane-empty">暂无可运行的本地沙盒策略。</div>';
 }
 
+function updateLocalSandboxRunButton(enabled, runnerStatus = "") {
+  const button = el("runLocalSandboxButton");
+  if (!button) return;
+  button.classList.toggle("is-running", Boolean(enabled));
+  button.dataset.running = enabled ? "true" : "false";
+  button.textContent = enabled ? "沙盒运行中 · 点击停止" : "运行本地沙盒";
+  button.title = enabled
+    ? `本地沙盒正在持续观察，当前状态：${runnerStatus || "waiting"}。点击后停止自动观察。`
+    : "点击后开启本地沙盒持续观察，并立即运行一轮。";
+}
+
 async function runLocalSandboxNow() {
   const button = el("runLocalSandboxButton");
   const status = el("learningSandboxRunStatus");
   if (!button || !status) return;
+  const isRunning = button.dataset.running === "true" || Boolean(el("sandboxAutoEnabledInput")?.checked);
   button.disabled = true;
-  status.textContent = "正在开启 5 分钟本地沙盒持续观察，并立即运行一轮...";
   try {
+    if (isRunning) {
+      status.textContent = "正在停止本地沙盒持续观察...";
+      await postJson("/api/local-sandbox/auto-runner", {
+        enabled: false,
+        intervalMinutes: Number(el("sandboxAutoIntervalInput")?.value || 5),
+        maxRunsPerDay: Number(el("sandboxAutoMaxRunsInput")?.value || 288),
+      });
+      if (el("sandboxAutoEnabledInput")) el("sandboxAutoEnabledInput").checked = false;
+      updateLocalSandboxRunButton(false, "disabled");
+      await refreshAll();
+      status.textContent = "已停止本地沙盒持续观察。再次点击按钮会重新开启并立即运行一轮。";
+      return;
+    }
+
+    status.textContent = "正在开启 5 分钟本地沙盒持续观察，并立即运行一轮...";
     await postJson("/api/local-sandbox/auto-runner", {
       enabled: true,
       intervalMinutes: 5,
@@ -662,13 +688,14 @@ async function runLocalSandboxNow() {
     if (el("sandboxAutoEnabledInput")) el("sandboxAutoEnabledInput").checked = true;
     if (el("sandboxAutoIntervalInput")) el("sandboxAutoIntervalInput").value = "5";
     if (el("sandboxAutoMaxRunsInput")) el("sandboxAutoMaxRunsInput").value = "288";
+    updateLocalSandboxRunButton(true, "running");
     const response = await postJson("/api/local-sandbox/auto-runner/run-now", {});
     const run = response.localSandboxRun || {};
     await refreshAll();
     status.textContent =
       `已开启持续观察：每 5 分钟检查一次。本次新增 ${run.generatedLogCount ?? 0} 条观察，闭合 ${run.closedSampleCount ?? 0} 个样本，跳过重复 ${run.skippedDuplicateCount ?? 0} 个，数据缺口 ${run.dataGapCount ?? 0}。`;
   } catch (error) {
-    status.textContent = `本地沙盒运行失败：${error.message}`;
+    status.textContent = `本地沙盒操作失败：${error.message}`;
   } finally {
     button.disabled = false;
   }
@@ -750,6 +777,7 @@ function renderSandboxAutoRunner(payload) {
     : "未开启";
   el("learningSandboxAutoStatus").textContent = statusText;
   el("learningSandboxAutoStatus").className = `status-pill ${enabled ? "ok" : "warn"}`;
+  updateLocalSandboxRunButton(enabled, runner.status || "");
   el("learningSandboxAutoEnabled").textContent = enabled ? "开启" : "关闭";
   el("learningSandboxAutoInterval").textContent = `${runner.intervalMinutes ?? "--"} 分钟`;
   el("learningSandboxAutoToday").textContent = `${runner.todayRunCount ?? 0}/${runner.maxRunsPerDay ?? "--"}`;
