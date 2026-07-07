@@ -988,10 +988,14 @@ function renderStrategyLearningLoop(loopPayload) {
   const refactorReport = payload.refactorCandidates || {};
   const experimentReport = payload.experimentSpecs || {};
   const rereviewReport = payload.paperReReview || {};
+  const observationTaskPack = payload.paperObservationTaskPack || {};
   const graveyard = Array.isArray(learningLoop.strategyGraveyard) ? learningLoop.strategyGraveyard : [];
   const refactors = Array.isArray(refactorReport.refactorCandidates) ? refactorReport.refactorCandidates : [];
   const experiments = Array.isArray(experimentReport.experimentSpecs) ? experimentReport.experimentSpecs : [];
   const reviews = Array.isArray(rereviewReport.paperObservationReviews) ? rereviewReport.paperObservationReviews : [];
+  const observationTasks = Array.isArray(observationTaskPack.paperObservationTasks)
+    ? observationTaskPack.paperObservationTasks
+    : [];
 
   el("learningItemCount").textContent = String(summary.learningItemCount ?? "--");
   el("learningGraveyardCount").textContent = String(summary.graveyardCount ?? graveyard.length);
@@ -1003,6 +1007,8 @@ function renderStrategyLearningLoop(loopPayload) {
   el("learningBacktestPf").textContent = formatNumber(summary.deterministicBacktestProfitFactor);
   el("learningFiveStrategyApproved").textContent = String(summary.fiveStrategyApprovedCount ?? "--");
   el("learningFiveStrategyTarget").textContent = String(summary.fiveStrategyTargetApprovedCount ?? "--");
+  el("learningObservationTaskPack").textContent = String(summary.observationTaskPackCount ?? observationTasks.length ?? "--");
+  el("learningObservationTargetSamples").textContent = String(summary.observationTaskTargetClosedSamplesTotal ?? "--");
   el("learningDryRun").textContent = summary.dryRunApproved ? "异常：开启" : "关闭";
   el("learningLive").textContent = summary.liveTradingApproved ? "异常：开启" : "关闭";
   el("learningNextStep").textContent = summary.nextExecutableResearchStep || "等待下一轮确定性回测实现。";
@@ -1049,6 +1055,30 @@ function renderStrategyLearningLoop(loopPayload) {
       <div>允许下一步：${escapeHtml(item.allowedNextAction || "研究回测")}</div>
     </div>
   `).join("") || '<div class="item">暂无纸面观察复审。</div>';
+
+  el("learningObservationTaskPackList").innerHTML = observationTasks.slice(0, 5).map((task) => {
+    const metrics = task.historicalMetrics || {};
+    const plan = task.observationPlan || {};
+    const weakPoints = Array.isArray(task.weakPoints) ? task.weakPoints : [];
+    return `
+      <div class="research-task-row">
+        <div class="research-task-head">
+          <strong>${escapeHtml(task.title || task.candidateId || "--")}</strong>
+          <span class="status-pill ok">${escapeHtml(plan.confidenceTier || "paper")}</span>
+        </div>
+        <small>${escapeHtml(task.displaySubtitle || "固定 2R · 本地观察")} · ${escapeHtml(task.candidateId || "--")}</small>
+        <div class="artifact-metrics">
+          <span>目标样本 ${plan.targetClosedSamples ?? "--"}</span>
+          <span>观察 ${plan.observationDays ?? "--"} 天</span>
+          <span>历史 ${metrics.tradeCount ?? "--"} 笔</span>
+          <span>PF ${formatNumber(metrics.profitFactor)}</span>
+          <span>胜率 ${formatPercent(metrics.winRatePct)}</span>
+          <span>回撤 ${formatPercent(metrics.maxDrawdownPct)}</span>
+        </div>
+        <div>弱点：${weakPoints.slice(0, 2).map(escapeHtml).join(" / ") || "等待前向样本验证"}</div>
+      </div>
+    `;
+  }).join("") || '<div class="item">暂无五策略纸面观察任务包。</div>';
 }
 
 function renderStrategies(strategies) {

@@ -16,8 +16,8 @@ from .state_store import (
     write_mobile_status,
 )
 
-CONTROL_CONSOLE_VERSION = "V13.7.20"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_20"
+CONTROL_CONSOLE_VERSION = "V13.7.21"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_21"
 BEIJING_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 FORWARD_VALIDATION_REVIEW_DATE = date(2026, 7, 10)
 FORWARD_VALIDATION_REVIEW_LABEL = "2026年7月10日（北京时间）"
@@ -161,6 +161,19 @@ def _compact_report_summary(report: dict[str, Any]) -> dict[str, Any]:
             "dryRunApproved": summary.get("dryRunApproved"),
             "liveTradingApproved": summary.get("liveTradingApproved"),
         }
+    if report.get("reportId") == "v13_7_21_paper_observation_task_pack":
+        summary = report.get("summary") if isinstance(report.get("summary"), dict) else {}
+        tasks = report.get("paperObservationTasks") if isinstance(report.get("paperObservationTasks"), list) else []
+        return {
+            "kind": "paper_observation_task_pack",
+            "taskCount": summary.get("taskCount"),
+            "plannedPaperObservationCount": summary.get("plannedPaperObservationCount"),
+            "targetClosedSamplesTotal": summary.get("targetClosedSamplesTotal"),
+            "cautiousObservationCount": summary.get("cautiousObservationCount"),
+            "taskIds": [item.get("taskId") for item in tasks if isinstance(item, dict) and item.get("taskId")],
+            "dryRunApproved": summary.get("dryRunApproved"),
+            "liveTradingApproved": summary.get("liveTradingApproved"),
+        }
     return {"kind": "report"}
 
 
@@ -171,6 +184,7 @@ def _build_strategy_learning_loop(reports_dir: Path) -> dict[str, Any]:
     paper_rereview = _read_json(reports_dir / "v13_7_18_paper_observation_rereview_report.json")
     factor_confluence_backtest = _read_json(reports_dir / "v13_7_19_lf_factor_confluence_backtest_report.json")
     five_strategy_factory = _read_json(reports_dir / "v13_7_20_five_strategy_candidate_factory_report.json")
+    paper_observation_task_pack = _read_json(reports_dir / "v13_7_21_paper_observation_task_pack_report.json")
 
     learning_summary = learning_loop.get("summary") if isinstance(learning_loop, dict) else {}
     refactor_summary = refactor_candidates.get("summary") if isinstance(refactor_candidates, dict) else {}
@@ -178,6 +192,9 @@ def _build_strategy_learning_loop(reports_dir: Path) -> dict[str, Any]:
     rereview_summary = paper_rereview.get("summary") if isinstance(paper_rereview, dict) else {}
     backtest_summary = factor_confluence_backtest.get("summary") if isinstance(factor_confluence_backtest, dict) else {}
     factory_summary = five_strategy_factory.get("summary") if isinstance(five_strategy_factory, dict) else {}
+    task_pack_summary = (
+        paper_observation_task_pack.get("summary") if isinstance(paper_observation_task_pack, dict) else {}
+    )
 
     generated_at_values = [
         str(report.get("generatedAt"))
@@ -188,6 +205,7 @@ def _build_strategy_learning_loop(reports_dir: Path) -> dict[str, Any]:
             paper_rereview,
             factor_confluence_backtest,
             five_strategy_factory,
+            paper_observation_task_pack,
         )
         if isinstance(report, dict) and report.get("generatedAt")
     ]
@@ -202,6 +220,7 @@ def _build_strategy_learning_loop(reports_dir: Path) -> dict[str, Any]:
         "paperReReview": paper_rereview or {},
         "factorConfluenceBacktest": factor_confluence_backtest or {},
         "fiveStrategyCandidateFactory": five_strategy_factory or {},
+        "paperObservationTaskPack": paper_observation_task_pack or {},
         "summary": {
             "learningItemCount": learning_summary.get("learningItemCount", 0),
             "graveyardCount": learning_summary.get("graveyardCount", 0),
@@ -221,6 +240,9 @@ def _build_strategy_learning_loop(reports_dir: Path) -> dict[str, Any]:
             "fiveStrategyApprovedCount": factory_summary.get("approvedCount", 0),
             "fiveStrategyTargetApprovedCount": factory_summary.get("targetApprovedCount", 0),
             "fiveStrategyPaperObservationApprovedCount": factory_summary.get("paperObservationApprovedCount", 0),
+            "observationTaskPackCount": task_pack_summary.get("taskCount", 0),
+            "observationTaskTargetClosedSamplesTotal": task_pack_summary.get("targetClosedSamplesTotal", 0),
+            "observationTaskCautiousCount": task_pack_summary.get("cautiousObservationCount", 0),
             "dryRunApproved": any(
                 bool(summary.get("dryRunApproved"))
                 for summary in (
@@ -230,6 +252,7 @@ def _build_strategy_learning_loop(reports_dir: Path) -> dict[str, Any]:
                     rereview_summary,
                     backtest_summary,
                     factory_summary,
+                    task_pack_summary,
                 )
                 if isinstance(summary, dict)
             ),
@@ -242,10 +265,12 @@ def _build_strategy_learning_loop(reports_dir: Path) -> dict[str, Any]:
                     rereview_summary,
                     backtest_summary,
                     factory_summary,
+                    task_pack_summary,
                 )
                 if isinstance(summary, dict)
             ),
-            "nextExecutableResearchStep": factory_summary.get("nextStep")
+            "nextExecutableResearchStep": task_pack_summary.get("nextStep")
+            or factory_summary.get("nextStep")
             or backtest_summary.get("nextStep")
             or rereview_summary.get("nextExecutableResearchStep")
             or experiment_summary.get("nextStep")

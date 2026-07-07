@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.20 - Five Strategy Candidate Factory Import
+AlphaPilot V13.7.21 - Paper Observation Task Pack Import
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -549,3 +549,34 @@ Safety boundary:
 - The console does not run exchange Dry-run, use API keys, read accounts or
   positions, create orders, enable paper execution, enable live trading, or
   enable automatic trading.
+
+## V13.7.21 Paper Observation Task Pack Import
+
+V13.7.21 imports the Quant Engine paper-observation task pack:
+
+```text
+reports/v13_7_21_paper_observation_task_pack_report.json
+```
+
+What changed:
+
+- Extends `/api/strategy-learning-loop` with paper-observation task pack
+  metrics.
+- Shows the five planned paper-observation tasks in the desktop learning-loop
+  panel.
+- Displays observation days, target closed samples, historical PF, win rate,
+  drawdown, and candidate weak points.
+
+Current imported result:
+
+- taskCount: 5
+- plannedPaperObservationCount: 5
+- targetClosedSamplesTotal: 130
+- dryRunApproved: false
+- liveTradingApproved: false
+
+Safety boundary:
+
+- The task pack is a local research checklist.
+- It does not create orders, run exchange Dry-run, use API keys, read accounts
+  or positions, enable live trading, or enable automatic trading.
