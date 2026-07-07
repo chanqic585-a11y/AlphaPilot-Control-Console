@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.25 - Strategy Playbook Switcher
+AlphaPilot V13.7.26 - Strategy Detail Drawer
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,17 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.7.26 Adds
+
+- Adds a collapsible Strategy Detail Drawer under the Strategy Playbook.
+- Breaks each selected strategy into fit conditions, avoid conditions, entry observation checklist, invalidation and exit checklist, historical weaknesses, and paper log fields.
+- Uses existing local paper-observation task fields instead of inferring live trading signals.
+- Keeps the strategy explanation readable while preserving strategy, signal, simulated position, backtest evidence, and mobile bridge in one local console.
+- Keeps all trading execution abilities disabled.
+
+V13.7.26 does not add API key input, private exchange access, account access,
+position access, order creation, exchange Dry-run, live trading, or automation.
 
 ## What V13.7.25 Adds
 

@@ -331,6 +331,87 @@ function getStrategyPlainTemplate(task) {
   };
 }
 
+function translateLogField(field) {
+  const labels = {
+    date: "日期",
+    pair: "币种",
+    timeframe: "周期",
+    signalObserved: "是否看到信号",
+    ruleMatched: "是否规则匹配",
+    entryContext: "入场上下文",
+    btcRegime: "BTC 状态",
+    paperOutcomeR: "纸面结果 R",
+    invalidatedReason: "失效原因",
+    riskNote: "风险备注",
+    screenshotOrChartNote: "截图或图表备注",
+  };
+  return labels[field] || field;
+}
+
+function formatPairList(pairs, limit = 5) {
+  if (!Array.isArray(pairs) || !pairs.length) return [];
+  return pairs.slice(0, limit).map((item) => {
+    const pieces = [item.pair || "--"];
+    if (item.tradeCount !== undefined) pieces.push(`样本 ${item.tradeCount}`);
+    if (item.profitFactor !== undefined && item.profitFactor !== null) pieces.push(`PF ${formatNumber(item.profitFactor)}`);
+    if (item.totalReturnPct !== undefined && item.totalReturnPct !== null) pieces.push(`收益 ${formatPercent(item.totalReturnPct)}`);
+    return pieces.join(" · ");
+  });
+}
+
+function renderStrategyDetailDrawer(primary, template, metrics, recommendedPairs, weakPoints, btcRegimes) {
+  if (!primary) {
+    el("strategyDetailHeadline").textContent = "等待选择策略";
+    setList("strategyDetailFit", []);
+    setList("strategyDetailAvoid", []);
+    setList("strategyDetailEntry", []);
+    setList("strategyDetailExit", []);
+    setList("strategyDetailWeakness", []);
+    setList("strategyDetailLogFields", []);
+    return;
+  }
+
+  const avoidPairs = Array.isArray(primary?.avoidUntilReviewedPairs) ? primary.avoidUntilReviewedPairs : [];
+  const promotionCriteria = Array.isArray(primary?.promotionCriteria) ? primary.promotionCriteria : [];
+  const rejectionCriteria = Array.isArray(primary?.rejectionCriteria) ? primary.rejectionCriteria : [];
+  const dailyLogFields = Array.isArray(primary?.dailyLogFields) ? primary.dailyLogFields : [];
+  const observation = primary?.observationPlan || {};
+  const family = primary?.family || "未标注";
+  const targetR = formatNumber(primary?.targetRewardRiskRatio || primary?.targetRMultiple || 2, 1);
+
+  el("strategyDetailHeadline").textContent = `${template.name} · ${primary.candidateId || primary.strategyId || "--"}`;
+  setList("strategyDetailFit", [
+    template.when,
+    btcRegimes.length ? `BTC 状态优先：${btcRegimes.join(" / ")}` : "需要继续标注 BTC 状态。",
+    `策略家族：${family}；周期：${primary.timeframe || "--"}；目标：${targetR}R。`,
+    ...formatPairList(recommendedPairs, 4).map((line) => `优先观察：${line}`),
+  ]);
+  setList("strategyDetailAvoid", [
+    "不适合直接当作买卖指令；当前只做本地纸面观察。",
+    ...formatPairList(avoidPairs, 4).map((line) => `暂缓观察：${line}`),
+    "如果出现流动性、数据质量或状态漂移，需要先复核再继续。",
+  ]);
+  setList("strategyDetailEntry", [
+    "先确认当天是否真的出现信号，而不是事后挑样本。",
+    "记录规则是否完整匹配、BTC 状态、币种、周期和入场上下文。",
+    observation.minimumRuleMatchedSignals ? `至少累计 ${observation.minimumRuleMatchedSignals} 次规则匹配记录。` : "需要累计足够规则匹配记录。",
+    recommendedPairs.length ? "优先从推荐观察资产中记录，不扩大到历史弱势资产。" : "等待推荐观察资产。",
+  ]);
+  setList("strategyDetailExit", [
+    "记录纸面结果 R、失效原因、错过观察和风险备注。",
+    "固定 2R 目标不降低；不要为了胜率改目标。",
+    ...rejectionCriteria.slice(0, 4),
+  ]);
+  setList("strategyDetailWeakness", [
+    ...weakPoints.slice(0, 5),
+    metrics.maxConsecutiveLosses ? `历史最大连续亏损：${metrics.maxConsecutiveLosses}。` : "",
+    ...promotionCriteria.slice(0, 3).map((item) => `晋级条件：${item}`),
+  ]);
+  setList("strategyDetailLogFields", dailyLogFields.length
+    ? dailyLogFields.map((field) => translateLogField(field))
+    : ["日期", "币种", "周期", "是否看到信号", "是否规则匹配", "纸面结果 R", "风险备注"]);
+}
+
 function renderStrategyPlaybookSelector(tasks, selectedTaskId) {
   const target = el("strategyPlaybookSelector");
   if (!target) return;
@@ -393,6 +474,7 @@ function renderStrategyPlaybook(strategies, mobile, loopPayload) {
     setList("strategyPlainChecklist", []);
     setList("strategyPlainGate", []);
     setList("strategyPlainNext", []);
+    renderStrategyDetailDrawer(null, {}, {}, [], [], []);
     return;
   }
 
@@ -434,6 +516,7 @@ function renderStrategyPlaybook(strategies, mobile, loopPayload) {
     "优先记录失败样本和失效原因，不为了胜率跳过坏样本。",
     "只有样本、风险复核和前向表现都合格后，才讨论下一阶段。",
   ]);
+  renderStrategyDetailDrawer(primary, template, metrics, recommendedPairs, weakPoints, btcRegimes);
 }
 
 function renderCommandCenter(strategies, reports, mobile) {
