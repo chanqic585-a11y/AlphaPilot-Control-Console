@@ -131,6 +131,14 @@ const candidateQueueLabels = {
   rejected: "淘汰 / 归档",
 };
 
+const shortCycleValidationLabels = {
+  existing_report_needs_expanded_retest: "已有资产 · 扩样本复测",
+  existing_report_needs_quality_review: "已有资产 · 质量复核",
+  existing_report_needs_failure_filter: "已有资产 · 失败过滤",
+  derived_needs_30m_backtest: "派生候选 · 补 30m 回测",
+  derived_needs_15m_backtest: "派生候选 · 补 15m 回测",
+};
+
 const readinessLabels = {
   local_paper_review_ready: "本地模拟复核就绪",
   research_observer_ready: "研究观察就绪",
@@ -1734,6 +1742,61 @@ function renderCandidateQueue(queuePayload) {
   `).join("") || '<div class="item">暂无候选队列。请先生成策略资产索引。</div>';
 }
 
+function renderShortCycleCandidatePool(poolPayload) {
+  const summary = poolPayload?.summary || {};
+  const candidates = Array.isArray(poolPayload?.candidates) ? poolPayload.candidates : [];
+  if (!el("shortCycleSummaryBadge")) return;
+  el("shortCycleSummaryBadge").textContent = `短周期 ${formatNumber(summary.selectedShortCycleCount, 0)} 条 · Top ${escapeHtml(summary.topCandidateName || "--")}`;
+  el("shortCycleTotal").textContent = formatNumber(summary.totalCandidates, 0);
+  el("shortCycleExisting").textContent = formatNumber(summary.existingShortCycleReportCount, 0);
+  el("shortCycleDerived").textContent = formatNumber(summary.derivedCandidateCount, 0);
+  el("shortCycleTimeframes").textContent = Array.isArray(summary.targetTimeframes) ? summary.targetTimeframes.join(" / ") : "--";
+  if (el("shortCycleSafety")) {
+    const notes = Array.isArray(poolPayload?.safetyNotes) ? poolPayload.safetyNotes : [];
+    el("shortCycleSafety").textContent = notes[0] || "短周期候选池只做研究排序，不是交易信号，不创建订单。";
+  }
+  el("shortCycleCandidateList").innerHTML = candidates.map((item) => {
+    const validationLabel = shortCycleValidationLabels[item.validationStatus] || item.validationLabel || item.validationStatus || "待验证";
+    const missing = Array.isArray(item.missingData) ? item.missingData : [];
+    const evidence = Array.isArray(item.evidence) ? item.evidence : [];
+    return `
+      <div class="short-cycle-row">
+        <div class="short-cycle-row-head">
+          <div>
+            <strong>#${formatNumber(item.rank, 0)} ${escapeHtml(item.name || item.shortName || "--")}</strong>
+            <small>${escapeHtml(item.shortName || "--")} · ${escapeHtml(item.category || "--")} · ${escapeHtml(item.direction || "--")}</small>
+          </div>
+          <div>
+            <span class="status-pill neutral">${escapeHtml(item.targetTimeframe || "--")}</span>
+            <span class="badge warn">${escapeHtml(validationLabel)}</span>
+          </div>
+        </div>
+        <div class="artifact-metrics">
+          <span>短周期分 ${formatNumber(item.shortCycleScore, 1)}</span>
+          <span>样本 ${item.sampleCount ?? "--"}</span>
+          <span>胜率 ${formatPercent(item.winRatePct)}</span>
+          <span>PF ${formatNumber(item.profitFactor)}</span>
+          <span>RR ${formatNumber(item.rewardRiskRatio)}</span>
+          <span>回撤 ${formatPercent(item.maxDrawdownPct)}</span>
+        </div>
+        <div class="short-cycle-tags">
+          <span>${escapeHtml(item.candidateFrequencyLabel || "短周期候选")}</span>
+          <span>${escapeHtml(item.sourceTitle || item.sourceStrategyId || "待创建研究资产")}</span>
+          <span>${escapeHtml(item.sourceQueueLabel || item.sourceQueueType || "研究池")}</span>
+        </div>
+        <div class="short-cycle-note">
+          <strong>入场想法：</strong>${escapeHtml(item.entryIdea || "--")}<br />
+          <strong>风险重点：</strong>${escapeHtml(item.riskIdea || "--")}<br />
+          <strong>为什么入池：</strong>${escapeHtml(item.whySelected || "--")}<br />
+          <strong>下一步：</strong>${escapeHtml(item.nextAction || "--")}
+        </div>
+        ${evidence.length ? `<div class="short-cycle-missing">${evidence.slice(0, 4).map((line) => `<span>${escapeHtml(line)}</span>`).join("")}</div>` : ""}
+        ${missing.length ? `<div class="short-cycle-missing">${missing.slice(0, 4).map((line) => `<span>缺口：${escapeHtml(line)}</span>`).join("")}</div>` : ""}
+      </div>
+    `;
+  }).join("") || '<div class="item">暂无短周期候选。请先导入策略资产。</div>';
+}
+
 function researchTaskBadge(taskType) {
   const labels = {
     forward_observation: "前向观察",
@@ -2485,7 +2548,7 @@ function renderAudit(events) {
 }
 
 async function refreshAll() {
-  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, researchTaskBoard, strategyLearningLoop, sandboxDailyReport, sandboxAutoRunner, liveReadiness, forwardReview] = await Promise.all([
+  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, shortCycleCandidates, researchTaskBoard, strategyLearningLoop, sandboxDailyReport, sandboxAutoRunner, liveReadiness, forwardReview] = await Promise.all([
     getJson("/api/strategies"),
     getJson("/api/reports"),
     getJson("/api/mobile/status"),
@@ -2496,6 +2559,7 @@ async function refreshAll() {
     getJson("/api/strategy-artifacts"),
     getJson("/api/paper-observation-tasks"),
     getJson("/api/candidate-queue"),
+    getJson("/api/short-cycle-candidates"),
     getJson("/api/research-task-board"),
     getJson("/api/strategy-learning-loop"),
     getJson("/api/local-sandbox/daily-report?limit=10"),
@@ -2515,6 +2579,7 @@ async function refreshAll() {
   renderStrategySlots(slots.slots || []);
   renderStrategyArtifacts(artifacts);
   renderCandidateQueue(candidateQueue);
+  renderShortCycleCandidatePool(shortCycleCandidates);
   renderResearchTaskBoard(researchTaskBoard);
   renderStrategyLearningLoop(strategyLearningLoop);
   renderSandboxDailyReport(sandboxDailyReport);

@@ -2251,6 +2251,78 @@ code {
   line-height: 1.1;
 }
 
+.short-cycle-card {
+  border: 1px solid rgba(255, 209, 61, 0.24);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(255, 209, 61, 0.06), rgba(11, 17, 23, 0.96));
+  box-shadow: var(--inner);
+  padding: 16px;
+}
+
+.short-cycle-safety {
+  border-left: 3px solid var(--gold);
+  border-radius: 8px;
+  background: rgba(255, 209, 102, 0.10);
+  color: var(--text);
+  font-weight: 800;
+  line-height: 1.55;
+  margin: 12px 0;
+  padding: 10px 12px;
+}
+
+.short-cycle-list {
+  display: grid;
+  gap: 10px;
+}
+
+.short-cycle-row {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(5, 12, 20, 0.78);
+  padding: 12px;
+}
+
+.short-cycle-row-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.short-cycle-row-head strong,
+.short-cycle-row-head small {
+  display: block;
+}
+
+.short-cycle-row-head small,
+.short-cycle-note,
+.short-cycle-missing span {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.short-cycle-tags,
+.short-cycle-missing {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.short-cycle-tags span,
+.short-cycle-missing span {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 6px 10px;
+}
+
+.short-cycle-tags span:first-child {
+  border-color: rgba(255, 209, 61, 0.34);
+  color: var(--gold);
+}
+
 .forward-review-action {
   border-left: 3px solid var(--gold);
   border-radius: 8px;

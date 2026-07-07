@@ -458,6 +458,36 @@
             </div>
             <div id="candidateQueueList" class="candidate-queue-list"></div>
           </div>
+          <div class="short-cycle-card">
+            <div class="forward-validation-head">
+              <div>
+                <p class="panel-eyebrow">SHORT CYCLE POOL</p>
+                <h3>短周期候选池</h3>
+                <p>筛出 5 条 15m / 30m / 1h 短周期高频候选；这里不是秒级盘口 HFT，也不会自动创建订单。</p>
+              </div>
+              <span id="shortCycleSummaryBadge" class="badge warn">等待短周期池</span>
+            </div>
+            <div class="metric-grid compact">
+              <div class="metric-cell">
+                <span>入池候选</span>
+                <strong id="shortCycleTotal">--</strong>
+              </div>
+              <div class="metric-cell">
+                <span>已有短周期资产</span>
+                <strong id="shortCycleExisting">--</strong>
+              </div>
+              <div class="metric-cell">
+                <span>派生待测</span>
+                <strong id="shortCycleDerived">--</strong>
+              </div>
+              <div class="metric-cell">
+                <span>目标周期</span>
+                <strong id="shortCycleTimeframes">--</strong>
+              </div>
+            </div>
+            <div id="shortCycleSafety" class="short-cycle-safety">短周期候选池只做研究排序，不是交易信号，不创建订单。</div>
+            <div id="shortCycleCandidateList" class="short-cycle-list"></div>
+          </div>
           <div class="research-task-card">
             <div class="forward-validation-head">
               <div>

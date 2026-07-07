@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.36 - Forward Review Workbench and Candidate Expansion Queue
+AlphaPilot V13.7.37 - Short Cycle Candidate Pool
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,26 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.7.37 Adds
+
+- Adds a dedicated Short Cycle Candidate Pool to the desktop console.
+- Selects five 15m / 30m / 1h short-cycle research candidates from existing strategy assets and derived templates:
+  - 15m Volume Rebound
+  - 1h Trend Pullback
+  - 1h Short Rejection
+  - 30m Volatility Compression Breakout
+  - 30m Bollinger Mean Reversion
+- Separates candidates with existing short-cycle reports from candidates derived from higher-timeframe strategy assets.
+- Adds `GET /api/short-cycle-candidates`.
+- Shows each candidate's target timeframe, source asset, short-cycle score, missing metrics, research idea, risk focus, and next validation action.
+- Keeps the wording explicit: these are short-cycle research candidates, not tick-level HFT strategies and not execution signals.
+- Keeps all execution capability disabled: no API key input, no Trade API, no Withdraw API, no account access, no position access, no real orders, no exchange Dry-run, no live trading, and no automatic trading.
+
+V13.7.37 does not promote these candidates into simulation, testnet, or live
+trading automatically. The next engineering step is to backtest the short-cycle
+pool on public OHLCV with fees, slippage, liquidity gates, BTC regime filters,
+and market-state breakdowns.
 
 ## What V13.7.36 Adds
 
