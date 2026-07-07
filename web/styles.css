@@ -1725,6 +1725,89 @@ code {
   color: var(--muted);
 }
 
+.observation-daily-panel {
+  border-color: rgba(31, 211, 162, 0.28);
+  background:
+    linear-gradient(135deg, rgba(31, 211, 162, 0.08), transparent 38%),
+    rgba(255, 255, 255, 0.025);
+}
+
+.section-header.compact {
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.observation-daily-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.observation-daily-card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(5, 12, 20, 0.78);
+  padding: 12px;
+}
+
+.observation-daily-card span,
+.observation-daily-row small,
+.observation-daily-row span,
+.observation-daily-empty {
+  color: var(--muted);
+}
+
+.observation-daily-card strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 22px;
+  color: var(--text);
+}
+
+.observation-daily-action {
+  border-left: 3px solid var(--green);
+  border-radius: 8px;
+  background: rgba(31, 211, 162, 0.10);
+  color: var(--text);
+  font-weight: 800;
+  line-height: 1.55;
+  padding: 10px 12px;
+}
+
+.observation-daily-columns {
+  display: grid;
+  grid-template-columns: 1.25fr 0.75fr;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.observation-daily-list {
+  display: grid;
+  gap: 10px;
+}
+
+.observation-daily-row,
+.observation-daily-empty {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.20);
+  padding: 10px 12px;
+}
+
+.observation-daily-row {
+  display: grid;
+  gap: 8px;
+}
+
+.observation-daily-row.compact {
+  gap: 5px;
+}
+
+.observation-daily-row > .badge {
+  justify-self: start;
+}
+
 .debug-panel summary {
   cursor: pointer;
   color: var(--gold);
@@ -1817,6 +1900,8 @@ code {
     .paper-log-actions,
     .task-pack-log-form,
     .quality-progress-grid,
+    .observation-daily-grid,
+    .observation-daily-columns,
     .strategy-playbook-selector,
     .strategy-clarity-grid,
     .strategy-detail-grid,

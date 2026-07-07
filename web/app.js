@@ -286,6 +286,139 @@ function getObservationTasksFromLoop(loopPayload) {
   return Array.isArray(pack.paperObservationTasks) ? pack.paperObservationTasks : [];
 }
 
+function getBeijingDateKey(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date).reduce((acc, part) => {
+    if (part.type !== "literal") acc[part.type] = part.value;
+    return acc;
+  }, {});
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function flattenStrategyObservationLogs(observationTasks) {
+  return (observationTasks || []).flatMap((task) => {
+    const recentLogs = Array.isArray(task.recentLogs) ? task.recentLogs : [];
+    return recentLogs.map((log) => ({
+      ...log,
+      taskId: task.taskId || log.artifactId || "",
+      taskTitle: task.title || task.candidateId || log.taskLabel || "--",
+    }));
+  }).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+}
+
+function isSignalObservationLog(log) {
+  return Boolean(log?.signalObserved) || ["signal_seen", "rule_matched"].includes(log?.logType);
+}
+
+function isRuleMatchedLog(log) {
+  return Boolean(log?.ruleMatched) || log?.logType === "rule_matched";
+}
+
+function buildStrategyObservationDailyReport(observationTasks, qualityRows) {
+  const todayKey = getBeijingDateKey(new Date());
+  const allLogs = flattenStrategyObservationLogs(observationTasks);
+  const todayLogs = allLogs.filter((log) => getBeijingDateKey(log.createdAt) === todayKey);
+  const todayTaskIds = new Set(todayLogs.map((log) => log.taskId).filter(Boolean));
+  const signalCount = todayLogs.filter(isSignalObservationLog).length;
+  const ruleCount = todayLogs.filter(isRuleMatchedLog).length;
+  const riskCount = todayLogs.filter((log) => log.logType === "risk_warning").length;
+  const invalidatedCount = todayLogs.filter((log) => log.logType === "invalidated").length;
+  const strategyRows = (qualityRows && qualityRows.length ? qualityRows : observationTasks).map((row) => {
+    const taskId = row.taskId || "";
+    const matchingTask = (observationTasks || []).find((task) => task.taskId === taskId) || {};
+    const localObservation = matchingTask.localObservation || {};
+    return {
+      taskId,
+      title: row.title || matchingTask.title || row.candidateId || matchingTask.candidateId || "--",
+      qualityLabel: row.qualityLabelCn || tObservationQuality(row.qualityLabel) || "等待观察",
+      qualityScore: row.qualityScore,
+      logCount: row.logCount ?? localObservation.logCount ?? 0,
+      ruleMatchedCount: row.ruleMatchedCount ?? localObservation.ruleMatchedCount ?? 0,
+      closedPaperSampleCount: row.closedPaperSampleCount ?? localObservation.closedPaperSampleCount ?? 0,
+      targetClosedSamples: row.targetClosedSamples ?? matchingTask.observationPlan?.targetClosedSamples,
+      remainingClosedSamples: row.remainingClosedSamples,
+      riskWarningCount: row.riskWarningCount ?? 0,
+      invalidatedCount: row.invalidatedCount ?? 0,
+      latestLogAt: row.latestLogAt || localObservation.latestLogAt,
+      nextAction: row.nextAction || matchingTask.observationPlan?.nextAction || "继续记录纸面观察，不进入 Dry-run。",
+      loggedToday: todayTaskIds.has(taskId),
+    };
+  });
+
+  let action = "今天还没有观察记录：优先记录无信号日，不要只记录好看的信号。";
+  if (invalidatedCount > 0 || riskCount > 0) {
+    action = "今天有失效或风险记录：先复盘失效原因，再继续观察。";
+  } else if (ruleCount > 0) {
+    action = "今天有规则匹配：补充币种、截图、纸面结果 R 和失效条件。";
+  } else if (todayLogs.length > 0) {
+    action = "今天已有观察日志：继续补齐未记录策略，保持样本口径一致。";
+  }
+
+  return {
+    todayKey,
+    allLogs,
+    todayLogs,
+    signalCount,
+    ruleCount,
+    riskCount,
+    invalidatedCount,
+    coverageText: `${todayTaskIds.size}/${(observationTasks || []).length}`,
+    action,
+    strategyRows,
+  };
+}
+
+function renderStrategyObservationDailyReport(observationTasks, qualityRows) {
+  if (!el("learningDailyLogCount")) return;
+  const report = buildStrategyObservationDailyReport(observationTasks, qualityRows);
+  el("learningDailyReportDate").textContent = `${report.todayKey} 北京时间`;
+  el("learningDailyLogCount").textContent = String(report.todayLogs.length);
+  el("learningDailySignalCount").textContent = String(report.signalCount);
+  el("learningDailyRuleCount").textContent = String(report.ruleCount);
+  el("learningDailyRiskCount").textContent = String(report.riskCount);
+  el("learningDailyInvalidatedCount").textContent = String(report.invalidatedCount);
+  el("learningDailyCoverage").textContent = report.coverageText;
+  el("learningDailyAction").textContent = report.action;
+
+  el("learningDailyStrategyList").innerHTML = report.strategyRows.slice(0, 8).map((row) => {
+    const tone = row.riskWarningCount > 0 || row.invalidatedCount > 0
+      ? "danger"
+      : row.loggedToday ? "ok" : "warn";
+    return `
+      <div class="observation-daily-row">
+        <div>
+          <strong>${escapeHtml(row.title)}</strong>
+          <small>${escapeHtml(row.taskId || "--")} · ${escapeHtml(row.qualityLabel)} · ${formatNumber(row.qualityScore, 0)}分</small>
+        </div>
+        <span class="badge ${tone}">${row.loggedToday ? "今日已记录" : "今日待记录"}</span>
+        <div class="artifact-metrics">
+          <span>日志 ${row.logCount}</span>
+          <span>规则 ${row.ruleMatchedCount}</span>
+          <span>闭合 ${row.closedPaperSampleCount}/${row.targetClosedSamples ?? "--"}</span>
+          <span>剩余 ${row.remainingClosedSamples ?? "--"}</span>
+          <span>最新 ${formatDate(row.latestLogAt)}</span>
+        </div>
+        <small>下一步：${escapeHtml(row.nextAction)}</small>
+      </div>
+    `;
+  }).join("") || '<div class="observation-daily-empty">暂无策略观察任务。</div>';
+
+  const recentLogs = report.todayLogs.length ? report.todayLogs : report.allLogs.slice(0, 8);
+  el("learningDailyRecentLogs").innerHTML = recentLogs.slice(0, 8).map((log) => `
+    <div class="observation-daily-row compact">
+      <strong>${escapeHtml(log.taskTitle || log.taskId || "--")}</strong>
+      <small>${escapeHtml(tPaperLogType(log.logType))} · ${formatDate(log.createdAt)}</small>
+      <span>${escapeHtml(log.outcome || log.note || "已记录本地观察")}</span>
+    </div>
+  `).join("") || '<div class="observation-daily-empty">暂无本地观察日志。今天可以先记录“无信号日”。</div>';
+}
+
 function pickPrimaryObservationTask(loopPayload) {
   const tasks = getObservationTasksFromLoop(loopPayload);
   if (selectedStrategyPlaybookTaskId) {
@@ -1306,6 +1439,7 @@ function renderStrategyLearningLoop(loopPayload) {
   const qualityRows = Array.isArray(observationQualityPanel.qualityRows)
     ? observationQualityPanel.qualityRows
     : [];
+  renderStrategyObservationDailyReport(observationTasks, qualityRows);
 
   el("learningItemCount").textContent = String(summary.learningItemCount ?? "--");
   el("learningGraveyardCount").textContent = String(summary.graveyardCount ?? graveyard.length);

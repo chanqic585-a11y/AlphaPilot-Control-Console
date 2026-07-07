@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.27 - Strategy Detail Quick Observation Log
+AlphaPilot V13.7.28 - Strategy Observation Daily Report
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,18 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.7.28 Adds
+
+- Adds a read-only Strategy Observation Daily Report to the local learning-loop panel.
+- Summarizes today's local paper-observation logs by Beijing date.
+- Shows today's signal observations, rule matches, risk warnings, invalidations, and strategy coverage.
+- Lists per-strategy observation quality, remaining closed-sample work, latest log time, and next observation action.
+- Uses existing local observation task data and recent logs only; it does not create new reports or run backtests.
+- Keeps all trading execution abilities disabled.
+
+V13.7.28 does not add API key input, private exchange access, account access,
+position access, order creation, exchange Dry-run, live trading, or automation.
 
 ## What V13.7.27 Adds
 

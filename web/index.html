@@ -681,6 +681,53 @@
               <div>学习闭环不会生成交易指令，不会进入 Dry-run，也不会进入实盘。</div>
             </div>
           </div>
+          <div class="section-subpanel observation-daily-panel">
+            <div class="section-header compact">
+              <div>
+                <p class="panel-eyebrow">OBSERVATION DAILY REPORT</p>
+                <h4>策略观察日报</h4>
+                <p>按北京时间汇总今天的本地纸面观察日志，只用于研究复盘，不生成交易动作。</p>
+              </div>
+              <span id="learningDailyReportDate" class="status-pill">--</span>
+            </div>
+            <div class="observation-daily-grid">
+              <div class="observation-daily-card">
+                <span>今日日志</span>
+                <strong id="learningDailyLogCount">--</strong>
+              </div>
+              <div class="observation-daily-card">
+                <span>信号出现</span>
+                <strong id="learningDailySignalCount">--</strong>
+              </div>
+              <div class="observation-daily-card">
+                <span>规则匹配</span>
+                <strong id="learningDailyRuleCount">--</strong>
+              </div>
+              <div class="observation-daily-card">
+                <span>风险记录</span>
+                <strong id="learningDailyRiskCount">--</strong>
+              </div>
+              <div class="observation-daily-card">
+                <span>失效记录</span>
+                <strong id="learningDailyInvalidatedCount">--</strong>
+              </div>
+              <div class="observation-daily-card">
+                <span>策略覆盖</span>
+                <strong id="learningDailyCoverage">--</strong>
+              </div>
+            </div>
+            <div class="observation-daily-action" id="learningDailyAction">等待本地观察日志。</div>
+            <div class="observation-daily-columns">
+              <div>
+                <h4>策略观察进度</h4>
+                <div id="learningDailyStrategyList" class="observation-daily-list"></div>
+              </div>
+              <div>
+                <h4>最近观察日志</h4>
+                <div id="learningDailyRecentLogs" class="observation-daily-list"></div>
+              </div>
+            </div>
+          </div>
           <div class="research-task-columns">
             <div>
               <h4>重构候选</h4>
