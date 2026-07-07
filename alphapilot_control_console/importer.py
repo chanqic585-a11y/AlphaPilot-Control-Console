@@ -16,8 +16,8 @@ from .state_store import (
     write_mobile_status,
 )
 
-CONTROL_CONSOLE_VERSION = "V13.7.18"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_18"
+CONTROL_CONSOLE_VERSION = "V13.7.19"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_19"
 BEIJING_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 FORWARD_VALIDATION_REVIEW_DATE = date(2026, 7, 10)
 FORWARD_VALIDATION_REVIEW_LABEL = "2026年7月10日（北京时间）"
@@ -130,6 +130,21 @@ def _compact_report_summary(report: dict[str, Any]) -> dict[str, Any]:
             "dryRunApproved": summary.get("dryRunApproved"),
             "liveTradingApproved": summary.get("liveTradingApproved"),
         }
+    if report.get("backtest") and report.get("reportId") == "v13_7_19_lf_factor_confluence_backtest":
+        summary = report.get("summary") if isinstance(report.get("summary"), dict) else {}
+        return {
+            "kind": "lf_factor_confluence_deterministic_backtest",
+            "experimentId": summary.get("experimentId"),
+            "tradeCount": summary.get("tradeCount"),
+            "winRatePct": summary.get("winRatePct"),
+            "profitFactor": summary.get("profitFactor"),
+            "targetRewardRiskRatio": summary.get("targetRewardRiskRatio"),
+            "maxDrawdownPct": summary.get("maxDrawdownPct"),
+            "passGatePassed": summary.get("passGatePassed"),
+            "paperObservationApproved": summary.get("paperObservationApproved"),
+            "dryRunApproved": summary.get("dryRunApproved"),
+            "liveTradingApproved": summary.get("liveTradingApproved"),
+        }
     return {"kind": "report"}
 
 
@@ -138,26 +153,29 @@ def _build_strategy_learning_loop(reports_dir: Path) -> dict[str, Any]:
     refactor_candidates = _read_json(reports_dir / "v13_7_16_strategy_refactor_candidates_report.json")
     experiment_specs = _read_json(reports_dir / "v13_7_17_regime_filtered_experiment_specs_report.json")
     paper_rereview = _read_json(reports_dir / "v13_7_18_paper_observation_rereview_report.json")
+    factor_confluence_backtest = _read_json(reports_dir / "v13_7_19_lf_factor_confluence_backtest_report.json")
 
     learning_summary = learning_loop.get("summary") if isinstance(learning_loop, dict) else {}
     refactor_summary = refactor_candidates.get("summary") if isinstance(refactor_candidates, dict) else {}
     experiment_summary = experiment_specs.get("summary") if isinstance(experiment_specs, dict) else {}
     rereview_summary = paper_rereview.get("summary") if isinstance(paper_rereview, dict) else {}
+    backtest_summary = factor_confluence_backtest.get("summary") if isinstance(factor_confluence_backtest, dict) else {}
 
     generated_at_values = [
         str(report.get("generatedAt"))
-        for report in (learning_loop, refactor_candidates, experiment_specs, paper_rereview)
+        for report in (learning_loop, refactor_candidates, experiment_specs, paper_rereview, factor_confluence_backtest)
         if isinstance(report, dict) and report.get("generatedAt")
     ]
 
     return {
-        "version": "V13.7.18",
+        "version": CONTROL_CONSOLE_VERSION,
         "source": CONTROL_CONSOLE_SOURCE,
         "generatedAt": max(generated_at_values) if generated_at_values else None,
         "learningLoop": learning_loop or {},
         "refactorCandidates": refactor_candidates or {},
         "experimentSpecs": experiment_specs or {},
         "paperReReview": paper_rereview or {},
+        "factorConfluenceBacktest": factor_confluence_backtest or {},
         "summary": {
             "learningItemCount": learning_summary.get("learningItemCount", 0),
             "graveyardCount": learning_summary.get("graveyardCount", 0),
@@ -169,17 +187,22 @@ def _build_strategy_learning_loop(reports_dir: Path) -> dict[str, Any]:
             "readyForBacktestImplementationCount": experiment_summary.get("readyForBacktestImplementationCount", 0),
             "paperObservationApprovedCount": rereview_summary.get("paperObservationApprovedCount", 0),
             "researchBacktestOnlyCount": rereview_summary.get("researchBacktestOnlyCount", 0),
+            "deterministicBacktestTradeCount": backtest_summary.get("tradeCount", 0),
+            "deterministicBacktestProfitFactor": backtest_summary.get("profitFactor"),
+            "deterministicBacktestGatePassed": backtest_summary.get("passGatePassed", False),
+            "deterministicBacktestPaperApproved": backtest_summary.get("paperObservationApproved", False),
             "dryRunApproved": any(
                 bool(summary.get("dryRunApproved"))
-                for summary in (learning_summary, refactor_summary, experiment_summary, rereview_summary)
+                for summary in (learning_summary, refactor_summary, experiment_summary, rereview_summary, backtest_summary)
                 if isinstance(summary, dict)
             ),
             "liveTradingApproved": any(
                 bool(summary.get("liveTradingApproved"))
-                for summary in (learning_summary, refactor_summary, experiment_summary, rereview_summary)
+                for summary in (learning_summary, refactor_summary, experiment_summary, rereview_summary, backtest_summary)
                 if isinstance(summary, dict)
             ),
-            "nextExecutableResearchStep": rereview_summary.get("nextExecutableResearchStep")
+            "nextExecutableResearchStep": backtest_summary.get("nextStep")
+            or rereview_summary.get("nextExecutableResearchStep")
             or experiment_summary.get("nextStep")
             or refactor_summary.get("nextStep")
             or learning_summary.get("nextStep"),

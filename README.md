@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.9 - Forward Validation Acceptance Console
+AlphaPilot V13.7.19 - LF Factor Confluence Backtest Import
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -471,3 +471,38 @@ Safety boundary:
 - The panel is a research planning view only.
 - It does not run backtests, use API keys, read accounts or positions, create
   orders, execute exchange Dry-run, or enable live or automatic trading.
+
+## V13.7.19 LF Factor Confluence Backtest Import
+
+V13.7.19 imports the deterministic Quant Engine backtest report:
+
+```text
+reports/v13_7_19_lf_factor_confluence_backtest_report.json
+```
+
+What changed:
+
+- Adds the V13.7.19 low-frequency factor-confluence deterministic backtest to
+  the local report list.
+- Extends `/api/strategy-learning-loop` with deterministic backtest metrics:
+  trade count, profit factor, gate status, and paper-observation approval.
+- Shows deterministic backtest trade count and PF in the desktop learning-loop
+  panel.
+- Keeps the candidate in research because the 2023-2024 walk-forward
+  validation split is negative.
+
+Current imported result:
+
+- tradeCount: 92
+- winRatePct: 39.1304
+- profitFactor: 1.1694
+- targetRewardRiskRatio: 2.0
+- maxDrawdownPct: 18.8774
+- paperObservationApproved: false
+
+Safety boundary:
+
+- The console only imports local deterministic backtest evidence.
+- It does not run exchange Dry-run, use API keys, read accounts or positions,
+  create orders, enable paper execution, enable live trading, or enable
+  automatic trading.

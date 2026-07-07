@@ -999,6 +999,8 @@ function renderStrategyLearningLoop(loopPayload) {
   el("learningRefactorCount").textContent = String(summary.refactorCandidateCount ?? refactors.length);
   el("learningExperimentCount").textContent = String(summary.experimentSpecCount ?? experiments.length);
   el("learningPaperApproved").textContent = String(summary.paperObservationApprovedCount ?? 0);
+  el("learningBacktestTradeCount").textContent = String(summary.deterministicBacktestTradeCount ?? "--");
+  el("learningBacktestPf").textContent = formatNumber(summary.deterministicBacktestProfitFactor);
   el("learningDryRun").textContent = summary.dryRunApproved ? "异常：开启" : "关闭";
   el("learningLive").textContent = summary.liveTradingApproved ? "异常：开启" : "关闭";
   el("learningNextStep").textContent = summary.nextExecutableResearchStep || "等待下一轮确定性回测实现。";
