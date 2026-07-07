@@ -388,6 +388,12 @@ function tPaperLogType(value) {
   return paperLogTypeLabels[value] || value || "--";
 }
 
+function renderPaperLogTypeOptions(selected = "no_signal") {
+  return Object.entries(paperLogTypeLabels).map(([value, label]) => (
+    `<option value="${value}" ${value === selected ? "selected" : ""}>${escapeHtml(label)}</option>`
+  )).join("");
+}
+
 function tPaperHealth(value) {
   return paperHealthLabels[value] || value || "--";
 }
@@ -996,6 +1002,8 @@ function renderStrategyLearningLoop(loopPayload) {
   const observationTasks = Array.isArray(observationTaskPack.paperObservationTasks)
     ? observationTaskPack.paperObservationTasks
     : [];
+  const logbook = payload.paperObservationLogbook || {};
+  const logbookSummary = logbook.summary || {};
 
   el("learningItemCount").textContent = String(summary.learningItemCount ?? "--");
   el("learningGraveyardCount").textContent = String(summary.graveyardCount ?? graveyard.length);
@@ -1009,6 +1017,15 @@ function renderStrategyLearningLoop(loopPayload) {
   el("learningFiveStrategyTarget").textContent = String(summary.fiveStrategyTargetApprovedCount ?? "--");
   el("learningObservationTaskPack").textContent = String(summary.observationTaskPackCount ?? observationTasks.length ?? "--");
   el("learningObservationTargetSamples").textContent = String(summary.observationTaskTargetClosedSamplesTotal ?? "--");
+  if (el("learningObservationLogCount")) {
+    el("learningObservationLogCount").textContent = String(summary.observationCurrentLogCount ?? logbookSummary.currentLogCount ?? 0);
+  }
+  if (el("learningObservationRuleMatches")) {
+    el("learningObservationRuleMatches").textContent = String(summary.observationRuleMatchedCount ?? logbookSummary.ruleMatchedCount ?? 0);
+  }
+  if (el("learningObservationClosedSamples")) {
+    el("learningObservationClosedSamples").textContent = String(summary.observationClosedPaperSampleCount ?? logbookSummary.closedPaperSampleCount ?? 0);
+  }
   el("learningDryRun").textContent = summary.dryRunApproved ? "异常：开启" : "关闭";
   el("learningLive").textContent = summary.liveTradingApproved ? "异常：开启" : "关闭";
   el("learningNextStep").textContent = summary.nextExecutableResearchStep || "等待下一轮确定性回测实现。";
@@ -1059,14 +1076,16 @@ function renderStrategyLearningLoop(loopPayload) {
   el("learningObservationTaskPackList").innerHTML = observationTasks.slice(0, 5).map((task) => {
     const metrics = task.historicalMetrics || {};
     const plan = task.observationPlan || {};
+    const localObservation = task.localObservation || {};
+    const recentLogs = Array.isArray(task.recentLogs) ? task.recentLogs.slice(0, 3) : [];
     const weakPoints = Array.isArray(task.weakPoints) ? task.weakPoints : [];
     return `
-      <div class="research-task-row">
+      <div class="research-task-row task-pack-card" data-task-pack-card="${escapeHtml(task.taskId || "")}">
         <div class="research-task-head">
           <strong>${escapeHtml(task.title || task.candidateId || "--")}</strong>
           <span class="status-pill ok">${escapeHtml(plan.confidenceTier || "paper")}</span>
         </div>
-        <small>${escapeHtml(task.displaySubtitle || "固定 2R · 本地观察")} · ${escapeHtml(task.candidateId || "--")}</small>
+        <small>${escapeHtml(task.displaySubtitle || "固定 2R · 本地纸面观察")} · ${escapeHtml(task.candidateId || "--")}</small>
         <div class="artifact-metrics">
           <span>目标样本 ${plan.targetClosedSamples ?? "--"}</span>
           <span>观察 ${plan.observationDays ?? "--"} 天</span>
@@ -1075,10 +1094,53 @@ function renderStrategyLearningLoop(loopPayload) {
           <span>胜率 ${formatPercent(metrics.winRatePct)}</span>
           <span>回撤 ${formatPercent(metrics.maxDrawdownPct)}</span>
         </div>
+        <div class="artifact-metrics">
+          <span>日志 ${localObservation.logCount ?? 0}</span>
+          <span>规则匹配 ${localObservation.ruleMatchedCount ?? 0}</span>
+          <span>信号出现 ${localObservation.signalObservedCount ?? 0}</span>
+          <span>闭合样本 ${localObservation.closedPaperSampleCount ?? 0}</span>
+          <span>最近 ${formatDate(localObservation.latestLogAt)}</span>
+        </div>
         <div>弱点：${weakPoints.slice(0, 2).map(escapeHtml).join(" / ") || "等待前向样本验证"}</div>
+        <div class="task-pack-recent-logs">
+          ${recentLogs.length ? recentLogs.map((log) => `
+            <small>${escapeHtml(tPaperLogType(log.logType))} · ${formatDate(log.createdAt)} · ${escapeHtml(log.outcome || log.note || "已记录")}</small>
+          `).join("") : "<small>暂无本地观察日志</small>"}
+        </div>
+        <div class="task-pack-log-form">
+          <select data-task-pack-log-type>
+            ${renderPaperLogTypeOptions("no_signal")}
+          </select>
+          <input data-task-pack-outcome placeholder="纸面结果R，例如 0 / 1.2 / -1" autocomplete="off" />
+          <input data-task-pack-note placeholder="观察备注：币种、形态、无效原因、截图说明" autocomplete="off" />
+          <button type="button" data-task-pack-log="${escapeHtml(task.taskId || "")}">记录观察</button>
+        </div>
       </div>
     `;
   }).join("") || '<div class="item">暂无五策略纸面观察任务包。</div>';
+  el("learningObservationTaskPackList").querySelectorAll("[data-task-pack-log]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const card = button.closest("[data-task-pack-card]");
+      const taskId = button.getAttribute("data-task-pack-log") || "";
+      const logType = card?.querySelector("[data-task-pack-log-type]")?.value || "no_signal";
+      const outcome = card?.querySelector("[data-task-pack-outcome]")?.value || "";
+      const note = card?.querySelector("[data-task-pack-note]")?.value || "";
+      button.disabled = true;
+      try {
+        await postJson("/api/paper-observation-log", {
+          artifactId: taskId,
+          logType,
+          signalObserved: ["signal_seen", "rule_matched"].includes(logType),
+          ruleMatched: logType === "rule_matched",
+          outcome,
+          note,
+        });
+        await refreshAll();
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
 }
 
 function renderStrategies(strategies) {

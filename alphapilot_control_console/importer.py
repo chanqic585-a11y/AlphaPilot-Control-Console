@@ -16,8 +16,8 @@ from .state_store import (
     write_mobile_status,
 )
 
-CONTROL_CONSOLE_VERSION = "V13.7.21"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_21"
+CONTROL_CONSOLE_VERSION = "V13.7.22"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_22"
 BEIJING_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 FORWARD_VALIDATION_REVIEW_DATE = date(2026, 7, 10)
 FORWARD_VALIDATION_REVIEW_LABEL = "2026年7月10日（北京时间）"
@@ -174,17 +174,94 @@ def _compact_report_summary(report: dict[str, Any]) -> dict[str, Any]:
             "dryRunApproved": summary.get("dryRunApproved"),
             "liveTradingApproved": summary.get("liveTradingApproved"),
         }
+    if report.get("reportId") == "v13_7_22_paper_observation_logbook":
+        summary = report.get("summary") if isinstance(report.get("summary"), dict) else {}
+        templates = report.get("taskLogTemplates") if isinstance(report.get("taskLogTemplates"), list) else []
+        return {
+            "kind": "paper_observation_logbook",
+            "taskCount": summary.get("taskCount"),
+            "readyForLoggingCount": summary.get("readyForLoggingCount"),
+            "currentLogCount": summary.get("currentLogCount"),
+            "ruleMatchedCount": summary.get("ruleMatchedCount"),
+            "targetClosedSamplesTotal": summary.get("targetClosedSamplesTotal"),
+            "taskIds": [item.get("taskId") for item in templates if isinstance(item, dict) and item.get("taskId")],
+            "dryRunApproved": summary.get("dryRunApproved"),
+            "liveTradingApproved": summary.get("liveTradingApproved"),
+        }
     return {"kind": "report"}
 
 
-def _build_strategy_learning_loop(reports_dir: Path) -> dict[str, Any]:
+def _logs_for_task_pack(logs_by_artifact: dict[str, Any], task_id: str, limit: int = 5) -> list[dict[str, Any]]:
+    rows = logs_by_artifact.get(task_id)
+    if not isinstance(rows, list):
+        return []
+    logs = [row for row in rows if isinstance(row, dict)]
+    logs.sort(key=lambda item: str(item.get("createdAt") or ""), reverse=True)
+    return logs[:limit]
+
+
+def _apply_task_pack_logs(task_pack: dict[str, Any] | None, state: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(task_pack, dict):
+        return {}
+    logs_by_artifact = state.get("paperObservationLogs") if isinstance(state.get("paperObservationLogs"), dict) else {}
+    task_rows = task_pack.get("paperObservationTasks") if isinstance(task_pack.get("paperObservationTasks"), list) else []
+    enriched_tasks: list[dict[str, Any]] = []
+    total_logs = 0
+    rule_matched = 0
+    signal_observed = 0
+    closed_samples = 0
+    latest_log_at: str | None = None
+    for task in task_rows:
+        if not isinstance(task, dict):
+            continue
+        item = dict(task)
+        task_id = str(item.get("taskId") or "").strip()
+        logs = _logs_for_task_pack(logs_by_artifact, task_id, limit=200)
+        recent_logs = logs[:5]
+        total_logs += len(logs)
+        rule_count = sum(1 for log in logs if log.get("ruleMatched") or log.get("logType") == "rule_matched")
+        signal_count = sum(1 for log in logs if log.get("signalObserved"))
+        closed_count = sum(1 for log in logs if str(log.get("outcome") or "").strip())
+        rule_matched += rule_count
+        signal_observed += signal_count
+        closed_samples += closed_count
+        if recent_logs and str(recent_logs[0].get("createdAt") or "") > str(latest_log_at or ""):
+            latest_log_at = str(recent_logs[0].get("createdAt"))
+        item["localObservation"] = {
+            "logCount": len(logs),
+            "ruleMatchedCount": rule_count,
+            "signalObservedCount": signal_count,
+            "closedPaperSampleCount": closed_count,
+            "latestLogAt": recent_logs[0].get("createdAt") if recent_logs else None,
+        }
+        item["recentLogs"] = recent_logs
+        enriched_tasks.append(item)
+    summary = dict(task_pack.get("summary") if isinstance(task_pack.get("summary"), dict) else {})
+    target_total = int(summary.get("targetClosedSamplesTotal") or 0)
+    summary.update({
+        "currentLogCount": total_logs,
+        "ruleMatchedCount": rule_matched,
+        "signalObservedCount": signal_observed,
+        "closedPaperSampleCount": closed_samples,
+        "remainingTargetClosedSamples": max(0, target_total - closed_samples),
+        "latestLogAt": latest_log_at,
+    })
+    enriched = dict(task_pack)
+    enriched["summary"] = summary
+    enriched["paperObservationTasks"] = enriched_tasks
+    return enriched
+
+
+def _build_strategy_learning_loop(reports_dir: Path, state: dict[str, Any] | None = None) -> dict[str, Any]:
     learning_loop = _read_json(reports_dir / "v13_7_15_strategy_learning_loop_report.json")
     refactor_candidates = _read_json(reports_dir / "v13_7_16_strategy_refactor_candidates_report.json")
     experiment_specs = _read_json(reports_dir / "v13_7_17_regime_filtered_experiment_specs_report.json")
     paper_rereview = _read_json(reports_dir / "v13_7_18_paper_observation_rereview_report.json")
     factor_confluence_backtest = _read_json(reports_dir / "v13_7_19_lf_factor_confluence_backtest_report.json")
     five_strategy_factory = _read_json(reports_dir / "v13_7_20_five_strategy_candidate_factory_report.json")
-    paper_observation_task_pack = _read_json(reports_dir / "v13_7_21_paper_observation_task_pack_report.json")
+    raw_paper_observation_task_pack = _read_json(reports_dir / "v13_7_21_paper_observation_task_pack_report.json")
+    paper_observation_task_pack = _apply_task_pack_logs(raw_paper_observation_task_pack, state or {})
+    paper_observation_logbook = _read_json(reports_dir / "v13_7_22_paper_observation_logbook_report.json")
 
     learning_summary = learning_loop.get("summary") if isinstance(learning_loop, dict) else {}
     refactor_summary = refactor_candidates.get("summary") if isinstance(refactor_candidates, dict) else {}
@@ -194,6 +271,9 @@ def _build_strategy_learning_loop(reports_dir: Path) -> dict[str, Any]:
     factory_summary = five_strategy_factory.get("summary") if isinstance(five_strategy_factory, dict) else {}
     task_pack_summary = (
         paper_observation_task_pack.get("summary") if isinstance(paper_observation_task_pack, dict) else {}
+    )
+    logbook_summary = (
+        paper_observation_logbook.get("summary") if isinstance(paper_observation_logbook, dict) else {}
     )
 
     generated_at_values = [
@@ -206,6 +286,7 @@ def _build_strategy_learning_loop(reports_dir: Path) -> dict[str, Any]:
             factor_confluence_backtest,
             five_strategy_factory,
             paper_observation_task_pack,
+            paper_observation_logbook,
         )
         if isinstance(report, dict) and report.get("generatedAt")
     ]
@@ -221,6 +302,7 @@ def _build_strategy_learning_loop(reports_dir: Path) -> dict[str, Any]:
         "factorConfluenceBacktest": factor_confluence_backtest or {},
         "fiveStrategyCandidateFactory": five_strategy_factory or {},
         "paperObservationTaskPack": paper_observation_task_pack or {},
+        "paperObservationLogbook": paper_observation_logbook or {},
         "summary": {
             "learningItemCount": learning_summary.get("learningItemCount", 0),
             "graveyardCount": learning_summary.get("graveyardCount", 0),
@@ -243,6 +325,15 @@ def _build_strategy_learning_loop(reports_dir: Path) -> dict[str, Any]:
             "observationTaskPackCount": task_pack_summary.get("taskCount", 0),
             "observationTaskTargetClosedSamplesTotal": task_pack_summary.get("targetClosedSamplesTotal", 0),
             "observationTaskCautiousCount": task_pack_summary.get("cautiousObservationCount", 0),
+            "observationCurrentLogCount": task_pack_summary.get("currentLogCount", logbook_summary.get("currentLogCount", 0)),
+            "observationRuleMatchedCount": task_pack_summary.get("ruleMatchedCount", logbook_summary.get("ruleMatchedCount", 0)),
+            "observationSignalObservedCount": task_pack_summary.get("signalObservedCount", 0),
+            "observationClosedPaperSampleCount": task_pack_summary.get(
+                "closedPaperSampleCount",
+                logbook_summary.get("closedPaperSampleCount", 0),
+            ),
+            "observationRemainingTargetClosedSamples": task_pack_summary.get("remainingTargetClosedSamples"),
+            "observationLatestLogAt": task_pack_summary.get("latestLogAt"),
             "dryRunApproved": any(
                 bool(summary.get("dryRunApproved"))
                 for summary in (
@@ -253,6 +344,7 @@ def _build_strategy_learning_loop(reports_dir: Path) -> dict[str, Any]:
                     backtest_summary,
                     factory_summary,
                     task_pack_summary,
+                    logbook_summary,
                 )
                 if isinstance(summary, dict)
             ),
@@ -266,6 +358,7 @@ def _build_strategy_learning_loop(reports_dir: Path) -> dict[str, Any]:
                     backtest_summary,
                     factory_summary,
                     task_pack_summary,
+                    logbook_summary,
                 )
                 if isinstance(summary, dict)
             ),
@@ -1375,7 +1468,7 @@ def scan_quant_engine() -> dict[str, Any]:
     backtest_task_completion = (
         _read_json(reports_dir / "v13_7_13_backtest_task_completion_report.json") if reports_dir.exists() else None
     )
-    strategy_learning_loop = _build_strategy_learning_loop(reports_dir) if reports_dir.exists() else {}
+    strategy_learning_loop = _build_strategy_learning_loop(reports_dir, state) if reports_dir.exists() else {}
     if strategy_artifact_index:
         strategy_artifact_index = _apply_artifact_reviews(strategy_artifact_index, state)
 

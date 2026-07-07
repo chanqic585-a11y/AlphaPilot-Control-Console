@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.21 - Paper Observation Task Pack Import
+AlphaPilot V13.7.22 - Paper Observation Logbook
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,17 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.7.22 Adds
+
+- Imports the Quant Engine V13.7.22 paper-observation logbook baseline.
+- Adds local observation-log entry controls to the five-strategy task-pack cards.
+- Stores daily observation logs locally in `data/console_state.json`.
+- Shows local log count, rule-match count, signal-observed count, closed paper samples, and recent notes.
+- Reuses the existing `/api/paper-observation-log` endpoint with task-pack `taskId` keys.
+
+V13.7.22 does not add API key input, private exchange access, account access,
+position access, order creation, exchange Dry-run, live trading, or automation.
 
 ## What V13.6 Does
 

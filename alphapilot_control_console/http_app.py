@@ -47,8 +47,28 @@ def _find_artifact(index: dict, artifact_id: str) -> dict | None:
     return None
 
 
+def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
+    learning = payload.get("strategyLearningLoop") if isinstance(payload.get("strategyLearningLoop"), dict) else {}
+    pack = learning.get("paperObservationTaskPack") if isinstance(learning.get("paperObservationTaskPack"), dict) else {}
+    tasks = pack.get("paperObservationTasks") if isinstance(pack.get("paperObservationTasks"), list) else []
+    for item in tasks:
+        if not isinstance(item, dict) or item.get("taskId") != task_id:
+            continue
+        return {
+            "artifactId": item.get("taskId"),
+            "strategyId": item.get("strategyId"),
+            "title": item.get("title") or item.get("candidateId") or task_id,
+            "displayName": item.get("title") or item.get("candidateId") or task_id,
+            "version": item.get("version") or learning.get("version") or "V13.7.22",
+            "sourceFile": item.get("sourceReport"),
+            "readinessTier": item.get("status") or "planned_paper_observation",
+            "metrics": item.get("historicalMetrics") if isinstance(item.get("historicalMetrics"), dict) else {},
+        }
+    return None
+
+
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.7.21"
+    server_version = "AlphaPilotControlConsole/13.7.22"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -89,8 +109,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.7.21",
-                "source": "alphapilot_control_console_v13_7_21",
+                "version": "V13.7.22",
+                "source": "alphapilot_control_console_v13_7_22",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -285,7 +305,7 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 }, 400)
                 return
             latest = scan_quant_engine()
-            artifact = _find_artifact(latest["strategyArtifactIndex"], artifact_id)
+            artifact = _find_artifact(latest["strategyArtifactIndex"], artifact_id) or _find_task_pack_task(latest, artifact_id)
             updated = upsert_paper_observation_task(
                 artifact_id=artifact_id,
                 task_status=task_status,
@@ -317,7 +337,7 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 }, 400)
                 return
             latest = scan_quant_engine()
-            artifact = _find_artifact(latest["strategyArtifactIndex"], artifact_id)
+            artifact = _find_artifact(latest["strategyArtifactIndex"], artifact_id) or _find_task_pack_task(latest, artifact_id)
             updated = add_paper_observation_log(
                 artifact_id=artifact_id,
                 log_type=log_type,
@@ -331,6 +351,7 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             self._send_json({
                 "updated": updated,
                 "strategyArtifactIndex": latest["strategyArtifactIndex"],
+                "strategyLearningLoop": latest.get("strategyLearningLoop") or {},
                 "paperObservationTasks": build_mobile_status(latest).get("paperObservationTasks"),
                 "safetyBoundary": SAFETY_BOUNDARY,
             })

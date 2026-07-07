@@ -1394,6 +1394,23 @@ code {
   word-break: break-word;
 }
 
+.task-pack-card {
+  gap: 12px;
+}
+
+.task-pack-recent-logs {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+}
+
+.task-pack-log-form {
+  display: grid;
+  grid-template-columns: minmax(140px, 180px) minmax(150px, 200px) minmax(220px, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
 .debug-panel summary {
   cursor: pointer;
   color: var(--gold);
@@ -1484,6 +1501,7 @@ code {
     .research-task-columns,
     .paper-task-actions,
     .paper-log-actions,
+    .task-pack-log-form,
     .artifact-row,
     .paper-task-row,
     .exchange-grid,
