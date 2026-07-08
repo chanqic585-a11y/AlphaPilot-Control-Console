@@ -6,12 +6,13 @@ from typing import Any
 
 from .config import SAFETY_BOUNDARY
 from .sample_path_instrumentation import enrich_log_with_estimated_path
+from .sample_replay_scoring import score_replay_sample, summarize_replay_scores
 from .simulation_review import build_simulation_review
 from .state_store import list_paper_observation_logs
 
 
-CONTROL_CONSOLE_VERSION = "V13.7.46"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_46"
+CONTROL_CONSOLE_VERSION = "V13.7.47"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_47"
 
 PATH_FIELDS = {
     "sampleKey": "样本去重键",
@@ -140,7 +141,7 @@ def _build_sample(log: dict[str, Any], outcome_r: float, strategy: dict[str, Any
     enriched_log = enrich_log_with_estimated_path(log, task=strategy)
     missing = _missing_fields(enriched_log)
     quality = _sample_quality(enriched_log, missing)
-    return {
+    sample = {
         "sampleId": enriched_log.get("sampleKey") or enriched_log.get("logId"),
         "logId": enriched_log.get("logId"),
         "sampleKey": enriched_log.get("sampleKey"),
@@ -196,6 +197,7 @@ def _build_sample(log: dict[str, Any], outcome_r: float, strategy: dict[str, Any
         "replayNarrative": _build_replay_narrative(enriched_log, outcome_r, missing),
         "safetyNote": "本条记录仅用于本地模拟盘复盘，不是 testnet、实盘信号或订单。",
     }
+    return {**sample, **score_replay_sample(sample)}
 
 
 def _quality_summary(samples: list[dict[str, Any]]) -> dict[str, Any]:
@@ -241,6 +243,7 @@ def _build_strategy_replay(row: dict[str, Any]) -> dict[str, Any]:
     representative_pairs = unique_logs[:deduped_count] if deduped_count > 0 else []
     samples = [_build_sample(log, outcome_r, row) for log, outcome_r in representative_pairs]
     quality = _quality_summary(samples)
+    score_summary = summarize_replay_scores(samples)
     latest_sample_time = max((_parse_time(sample.get("createdAt")) for sample in samples), default=None)
     raw_outcome_count = sum(1 for log in raw_logs if isinstance(log, dict) and _extract_outcome_r(log) is not None)
     metrics = row.get("metrics") if isinstance(row.get("metrics"), dict) else {}
@@ -267,6 +270,7 @@ def _build_strategy_replay(row: dict[str, Any]) -> dict[str, Any]:
             "maxConsecutiveLosses": metrics.get("maxConsecutiveLosses"),
         },
         "quality": quality,
+        "scoreSummary": score_summary,
         "latestSampleAt": latest_sample_time.isoformat() if latest_sample_time else None,
         "samples": samples,
         "whatCanBeReviewed": [
@@ -314,6 +318,7 @@ def build_closed_sample_replay(strategy_id: str | None = None, limit: int = 80) 
         1 for sample in all_samples
         if sample.get("sampleQuality") == "estimated_path_ready"
     )
+    score_summary = summarize_replay_scores(all_samples)
     summary = {
         "totalStrategies": len(strategy_rows),
         "totalDedupedClosedSamples": sum(_safe_int(row.get("dedupedClosedSampleCount")) for row in strategy_rows),
@@ -321,6 +326,12 @@ def build_closed_sample_replay(strategy_id: str | None = None, limit: int = 80) 
         "totalRepresentativeSamples": sum(_safe_int(row.get("representativeSampleCount")) for row in strategy_rows),
         "estimatedPathSampleCount": estimated_path_count,
         "nonActualPathSampleCount": non_actual_path_count,
+        "averageReviewScore": score_summary["averageReviewScore"],
+        "strongReviewSampleCount": score_summary["strongReviewSampleCount"],
+        "usableReviewSampleCount": score_summary["usableReviewSampleCount"],
+        "weakReviewSampleCount": score_summary["weakReviewSampleCount"],
+        "poorReviewSampleCount": score_summary["poorReviewSampleCount"],
+        "topWeaknessLabels": score_summary["topWeaknessLabels"],
         "missingFullPathSampleCount": non_actual_path_count,
         "dryRunApproved": False,
         "liveTradingApproved": False,

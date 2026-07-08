@@ -1,3 +1,3 @@
 """AlphaPilot local control console."""
 
-__version__ = "13.7.46"
+__version__ = "13.7.47"

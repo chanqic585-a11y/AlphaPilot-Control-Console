@@ -1495,6 +1495,13 @@ function closedSampleQualityLabel(value) {
   return labels[value] || value || "待补";
 }
 
+function weaknessTone(value) {
+  if (value === "danger") return "danger";
+  if (value === "warning") return "warn";
+  if (value === "positive") return "ok";
+  return "";
+}
+
 function renderClosedSampleReplay(payload) {
   if (!el("closedSampleReplayStrategyList")) return;
   latestClosedSampleReplayPayload = payload || {};
@@ -1503,6 +1510,11 @@ function renderClosedSampleReplay(payload) {
   setText("closedSampleReplayStrategies", String(summary.totalStrategies ?? rows.length));
   setText("closedSampleReplayDeduped", String(summary.totalDedupedClosedSamples ?? 0));
   setText("closedSampleReplayRepresentatives", String(summary.totalRepresentativeSamples ?? 0));
+  setText("closedSampleReplayAvgScore", summary.averageReviewScore !== undefined ? formatNumber(summary.averageReviewScore, 1) : "--");
+  const topWeakness = Array.isArray(summary.topWeaknessLabels) && summary.topWeaknessLabels.length
+    ? summary.topWeaknessLabels[0]
+    : null;
+  setText("closedSampleReplayTopWeakness", topWeakness ? `${topWeakness.label || topWeakness.code} x${topWeakness.count}` : "--");
   setText("closedSampleReplayMissingPath", String(summary.nonActualPathSampleCount ?? summary.missingFullPathSampleCount ?? 0));
   setText("closedSampleReplayDryRun", payload?.dryRunApproved ? "开启" : "关闭");
   setText("closedSampleReplayLive", payload?.liveTradingApproved ? "开启" : "关闭");
@@ -1526,7 +1538,7 @@ function renderClosedSampleReplay(payload) {
       <button class="closed-sample-strategy${selected}" data-closed-sample-task-id="${escapeHtml(row.taskId || "")}" type="button">
         <strong>${escapeHtml(row.strategyName || row.taskId || "--")}</strong>
         <small>${escapeHtml(row.timeframe || "--")} · ${escapeHtml(row.statusLabel || row.status || "--")}</small>
-        <span>去重 ${row.dedupedClosedSampleCount ?? 0} · 原始 ${row.rawOutcomeLogCount ?? 0} · 估算 ${quality.estimatedPathSampleCount ?? 0} · 真实 ${quality.actualFillSampleCount ?? 0}</span>
+        <span>去重 ${row.dedupedClosedSampleCount ?? 0} · 均分 ${formatNumber(row.scoreSummary?.averageReviewScore, 1)} · 估算 ${quality.estimatedPathSampleCount ?? 0} · 真实 ${quality.actualFillSampleCount ?? 0}</span>
       </button>
     `;
   }).join("");
@@ -1550,6 +1562,7 @@ function renderClosedSampleReplayDetail(row) {
   }
   const metrics = row.metrics || {};
   const quality = row.quality || {};
+  const scoreSummary = row.scoreSummary || {};
   const samples = Array.isArray(row.samples) ? row.samples : [];
   const reviewable = Array.isArray(row.whatCanBeReviewed) ? row.whatCanBeReviewed : [];
   const needs = Array.isArray(row.whatNeedsInstrumentation) ? row.whatNeedsInstrumentation : [];
@@ -1571,6 +1584,15 @@ function renderClosedSampleReplayDetail(row) {
       <span>权益 ${formatUsd(metrics.virtualEquity)}</span>
       <span>估算路径 ${quality.estimatedPathSampleCount ?? 0}</span>
       <span>真实成交 ${quality.actualFillSampleCount ?? 0}</span>
+      <span>平均复盘分 ${formatNumber(scoreSummary.averageReviewScore, 1)}</span>
+      <span>强样本 ${scoreSummary.strongReviewSampleCount ?? 0}</span>
+      <span>弱样本 ${scoreSummary.weakReviewSampleCount ?? 0}</span>
+    </div>
+    <div class="closed-sample-flags">
+      ${(Array.isArray(scoreSummary.topWeaknessLabels) && scoreSummary.topWeaknessLabels.length
+        ? scoreSummary.topWeaknessLabels.slice(0, 6)
+        : [{ label: "暂无高频弱点", severity: "info", count: 0 }]
+      ).map((item) => `<small class="${weaknessTone(item.severity)}">${escapeHtml(item.label || item.code || "--")} x${item.count ?? 0}</small>`).join("")}
     </div>
     <div class="closed-sample-note">${escapeHtml(row.sampleSelectionNote || "代表样本按去重闭合样本生成。")}</div>
     <div class="closed-sample-quality">
@@ -1597,6 +1619,7 @@ function renderClosedSampleReplayDetail(row) {
 
 function renderClosedSampleCard(sample) {
   const missing = Array.isArray(sample.missingFields) ? sample.missingFields : [];
+  const weaknessLabels = Array.isArray(sample.weaknessLabels) ? sample.weaknessLabels : [];
   const pathMode = sample.actualExchangeFill
     ? "真实成交路径"
     : sample.instrumentationStatus === "estimated"
@@ -1613,6 +1636,11 @@ function renderClosedSampleCard(sample) {
         <span class="badge ${Number(sample.outcomeR || 0) >= 0 ? "success" : "danger"}">${formatNumber(sample.outcomeR, 2)}R</span>
       </div>
       <p>${escapeHtml(sample.replayNarrative || "暂无复盘说明。")}</p>
+      <div class="closed-sample-flags">
+        <small class="${Number(sample.reviewScore || 0) >= 60 ? "ok" : Number(sample.reviewScore || 0) >= 40 ? "warn" : "danger"}">复盘分 ${formatNumber(sample.reviewScore, 0)} · ${escapeHtml(sample.reviewRatingLabel || "--")}</small>
+        <small>${escapeHtml(sample.primaryWeaknessLabel || "暂无主要弱点")}</small>
+        <small>${escapeHtml(sample.reviewSummary || "")}</small>
+      </div>
       <div class="closed-sample-metrics">
         <span>结果 ${escapeHtml(sample.outcomeReason || sample.outcome || "--")}</span>
         <span>数据 ${escapeHtml(sample.dataStatus || "--")}</span>
@@ -1635,6 +1663,7 @@ function renderClosedSampleCard(sample) {
       </div>
       <div class="closed-sample-source">${escapeHtml(sample.dataSourcePathHint || "数据来源待补")}</div>
       <div class="closed-sample-flags">
+        ${(weaknessLabels.length ? weaknessLabels.slice(0, 8) : [{ label: "暂无弱点标签", severity: "info" }]).map((item) => `<small class="${weaknessTone(item.severity)}">${escapeHtml(item.label || item.code || "--")}</small>`).join("")}
         <small>${escapeHtml(closedSampleQualityLabel(sample.sampleQuality))}</small>
         ${(missing.length ? missing.slice(0, 8) : [{ label: "路径字段完整" }]).map((item) => `<small>${escapeHtml(item.label || item.field || item)}</small>`).join("")}
       </div>

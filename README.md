@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.46 - Sandbox Sample Path Instrumentation
+AlphaPilot V13.7.47 - Replay Scoring and Weakness Labels
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,35 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.7.47 Adds
+
+- Adds replay scoring for local sandbox closed samples.
+- Adds explainable weakness labels for each estimated replay sample:
+  - profit not captured
+  - deep adverse excursion
+  - stop-like loss
+  - weak favorable path
+  - cost drag
+  - holding window too long
+  - clean entry path
+- Adds strategy-level replay score summaries:
+  - average review score
+  - strong / usable / weak / poor sample counts
+  - top warning and danger labels
+- Updates the closed-sample replay panel to show:
+  - average replay score
+  - primary weakness
+  - per-sample review score
+  - per-sample weakness tags
+
+The scoring layer is deterministic and explainable. It reads local estimated
+sample paths and turns them into review labels. It does not produce trading
+advice, does not promote a strategy automatically, and does not create orders.
+
+V13.7.47 does not add API key storage, Trade API, Withdraw API, exchange
+testnet orders, real account reads, real position reads, order creation,
+exchange Dry-run, live trading, or automatic trading.
 
 ## What V13.7.46 Adds
 

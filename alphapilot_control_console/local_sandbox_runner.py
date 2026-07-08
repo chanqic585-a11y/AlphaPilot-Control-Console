@@ -16,8 +16,8 @@ from .usable_strategy_catalog import (
 )
 
 
-CONTROL_CONSOLE_VERSION = "V13.7.46"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_46"
+CONTROL_CONSOLE_VERSION = "V13.7.47"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_47"
 SAMPLE_KEY_SCHEMA_VERSION = "V13.7.34"
 VIRTUAL_CAPITAL_PER_STRATEGY = 1000.0
 RISK_UNIT_PERCENT = 1.0
