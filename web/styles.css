@@ -3346,6 +3346,123 @@ code {
   padding: 6px 10px;
 }
 
+.locked-panel,
+.testnet-design-panel {
+  border-color: rgba(255, 79, 129, 0.28);
+  background:
+    linear-gradient(135deg, rgba(255, 79, 129, 0.09), rgba(9, 14, 20, 0.72)),
+    #0b1117;
+}
+
+.locked-notice {
+  margin: 10px 0 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 79, 129, 0.24);
+  border-radius: 8px;
+  color: var(--muted);
+  background: rgba(255, 79, 129, 0.08);
+}
+
+.testnet-design-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.testnet-design-grid > div,
+.testnet-design-row,
+.testnet-design-empty {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 79, 129, 0.035), transparent 42%),
+    #0b1117;
+  box-shadow: var(--inner);
+}
+
+.testnet-design-grid > div {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+}
+
+.testnet-design-grid span,
+.testnet-design-row small,
+.testnet-design-empty {
+  color: var(--muted);
+}
+
+.testnet-design-grid strong {
+  color: var(--text);
+  font-size: 18px;
+}
+
+.testnet-disabled-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.testnet-disabled-actions button {
+  padding: 10px 12px;
+  border: 1px dashed rgba(255, 79, 129, 0.38);
+  border-radius: 8px;
+  color: rgba(221, 230, 238, 0.62);
+  background: rgba(9, 14, 20, 0.72);
+  cursor: not-allowed;
+}
+
+.testnet-design-next {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid rgba(255, 79, 129, 0.22);
+  border-left: 3px solid var(--danger);
+  border-radius: 8px;
+  color: var(--text);
+  background: rgba(255, 79, 129, 0.07);
+}
+
+.testnet-design-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.testnet-design-list {
+  display: grid;
+  gap: 10px;
+}
+
+.testnet-design-row,
+.testnet-design-empty {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.testnet-design-row-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.testnet-design-row-head strong,
+.testnet-design-row-head small {
+  display: block;
+}
+
+.testnet-design-row-head small {
+  margin-top: 4px;
+  line-height: 1.45;
+}
+
+.muted-row {
+  opacity: 0.72;
+}
+
 .forward-review-expansion-answer {
   border: 1px solid rgba(24, 211, 166, 0.22);
   border-radius: 8px;
@@ -3473,6 +3590,9 @@ code {
     .research-pipeline-grid,
     .research-pipeline-columns,
     .research-pipeline-row-head,
+    .testnet-design-grid,
+    .testnet-design-columns,
+    .testnet-design-row-head,
     .live-readiness-grid,
     .live-readiness-columns,
     .live-readiness-row-head,

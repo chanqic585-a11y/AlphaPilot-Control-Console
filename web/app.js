@@ -199,6 +199,7 @@ let latestClosedSampleReplayPayload = {};
 let selectedClosedSampleReplayTaskId = null;
 let latestWeaknessActionBoardPayload = {};
 let latestResearchPipelinePayload = {};
+let latestTestnetDesignBoundaryPayload = {};
 const artifactFilters = {
   search: "",
   tier: "all",
@@ -1859,6 +1860,63 @@ function renderResearchExecutionPipeline(payload) {
   ].join("") || '<div class="research-pipeline-empty">暂无晋级检查结果。</div>';
 }
 
+function renderTestnetDesignBoundary(payload) {
+  if (!el("testnetDesignChecklistList")) return;
+  latestTestnetDesignBoundaryPayload = payload || {};
+  const summary = payload?.summary || {};
+  const missingControls = Array.isArray(payload?.missingControls) ? payload.missingControls : [];
+  const futureSequence = Array.isArray(payload?.futureSequence) ? payload.futureSequence : [];
+  const disabledActions = Array.isArray(payload?.disabledActions) ? payload.disabledActions : [];
+
+  setText("testnetDesignStatus", summary.stageLabel || "仅设计准备");
+  setText("testnetDesignStage", summary.stageLabel || "--");
+  setText("testnetDesignImplemented", String(summary.implementedControlCount ?? 0));
+  setText("testnetDesignMissing", String(summary.missingRequiredControlCount ?? missingControls.length));
+  setText("testnetDesignCandidates", String(summary.testnetCandidateCount ?? 0));
+  setText("testnetDesignBlockers", String(summary.blockerCount ?? missingControls.length));
+  setText("testnetDesignOrders", summary.orderCreationEnabled ? "开启" : "禁用");
+  setText("testnetDesignNextAction", summary.nextAction || "先完成 Testnet 安全设计，不连接交易所。");
+
+  el("testnetDesignChecklistList").innerHTML = missingControls.map((item) => `
+    <div class="testnet-design-row">
+      <div class="testnet-design-row-head">
+        <div>
+          <strong>${escapeHtml(item.label || item.controlId || "--")}</strong>
+          <small>${escapeHtml(item.reason || "等待补齐设计。")}</small>
+        </div>
+        <span class="badge danger">未完成</span>
+      </div>
+    </div>
+  `).join("") || '<div class="testnet-design-empty">当前没有缺失控制，但仍未开放交易连接。</div>';
+
+  const actionRows = disabledActions.map((item) => `
+    <div class="testnet-design-row muted-row">
+      <div class="testnet-design-row-head">
+        <div>
+          <strong>${escapeHtml(item.label || item.actionId || "--")}</strong>
+          <small>${escapeHtml(item.reason || "当前禁用。")}</small>
+        </div>
+        <span class="badge danger">灰显</span>
+      </div>
+    </div>
+  `).join("");
+
+  el("testnetDesignSequenceList").innerHTML = futureSequence.map((item) => {
+    const tone = item.status === "available_now" ? "warn" : item.status === "future_only" ? "neutral" : "danger";
+    return `
+      <div class="testnet-design-row">
+        <div class="testnet-design-row-head">
+          <div>
+            <strong>${escapeHtml(item.label || item.stepId || "--")}</strong>
+            <small>${escapeHtml(item.description || "--")}</small>
+          </div>
+          <span class="badge ${tone}">${escapeHtml(item.status || "blocked")}</span>
+        </div>
+      </div>
+    `;
+  }).join("") + actionRows;
+}
+
 async function runResearchPipeline() {
   const button = el("runResearchPipelineButton");
   if (!button) return;
@@ -3378,7 +3436,7 @@ function renderAudit(events) {
 }
 
 async function refreshAll() {
-  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, shortCycleCandidates, usableStrategyCatalog, simulationBridge, simulationReview, closedSampleReplay, weaknessActionBoard, researchPipeline, strategyPromotionGate, researchTaskBoard, strategyLearningLoop, sandboxDailyReport, sandboxAutoRunner, liveReadiness, forwardReview] = await Promise.all([
+  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, shortCycleCandidates, usableStrategyCatalog, simulationBridge, simulationReview, closedSampleReplay, weaknessActionBoard, researchPipeline, testnetDesignBoundary, strategyPromotionGate, researchTaskBoard, strategyLearningLoop, sandboxDailyReport, sandboxAutoRunner, liveReadiness, forwardReview] = await Promise.all([
     getJson("/api/strategies"),
     getJson("/api/reports"),
     getJson("/api/mobile/status"),
@@ -3396,6 +3454,7 @@ async function refreshAll() {
     getJson("/api/closed-sample-replay"),
     getJson("/api/weakness-action-board"),
     getJson("/api/research-execution-pipeline"),
+    getJson("/api/testnet-design-boundary"),
     getJson("/api/strategy-promotion-gate"),
     getJson("/api/research-task-board"),
     getJson("/api/strategy-learning-loop"),
@@ -3423,6 +3482,7 @@ async function refreshAll() {
   renderClosedSampleReplay(closedSampleReplay);
   renderWeaknessActionBoard(weaknessActionBoard);
   renderResearchExecutionPipeline(researchPipeline);
+  renderTestnetDesignBoundary(testnetDesignBoundary);
   renderStrategyPromotionGate(strategyPromotionGate);
   renderResearchTaskBoard(researchTaskBoard);
   renderStrategyLearningLoop(strategyLearningLoop);

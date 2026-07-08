@@ -8,8 +8,8 @@ from .state_store import now_iso
 from .testnet_readiness_pack import build_testnet_readiness_pack
 
 
-CONTROL_CONSOLE_VERSION = "V13.8"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_8"
+CONTROL_CONSOLE_VERSION = "V13.8.1"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_8_1"
 
 
 def build_research_execution_pipeline(apply_updates: bool = False) -> dict:

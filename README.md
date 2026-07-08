@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.8 - Research Execution Pipeline and Testnet Readiness Pack
+AlphaPilot V13.8.1 - Testnet Readiness UI Boundary
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,25 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.8.1 Adds
+
+V13.8.1 adds a disabled Testnet readiness center to the web console.
+
+New local read-only endpoint:
+
+- `GET /api/testnet-design-boundary`
+
+The console now shows:
+
+- missing Testnet safety controls
+- future connection sequence
+- disabled API Key / Testnet / order / exchange Dry-run actions
+- clear copy that Testnet is not enabled
+
+This release does not add API key input, API key storage, Trade API, Withdraw
+API, real account reads, real position reads, order creation, exchange Dry-run,
+live trading, or automatic trading.
 
 ## What V13.8 Adds
 

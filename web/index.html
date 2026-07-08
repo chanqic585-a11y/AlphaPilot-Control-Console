@@ -1343,6 +1343,62 @@
               </div>
             </div>
           </div>
+          <div class="section-subpanel testnet-design-panel locked-panel">
+            <div class="section-header compact">
+              <div>
+                <p class="panel-eyebrow">TESTNET READINESS CENTER</p>
+                <h4>Testnet 准备中心（未启用）</h4>
+                <p>这里只展示未来接入前必须完成的设计检查；当前不输入密钥、不连接交易所、不创建订单。</p>
+              </div>
+              <span id="testnetDesignStatus" class="status-pill danger">交易关闭</span>
+            </div>
+            <div class="locked-notice">
+              V13.8.1 只是准备中心和灰显入口：API Key 输入、Testnet 连接、订单创建和 exchange Dry-run 全部禁用。
+            </div>
+            <div class="testnet-design-grid">
+              <div>
+                <span>当前阶段</span>
+                <strong id="testnetDesignStage">--</strong>
+              </div>
+              <div>
+                <span>已具备控制</span>
+                <strong id="testnetDesignImplemented">--</strong>
+              </div>
+              <div>
+                <span>缺少控制</span>
+                <strong id="testnetDesignMissing">--</strong>
+              </div>
+              <div>
+                <span>候选策略</span>
+                <strong id="testnetDesignCandidates">--</strong>
+              </div>
+              <div>
+                <span>阻塞项</span>
+                <strong id="testnetDesignBlockers">--</strong>
+              </div>
+              <div>
+                <span>订单能力</span>
+                <strong id="testnetDesignOrders">禁用</strong>
+              </div>
+            </div>
+            <div class="testnet-disabled-actions">
+              <button type="button" disabled>输入 API Key（未开放）</button>
+              <button type="button" disabled>连接 Testnet（未开放）</button>
+              <button type="button" disabled>创建 Testnet 订单（未开放）</button>
+              <button type="button" disabled>Exchange Dry-run（未开放）</button>
+            </div>
+            <div id="testnetDesignNextAction" class="testnet-design-next">等待 Testnet 准备清单。</div>
+            <div class="testnet-design-columns">
+              <div>
+                <h4>必须补齐的安全控制</h4>
+                <div id="testnetDesignChecklistList" class="testnet-design-list"></div>
+              </div>
+              <div>
+                <h4>未来接入顺序</h4>
+                <div id="testnetDesignSequenceList" class="testnet-design-list"></div>
+              </div>
+            </div>
+          </div>
           <div class="research-task-columns">
             <div>
               <h4>重构候选</h4>
