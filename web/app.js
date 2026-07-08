@@ -230,6 +230,40 @@ async function getJson(url) {
   return response.json();
 }
 
+async function getJsonSafe(url, fallback, timeoutMs = 6000) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { cache: "no-store", signal: controller.signal });
+    if (!response.ok) throw new Error(`${url} failed: ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    console.warn(`[AlphaPilot] ${url} fallback`, error);
+    return {
+      ...fallback,
+      loadError: error?.name === "AbortError" ? "timeout" : String(error?.message || error),
+      sourceUrl: url,
+    };
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
+async function loadJsonMap(requests, concurrency = 4) {
+  const results = {};
+  let cursor = 0;
+  const workerCount = Math.max(1, Math.min(concurrency, requests.length));
+  async function worker() {
+    while (cursor < requests.length) {
+      const request = requests[cursor];
+      cursor += 1;
+      results[request.key] = await getJsonSafe(request.url, request.fallback, request.timeoutMs);
+    }
+  }
+  await Promise.all(Array.from({ length: workerCount }, worker));
+  return results;
+}
+
 async function postJson(url, payload) {
   const response = await fetch(url, {
     method: "POST",
@@ -3627,38 +3661,43 @@ function renderAudit(events) {
 }
 
 async function refreshAll() {
-  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, shortCycleCandidates, usableStrategyCatalog, simulationBridge, simulationReview, closedSampleReplay, weaknessActionBoard, researchPipeline, testnetDesignBoundary, preLivePreparation, strategyPromotionGate, researchTaskBoard, strategyLearningLoop, sandboxDailyReport, sandboxAutoRunner, liveReadiness, forwardReview] = await Promise.all([
-    getJson("/api/strategies"),
-    getJson("/api/reports"),
-    getJson("/api/mobile/status"),
-    getJson("/api/mobile/connection-info"),
-    getJson("/api/audit"),
-    getJson("/api/exchanges"),
-    getJson("/api/strategy-slots"),
-    getJson("/api/strategy-artifacts"),
-    getJson("/api/paper-observation-tasks"),
-    getJson("/api/candidate-queue"),
-    getJson("/api/short-cycle-candidates"),
-    getJson("/api/usable-strategy-catalog"),
-    getJson("/api/simulation-bridge"),
-    getJson("/api/simulation-review"),
-    getJson("/api/closed-sample-replay"),
-    getJson("/api/weakness-action-board"),
-    getJson("/api/research-execution-pipeline"),
-    getJson("/api/testnet-design-boundary"),
-    getJson("/api/pre-live-preparation-pack"),
-    getJson("/api/strategy-promotion-gate"),
-    getJson("/api/research-task-board"),
-    getJson("/api/strategy-learning-loop"),
-    getJson("/api/local-sandbox/daily-report?limit=10"),
-    getJson("/api/local-sandbox/auto-runner"),
-    getJson("/api/live-readiness"),
-    getJson("/api/forward-review"),
-  ]);
+  const core = await loadJsonMap([
+    { key: "strategies", url: "/api/strategies", fallback: { strategies: [] } },
+    { key: "reports", url: "/api/reports", fallback: { reports: [] } },
+    { key: "mobile", url: "/api/mobile/status", fallback: {} },
+    { key: "connection", url: "/api/mobile/connection-info", fallback: { notes: [], mobileStatusUrls: [] } },
+    { key: "audit", url: "/api/audit", fallback: { events: [] } },
+    { key: "exchanges", url: "/api/exchanges", fallback: { sources: [] } },
+    { key: "slots", url: "/api/strategy-slots", fallback: { slots: [] } },
+    { key: "artifacts", url: "/api/strategy-artifacts", fallback: { artifacts: [], summary: {} } },
+    { key: "paperTasks", url: "/api/paper-observation-tasks", fallback: { tasks: [], summary: {} } },
+    { key: "usableStrategyCatalog", url: "/api/usable-strategy-catalog", fallback: { strategies: [], summary: {} } },
+    { key: "sandboxDailyReport", url: "/api/local-sandbox/daily-report?limit=10", fallback: { reports: [], latestReport: { summary: {}, strategyHealthRows: [] } } },
+    { key: "sandboxAutoRunner", url: "/api/local-sandbox/auto-runner", fallback: { autoRunner: {}, events: [] } },
+    { key: "liveReadiness", url: "/api/live-readiness", fallback: { rows: [], summary: {} } },
+    { key: "forwardReview", url: "/api/forward-review", fallback: { rows: [], summary: {} } },
+  ], 4);
+  const strategies = core.strategies || { strategies: [] };
+  const reports = core.reports || { reports: [] };
+  const mobile = core.mobile || {};
+  const connection = core.connection || { notes: [], mobileStatusUrls: [] };
+  const audit = core.audit || { events: [] };
+  const exchanges = core.exchanges || { sources: [] };
+  const slots = core.slots || { slots: [] };
+  const artifacts = core.artifacts || { artifacts: [], summary: {} };
+  const paperTasks = core.paperTasks || { tasks: [], summary: {} };
+  const usableStrategyCatalog = core.usableStrategyCatalog || { strategies: [], summary: {} };
+  const sandboxDailyReport = core.sandboxDailyReport || { reports: [], latestReport: { summary: {}, strategyHealthRows: [] } };
+  const sandboxAutoRunner = core.sandboxAutoRunner || { autoRunner: {}, events: [] };
+  const liveReadiness = core.liveReadiness || { rows: [], summary: {} };
+  const forwardReview = core.forwardReview || { rows: [], summary: {} };
+  const emptySimulationBridge = { summary: {}, observationTasks: [] };
+  const emptySimulationReview = { queue: [], summary: {} };
+  const emptyStrategyLearningLoop = { summary: {}, refactorCandidates: [], experimentSpecs: [] };
   const strategyItems = strategies.strategies || [];
   const reportItems = reports.reports || [];
-  latestStrategyLearningLoopPayload = strategyLearningLoop;
-  renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview);
+  latestStrategyLearningLoopPayload = emptyStrategyLearningLoop;
+  renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, emptySimulationBridge, emptySimulationReview);
   renderCommandCenter(strategyItems, reportItems, mobile);
   renderRuntimeMonitor(strategyItems, mobile);
   renderStrategies(strategyItems);
@@ -3667,18 +3706,16 @@ async function refreshAll() {
   renderExchanges(exchanges.sources || [], mobile);
   renderStrategySlots(slots.slots || []);
   renderStrategyArtifacts(artifacts);
-  renderCandidateQueue(candidateQueue);
-  renderShortCycleCandidatePool(shortCycleCandidates);
   renderUsableStrategyCatalog(usableStrategyCatalog);
-  renderSimulationReview(simulationReview);
-  renderClosedSampleReplay(closedSampleReplay);
-  renderWeaknessActionBoard(weaknessActionBoard);
-  renderResearchExecutionPipeline(researchPipeline);
-  renderTestnetDesignBoundary(testnetDesignBoundary);
-  renderPreLivePreparationPack(preLivePreparation);
-  renderStrategyPromotionGate(strategyPromotionGate);
-  renderResearchTaskBoard(researchTaskBoard);
-  renderStrategyLearningLoop(strategyLearningLoop);
+  renderSimulationReview(emptySimulationReview);
+  renderClosedSampleReplay({ samples: [], summary: {} });
+  renderWeaknessActionBoard({ actions: [], summary: {} });
+  renderResearchExecutionPipeline({ summary: {}, stages: [], actions: [] });
+  renderTestnetDesignBoundary({ summary: {}, checklist: [], disabledActions: [] });
+  renderPreLivePreparationPack({ summary: {}, rehearsalSummary: {}, preLiveClosureReport: [], recentRehearsals: [] });
+  renderStrategyPromotionGate({ candidates: [], summary: {} });
+  renderResearchTaskBoard({ tasks: [], summary: {} });
+  renderStrategyLearningLoop(emptyStrategyLearningLoop);
   renderSandboxSimulationLane(
     buildUsableCatalogObservationTasks(usableStrategyCatalog),
     sandboxDailyReport?.latestReport?.strategyHealthRows || [],
@@ -3687,11 +3724,43 @@ async function refreshAll() {
   renderSandboxAutoRunner(sandboxAutoRunner);
   renderLiveReadiness(liveReadiness);
   renderForwardReview(forwardReview);
-  renderStrategyPlaybook(strategyItems, mobile, strategyLearningLoop);
+  renderStrategyPlaybook(strategyItems, mobile, emptyStrategyLearningLoop);
   renderForwardValidation(mobile.forwardValidation);
   renderPaperObservationTasks(paperTasks);
   renderMobileConnectionInfo(connection);
   el("mobilePreview").textContent = JSON.stringify(mobile, null, 2);
+
+  const advanced = await loadJsonMap([
+    { key: "candidateQueue", url: "/api/candidate-queue", fallback: { strategies: [], summary: {} } },
+    { key: "shortCycleCandidates", url: "/api/short-cycle-candidates", fallback: { candidates: [], summary: {} } },
+    { key: "simulationBridge", url: "/api/simulation-bridge", fallback: { summary: {}, observationTasks: [] } },
+    { key: "simulationReview", url: "/api/simulation-review", fallback: { queue: [], summary: {} } },
+    { key: "closedSampleReplay", url: "/api/closed-sample-replay", fallback: { samples: [], summary: {} }, timeoutMs: 12000 },
+    { key: "weaknessActionBoard", url: "/api/weakness-action-board", fallback: { actions: [], summary: {} }, timeoutMs: 12000 },
+    { key: "researchPipeline", url: "/api/research-execution-pipeline", fallback: { summary: {}, stages: [], actions: [] }, timeoutMs: 12000 },
+    { key: "testnetDesignBoundary", url: "/api/testnet-design-boundary", fallback: { summary: {}, checklist: [], disabledActions: [] } },
+    { key: "preLivePreparation", url: "/api/pre-live-preparation-pack", fallback: { summary: {}, rehearsalSummary: {}, preLiveClosureReport: [], recentRehearsals: [] } },
+    { key: "strategyPromotionGate", url: "/api/strategy-promotion-gate", fallback: { candidates: [], summary: {} }, timeoutMs: 12000 },
+    { key: "researchTaskBoard", url: "/api/research-task-board", fallback: { tasks: [], summary: {} } },
+    { key: "strategyLearningLoop", url: "/api/strategy-learning-loop", fallback: emptyStrategyLearningLoop, timeoutMs: 12000 },
+  ], 3);
+  const simulationBridge = advanced.simulationBridge || emptySimulationBridge;
+  const simulationReview = advanced.simulationReview || emptySimulationReview;
+  const strategyLearningLoop = advanced.strategyLearningLoop || emptyStrategyLearningLoop;
+  latestStrategyLearningLoopPayload = strategyLearningLoop;
+  renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview);
+  renderCandidateQueue(advanced.candidateQueue || { strategies: [], summary: {} });
+  renderShortCycleCandidatePool(advanced.shortCycleCandidates || { candidates: [], summary: {} });
+  renderSimulationReview(simulationReview);
+  renderClosedSampleReplay(advanced.closedSampleReplay || { samples: [], summary: {} });
+  renderWeaknessActionBoard(advanced.weaknessActionBoard || { actions: [], summary: {} });
+  renderResearchExecutionPipeline(advanced.researchPipeline || { summary: {}, stages: [], actions: [] });
+  renderTestnetDesignBoundary(advanced.testnetDesignBoundary || { summary: {}, checklist: [], disabledActions: [] });
+  renderPreLivePreparationPack(advanced.preLivePreparation || { summary: {}, rehearsalSummary: {}, preLiveClosureReport: [], recentRehearsals: [] });
+  renderStrategyPromotionGate(advanced.strategyPromotionGate || { candidates: [], summary: {} });
+  renderResearchTaskBoard(advanced.researchTaskBoard || { tasks: [], summary: {} });
+  renderStrategyLearningLoop(strategyLearningLoop);
+  renderStrategyPlaybook(strategyItems, mobile, strategyLearningLoop);
 }
 
 function renderMobileConnectionInfo(connection) {
