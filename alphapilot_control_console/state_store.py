@@ -79,7 +79,7 @@ WEAKNESS_ACTION_STATUS_LABELS = {
     "archived": "已归档",
 }
 
-CONTROL_CONSOLE_STATE_SOURCE = "alphapilot_control_console_v13_7_49"
+CONTROL_CONSOLE_STATE_SOURCE = "alphapilot_control_console_v13_8"
 DEFAULT_LOCAL_SANDBOX_AUTO_RUNNER = {
     "enabled": False,
     "intervalMinutes": 360,
@@ -143,6 +143,8 @@ def load_state() -> dict[str, Any]:
         state["manualExecutionTickets"] = []
     if not isinstance(state.get("weaknessActionTasks"), dict):
         state["weaknessActionTasks"] = {}
+    if not isinstance(state.get("researchActionExecutionRuns"), list):
+        state["researchActionExecutionRuns"] = []
     return state
 
 
@@ -304,6 +306,39 @@ def update_weakness_action_task(
         {"actionId": action_id, "taskStatus": task_status, "note": note, "owner": task["owner"]},
     )
     return task
+
+
+def save_research_action_execution_run(run: dict[str, Any]) -> dict[str, Any]:
+    state = load_state()
+    rows = state.get("researchActionExecutionRuns")
+    if not isinstance(rows, list):
+        rows = []
+    run = {
+        **run,
+        "createdAt": run.get("createdAt") or now_iso(),
+        "source": run.get("source") or CONTROL_CONSOLE_STATE_SOURCE,
+    }
+    rows.append(run)
+    state["researchActionExecutionRuns"] = rows[-100:]
+    save_state(state)
+    append_audit(
+        "research_action_execution_run_saved",
+        {
+            "runId": run.get("runId"),
+            "actionCount": run.get("summary", {}).get("actionCount") if isinstance(run.get("summary"), dict) else None,
+            "updatedTaskCount": run.get("summary", {}).get("updatedTaskCount") if isinstance(run.get("summary"), dict) else None,
+            "dryRunApproved": False,
+            "liveTradingApproved": False,
+        },
+    )
+    return run
+
+
+def list_research_action_execution_runs(limit: int = 10) -> list[dict[str, Any]]:
+    state = load_state()
+    rows = state.get("researchActionExecutionRuns") if isinstance(state.get("researchActionExecutionRuns"), list) else []
+    safe_limit = max(1, min(int(limit or 10), 100))
+    return [row for row in rows if isinstance(row, dict)][-safe_limit:][::-1]
 
 
 def list_paper_observation_tasks() -> dict[str, Any]:

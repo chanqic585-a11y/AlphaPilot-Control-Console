@@ -198,6 +198,7 @@ let latestSimpleConsolePayload = {};
 let latestClosedSampleReplayPayload = {};
 let selectedClosedSampleReplayTaskId = null;
 let latestWeaknessActionBoardPayload = {};
+let latestResearchPipelinePayload = {};
 const artifactFilters = {
   search: "",
   tier: "all",
@@ -1779,6 +1780,101 @@ function renderWeaknessActionBoard(payload) {
   });
 }
 
+function renderResearchExecutionPipeline(payload) {
+  if (!el("pipelineExecutionList")) return;
+  latestResearchPipelinePayload = payload || {};
+  const summary = payload?.summary || {};
+  const executor = payload?.researchActionExecutor || {};
+  const promotion = payload?.candidatePromotionGate || {};
+  const testnet = payload?.testnetReadinessPack || {};
+  const executions = Array.isArray(executor.executions) ? executor.executions.slice(0, 8) : [];
+  const promotionRows = Array.isArray(promotion.rows) ? promotion.rows.slice(0, 6) : [];
+  const blockers = Array.isArray(testnet.blockers) ? testnet.blockers.slice(0, 8) : [];
+  setText("pipelineActionCount", String(summary.researchActionCount ?? 0));
+  setText("pipelineUpdatedTasks", String(summary.researchUpdatedTaskCount ?? 0));
+  setText("pipelineSandboxCandidates", String(summary.sandboxReviewCandidateCount ?? 0));
+  setText("pipelineTestnetCandidates", String(summary.testnetReadinessCandidateCount ?? 0));
+  setText("pipelineTestnetBlockers", String(summary.testnetBlockerCount ?? blockers.length));
+  setText("pipelineSimulationStage", summary.simulationStageLabel || "--");
+  setText("researchPipelineStatus", "执行关闭");
+  setText("researchPipelineNextAction", summary.nextAction || "继续本地研究执行，暂不进入交易执行。");
+
+  el("pipelineExecutionList").innerHTML = executions.map((row) => {
+    const checks = Array.isArray(row.checks) ? row.checks : [];
+    const failed = checks.filter((item) => item.status !== "passed");
+    const tone = row.targetTaskStatus === "resolved" ? "ok" : row.targetTaskStatus === "needs_more_samples" ? "warn" : "danger";
+    return `
+      <div class="research-pipeline-row">
+        <div class="research-pipeline-row-head">
+          <div>
+            <strong>${escapeHtml(row.strategyName || row.taskId || "--")}</strong>
+            <small>${escapeHtml(row.weaknessLabel || row.weaknessCode || "--")} · ${escapeHtml(row.actionId || "--")}</small>
+          </div>
+          <span class="badge ${tone}">${escapeHtml(row.targetTaskStatusLabel || row.targetTaskStatus || "--")}</span>
+        </div>
+        <div class="artifact-metrics">
+          <span>优先 ${formatNumber(row.priorityScore, 0)}</span>
+          <span>检查 ${checks.length}</span>
+          <span>缺口 ${failed.length}</span>
+          <span>当前 ${escapeHtml(weaknessActionStatusLabels[row.currentTaskStatus] || row.currentTaskStatus || "--")}</span>
+        </div>
+        <div class="research-pipeline-action">${escapeHtml(row.conclusion || "等待执行结论。")}</div>
+        <div class="research-pipeline-flags">
+          ${(failed.length ? failed : checks.slice(0, 2)).map((item) => `<small>${escapeHtml(item.label || item.checkId)}：${escapeHtml(item.status || "--")}</small>`).join("")}
+        </div>
+      </div>
+    `;
+  }).join("") || '<div class="research-pipeline-empty">暂无研究行动执行结果。</div>';
+
+  el("pipelineGateList").innerHTML = [
+    ...promotionRows.map((row) => `
+      <div class="research-pipeline-row">
+        <div class="research-pipeline-row-head">
+          <div>
+            <strong>${escapeHtml(row.strategyName || row.taskId || "--")}</strong>
+            <small>闭合 ${row.closedSamples ?? 0} · PF ${formatNumber(row.profitFactor)} · 弱点 ${row.unresolvedActionCount ?? 0}</small>
+          </div>
+          <span class="badge ${row.tone || "warn"}">${escapeHtml(row.promotionLabel || "--")}</span>
+        </div>
+        <div class="research-pipeline-action">${escapeHtml(row.nextAction || "继续本地复核。")}</div>
+        <div class="research-pipeline-flags">
+          ${(Array.isArray(row.missingChecks) && row.missingChecks.length ? row.missingChecks : ["暂无阻塞说明"]).slice(0, 4).map((item) => `<small>${escapeHtml(item)}</small>`).join("")}
+        </div>
+      </div>
+    `),
+    blockers.length ? `
+      <div class="research-pipeline-row danger-line">
+        <div class="research-pipeline-row-head">
+          <div>
+            <strong>Testnet 准备仍阻塞</strong>
+            <small>${escapeHtml(testnet.summary?.nextAction || "等待 testnet readiness pack。")}</small>
+          </div>
+          <span class="badge danger">不开启</span>
+        </div>
+        <div class="research-pipeline-flags">
+          ${blockers.map((item) => `<small>${escapeHtml(item)}</small>`).join("")}
+        </div>
+      </div>
+    ` : "",
+  ].join("") || '<div class="research-pipeline-empty">暂无晋级检查结果。</div>';
+}
+
+async function runResearchPipeline() {
+  const button = el("runResearchPipelineButton");
+  if (!button) return;
+  button.disabled = true;
+  setText("researchPipelineRunStatus", "正在执行本地研究流水线...");
+  try {
+    await postJson("/api/research-execution-pipeline/run", { applyUpdates: true });
+    await refreshAll();
+    setText("researchPipelineRunStatus", "已执行：只回写本地研究任务状态，没有连接交易所。");
+  } catch (error) {
+    setText("researchPipelineRunStatus", `执行失败：${error.message}`);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function pickPrimaryObservationTask(loopPayload) {
   const tasks = getObservationTasksFromLoop(loopPayload);
   if (selectedStrategyPlaybookTaskId) {
@@ -3282,7 +3378,7 @@ function renderAudit(events) {
 }
 
 async function refreshAll() {
-  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, shortCycleCandidates, usableStrategyCatalog, simulationBridge, simulationReview, closedSampleReplay, weaknessActionBoard, strategyPromotionGate, researchTaskBoard, strategyLearningLoop, sandboxDailyReport, sandboxAutoRunner, liveReadiness, forwardReview] = await Promise.all([
+  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, shortCycleCandidates, usableStrategyCatalog, simulationBridge, simulationReview, closedSampleReplay, weaknessActionBoard, researchPipeline, strategyPromotionGate, researchTaskBoard, strategyLearningLoop, sandboxDailyReport, sandboxAutoRunner, liveReadiness, forwardReview] = await Promise.all([
     getJson("/api/strategies"),
     getJson("/api/reports"),
     getJson("/api/mobile/status"),
@@ -3299,6 +3395,7 @@ async function refreshAll() {
     getJson("/api/simulation-review"),
     getJson("/api/closed-sample-replay"),
     getJson("/api/weakness-action-board"),
+    getJson("/api/research-execution-pipeline"),
     getJson("/api/strategy-promotion-gate"),
     getJson("/api/research-task-board"),
     getJson("/api/strategy-learning-loop"),
@@ -3325,6 +3422,7 @@ async function refreshAll() {
   renderSimulationReview(simulationReview);
   renderClosedSampleReplay(closedSampleReplay);
   renderWeaknessActionBoard(weaknessActionBoard);
+  renderResearchExecutionPipeline(researchPipeline);
   renderStrategyPromotionGate(strategyPromotionGate);
   renderResearchTaskBoard(researchTaskBoard);
   renderStrategyLearningLoop(strategyLearningLoop);
@@ -3433,6 +3531,7 @@ el("importButton").addEventListener("click", () => importReportsNow("importButto
 el("simpleImportButton")?.addEventListener("click", () => importReportsNow("simpleImportButton"));
 el("simpleRunSandboxButton")?.addEventListener("click", runLocalSandboxFromSimple);
 el("toggleAdvancedModeButton")?.addEventListener("click", toggleAdvancedMode);
+el("runResearchPipelineButton")?.addEventListener("click", runResearchPipeline);
 
 el("probeExchangesButton").addEventListener("click", async () => {
   el("probeExchangesButton").disabled = true;

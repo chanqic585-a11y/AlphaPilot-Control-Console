@@ -3230,6 +3230,122 @@ code {
   color: var(--text);
 }
 
+.research-pipeline-panel {
+  border-color: rgba(255, 211, 77, 0.22);
+}
+
+.research-pipeline-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.research-pipeline-grid > div,
+.research-pipeline-row,
+.research-pipeline-empty {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 211, 77, 0.035), transparent 42%),
+    #0b1117;
+  box-shadow: var(--inner);
+}
+
+.research-pipeline-grid > div {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+}
+
+.research-pipeline-grid span,
+.research-pipeline-row small {
+  color: var(--muted);
+}
+
+.research-pipeline-grid strong {
+  color: var(--text);
+  font-size: 20px;
+}
+
+.research-pipeline-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.research-pipeline-controls span,
+.research-pipeline-action {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.research-pipeline-action {
+  border: 1px solid rgba(24, 211, 166, 0.18);
+  border-radius: 8px;
+  background: rgba(24, 211, 166, 0.055);
+  margin: 10px 0;
+  padding: 10px 12px;
+}
+
+.research-pipeline-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.research-pipeline-list {
+  display: grid;
+  gap: 10px;
+}
+
+.research-pipeline-row,
+.research-pipeline-empty {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.research-pipeline-row.danger-line {
+  border-color: rgba(255, 79, 129, 0.32);
+  background:
+    linear-gradient(180deg, rgba(255, 79, 129, 0.07), transparent 42%),
+    #0b1117;
+}
+
+.research-pipeline-row-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.research-pipeline-row-head strong,
+.research-pipeline-row-head small {
+  display: block;
+}
+
+.research-pipeline-row-head small {
+  margin-top: 4px;
+  line-height: 1.45;
+}
+
+.research-pipeline-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.research-pipeline-flags small {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.045);
+  padding: 6px 10px;
+}
+
 .forward-review-expansion-answer {
   border: 1px solid rgba(24, 211, 166, 0.22);
   border-radius: 8px;
@@ -3354,6 +3470,9 @@ code {
     .weakness-action-grid,
     .weakness-task-grid,
     .weakness-action-row-head,
+    .research-pipeline-grid,
+    .research-pipeline-columns,
+    .research-pipeline-row-head,
     .live-readiness-grid,
     .live-readiness-columns,
     .live-readiness-row-head,

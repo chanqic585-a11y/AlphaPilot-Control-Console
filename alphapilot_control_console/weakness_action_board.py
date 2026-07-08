@@ -7,8 +7,8 @@ from .simulation_replay import build_closed_sample_replay
 from .state_store import get_weakness_action_task, list_weakness_action_tasks
 
 
-CONTROL_CONSOLE_VERSION = "V13.7.49"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_49"
+CONTROL_CONSOLE_VERSION = "V13.8"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_8"
 
 ACTION_RECIPES: dict[str, dict[str, Any]] = {
     "deep_adverse_excursion": {

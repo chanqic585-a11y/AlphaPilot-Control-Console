@@ -1292,6 +1292,57 @@
             <div id="weaknessActionNextAction" class="weakness-action-next">等待弱点行动项。</div>
             <div id="weaknessActionList" class="weakness-action-list"></div>
           </div>
+          <div class="section-subpanel research-pipeline-panel">
+            <div class="section-header compact">
+              <div>
+                <p class="panel-eyebrow">RESEARCH EXECUTION PIPELINE</p>
+                <h4>研究执行总控</h4>
+                <p>把弱点行动、晋级闸门、本地沙盒和 Testnet 准备合并成一张执行路线图；仍不接 API Key，不创建订单。</p>
+              </div>
+              <span id="researchPipelineStatus" class="status-pill warn">研究执行</span>
+            </div>
+            <div class="research-pipeline-grid">
+              <div>
+                <span>研究行动</span>
+                <strong id="pipelineActionCount">--</strong>
+              </div>
+              <div>
+                <span>已回写任务</span>
+                <strong id="pipelineUpdatedTasks">--</strong>
+              </div>
+              <div>
+                <span>本地复核候选</span>
+                <strong id="pipelineSandboxCandidates">--</strong>
+              </div>
+              <div>
+                <span>Testnet 候选</span>
+                <strong id="pipelineTestnetCandidates">--</strong>
+              </div>
+              <div>
+                <span>Testnet 阻塞</span>
+                <strong id="pipelineTestnetBlockers">--</strong>
+              </div>
+              <div>
+                <span>模拟状态</span>
+                <strong id="pipelineSimulationStage">--</strong>
+              </div>
+            </div>
+            <div class="research-pipeline-controls">
+              <button id="runResearchPipelineButton" class="primary-button" type="button">执行研究流水线</button>
+              <span id="researchPipelineRunStatus">执行后只写本地研究任务状态，不会连接交易所。</span>
+            </div>
+            <div id="researchPipelineNextAction" class="research-pipeline-action">等待研究执行流水线。</div>
+            <div class="research-pipeline-columns">
+              <div>
+                <h4>行动执行结果</h4>
+                <div id="pipelineExecutionList" class="research-pipeline-list"></div>
+              </div>
+              <div>
+                <h4>晋级与 Testnet 阻塞</h4>
+                <div id="pipelineGateList" class="research-pipeline-list"></div>
+              </div>
+            </div>
+          </div>
           <div class="research-task-columns">
             <div>
               <h4>重构候选</h4>

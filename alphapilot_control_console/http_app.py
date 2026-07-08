@@ -23,11 +23,16 @@ from .sandbox_auto_runner import (
 )
 from .sandbox_observation_reporter import build_local_sandbox_daily_report
 from .short_cycle_candidates import build_short_cycle_candidate_pool
+from .candidate_promotion_gate import build_candidate_promotion_gate_v2
+from .research_action_executor import build_research_action_executor
+from .research_execution_pipeline import build_research_execution_pipeline
 from .simulation_bridge import build_simulation_bridge
+from .simulation_command_center import build_simulation_command_center
 from .simulation_replay import build_closed_sample_replay, build_closed_sample_strategy_detail
 from .simulation_review import build_simulation_review, build_simulation_review_strategy
 from .strategy_promotion_gate import build_strategy_promotion_gate
 from .strategy_slots import list_strategy_slots
+from .testnet_readiness_pack import build_testnet_readiness_pack
 from .usable_strategy_catalog import build_usable_strategy_catalog
 from .weakness_action_board import build_weakness_action_board
 from .state_store import (
@@ -92,7 +97,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.7.49"
+    server_version = "AlphaPilotControlConsole/13.8"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -133,8 +138,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.7.49",
-                "source": "alphapilot_control_console_v13_7_49",
+                "version": "V13.8",
+                "source": "alphapilot_control_console_v13_8",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -295,12 +300,27 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/weakness-action-board/tasks":
             self._send_json({
-                "version": "V13.7.49",
-                "source": "alphapilot_control_console_v13_7_49",
+                "version": "V13.8",
+                "source": "alphapilot_control_console_v13_8",
                 "tasks": list_weakness_action_tasks(),
                 "allowedStatuses": sorted(ALLOWED_WEAKNESS_ACTION_STATUSES),
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
+            return
+        if path == "/api/research-action-executor":
+            self._send_json(build_research_action_executor(apply_updates=False))
+            return
+        if path == "/api/candidate-promotion-gate":
+            self._send_json(build_candidate_promotion_gate_v2())
+            return
+        if path == "/api/simulation-command-center":
+            self._send_json(build_simulation_command_center())
+            return
+        if path == "/api/testnet-readiness-pack":
+            self._send_json(build_testnet_readiness_pack())
+            return
+        if path == "/api/research-execution-pipeline":
+            self._send_json(build_research_execution_pipeline(apply_updates=False))
             return
         if path.startswith("/api/closed-sample-replay/strategies/"):
             strategy_id = path.rsplit("/", 1)[-1]
@@ -547,6 +567,16 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 "weaknessActionBoard": build_weakness_action_board(),
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
+            return
+        if parsed.path == "/api/research-action-executor/run":
+            payload = self._read_body_json()
+            apply_updates = bool(payload.get("applyUpdates", True))
+            self._send_json(build_research_action_executor(apply_updates=apply_updates))
+            return
+        if parsed.path == "/api/research-execution-pipeline/run":
+            payload = self._read_body_json()
+            apply_updates = bool(payload.get("applyUpdates", True))
+            self._send_json(build_research_execution_pipeline(apply_updates=apply_updates))
             return
         if parsed.path == "/api/local-sandbox/run":
             payload = self._read_body_json()

@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.49 - Research Action Tracker
+AlphaPilot V13.8 - Research Execution Pipeline and Testnet Readiness Pack
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,46 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.8 Adds
+
+V13.8 completes the four-step research workflow after V13.7.49:
+
+1. `V13.7.50` Research Action Executor
+2. `V13.7.51` Candidate Promotion Gate
+3. `V13.7.52` Simulation Command Center
+4. `V13.8` Testnet Readiness Pack
+
+New local research endpoints:
+
+- `GET /api/research-action-executor`
+- `POST /api/research-action-executor/run`
+- `GET /api/candidate-promotion-gate`
+- `GET /api/simulation-command-center`
+- `GET /api/testnet-readiness-pack`
+- `GET /api/research-execution-pipeline`
+- `POST /api/research-execution-pipeline/run`
+
+The web console adds a "Research Execution Pipeline" panel that shows:
+
+- research action execution results
+- task statuses written back to local weakness action tasks
+- sandbox review candidates
+- Testnet readiness candidates
+- Testnet blockers
+- the next local research action
+
+The executor can update only local research task status in
+`data/console_state.json`. It does not change strategy code, does not connect to
+an exchange, does not run exchange Dry-run, and does not create orders.
+
+The Testnet Readiness Pack is a design checklist only. V13.8 keeps
+`testnetEnabled=false`, `apiKeyInputEnabled=false`, and
+`orderCreationEnabled=false`.
+
+V13.8 does not add API key storage, Trade API, Withdraw API, exchange testnet
+orders, real account reads, real position reads, order creation, exchange
+Dry-run, live trading, or automatic trading.
 
 ## What V13.7.49 Adds
 
