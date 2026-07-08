@@ -12,6 +12,18 @@ status bridge.
 
 It is not a trading execution system.
 
+## Start After Reboot
+
+After Windows shutdown, restart, or sleep, the local web console process may be
+gone. Run this helper from the repository root:
+
+```text
+Start-Control-Console.cmd
+```
+
+It will stop any old AlphaPilot Control Console Python process, start the local
+server on `http://127.0.0.1:8766/`, run `/api/health`, and open the browser.
+
 ## What V13.8.3 Adds
 
 V13.8.3 turns the V13.8.2 local lifecycle preview into a local pre-live
