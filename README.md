@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.45 - Closed Sample Detail and Trade Replay View
+AlphaPilot V13.7.46 - Sandbox Sample Path Instrumentation
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,35 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.7.46 Adds
+
+- Adds local sandbox sample path instrumentation for the closed-sample replay
+  view.
+- Uses local public OHLCV cache files to estimate a replay path when an older
+  sandbox log has only an R outcome.
+- Adds estimated fields for closed-sample review:
+  - entry / exit time
+  - entry / exit price
+  - direction
+  - market regime
+  - MFE / MAE in R
+  - path outcome in R
+  - fee and slippage estimates
+  - holding time
+  - replay candle window
+- Writes the same estimated fields into newly generated local sandbox samples
+  without changing the existing sample de-duplication schema.
+- Updates `GET /api/closed-sample-replay` so old representative samples can be
+  dynamically enriched for review.
+- Updates the web console to show `estimated path`, `actualExchangeFill=false`,
+  path R, fee R, slippage R, and holding time.
+
+V13.7.46 does not claim that estimated paths are real fills. The path fields
+are derived from local public OHLCV cache for research review only. This version
+does not add API key storage, Trade API, Withdraw API, exchange testnet orders,
+real account reads, real position reads, order creation, exchange Dry-run, live
+trading, or automatic trading.
 
 ## What V13.7.45 Adds
 

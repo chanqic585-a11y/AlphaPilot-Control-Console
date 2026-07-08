@@ -1488,6 +1488,7 @@ function renderSimulationReview(payload) {
 function closedSampleQualityLabel(value) {
   const labels = {
     full_path_ready: "完整路径",
+    estimated_path_ready: "估算路径",
     partial_path_ready: "部分路径",
     representative_sample_without_full_trade_path: "代表样本",
   };
@@ -1502,11 +1503,11 @@ function renderClosedSampleReplay(payload) {
   setText("closedSampleReplayStrategies", String(summary.totalStrategies ?? rows.length));
   setText("closedSampleReplayDeduped", String(summary.totalDedupedClosedSamples ?? 0));
   setText("closedSampleReplayRepresentatives", String(summary.totalRepresentativeSamples ?? 0));
-  setText("closedSampleReplayMissingPath", String(summary.missingFullPathSampleCount ?? 0));
+  setText("closedSampleReplayMissingPath", String(summary.nonActualPathSampleCount ?? summary.missingFullPathSampleCount ?? 0));
   setText("closedSampleReplayDryRun", payload?.dryRunApproved ? "开启" : "关闭");
   setText("closedSampleReplayLive", payload?.liveTradingApproved ? "开启" : "关闭");
   setText("closedSampleReplayStatus", payload?.liveTradingApproved ? "异常：实盘开启" : "实盘关闭");
-  setText("closedSampleReplayNextAction", summary.nextAction || "继续收集闭合样本并补齐路径字段。");
+  setText("closedSampleReplayNextAction", summary.nextAction || "继续用估算路径复盘样本；真实成交路径仍然保持关闭。");
 
   if (!rows.length) {
     el("closedSampleReplayStrategyList").innerHTML = '<div class="closed-sample-empty">暂无闭合样本复盘数据。</div>';
@@ -1525,7 +1526,7 @@ function renderClosedSampleReplay(payload) {
       <button class="closed-sample-strategy${selected}" data-closed-sample-task-id="${escapeHtml(row.taskId || "")}" type="button">
         <strong>${escapeHtml(row.strategyName || row.taskId || "--")}</strong>
         <small>${escapeHtml(row.timeframe || "--")} · ${escapeHtml(row.statusLabel || row.status || "--")}</small>
-        <span>去重 ${row.dedupedClosedSampleCount ?? 0} · 原始 ${row.rawOutcomeLogCount ?? 0} · 路径待补 ${quality.missingPathFieldCount ?? 0}</span>
+        <span>去重 ${row.dedupedClosedSampleCount ?? 0} · 原始 ${row.rawOutcomeLogCount ?? 0} · 估算 ${quality.estimatedPathSampleCount ?? 0} · 真实 ${quality.actualFillSampleCount ?? 0}</span>
       </button>
     `;
   }).join("");
@@ -1568,6 +1569,8 @@ function renderClosedSampleReplayDetail(row) {
       <span>胜率 ${formatPercent(metrics.winRate)}</span>
       <span>PF ${formatNumber(metrics.profitFactor)}</span>
       <span>权益 ${formatUsd(metrics.virtualEquity)}</span>
+      <span>估算路径 ${quality.estimatedPathSampleCount ?? 0}</span>
+      <span>真实成交 ${quality.actualFillSampleCount ?? 0}</span>
     </div>
     <div class="closed-sample-note">${escapeHtml(row.sampleSelectionNote || "代表样本按去重闭合样本生成。")}</div>
     <div class="closed-sample-quality">
@@ -1594,6 +1597,12 @@ function renderClosedSampleReplayDetail(row) {
 
 function renderClosedSampleCard(sample) {
   const missing = Array.isArray(sample.missingFields) ? sample.missingFields : [];
+  const pathMode = sample.actualExchangeFill
+    ? "真实成交路径"
+    : sample.instrumentationStatus === "estimated"
+      ? "本地OHLCV估算"
+      : "路径待补";
+  const pathTone = sample.actualExchangeFill ? "success" : sample.instrumentationStatus === "estimated" ? "warn" : "danger";
   return `
     <div class="closed-sample-card">
       <div class="closed-sample-card-head">
@@ -1611,6 +1620,18 @@ function renderClosedSampleCard(sample) {
         <span>Regime ${escapeHtml(sample.marketRegime || "待补")}</span>
         <span>MFE ${sample.mfeR ?? "待补"}</span>
         <span>MAE ${sample.maeR ?? "待补"}</span>
+        <span>路径R ${sample.pathOutcomeR ?? "待补"}</span>
+        <span>费用R ${sample.feeEstimateR ?? "待补"}</span>
+        <span>滑点R ${sample.slippageEstimateR ?? "待补"}</span>
+        <span>持有 ${sample.holdingTimeMinutes ?? "待补"} 分钟</span>
+        <span>入场 ${sample.entryPrice ?? "待补"}</span>
+        <span>出场 ${sample.exitPrice ?? "待补"}</span>
+      </div>
+      <div class="closed-sample-flags">
+        <small class="${pathTone}">路径模式：${escapeHtml(pathMode)}</small>
+        <small>真实成交：${sample.actualExchangeFill ? "是" : "否"}</small>
+        <small>${escapeHtml(sample.exitPriceSource || "出场来源待补")}</small>
+        <small>${escapeHtml(sample.costEstimateMode || "成本模式待补")}</small>
       </div>
       <div class="closed-sample-source">${escapeHtml(sample.dataSourcePathHint || "数据来源待补")}</div>
       <div class="closed-sample-flags">

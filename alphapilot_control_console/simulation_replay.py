@@ -5,12 +5,13 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .config import SAFETY_BOUNDARY
+from .sample_path_instrumentation import enrich_log_with_estimated_path
 from .simulation_review import build_simulation_review
 from .state_store import list_paper_observation_logs
 
 
-CONTROL_CONSOLE_VERSION = "V13.7.45"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_45"
+CONTROL_CONSOLE_VERSION = "V13.7.46"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_46"
 
 PATH_FIELDS = {
     "sampleKey": "样本去重键",
@@ -108,10 +109,14 @@ def _missing_fields(log: dict[str, Any]) -> list[dict[str, str]]:
     return missing
 
 
-def _sample_quality(missing: list[dict[str, str]]) -> str:
+def _sample_quality(log: dict[str, Any], missing: list[dict[str, str]]) -> str:
+    if log.get("instrumentationStatus") == "actual":
+        return "full_path_ready"
+    if log.get("instrumentationStatus") == "estimated":
+        return "estimated_path_ready"
     fields = {row["field"] for row in missing}
     if not fields:
-        return "full_path_ready"
+        return "partial_path_ready"
     if {"entryPrice", "exitPrice", "mfeR", "maeR"} & fields:
         return "representative_sample_without_full_trade_path"
     return "partial_path_ready"
@@ -122,49 +127,73 @@ def _build_replay_narrative(log: dict[str, Any], outcome_r: float, missing: list
     timeframe = log.get("timeframe") or "未知周期"
     reason = log.get("outcomeReason") or log.get("outcome") or "未记录原因"
     sign = "+" if outcome_r > 0 else ""
-    missing_note = "；缺少完整路径字段，只能做代表样本复盘" if missing else "；路径字段完整"
-    return f"{pair} · {timeframe} · {reason} · {sign}{outcome_r:.2f}R{missing_note}。"
+    if log.get("instrumentationStatus") == "estimated":
+        path_note = "；已用本地 public OHLCV 缓存估算入场、出场和 MFE/MAE"
+    elif missing:
+        path_note = "；缺少完整路径字段，只能做代表样本复盘"
+    else:
+        path_note = "；路径字段可用于复盘"
+    return f"{pair} · {timeframe} · {reason} · {sign}{outcome_r:.2f}R{path_note}。"
 
 
 def _build_sample(log: dict[str, Any], outcome_r: float, strategy: dict[str, Any]) -> dict[str, Any]:
-    missing = _missing_fields(log)
+    enriched_log = enrich_log_with_estimated_path(log, task=strategy)
+    missing = _missing_fields(enriched_log)
+    quality = _sample_quality(enriched_log, missing)
     return {
-        "sampleId": log.get("sampleKey") or log.get("logId"),
-        "logId": log.get("logId"),
-        "sampleKey": log.get("sampleKey"),
-        "taskId": strategy.get("taskId") or log.get("artifactId"),
-        "strategyId": strategy.get("strategyId") or log.get("strategyId"),
-        "strategyName": strategy.get("strategyName") or log.get("title"),
-        "pair": log.get("pair"),
-        "timeframe": log.get("timeframe"),
-        "createdAt": log.get("createdAt"),
-        "runId": log.get("runId"),
-        "outcome": log.get("outcome"),
+        "sampleId": enriched_log.get("sampleKey") or enriched_log.get("logId"),
+        "logId": enriched_log.get("logId"),
+        "sampleKey": enriched_log.get("sampleKey"),
+        "taskId": strategy.get("taskId") or enriched_log.get("artifactId"),
+        "strategyId": strategy.get("strategyId") or enriched_log.get("strategyId"),
+        "strategyName": strategy.get("strategyName") or enriched_log.get("title"),
+        "pair": enriched_log.get("pair"),
+        "timeframe": enriched_log.get("timeframe"),
+        "createdAt": enriched_log.get("createdAt"),
+        "runId": enriched_log.get("runId"),
+        "outcome": enriched_log.get("outcome"),
         "outcomeR": round(outcome_r, 4),
-        "outcomeReason": log.get("outcomeReason"),
-        "signalObserved": bool(log.get("signalObserved")),
-        "ruleMatched": bool(log.get("ruleMatched")),
-        "virtualCapital": log.get("virtualCapital"),
-        "virtualEquity": log.get("virtualEquity"),
-        "riskUnitPercent": log.get("riskUnitPercent"),
-        "dataMode": log.get("dataMode"),
-        "dataStatus": log.get("dataStatus"),
-        "dataSourcePathHint": log.get("dataSourcePathHint"),
-        "sandboxMode": log.get("sandboxMode"),
-        "entryTime": log.get("entryTime"),
-        "exitTime": log.get("exitTime"),
-        "entryPrice": log.get("entryPrice"),
-        "exitPrice": log.get("exitPrice"),
-        "direction": log.get("direction"),
-        "marketRegime": log.get("marketRegime"),
-        "mfeR": log.get("mfeR"),
-        "maeR": log.get("maeR"),
-        "feeEstimate": log.get("feeEstimate"),
-        "slippageEstimate": log.get("slippageEstimate"),
-        "holdingTimeMinutes": log.get("holdingTimeMinutes"),
+        "outcomeReason": enriched_log.get("outcomeReason"),
+        "signalObserved": bool(enriched_log.get("signalObserved")),
+        "ruleMatched": bool(enriched_log.get("ruleMatched")),
+        "virtualCapital": enriched_log.get("virtualCapital"),
+        "virtualEquity": enriched_log.get("virtualEquity"),
+        "riskUnitPercent": enriched_log.get("riskUnitPercent"),
+        "dataMode": enriched_log.get("dataMode"),
+        "dataStatus": enriched_log.get("dataStatus"),
+        "dataSourcePathHint": enriched_log.get("dataSourcePathHint"),
+        "sandboxMode": enriched_log.get("sandboxMode"),
+        "entryTime": enriched_log.get("entryTime"),
+        "exitTime": enriched_log.get("exitTime"),
+        "entryPrice": enriched_log.get("entryPrice"),
+        "exitPrice": enriched_log.get("exitPrice"),
+        "exitPriceSource": enriched_log.get("exitPriceSource"),
+        "direction": enriched_log.get("direction"),
+        "directionSource": enriched_log.get("directionSource"),
+        "marketRegime": enriched_log.get("marketRegime"),
+        "mfeR": enriched_log.get("mfeR"),
+        "maeR": enriched_log.get("maeR"),
+        "pathOutcomeR": enriched_log.get("pathOutcomeR"),
+        "feeEstimate": enriched_log.get("feeEstimate"),
+        "slippageEstimate": enriched_log.get("slippageEstimate"),
+        "feeEstimateR": enriched_log.get("feeEstimateR"),
+        "slippageEstimateR": enriched_log.get("slippageEstimateR"),
+        "feeRateEstimate": enriched_log.get("feeRateEstimate"),
+        "slippageRateEstimate": enriched_log.get("slippageRateEstimate"),
+        "costEstimateMode": enriched_log.get("costEstimateMode"),
+        "holdingTimeMinutes": enriched_log.get("holdingTimeMinutes"),
+        "replayWindowCandleCount": enriched_log.get("replayWindowCandleCount"),
+        "replayWindowStart": enriched_log.get("replayWindowStart"),
+        "replayWindowEnd": enriched_log.get("replayWindowEnd"),
+        "instrumentationVersion": enriched_log.get("instrumentationVersion"),
+        "instrumentationMode": enriched_log.get("instrumentationMode"),
+        "instrumentationStatus": enriched_log.get("instrumentationStatus"),
+        "instrumentationMissingReason": enriched_log.get("instrumentationMissingReason"),
+        "actualExchangeFill": bool(enriched_log.get("actualExchangeFill")),
+        "isEstimatedReplay": bool(enriched_log.get("isEstimatedReplay")),
         "missingFields": missing,
-        "sampleQuality": _sample_quality(missing),
-        "replayNarrative": _build_replay_narrative(log, outcome_r, missing),
+        "sampleQuality": quality,
+        "replayNarrative": _build_replay_narrative(enriched_log, outcome_r, missing),
         "safetyNote": "本条记录仅用于本地模拟盘复盘，不是 testnet、实盘信号或订单。",
     }
 
@@ -173,23 +202,33 @@ def _quality_summary(samples: list[dict[str, Any]]) -> dict[str, Any]:
     if not samples:
         return {
             "fullPathSampleCount": 0,
+            "estimatedPathSampleCount": 0,
+            "actualFillSampleCount": 0,
             "representativeSampleCount": 0,
             "missingPathFieldCount": 0,
             "hasUniqueSampleId": False,
             "hasEntryExitPrices": False,
             "hasPathMetrics": False,
             "hasCostMetrics": False,
+            "hasEstimatedPath": False,
+            "hasActualFillPath": False,
         }
     full_path_count = sum(1 for sample in samples if sample.get("sampleQuality") == "full_path_ready")
+    estimated_count = sum(1 for sample in samples if sample.get("sampleQuality") == "estimated_path_ready")
+    actual_count = sum(1 for sample in samples if sample.get("actualExchangeFill"))
     missing_count = sum(len(sample.get("missingFields") or []) for sample in samples)
     return {
         "fullPathSampleCount": full_path_count,
+        "estimatedPathSampleCount": estimated_count,
+        "actualFillSampleCount": actual_count,
         "representativeSampleCount": len(samples),
         "missingPathFieldCount": missing_count,
         "hasUniqueSampleId": any(bool(sample.get("sampleKey")) for sample in samples),
         "hasEntryExitPrices": all(sample.get("entryPrice") is not None and sample.get("exitPrice") is not None for sample in samples),
         "hasPathMetrics": all(sample.get("mfeR") is not None and sample.get("maeR") is not None for sample in samples),
         "hasCostMetrics": all(sample.get("feeEstimate") is not None and sample.get("slippageEstimate") is not None for sample in samples),
+        "hasEstimatedPath": estimated_count > 0,
+        "hasActualFillPath": actual_count > 0,
     }
 
 
@@ -233,17 +272,17 @@ def _build_strategy_replay(row: dict[str, Any]) -> dict[str, Any]:
         "whatCanBeReviewed": [
             "pair/timeframe 分布",
             "本地模拟 R 结果",
-            "结果原因 outcomeReason",
+            "估算 entry/exit price",
+            "估算 MFE/MAE 路径指标",
+            "估算 fee/slippage 成本",
             "数据来源文件和缓存状态",
             "虚拟资金和虚拟权益变化",
         ],
         "whatNeedsInstrumentation": [
-            "stable sampleKey for every strategy family",
-            "entry/exit time and price",
-            "direction and marketRegime",
-            "MFE/MAE path metrics",
-            "fee/slippage estimates",
-            "holding time and replay candle window",
+            "real exchange-independent paper fill log",
+            "actual manual observation timestamp",
+            "actual entry/exit confirmation source",
+            "user review label after replay",
         ],
         "safetyNote": "闭合样本复盘只用于本地研究，不会创建订单、不会进入 Dry-run、不会连接实盘权限。",
     }
@@ -267,19 +306,25 @@ def build_closed_sample_replay(strategy_id: str | None = None, limit: int = 80) 
         if isinstance(sample, dict)
     ]
     all_samples.sort(key=lambda sample: str(sample.get("createdAt") or ""), reverse=True)
-    missing_path_count = sum(
+    non_actual_path_count = sum(
         1 for sample in all_samples
-        if sample.get("sampleQuality") != "full_path_ready"
+        if not sample.get("actualExchangeFill")
+    )
+    estimated_path_count = sum(
+        1 for sample in all_samples
+        if sample.get("sampleQuality") == "estimated_path_ready"
     )
     summary = {
         "totalStrategies": len(strategy_rows),
         "totalDedupedClosedSamples": sum(_safe_int(row.get("dedupedClosedSampleCount")) for row in strategy_rows),
         "totalRawOutcomeLogs": sum(_safe_int(row.get("rawOutcomeLogCount")) for row in strategy_rows),
         "totalRepresentativeSamples": sum(_safe_int(row.get("representativeSampleCount")) for row in strategy_rows),
-        "missingFullPathSampleCount": missing_path_count,
+        "estimatedPathSampleCount": estimated_path_count,
+        "nonActualPathSampleCount": non_actual_path_count,
+        "missingFullPathSampleCount": non_actual_path_count,
         "dryRunApproved": False,
         "liveTradingApproved": False,
-        "nextAction": "继续补齐 entry/exit、MFE/MAE、方向、市场状态、费用和滑点字段，再做更精确的单笔交易复盘。",
+        "nextAction": "继续用估算路径复盘策略弱点；后续若进入 testnet，也必须保持人工确认和安全闸门。",
     }
     return {
         "version": CONTROL_CONSOLE_VERSION,
@@ -288,9 +333,10 @@ def build_closed_sample_replay(strategy_id: str | None = None, limit: int = 80) 
         "strategies": strategy_rows,
         "samples": all_samples[:safe_limit],
         "sampleSchema": {
-            "currentMode": "representative_sample_replay",
+            "currentMode": "estimated_sample_path_replay",
             "fieldLabels": PATH_FIELDS,
-            "note": "当前本地沙盒样本缺少完整成交路径字段；页面展示的是本地研究复盘，不是成交回放。",
+            "note": "当前页面使用本地 public OHLCV cache 估算样本路径，不是真实成交回放。",
+            "actualExchangeFill": False,
         },
         "dryRunApproved": False,
         "liveTradingApproved": False,
