@@ -19,8 +19,8 @@ from .state_store import (
 )
 
 
-CONTROL_CONSOLE_VERSION = "V13.7.41"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_41"
+CONTROL_CONSOLE_VERSION = "V13.8.4"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_8_4"
 BEIJING_TZ = timezone(timedelta(hours=8))
 
 
@@ -141,7 +141,13 @@ class LocalSandboxAutoRunner:
                 {"eventType": "run_started", "reason": reason},
             )
             try:
-                run = run_local_sandbox({"maxTasks": 20, "trigger": f"auto_runner_{reason}"})
+                replay_cursor = int(current.get("replayCursor") or 0) + 1
+                run = run_local_sandbox({
+                    "maxTasks": 20,
+                    "trigger": f"auto_runner_{reason}",
+                    "replayCursor": replay_cursor,
+                    "replayMode": current.get("replayMode") or "rolling_window",
+                })
                 latest = scan_quant_engine()
                 report = build_local_sandbox_daily_report(latest.get("strategyLearningLoop") or {})
                 learning = build_learning_snapshot(run, report)
@@ -163,6 +169,10 @@ class LocalSandboxAutoRunner:
                         "lastRunId": run.get("runId"),
                         "lastReportId": report.get("reportId"),
                         "lastLearningSnapshotId": learning.get("snapshotId"),
+                        "replayCursor": replay_cursor,
+                        "lastReplayCursor": replay_cursor,
+                        "lastReplayWindowId": run.get("rows", [{}])[0].get("replayWindowId") if run.get("rows") else None,
+                        "lastReplayWindowCount": run.get("replayWindowCount") or 0,
                         "lastError": None,
                         "consecutiveFailures": 0,
                     },
@@ -175,6 +185,8 @@ class LocalSandboxAutoRunner:
                         "generatedLogCount": run.get("generatedLogCount"),
                         "closedSampleCount": run.get("closedSampleCount"),
                         "skippedDuplicateCount": run.get("skippedDuplicateCount"),
+                        "replayCursor": replay_cursor,
+                        "replayWindowCount": run.get("replayWindowCount"),
                     },
                 )
                 return {

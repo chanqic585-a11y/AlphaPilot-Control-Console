@@ -79,12 +79,17 @@ WEAKNESS_ACTION_STATUS_LABELS = {
     "archived": "已归档",
 }
 
-CONTROL_CONSOLE_STATE_SOURCE = "alphapilot_control_console_v13_8"
+CONTROL_CONSOLE_STATE_SOURCE = "alphapilot_control_console_v13_8_4"
 DEFAULT_LOCAL_SANDBOX_AUTO_RUNNER = {
     "enabled": False,
     "intervalMinutes": 360,
     "maxRunsPerDay": 4,
     "status": "disabled",
+    "replayMode": "rolling_window",
+    "replayCursor": 0,
+    "lastReplayCursor": None,
+    "lastReplayWindowId": None,
+    "lastReplayWindowCount": 0,
     "todayKey": None,
     "todayRunCount": 0,
     "lastRunAt": None,
@@ -528,6 +533,9 @@ def get_local_sandbox_auto_runner_state() -> dict[str, Any]:
     runner["intervalMinutes"] = max(1, min(int(runner.get("intervalMinutes") or 360), 1440))
     runner["maxRunsPerDay"] = max(1, min(int(runner.get("maxRunsPerDay") or 4), 288))
     runner["todayRunCount"] = max(0, int(runner.get("todayRunCount") or 0))
+    runner["replayMode"] = str(runner.get("replayMode") or "rolling_window")
+    runner["replayCursor"] = max(0, int(runner.get("replayCursor") or 0))
+    runner["lastReplayWindowCount"] = max(0, int(runner.get("lastReplayWindowCount") or 0))
     runner["source"] = runner.get("source") or CONTROL_CONSOLE_STATE_SOURCE
     return runner
 
@@ -541,6 +549,9 @@ def update_local_sandbox_auto_runner_state(fields: dict[str, Any], event: dict[s
     runner["intervalMinutes"] = max(1, min(int(runner.get("intervalMinutes") or 360), 1440))
     runner["maxRunsPerDay"] = max(1, min(int(runner.get("maxRunsPerDay") or 4), 288))
     runner["todayRunCount"] = max(0, int(runner.get("todayRunCount") or 0))
+    runner["replayMode"] = str(runner.get("replayMode") or "rolling_window")
+    runner["replayCursor"] = max(0, int(runner.get("replayCursor") or 0))
+    runner["lastReplayWindowCount"] = max(0, int(runner.get("lastReplayWindowCount") or 0))
     state["localSandboxAutoRunner"] = runner
     if isinstance(event, dict):
         events = state.get("localSandboxAutoRunEvents")

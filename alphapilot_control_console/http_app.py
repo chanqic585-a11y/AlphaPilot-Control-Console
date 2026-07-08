@@ -144,8 +144,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.8.3",
-                "source": "alphapilot_control_console_v13_8_3",
+                "version": "V13.8.4",
+                "source": "alphapilot_control_console_v13_8_4",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return

@@ -16,12 +16,20 @@ from .usable_strategy_catalog import (
 )
 
 
-CONTROL_CONSOLE_VERSION = "V13.8"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_8"
+CONTROL_CONSOLE_VERSION = "V13.8.4"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_8_4"
 SAMPLE_KEY_SCHEMA_VERSION = "V13.7.34"
 VIRTUAL_CAPITAL_PER_STRATEGY = 1000.0
 RISK_UNIT_PERCENT = 1.0
 TASK_PACK_REPORT = "v13_7_41_usable_sandbox_task_pack"
+REPLAY_WINDOW_SIZE_BY_TIMEFRAME = {
+    "5m": 288,
+    "15m": 96,
+    "30m": 64,
+    "1h": 72,
+    "4h": 60,
+    "1d": 45,
+}
 REFERENCE_CHECKLIST = {
     "referenceOnly": True,
     "recordedReferences": [
@@ -99,6 +107,7 @@ def _find_local_public_ohlcv_cache(quant_path: Path, pair: str, timeframe: str) 
             "source": "missing_local_public_ohlcv_cache",
             "reason": "pair_or_timeframe_missing",
         }
+    candidates: list[tuple[int, Path]] = []
     for path in data_root.rglob("*"):
         if not path.is_file() or path.suffix.lower() not in {".feather", ".json", ".csv"}:
             continue
@@ -106,14 +115,25 @@ def _find_local_public_ohlcv_cache(quant_path: Path, pair: str, timeframe: str) 
         if timeframe_token not in path.name.lower():
             continue
         if any(token in name for token in tokens):
-            stat = path.stat()
-            return {
-                "available": True,
-                "source": "local_public_ohlcv_cache",
-                "pathHint": str(path.relative_to(data_root)),
-                "fileSize": stat.st_size,
-                "modifiedAt": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
-            }
+            lower_name = path.name.lower()
+            score = 10
+            if f"-{timeframe_token}-" in lower_name:
+                score += 10
+            if "futures" in lower_name or "spot" in lower_name:
+                score += 20
+            if "funding_rate" in lower_name or lower_name.endswith(f"-{timeframe_token}-mark.feather"):
+                score -= 30
+            candidates.append((score, path))
+    if candidates:
+        _, path = sorted(candidates, key=lambda item: (-item[0], len(str(item[1]))))[0]
+        stat = path.stat()
+        return {
+            "available": True,
+            "source": "local_public_ohlcv_cache",
+            "pathHint": str(path.relative_to(data_root)),
+            "fileSize": stat.st_size,
+            "modifiedAt": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
+        }
     return {
         "available": False,
         "source": "missing_local_public_ohlcv_cache",
@@ -134,8 +154,53 @@ def _digest_payload(value: Any) -> str:
     return hashlib.sha256(encoded).hexdigest()[:16]
 
 
-def _sample_key(task_id: str, pair: str, timeframe: str, cache: dict[str, Any], pair_metrics: dict[str, Any]) -> str:
+def _replay_window_size(timeframe: str) -> int:
+    return REPLAY_WINDOW_SIZE_BY_TIMEFRAME.get(str(timeframe or "").strip().lower(), 72)
+
+
+def _estimated_replay_window_count(cache: dict[str, Any], timeframe: str) -> int:
+    if not cache.get("available"):
+        return 0
+    file_size = max(0, _safe_int(cache.get("fileSize"), 0))
+    window_size = _replay_window_size(timeframe)
+    estimated_candles = max(1, file_size // 80)
+    return max(1, min(5000, estimated_candles // max(1, window_size)))
+
+
+def _build_replay_context(cache: dict[str, Any], timeframe: str, replay_cursor: int) -> dict[str, Any]:
+    window_count = _estimated_replay_window_count(cache, timeframe)
+    if window_count <= 0:
+        return {
+            "replayMode": "metrics_only_no_window",
+            "replayCursor": replay_cursor,
+            "replayWindowIndex": None,
+            "replayWindowCount": 0,
+            "replayWindowId": None,
+            "replayWindowSizeCandles": 0,
+        }
+    safe_cursor = max(1, replay_cursor)
+    window_index = ((safe_cursor - 1) % window_count) + 1
+    window_size = _replay_window_size(timeframe)
+    return {
+        "replayMode": "rolling_ohlcv_window",
+        "replayCursor": safe_cursor,
+        "replayWindowIndex": window_index,
+        "replayWindowCount": window_count,
+        "replayWindowId": f"{str(timeframe or 'tf').lower()}::window::{window_index:04d}-of-{window_count:04d}",
+        "replayWindowSizeCandles": window_size,
+    }
+
+
+def _sample_key(
+    task_id: str,
+    pair: str,
+    timeframe: str,
+    cache: dict[str, Any],
+    pair_metrics: dict[str, Any],
+    replay_context: dict[str, Any] | None = None,
+) -> str:
     data_mode = "local_public_ohlcv_cache" if cache.get("available") else "task_pack_metrics_only"
+    replay_context = replay_context if isinstance(replay_context, dict) else {}
     payload = {
         "version": SAMPLE_KEY_SCHEMA_VERSION,
         "taskId": task_id,
@@ -145,6 +210,10 @@ def _sample_key(task_id: str, pair: str, timeframe: str, cache: dict[str, Any], 
         "pathHint": cache.get("pathHint"),
         "fileSize": cache.get("fileSize"),
         "modifiedAt": cache.get("modifiedAt"),
+        "replayMode": replay_context.get("replayMode"),
+        "replayWindowId": replay_context.get("replayWindowId"),
+        "replayWindowIndex": replay_context.get("replayWindowIndex"),
+        "replayWindowSizeCandles": replay_context.get("replayWindowSizeCandles"),
         "metricsDigest": _digest_payload(pair_metrics),
     }
     return f"local_sandbox_sample::{_digest_payload(payload)}"
@@ -257,12 +326,14 @@ def run_local_sandbox(payload: dict[str, Any] | None = None) -> dict[str, Any]:
     tasks = task_pack.get("paperObservationTasks") if isinstance(task_pack.get("paperObservationTasks"), list) else []
     default_max_tasks = min(len(tasks) or 1, 20)
     max_tasks = max(1, min(_safe_int(payload.get("maxTasks"), default_max_tasks), 20))
+    replay_cursor = max(1, _safe_int(payload.get("replayCursor"), 1))
     run_id = _build_run_id()
     rows: list[dict[str, Any]] = []
     generated = 0
     closed_samples = 0
     data_gap_count = 0
     skipped_duplicates = 0
+    replay_window_count = 0
     total_virtual_equity = 0.0
     total_virtual_capital = 0.0
 
@@ -286,7 +357,10 @@ def run_local_sandbox(payload: dict[str, Any] | None = None) -> dict[str, Any]:
 
         if cache.get("available") or pair_metrics:
             data_mode = "local_public_ohlcv_cache" if cache.get("available") else "task_pack_metrics_only"
-            sample_key = _sample_key(task_id, pair, timeframe, cache, pair_metrics)
+            replay_context = _build_replay_context(cache, timeframe, replay_cursor)
+            if replay_context.get("replayWindowId"):
+                replay_window_count += 1
+            sample_key = _sample_key(task_id, pair, timeframe, cache, pair_metrics, replay_context)
             duplicate = _find_duplicate_closed_sample(task_id, sample_key, pair, timeframe, cache, data_mode)
             if duplicate:
                 skipped_duplicates += 1
@@ -306,6 +380,7 @@ def run_local_sandbox(payload: dict[str, Any] | None = None) -> dict[str, Any]:
                     "dataStatus": "duplicate_sample_skipped",
                     "dataMode": data_mode,
                     "dataSourcePathHint": cache.get("pathHint"),
+                    **replay_context,
                 })
                 continue
             outcome_r, outcome_reason = _deterministic_outcome_r(task, pair_metrics, sequence)
@@ -325,6 +400,7 @@ def run_local_sandbox(payload: dict[str, Any] | None = None) -> dict[str, Any]:
                 "dataSourcePathHint": cache.get("pathHint"),
                 "dataSourceFileSize": cache.get("fileSize"),
                 "dataSourceModifiedAt": cache.get("modifiedAt"),
+                **replay_context,
                 "pair": pair,
                 "timeframe": timeframe,
                 "virtualCapital": VIRTUAL_CAPITAL_PER_STRATEGY,
@@ -365,6 +441,7 @@ def run_local_sandbox(payload: dict[str, Any] | None = None) -> dict[str, Any]:
                 "dataMode": data_mode,
                 "dataStatus": "cache_available" if cache.get("available") else "cache_missing_metrics_available",
                 "dataSourcePathHint": cache.get("pathHint"),
+                **replay_context,
                 "instrumentationStatus": log.get("instrumentationStatus"),
                 "instrumentationMode": log.get("instrumentationMode"),
                 "actualExchangeFill": log.get("actualExchangeFill"),
@@ -434,6 +511,9 @@ def run_local_sandbox(payload: dict[str, Any] | None = None) -> dict[str, Any]:
         "closedSampleCount": closed_samples,
         "dataGapCount": data_gap_count,
         "skippedDuplicateCount": skipped_duplicates,
+        "replayCursor": replay_cursor,
+        "replayWindowCount": replay_window_count,
+        "replayMode": "rolling_ohlcv_window",
         "virtualCapitalPerStrategy": VIRTUAL_CAPITAL_PER_STRATEGY,
         "totalVirtualCapital": round(total_virtual_capital, 2),
         "totalVirtualEquity": round(total_virtual_equity, 2),

@@ -1146,6 +1146,13 @@ function renderSandboxAutoRunner(payload) {
   el("learningSandboxAutoToday").textContent = `${runner.todayRunCount ?? 0}/${runner.maxRunsPerDay ?? "--"}`;
   el("learningSandboxAutoNext").textContent = runner.nextRunAt ? formatDate(runner.nextRunAt) : "--";
   el("learningSandboxAutoFailures").textContent = String(runner.consecutiveFailures ?? 0);
+  if (el("learningSandboxReplayCursor")) {
+    const replayCursor = runner.replayCursor ?? runner.lastReplayCursor;
+    const replayWindowCount = runner.lastReplayWindowCount ?? 0;
+    el("learningSandboxReplayCursor").textContent = replayCursor !== undefined && replayCursor !== null
+      ? `${replayCursor} / ${replayWindowCount || "--"}窗`
+      : "--";
+  }
   el("learningSandboxMlStatus").textContent = latestLearning.mlReadiness === "ready_for_baseline_model"
     ? "可做基线模型"
     : "继续收集";
@@ -1171,6 +1178,7 @@ function renderSandboxAutoRunner(payload) {
         <span>run ${escapeHtml(event.runId || "--")}</span>
         <span>report ${escapeHtml(event.reportId || "--")}</span>
         <span>learning ${escapeHtml(event.learningSnapshotId || "--")}</span>
+        <span>replay ${escapeHtml(event.replayCursor || "--")} / ${escapeHtml(event.replayWindowCount || "--")}窗</span>
       </div>
     </div>
   `).join("") || '<div class="sandbox-lane-empty">暂无自动沙盒运行记录。</div>';

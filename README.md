@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.8.3 - Pre-Live Operational Closure Pack
+AlphaPilot V13.8.4 - Local Sandbox Replay Cursor
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -23,6 +23,28 @@ Start-Control-Console.cmd
 
 It will stop any old AlphaPilot Control Console Python process, start the local
 server on `http://127.0.0.1:8766/`, run `/api/health`, and open the browser.
+
+## What V13.8.4 Adds
+
+V13.8.4 improves the local sandbox sample path after real console testing showed
+that repeated five-minute checks were correctly skipped as duplicate samples.
+
+What changed:
+
+- Adds a local replay cursor to the sandbox auto-runner state.
+- Maps each run to a rolling OHLCV replay window when local public OHLCV cache
+  exists.
+- Includes replay window metadata in sandbox sample keys, logs, run summaries,
+  and the auto-runner event stream.
+- Prefers actual OHLCV futures/spot files over funding-rate or mark-price files
+  when selecting local cache.
+- Shows the replay cursor in the desktop console so duplicate skips are easier
+  to understand.
+
+This is still local historical replay and paper observation only. It does not
+add API key input, API key storage, Trade API, Withdraw API, real account reads,
+real position reads, order creation, exchange Dry-run, live trading, or
+automatic trading.
 
 ## What V13.8.3 Adds
 
