@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.42 - Simple Console Mode
+AlphaPilot V13.7.43 - Continuous Simulation Learning Bridge
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,39 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.7.43 Adds
+
+- Adds `GET /api/simulation-bridge`.
+- Builds a local simulation bridge from:
+  - usable strategy catalog
+  - local sandbox daily reports
+  - paper observation logs
+  - local sandbox auto-runner state
+  - learning snapshots
+- Shows a simple simulation status block on the default console home page:
+  - local simulation stage
+  - simulation-review candidate count
+  - closed sample count
+  - virtual capital / equity
+  - learning sample progress
+- Separates three concepts:
+  - local sandbox simulation is available now
+  - exchange testnet remains disabled in this version
+  - real trading remains disabled
+- Defines minimum review gates before a strategy can be considered for later
+  exchange testnet review:
+  - at least 30 closed samples
+  - at least 12 rule-matched samples
+  - health score at least 65
+  - no unresolved risk warnings or invalidated samples
+- Defines learning fields and labels for future research models without
+  allowing any model to create orders.
+
+V13.7.43 does not add API key storage, Trade API, Withdraw API, exchange
+testnet orders, real account reads, real position reads, order creation,
+exchange Dry-run, live trading, or automatic trading. It makes the local
+simulation loop observable and learnable before any future testnet design.
 
 ## What V13.7.42 Adds
 

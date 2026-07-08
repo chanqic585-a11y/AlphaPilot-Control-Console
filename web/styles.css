@@ -832,6 +832,36 @@ small {
   line-height: 1.55;
 }
 
+.simple-simulation-bridge {
+  display: grid;
+  grid-template-columns: 1.3fr repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.simple-simulation-bridge > div {
+  min-height: 86px;
+  border: 1px solid rgba(24, 211, 166, 0.22);
+  border-radius: 8px;
+  padding: 12px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(24, 211, 166, 0.12), transparent 40%),
+    #0b1117;
+}
+
+.simple-simulation-bridge span,
+.simple-simulation-bridge small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.simple-simulation-bridge strong {
+  display: block;
+  margin: 6px 0;
+  font-size: 20px;
+}
+
 .simple-columns {
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.75fr);

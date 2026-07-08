@@ -773,7 +773,24 @@ function renderSimpleActionChecklist({ runnerState, rows, sandboxRows, dailySumm
   `).join("");
 }
 
-function renderSimpleConsole(strategies, reports, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness) {
+function renderSimpleSimulationBridge(payload) {
+  const summary = payload?.summary || {};
+  const learning = payload?.learningStatus || {};
+  setText("simpleSimulationStage", summary.stageLabel || "--");
+  setText("simpleSimulationNext", summary.nextAction || "等待本地模拟盘桥接状态。");
+  setText("simpleSimulationCandidates", String(summary.simulationReviewCandidateCount ?? 0));
+  setText(
+    "simpleSimulationSamples",
+    `闭合样本 ${summary.totalClosedSampleCount ?? 0} · 权益 ${formatUsd(summary.totalVirtualEquity)} / ${formatUsd(summary.totalVirtualCapital)}`,
+  );
+  setText("simpleLearningStage", learning.statusLabel || "--");
+  setText(
+    "simpleLearningSamples",
+    `学习样本 ${learning.closedSampleCount ?? 0}/${learning.minimumBaselineSamples ?? "--"} · ${learning.nextAction || "继续收集样本"}`,
+  );
+}
+
+function renderSimpleConsole(strategies, reports, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge) {
   if (!el("simpleConsole")) return;
   const rows = Array.isArray(usableStrategyCatalog?.strategies) ? usableStrategyCatalog.strategies : [];
   const catalogSummary = usableStrategyCatalog?.summary || {};
@@ -822,9 +839,10 @@ function renderSimpleConsole(strategies, reports, mobile, usableStrategyCatalog,
   setText("simpleNextAction", nextAction);
 
   updateSimpleSandboxButton(runnerState);
+  renderSimpleSimulationBridge(simulationBridge);
   renderSimpleStrategyCards(rows);
   renderSimpleActionChecklist({ runnerState, rows, sandboxRows, dailySummary });
-  latestSimpleConsolePayload = { strategies, reports, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness };
+  latestSimpleConsolePayload = { strategies, reports, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge };
 }
 
 function renderSandboxSimulationLane(observationTasks, qualityRows) {
@@ -2844,7 +2862,7 @@ function renderAudit(events) {
 }
 
 async function refreshAll() {
-  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, shortCycleCandidates, usableStrategyCatalog, strategyPromotionGate, researchTaskBoard, strategyLearningLoop, sandboxDailyReport, sandboxAutoRunner, liveReadiness, forwardReview] = await Promise.all([
+  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, shortCycleCandidates, usableStrategyCatalog, simulationBridge, strategyPromotionGate, researchTaskBoard, strategyLearningLoop, sandboxDailyReport, sandboxAutoRunner, liveReadiness, forwardReview] = await Promise.all([
     getJson("/api/strategies"),
     getJson("/api/reports"),
     getJson("/api/mobile/status"),
@@ -2857,6 +2875,7 @@ async function refreshAll() {
     getJson("/api/candidate-queue"),
     getJson("/api/short-cycle-candidates"),
     getJson("/api/usable-strategy-catalog"),
+    getJson("/api/simulation-bridge"),
     getJson("/api/strategy-promotion-gate"),
     getJson("/api/research-task-board"),
     getJson("/api/strategy-learning-loop"),
@@ -2868,7 +2887,7 @@ async function refreshAll() {
   const strategyItems = strategies.strategies || [];
   const reportItems = reports.reports || [];
   latestStrategyLearningLoopPayload = strategyLearningLoop;
-  renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness);
+  renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge);
   renderCommandCenter(strategyItems, reportItems, mobile);
   renderRuntimeMonitor(strategyItems, mobile);
   renderStrategies(strategyItems);
