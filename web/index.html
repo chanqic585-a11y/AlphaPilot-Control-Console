@@ -135,6 +135,31 @@
               <small id="simpleLearningSamples">--</small>
             </div>
           </div>
+          <div class="simple-review-queue" id="simpleReviewQueue">
+            <div class="simple-section-title">
+              <strong>策略复核队列</strong>
+              <span id="simpleReviewQueueMeta">等待模拟盘复核数据。</span>
+            </div>
+            <div class="simple-review-grid">
+              <div>
+                <span>收样中</span>
+                <strong id="simpleReviewCollecting">--</strong>
+              </div>
+              <div>
+                <span>可复核</span>
+                <strong id="simpleReviewReady">--</strong>
+              </div>
+              <div>
+                <span>晋级候选</span>
+                <strong id="simpleReviewPromoted">--</strong>
+              </div>
+              <div>
+                <span>降级/参考</span>
+                <strong id="simpleReviewDemoted">--</strong>
+              </div>
+            </div>
+            <div id="simpleReviewQueueList" class="simple-review-list"></div>
+          </div>
           <div class="simple-columns">
             <div>
               <div class="simple-section-title">
@@ -1102,6 +1127,44 @@
             </div>
             <div class="simulation-gate-action" id="learningSimulationNextAction">等待本地观察质量数据。</div>
             <div id="learningSimulationGateList" class="simulation-gate-list"></div>
+          </div>
+          <div class="section-subpanel simulation-review-panel">
+            <div class="section-header compact">
+              <div>
+                <p class="panel-eyebrow">SIMULATION REVIEW QUEUE</p>
+                <h4>模拟盘复核队列与策略晋级建议</h4>
+                <p>把本地沙盒闭合样本整理成可复核队列。状态只是人工复核建议，不会自动进入 testnet 或实盘。</p>
+              </div>
+              <span id="simulationReviewStatus" class="status-pill danger">Dry-run 关闭</span>
+            </div>
+            <div class="simulation-review-grid">
+              <div>
+                <span>策略数</span>
+                <strong id="simulationReviewTotal">--</strong>
+              </div>
+              <div>
+                <span>闭合样本</span>
+                <strong id="simulationReviewClosed">--</strong>
+              </div>
+              <div>
+                <span>可复核</span>
+                <strong id="simulationReviewReady">--</strong>
+              </div>
+              <div>
+                <span>晋级候选</span>
+                <strong id="simulationReviewPromoted">--</strong>
+              </div>
+              <div>
+                <span>降级参考</span>
+                <strong id="simulationReviewDemoted">--</strong>
+              </div>
+              <div>
+                <span>门槛</span>
+                <strong id="simulationReviewThreshold">--</strong>
+              </div>
+            </div>
+            <div id="simulationReviewNextAction" class="simulation-review-action">等待本地模拟盘样本。</div>
+            <div id="simulationReviewQueueList" class="simulation-review-list"></div>
           </div>
           <div class="research-task-columns">
             <div>

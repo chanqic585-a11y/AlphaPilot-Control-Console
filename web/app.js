@@ -85,6 +85,24 @@ const forwardGateLabels = {
   eligible_for_paper_review: "可进入纸面观察复核",
 };
 
+const simulationReviewStatusLabels = {
+  collecting_samples: "样本收集中",
+  under_review: "进入复核",
+  promoted_candidate: "晋级候选",
+  watchlist: "观察名单",
+  paused: "暂停",
+  demoted: "降级",
+  archived_reference: "归档参考",
+};
+
+const simulationReviewActionLabels = {
+  "继续收集样本": "继续收样",
+  "进入人工复核": "人工复核",
+  "可列入晋级候选，继续人工复核": "晋级候选",
+  "降级为参考或暂停观察": "降级参考",
+  "先复核风险或失效样本": "风险复核",
+};
+
 const methodTypeLabels = {
   rule_based: "规则策略",
   factor_based: "因子策略",
@@ -790,7 +808,48 @@ function renderSimpleSimulationBridge(payload) {
   );
 }
 
-function renderSimpleConsole(strategies, reports, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge) {
+function reviewTone(status, warnings = []) {
+  if (status === "promoted_candidate") return "ok";
+  if (status === "demoted" || status === "paused" || warnings.includes("demotion_review")) return "danger";
+  if (status === "under_review" || status === "watchlist") return "warn";
+  return "neutral";
+}
+
+function renderSimpleReviewQueue(payload) {
+  const summary = payload?.summary || {};
+  const rows = Array.isArray(payload?.queue) ? payload.queue : [];
+  setText("simpleReviewCollecting", String(summary.collectingStrategies ?? 0));
+  setText("simpleReviewReady", String(summary.reviewReadyStrategies ?? 0));
+  setText("simpleReviewPromoted", String(summary.promotedCandidates ?? 0));
+  setText("simpleReviewDemoted", String(summary.demotedStrategies ?? 0));
+  setText(
+    "simpleReviewQueueMeta",
+    `总闭合样本 ${summary.totalClosedSamples ?? 0} · 复核门槛 ${summary.reviewMinimumClosedSamples ?? 30} / Dry-run 门槛 ${summary.dryRunMinimumClosedSamples ?? 100}`,
+  );
+  const target = el("simpleReviewQueueList");
+  if (!target) return;
+  target.innerHTML = rows.slice(0, 3).map((row) => {
+    const metrics = row.metrics || {};
+    const tone = reviewTone(row.status, row.warnings || []);
+    return `
+      <div class="simple-review-row">
+        <div>
+          <strong>${escapeHtml(row.strategyName || row.taskId || "--")}</strong>
+          <small>${escapeHtml(row.timeframe || "--")} · ${escapeHtml(simulationReviewStatusLabels[row.status] || row.status || "--")}</small>
+        </div>
+        <span class="badge ${tone}">${escapeHtml(simulationReviewActionLabels[row.recommendedAction] || row.recommendedAction || "继续观察")}</span>
+        <div class="artifact-metrics">
+          <span>闭合 ${metrics.closedSamples ?? 0}/${row.sampleGate?.reviewMinimum ?? 30}</span>
+          <span>胜率 ${formatPercent(metrics.winRate)}</span>
+          <span>PF ${formatNumber(metrics.profitFactor)}</span>
+          <span>回撤 ${formatNumber(metrics.maxDrawdownR, 2)}R</span>
+        </div>
+      </div>
+    `;
+  }).join("") || '<div class="simple-review-empty">暂无策略复核样本。保持本地沙盒运行。</div>';
+}
+
+function renderSimpleConsole(strategies, reports, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview) {
   if (!el("simpleConsole")) return;
   const rows = Array.isArray(usableStrategyCatalog?.strategies) ? usableStrategyCatalog.strategies : [];
   const catalogSummary = usableStrategyCatalog?.summary || {};
@@ -840,9 +899,10 @@ function renderSimpleConsole(strategies, reports, mobile, usableStrategyCatalog,
 
   updateSimpleSandboxButton(runnerState);
   renderSimpleSimulationBridge(simulationBridge);
+  renderSimpleReviewQueue(simulationReview);
   renderSimpleStrategyCards(rows);
   renderSimpleActionChecklist({ runnerState, rows, sandboxRows, dailySummary });
-  latestSimpleConsolePayload = { strategies, reports, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge };
+  latestSimpleConsolePayload = { strategies, reports, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview };
 }
 
 function renderSandboxSimulationLane(observationTasks, qualityRows) {
@@ -1357,6 +1417,70 @@ function renderSimulationAdmissionGate(observationTasks, qualityRows) {
       <div class="simulation-gate-next">${escapeHtml(row.nextAction)}</div>
     </div>
   `).join("") || '<div class="simulation-gate-empty">暂无可做 testnet 升级复核的策略观察任务。</div>';
+}
+
+function renderSimulationReview(payload) {
+  if (!el("simulationReviewQueueList")) return;
+  const summary = payload?.summary || {};
+  const rows = Array.isArray(payload?.queue) ? payload.queue : [];
+  setText("simulationReviewTotal", String(summary.totalStrategies ?? rows.length));
+  setText("simulationReviewClosed", String(summary.totalClosedSamples ?? 0));
+  setText("simulationReviewReady", String(summary.reviewReadyStrategies ?? 0));
+  setText("simulationReviewPromoted", String(summary.promotedCandidates ?? 0));
+  setText("simulationReviewDemoted", String(summary.demotedStrategies ?? 0));
+  setText("simulationReviewThreshold", `${summary.reviewMinimumClosedSamples ?? 30}/${summary.dryRunMinimumClosedSamples ?? 100}`);
+  setText("simulationReviewStatus", payload?.dryRunApproved ? "异常：Dry-run 开启" : "Dry-run 关闭");
+  setText("simulationReviewNextAction", summary.nextAction || "继续收集本地模拟盘闭合样本。");
+
+  el("simulationReviewQueueList").innerHTML = rows.map((row) => {
+    const metrics = row.metrics || {};
+    const sampleGate = row.sampleGate || {};
+    const breakdowns = row.breakdowns || {};
+    const pairRows = Array.isArray(breakdowns.byPair) ? breakdowns.byPair.slice(0, 3) : [];
+    const directionRows = Array.isArray(breakdowns.byDirection) ? breakdowns.byDirection : [];
+    const regimeRows = Array.isArray(breakdowns.byMarketRegime) ? breakdowns.byMarketRegime : [];
+    const warnings = Array.isArray(row.warnings) ? row.warnings : [];
+    const tone = reviewTone(row.status, warnings);
+    const directionText = directionRows.length
+      ? directionRows.map((item) => `${item.direction || "unknown"} ${item.sampleCount}`).join(" / ")
+      : "待补方向字段";
+    const regimeText = regimeRows.length
+      ? regimeRows.map((item) => `${item.marketRegime || "unknown"} ${item.sampleCount}`).join(" / ")
+      : "待补 regime 字段";
+    return `
+      <div class="simulation-review-row">
+        <div class="simulation-review-row-head">
+          <div>
+            <strong>${escapeHtml(row.strategyName || row.taskId || "--")}</strong>
+            <small>${escapeHtml(row.taskId || "--")} · ${escapeHtml(row.timeframe || "--")} · 最近 ${formatDate(row.latestLogAt)}</small>
+          </div>
+          <span class="badge ${tone}">${escapeHtml(row.statusLabel || simulationReviewStatusLabels[row.status] || row.status || "--")}</span>
+        </div>
+        <div class="artifact-metrics">
+          <span>闭合 ${metrics.closedSamples ?? 0}/${sampleGate.reviewMinimum ?? 30}</span>
+          <span>胜率 ${formatPercent(metrics.winRate)}</span>
+          <span>PF ${formatNumber(metrics.profitFactor)}</span>
+          <span>均盈 ${formatNumber(metrics.averageWinR, 2)}R</span>
+          <span>均亏 ${formatNumber(metrics.averageLossR, 2)}R</span>
+          <span>回撤 ${formatNumber(metrics.maxDrawdownR, 2)}R</span>
+          <span>连亏 ${metrics.maxConsecutiveLosses ?? 0}</span>
+          <span>权益 ${formatUsd(metrics.virtualEquity)}</span>
+        </div>
+        <div class="artifact-metrics">
+          <span>Pair ${pairRows.map((item) => `${item.pair || "unknown"} ${item.sampleCount}`).join(" / ") || "待补"}</span>
+          <span>方向 ${directionText}</span>
+          <span>Regime ${regimeText}</span>
+        </div>
+        <div class="simulation-review-flags">
+          ${(warnings.length ? warnings : ["no_blocking_warning"]).map((item) => `<small>${escapeHtml(item)}</small>`).join("")}
+        </div>
+        <div class="simulation-review-next">
+          <strong>${escapeHtml(simulationReviewActionLabels[row.recommendedAction] || row.recommendedAction || "继续观察")}</strong>
+          <span>${escapeHtml(row.costAndSlippage?.note || "成本和滑点字段作为后续复核提示，不代表交易批准。")}</span>
+        </div>
+      </div>
+    `;
+  }).join("") || '<div class="simulation-review-empty">暂无本地模拟盘复核队列。请先启动本地沙盒并生成日报。</div>';
 }
 
 function pickPrimaryObservationTask(loopPayload) {
@@ -2862,7 +2986,7 @@ function renderAudit(events) {
 }
 
 async function refreshAll() {
-  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, shortCycleCandidates, usableStrategyCatalog, simulationBridge, strategyPromotionGate, researchTaskBoard, strategyLearningLoop, sandboxDailyReport, sandboxAutoRunner, liveReadiness, forwardReview] = await Promise.all([
+  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, shortCycleCandidates, usableStrategyCatalog, simulationBridge, simulationReview, strategyPromotionGate, researchTaskBoard, strategyLearningLoop, sandboxDailyReport, sandboxAutoRunner, liveReadiness, forwardReview] = await Promise.all([
     getJson("/api/strategies"),
     getJson("/api/reports"),
     getJson("/api/mobile/status"),
@@ -2876,6 +3000,7 @@ async function refreshAll() {
     getJson("/api/short-cycle-candidates"),
     getJson("/api/usable-strategy-catalog"),
     getJson("/api/simulation-bridge"),
+    getJson("/api/simulation-review"),
     getJson("/api/strategy-promotion-gate"),
     getJson("/api/research-task-board"),
     getJson("/api/strategy-learning-loop"),
@@ -2887,7 +3012,7 @@ async function refreshAll() {
   const strategyItems = strategies.strategies || [];
   const reportItems = reports.reports || [];
   latestStrategyLearningLoopPayload = strategyLearningLoop;
-  renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge);
+  renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview);
   renderCommandCenter(strategyItems, reportItems, mobile);
   renderRuntimeMonitor(strategyItems, mobile);
   renderStrategies(strategyItems);
@@ -2899,6 +3024,7 @@ async function refreshAll() {
   renderCandidateQueue(candidateQueue);
   renderShortCycleCandidatePool(shortCycleCandidates);
   renderUsableStrategyCatalog(usableStrategyCatalog);
+  renderSimulationReview(simulationReview);
   renderStrategyPromotionGate(strategyPromotionGate);
   renderResearchTaskBoard(researchTaskBoard);
   renderStrategyLearningLoop(strategyLearningLoop);

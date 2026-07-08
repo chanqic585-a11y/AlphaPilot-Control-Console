@@ -862,6 +862,68 @@ small {
   font-size: 20px;
 }
 
+.simple-review-queue {
+  border: 1px solid rgba(255, 209, 102, 0.18);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(255, 209, 102, 0.06), transparent 34%),
+    rgba(5, 12, 20, 0.72);
+  margin-bottom: 14px;
+  padding: 12px;
+}
+
+.simple-review-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.simple-review-grid > div {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: #0b1117;
+  padding: 10px;
+}
+
+.simple-review-grid span,
+.simple-review-grid small,
+.simple-review-row small,
+.simple-review-empty {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.simple-review-grid strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 20px;
+}
+
+.simple-review-list {
+  display: grid;
+  gap: 10px;
+}
+
+.simple-review-row,
+.simple-review-empty {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.20);
+  padding: 10px;
+}
+
+.simple-review-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 12px;
+  align-items: start;
+}
+
+.simple-review-row .artifact-metrics {
+  grid-column: 1 / -1;
+}
+
 .simple-columns {
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.75fr);
@@ -2285,6 +2347,102 @@ code {
   padding: 8px 10px;
 }
 
+.simulation-review-panel {
+  border-color: rgba(24, 211, 166, 0.24);
+  background:
+    linear-gradient(135deg, rgba(24, 211, 166, 0.07), transparent 36%),
+    rgba(255, 255, 255, 0.025);
+}
+
+.simulation-review-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.simulation-review-grid > div,
+.simulation-review-row,
+.simulation-review-empty {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(5, 12, 20, 0.78);
+  padding: 12px;
+}
+
+.simulation-review-grid span,
+.simulation-review-row small,
+.simulation-review-empty {
+  color: var(--muted);
+}
+
+.simulation-review-grid strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--text);
+  font-size: 22px;
+}
+
+.simulation-review-action {
+  border-left: 3px solid var(--green);
+  border-radius: 8px;
+  background: rgba(24, 211, 166, 0.10);
+  color: var(--text);
+  font-weight: 800;
+  line-height: 1.55;
+  padding: 10px 12px;
+}
+
+.simulation-review-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.simulation-review-row {
+  display: grid;
+  gap: 10px;
+}
+
+.simulation-review-row-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.simulation-review-row-head strong,
+.simulation-review-row-head small {
+  display: block;
+}
+
+.simulation-review-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.simulation-review-flags small {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 6px 10px;
+}
+
+.simulation-review-next {
+  display: grid;
+  gap: 4px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text);
+  padding: 8px 10px;
+}
+
+.simulation-review-next span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .live-readiness-panel {
   border-color: rgba(255, 209, 102, 0.28);
   background:
@@ -2857,8 +3015,12 @@ code {
     .sandbox-lane-grid,
     .sandbox-daily-grid,
     .sandbox-lane-row-head,
+    .simple-review-grid,
+    .simple-review-row,
     .simulation-gate-grid,
     .simulation-gate-row-head,
+    .simulation-review-grid,
+    .simulation-review-row-head,
     .live-readiness-grid,
     .live-readiness-columns,
     .live-readiness-row-head,

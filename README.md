@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.43 - Continuous Simulation Learning Bridge
+AlphaPilot V13.7.44 - Simulation Review Queue and Strategy Promotion Panel
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,39 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.7.44 Adds
+
+- Adds `GET /api/simulation-review`.
+- Adds `GET /api/simulation-review/strategies`.
+- Adds `GET /api/simulation-review/queue`.
+- Adds `GET /api/simulation-review/strategies/{strategyId}`.
+- Builds a local simulation review queue from:
+  - usable strategy catalog
+  - local sandbox daily reports
+  - paper observation logs
+  - local sandbox auto-runner state
+- Shows a strategy review queue on the simple home page:
+  - collecting strategies
+  - review-ready strategies
+  - promoted-candidate suggestions
+  - demoted/reference suggestions
+- Adds a detailed simulation review panel in the learning section:
+  - closed sample count
+  - win rate
+  - profit factor
+  - average win / average loss in R
+  - max consecutive losses
+  - max drawdown in R
+  - pair / direction / market-regime breakdown when available
+  - warning flags such as sample-size, concentration, inactive, risk, and invalidated-sample warnings
+- Keeps state transitions as suggestions only. The console does not write
+  promoted/demoted status automatically.
+
+V13.7.44 does not add API key storage, Trade API, Withdraw API, exchange
+testnet orders, real account reads, real position reads, order creation,
+exchange Dry-run, live trading, or automatic trading. The review queue is a
+local research triage panel only.
 
 ## What V13.7.43 Adds
 
