@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.41 - Usable Strategy Catalog and Sandbox Merge
+AlphaPilot V13.7.42 - Simple Console Mode
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,31 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.7.42 Adds
+
+- Adds a simplified default desktop console home page.
+- Shows only the most important operating state first:
+  - safety mode
+  - usable strategy count
+  - local sandbox state
+  - virtual sandbox equity and closed samples
+- Adds one clear action row:
+  - start or stop local sandbox observation
+  - refresh data
+  - import reports
+  - expand advanced research panels
+- Hides complex research sections by default while keeping all old panels and
+  code available behind "展开高级研究".
+- Keeps strategy detail drawers closed by default so the first screen is easier
+  to read.
+- Keeps the local sandbox button state explicit: when running, it shows
+  "沙盒运行中 · 点击停止".
+
+V13.7.42 is a UI simplification patch only. It does not change strategy logic,
+does not add API key input, does not connect Trade API or Withdraw API, does
+not read accounts or positions, does not create orders, does not run exchange
+Dry-run, and does not enable automatic trading.
 
 ## What V13.7.41 Adds
 

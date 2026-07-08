@@ -17,37 +17,37 @@
           </div>
         </div>
         <nav class="rail-nav">
-          <a class="rail-item active" href="#overview" title="系统总览" aria-label="系统总览">
-            <span class="nav-key">D</span><span>驾驶舱</span>
+          <a class="rail-item active" href="#simpleConsole" title="首页" aria-label="首页">
+            <span class="nav-key">H</span><span>首页</span>
           </a>
           <a class="rail-item" href="#command" title="策略总控" aria-label="策略总控">
             <span class="nav-key">S</span><span>策略总控</span>
           </a>
-          <a class="rail-item" href="#runtime" title="运行监控" aria-label="运行监控">
+          <a class="rail-item advanced-nav-item" href="#runtime" title="运行监控" aria-label="运行监控">
             <span class="nav-key">R</span><span>运行监控</span>
           </a>
-          <a class="rail-item" href="#artifacts" title="策略资产" aria-label="策略资产">
+          <a class="rail-item advanced-nav-item" href="#artifacts" title="策略资产" aria-label="策略资产">
             <span class="nav-key">C</span><span>策略资产</span>
           </a>
-          <a class="rail-item" href="#observationTasks" title="观察任务" aria-label="观察任务">
+          <a class="rail-item advanced-nav-item" href="#observationTasks" title="观察任务" aria-label="观察任务">
             <span class="nav-key">O</span><span>观察任务</span>
           </a>
-          <a class="rail-item" href="#learning" title="学习闭环" aria-label="学习闭环">
+          <a class="rail-item advanced-nav-item" href="#learning" title="学习闭环" aria-label="学习闭环">
             <span class="nav-key">L</span><span>学习闭环</span>
           </a>
-          <a class="rail-item" href="#liveReadiness" title="实盘准备" aria-label="实盘准备">
+          <a class="rail-item advanced-nav-item" href="#liveReadiness" title="实盘准备" aria-label="实盘准备">
             <span class="nav-key">G</span><span>实盘准备</span>
           </a>
-          <a class="rail-item" href="#forwardReview" title="前向复核" aria-label="前向复核">
+          <a class="rail-item advanced-nav-item" href="#forwardReview" title="前向复核" aria-label="前向复核">
             <span class="nav-key">F</span><span>前向复核</span>
           </a>
-          <a class="rail-item" href="#exchanges" title="公共行情" aria-label="公共行情">
+          <a class="rail-item advanced-nav-item" href="#exchanges" title="公共行情" aria-label="公共行情">
             <span class="nav-key">M</span><span>公共行情</span>
           </a>
           <a class="rail-item" href="#mobile" title="手机连接" aria-label="手机连接">
             <span class="nav-key">P</span><span>手机控制台</span>
           </a>
-          <a class="rail-item" href="#audit" title="审计日志" aria-label="审计日志">
+          <a class="rail-item advanced-nav-item" href="#audit" title="审计日志" aria-label="审计日志">
             <span class="nav-key">A</span><span>审计日志</span>
           </a>
         </nav>
@@ -80,7 +80,63 @@
           不保存 API Key，不接 Trade API，不接 Withdraw API，不读取真实账户，不读取真实持仓，不创建订单，不自动交易。
         </section>
 
-        <section id="overview" class="hero-grid">
+        <section id="simpleConsole" class="panel simple-console-panel">
+          <div class="simple-hero">
+            <div>
+              <p class="panel-eyebrow">SIMPLE CONTROL MODE</p>
+              <h2>今天只看这几件事</h2>
+              <p id="simpleConsoleOneLine">正在读取本地策略和沙盒状态。</p>
+            </div>
+            <span id="simpleConsoleBadge" class="status-pill ok">本地观察</span>
+          </div>
+          <div class="simple-summary-grid">
+            <div class="simple-summary-card primary">
+              <span>当前状态</span>
+              <strong id="simpleCurrentState">--</strong>
+              <small id="simpleCurrentMeta">--</small>
+            </div>
+            <div class="simple-summary-card">
+              <span>可观察策略</span>
+              <strong id="simpleUsableStrategyCount">--</strong>
+              <small id="simpleUsableStrategyMeta">低频 / 短周期</small>
+            </div>
+            <div class="simple-summary-card">
+              <span>本地沙盒</span>
+              <strong id="simpleSandboxState">--</strong>
+              <small id="simpleSandboxMeta">--</small>
+            </div>
+            <div class="simple-summary-card">
+              <span>虚拟权益</span>
+              <strong id="simpleSandboxEquity">--</strong>
+              <small id="simpleSandboxSamples">--</small>
+            </div>
+          </div>
+          <div class="simple-action-row">
+            <button id="simpleRunSandboxButton" type="button">启动 / 停止沙盒</button>
+            <button id="simpleRefreshButton" class="secondary" type="button">刷新状态</button>
+            <button id="simpleImportButton" class="secondary" type="button">重新导入报告</button>
+            <button id="toggleAdvancedModeButton" class="secondary" type="button">展开高级研究</button>
+          </div>
+          <div class="simple-next-action" id="simpleNextAction">等待本地沙盒和策略目录。</div>
+          <div class="simple-columns">
+            <div>
+              <div class="simple-section-title">
+                <strong>当前策略怎么理解</strong>
+                <span>只显示最值得看的几条</span>
+              </div>
+              <div id="simpleStrategyCards" class="simple-strategy-list"></div>
+            </div>
+            <div>
+              <div class="simple-section-title">
+                <strong>现在该怎么操作</strong>
+                <span>不包含任何真实下单</span>
+              </div>
+              <div id="simpleActionChecklist" class="simple-action-list"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="overview" class="hero-grid advanced-section">
           <div class="hero-panel portfolio-panel">
             <div class="panel-eyebrow">PORTFOLIO CONTEXT</div>
             <div class="hero-row">
@@ -261,7 +317,7 @@
                 <strong>只读控制台，不下单</strong>
               </div>
             </div>
-            <details class="strategy-detail-drawer" open>
+            <details class="strategy-detail-drawer">
               <summary>
                 <span>策略详情抽屉</span>
                 <strong id="strategyDetailHeadline">等待选择策略</strong>
@@ -312,7 +368,7 @@
           </div>
         </section>
 
-        <section id="runtime" class="panel runtime-panel">
+        <section id="runtime" class="panel runtime-panel advanced-section">
           <div class="section-header">
             <div>
               <p class="panel-eyebrow">READ-ONLY RUNTIME MONITOR</p>
@@ -373,7 +429,7 @@
           </div>
         </section>
 
-        <section id="artifacts" class="panel artifact-panel">
+        <section id="artifacts" class="panel artifact-panel advanced-section">
           <div class="section-header">
             <div>
               <p class="panel-eyebrow">STRATEGY ARTIFACT CENTER</p>
@@ -656,7 +712,7 @@
           </section>
         </section>
 
-        <section id="learning" class="panel learning-loop-panel">
+        <section id="learning" class="panel learning-loop-panel advanced-section">
           <div class="section-header">
             <div>
               <p class="panel-eyebrow">STRATEGY LEARNING LOOP</p>
@@ -1062,7 +1118,7 @@
           </div>
         </section>
 
-        <section id="liveReadiness" class="panel live-readiness-panel">
+        <section id="liveReadiness" class="panel live-readiness-panel advanced-section">
           <div class="section-header">
             <div>
               <p class="panel-eyebrow">LIVE READINESS GATE</p>
@@ -1113,7 +1169,7 @@
           </div>
         </section>
 
-        <section id="forwardReview" class="panel forward-review-panel">
+        <section id="forwardReview" class="panel forward-review-panel advanced-section">
           <div class="section-header">
             <div>
               <p class="panel-eyebrow">FORWARD REVIEW WORKBENCH</p>
@@ -1169,7 +1225,7 @@
           </div>
         </section>
 
-        <section id="observationTasks" class="panel observation-task-panel">
+        <section id="observationTasks" class="panel observation-task-panel advanced-section">
           <div class="section-header">
             <div>
               <p class="panel-eyebrow">PAPER OBSERVATION TASKS</p>
@@ -1260,7 +1316,7 @@
           <div id="paperObservationTaskList" class="paper-task-list"></div>
         </section>
 
-        <section id="exchanges" class="panel">
+        <section id="exchanges" class="panel advanced-section">
           <div class="section-header">
             <div>
               <p class="panel-eyebrow">PUBLIC EXCHANGE CONNECTIVITY</p>
@@ -1325,7 +1381,7 @@
           </section>
         </section>
 
-        <section id="audit" class="panel">
+        <section id="audit" class="panel advanced-section">
           <div class="section-header">
             <div>
               <p class="panel-eyebrow">AUDIT TAPE</p>

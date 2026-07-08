@@ -155,6 +155,7 @@ const healthLabels = {
 };
 
 const sectionLabels = {
+  simpleConsole: "首页",
   overview: "驾驶舱",
   command: "策略总控",
   runtime: "运行监控",
@@ -175,6 +176,7 @@ let latestStrategyLearningLoopPayload = {};
 let selectedArtifactId = null;
 let selectedStrategyPlaybookTaskId = null;
 let latestStrategyPlaybookTask = null;
+let latestSimpleConsolePayload = {};
 const artifactFilters = {
   search: "",
   tier: "all",
@@ -671,6 +673,158 @@ function buildSandboxSimulationRows(observationTasks, qualityRows) {
         : "继续记录信号、无信号日、规则匹配和虚拟结果 R。",
     };
   });
+}
+
+function setText(id, value) {
+  const node = el(id);
+  if (node) node.textContent = value;
+}
+
+function getSimpleRunnerState(payload) {
+  const runner = payload?.autoRunner || {};
+  const enabled = Boolean(runner.enabled);
+  return {
+    enabled,
+    status: runner.status || (enabled ? "enabled" : "disabled"),
+    intervalMinutes: runner.intervalMinutes ?? 5,
+    maxRunsPerDay: runner.maxRunsPerDay ?? 288,
+    todayRunCount: runner.todayRunCount ?? 0,
+    lastRunAt: runner.lastRunAt || null,
+    nextRunAt: runner.nextRunAt || null,
+  };
+}
+
+function updateSimpleSandboxButton(runnerState) {
+  const button = el("simpleRunSandboxButton");
+  if (!button) return;
+  button.classList.toggle("is-running", Boolean(runnerState.enabled));
+  button.dataset.running = runnerState.enabled ? "true" : "false";
+  button.textContent = runnerState.enabled ? "沙盒运行中 · 点击停止" : "启动本地沙盒";
+  button.title = runnerState.enabled
+    ? "本地沙盒正在持续观察。点击后会停止自动观察。"
+    : "点击后会开启本地沙盒，并立即运行一轮本地观察。";
+}
+
+function renderSimpleStrategyCards(rows) {
+  const container = el("simpleStrategyCards");
+  if (!container) return;
+  const topRows = rows.slice(0, 5);
+  container.innerHTML = topRows.map((row, index) => {
+    const metrics = row.metrics || {};
+    const testMetrics = row.testMetrics || {};
+    const pairs = Array.isArray(row.selectedPairs) ? row.selectedPairs : [];
+    const bucketLabel = row.frequencyBucket === "short_cycle" ? "短周期" : "低频";
+    const badgeTone = row.frequencyBucket === "short_cycle" ? "warn" : "ok";
+    return `
+      <div class="simple-strategy-card">
+        <div class="simple-strategy-card-head">
+          <div>
+            <small>候选 ${index + 1} · ${escapeHtml(row.timeframe || "--")}</small>
+            <strong>${escapeHtml(row.name || row.shortName || row.strategyId || row.candidateId || "--")}</strong>
+          </div>
+          <span class="badge ${badgeTone}">${escapeHtml(bucketLabel)}</span>
+        </div>
+        <div class="simple-strategy-metrics">
+          <span>目标 ${formatNumber(row.targetR ?? 2, 1)}R</span>
+          <span>样本 ${metrics.tradeCount ?? "--"}</span>
+          <span>胜率 ${formatPercent(metrics.winRatePct)}</span>
+          <span>PF ${formatNumber(metrics.profitFactor)}</span>
+          <span>测试PF ${formatNumber(testMetrics.profitFactor)}</span>
+          <span>币种 ${pairs.length || "--"}</span>
+        </div>
+        <small>${escapeHtml(row.nextAction || "继续本地沙盒观察，不触发真实交易。")}</small>
+      </div>
+    `;
+  }).join("") || '<div class="simple-action-item">还没有可观察策略。请先导入量化报告。</div>';
+}
+
+function renderSimpleActionChecklist({ runnerState, rows, sandboxRows, dailySummary }) {
+  const container = el("simpleActionChecklist");
+  if (!container) return;
+  const closedSamples = sandboxRows.reduce((sum, row) => sum + Number(row.closedPaperSampleCount || 0), 0);
+  const riskReviewCount = sandboxRows.filter((row) => row.status === "needs_review").length;
+  const items = [
+    {
+      title: runnerState.enabled ? "沙盒正在跑" : "先启动沙盒",
+      body: runnerState.enabled
+        ? `保持控制台打开即可；系统每 ${runnerState.intervalMinutes} 分钟检查一次，本日 ${runnerState.todayRunCount}/${runnerState.maxRunsPerDay}。`
+        : "点击左侧黄色按钮，让 10 条候选策略进入本地虚拟观察。",
+    },
+    {
+      title: "今天重点看样本",
+      body: `当前闭合样本 ${closedSamples} 个，今日新增 ${dailySummary.dailyClosedSampleCount ?? 0} 个；样本不足时先不要升级。`,
+    },
+    {
+      title: riskReviewCount ? "先处理风险策略" : "风险队列正常",
+      body: riskReviewCount
+        ? `${riskReviewCount} 条策略需要复盘风险或失效原因。`
+        : "暂未发现需要优先处理的沙盒风险策略。",
+    },
+    {
+      title: "安全边界",
+      body: "当前只是本地控制台，不接 API Key、不下单、不读取真实账户。",
+    },
+  ];
+  container.innerHTML = items.map((item) => `
+    <div class="simple-action-item">
+      <strong>${escapeHtml(item.title)}</strong>
+      <small>${escapeHtml(item.body)}</small>
+    </div>
+  `).join("");
+}
+
+function renderSimpleConsole(strategies, reports, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness) {
+  if (!el("simpleConsole")) return;
+  const rows = Array.isArray(usableStrategyCatalog?.strategies) ? usableStrategyCatalog.strategies : [];
+  const catalogSummary = usableStrategyCatalog?.summary || {};
+  const runnerState = getSimpleRunnerState(sandboxAutoRunner);
+  const dailyReport = sandboxDailyReport?.latestReport || {};
+  const dailySummary = dailyReport.summary || {};
+  const sandboxRows = buildSandboxSimulationRows(
+    buildUsableCatalogObservationTasks(usableStrategyCatalog),
+    Array.isArray(dailyReport.strategyHealthRows) ? dailyReport.strategyHealthRows : [],
+  );
+  const totalCapital = sandboxRows.reduce((sum, row) => sum + Number(row.capital || 0), 0);
+  const totalEquity = sandboxRows.reduce((sum, row) => sum + Number(row.equity || 0), 0);
+  const totalClosedSamples = sandboxRows.reduce((sum, row) => sum + Number(row.closedPaperSampleCount || 0), 0);
+  const lowCount = catalogSummary.lowFrequencyCount ?? rows.filter((row) => row.frequencyBucket !== "short_cycle").length;
+  const shortCount = catalogSummary.shortCycleCount ?? rows.filter((row) => row.frequencyBucket === "short_cycle").length;
+  const readinessSummary = liveReadiness?.summary || {};
+  const executionLocked = !mobile?.safetyBoundary?.orderCreationAllowed;
+
+  setText("simpleConsoleOneLine", rows.length
+    ? `当前整理出 ${rows.length} 条本地可观察策略：低频 ${lowCount} 条，短周期 ${shortCount} 条。先用沙盒累计样本，再决定是否升级。`
+    : "还没有可观察策略目录。请先导入最新量化报告。");
+  const badge = el("simpleConsoleBadge");
+  if (badge) {
+    badge.className = `status-pill ${runnerState.enabled ? "ok" : "warn"}`;
+    badge.textContent = runnerState.enabled ? "沙盒运行中" : "沙盒未开启";
+  }
+
+  setText("simpleCurrentState", executionLocked ? "安全研究模式" : "异常：执行权限开启");
+  setText("simpleCurrentMeta", executionLocked ? "实盘关闭 · 只做本地观察" : "请立刻复核权限边界");
+  setText("simpleUsableStrategyCount", String(catalogSummary.totalUsableStrategies ?? rows.length));
+  setText("simpleUsableStrategyMeta", `低频 ${lowCount} / 短周期 ${shortCount}`);
+  setText("simpleSandboxState", runnerState.enabled ? "运行中" : "未开启");
+  setText("simpleSandboxMeta", `每 ${runnerState.intervalMinutes} 分钟 · 今日 ${runnerState.todayRunCount}/${runnerState.maxRunsPerDay}`);
+  setText("simpleSandboxEquity", sandboxRows.length ? `${formatUsd(totalEquity)} / ${formatUsd(totalCapital)}` : "--");
+  setText("simpleSandboxSamples", `闭合样本 ${totalClosedSamples} · 今日 ${dailySummary.dailyClosedSampleCount ?? 0}`);
+
+  const nextAction = !rows.length
+    ? "下一步：点击“导入报告”，先把量化仓库里的策略报告同步到控制台。"
+    : !runnerState.enabled
+      ? "下一步：点击“启动本地沙盒”，让候选策略持续生成可复盘的虚拟观察数据。"
+      : totalClosedSamples < 80
+        ? "下一步：保持沙盒运行，优先累计闭合样本和失败样本，不急着升级实盘。"
+        : readinessSummary.manualTicketReadyCount > 0
+          ? "下一步：进入高级研究复核手动工单；仍然不自动下单。"
+          : "下一步：复核沙盒样本、风险说明和策略弱点，再决定是否进入下一阶段。";
+  setText("simpleNextAction", nextAction);
+
+  updateSimpleSandboxButton(runnerState);
+  renderSimpleStrategyCards(rows);
+  renderSimpleActionChecklist({ runnerState, rows, sandboxRows, dailySummary });
+  latestSimpleConsolePayload = { strategies, reports, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness };
 }
 
 function renderSandboxSimulationLane(observationTasks, qualityRows) {
@@ -2714,6 +2868,7 @@ async function refreshAll() {
   const strategyItems = strategies.strategies || [];
   const reportItems = reports.reports || [];
   latestStrategyLearningLoopPayload = strategyLearningLoop;
+  renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness);
   renderCommandCenter(strategyItems, reportItems, mobile);
   renderRuntimeMonitor(strategyItems, mobile);
   renderStrategies(strategyItems);
@@ -2762,7 +2917,7 @@ function renderMobileConnectionInfo(connection) {
 function updateCurrentSection() {
   const sections = Object.keys(sectionLabels)
     .map((id) => document.getElementById(id))
-    .filter(Boolean);
+    .filter((section) => section && section.offsetParent !== null);
   const active = sections.reduce((best, section) => {
     const top = Math.abs(section.getBoundingClientRect().top - 84);
     if (!best || top < best.top) return { id: section.id, top };
@@ -2777,19 +2932,54 @@ function updateCurrentSection() {
 }
 
 function scrollToOverview() {
-  document.getElementById("overview")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  document.getElementById("simpleConsole")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-el("refreshButton").addEventListener("click", refreshAll);
-el("importButton").addEventListener("click", async () => {
-  el("importButton").disabled = true;
+async function importReportsNow(buttonId = "importButton") {
+  const button = el(buttonId);
+  if (button) button.disabled = true;
   try {
     await postJson("/api/import", {});
     await refreshAll();
   } finally {
-    el("importButton").disabled = false;
+    if (button) button.disabled = false;
   }
-});
+}
+
+async function runLocalSandboxFromSimple() {
+  const button = el("simpleRunSandboxButton");
+  if (button) button.disabled = true;
+  try {
+    await runLocalSandboxNow();
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+function setAdvancedMode(enabled) {
+  document.body.classList.toggle("show-advanced", Boolean(enabled));
+  const button = el("toggleAdvancedModeButton");
+  if (button) {
+    button.textContent = enabled ? "收起高级研究" : "展开高级研究";
+    button.classList.toggle("is-running", Boolean(enabled));
+  }
+  try {
+    window.localStorage.setItem("alphapilot.showAdvancedMode", enabled ? "1" : "0");
+  } catch {
+    // Local storage may be unavailable in strict browser modes; UI can still work.
+  }
+}
+
+function toggleAdvancedMode() {
+  setAdvancedMode(!document.body.classList.contains("show-advanced"));
+}
+
+el("refreshButton").addEventListener("click", refreshAll);
+el("simpleRefreshButton")?.addEventListener("click", refreshAll);
+el("importButton").addEventListener("click", () => importReportsNow("importButton"));
+el("simpleImportButton")?.addEventListener("click", () => importReportsNow("simpleImportButton"));
+el("simpleRunSandboxButton")?.addEventListener("click", runLocalSandboxFromSimple);
+el("toggleAdvancedModeButton")?.addEventListener("click", toggleAdvancedMode);
 
 el("probeExchangesButton").addEventListener("click", async () => {
   el("probeExchangesButton").disabled = true;
@@ -2871,6 +3061,12 @@ el("artifactSort").addEventListener("change", (event) => {
 });
 window.addEventListener("scroll", updateCurrentSection, { passive: true });
 window.addEventListener("hashchange", updateCurrentSection);
+
+try {
+  setAdvancedMode(window.localStorage.getItem("alphapilot.showAdvancedMode") === "1");
+} catch {
+  setAdvancedMode(false);
+}
 
 refreshAll().catch((error) => {
   el("strategyList").innerHTML = `<div class="item">加载失败：${error.message}</div>`;
