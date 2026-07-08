@@ -24,6 +24,7 @@ from .sandbox_auto_runner import (
 from .sandbox_observation_reporter import build_local_sandbox_daily_report
 from .short_cycle_candidates import build_short_cycle_candidate_pool
 from .simulation_bridge import build_simulation_bridge
+from .simulation_replay import build_closed_sample_replay, build_closed_sample_strategy_detail
 from .simulation_review import build_simulation_review, build_simulation_review_strategy
 from .strategy_promotion_gate import build_strategy_promotion_gate
 from .strategy_slots import list_strategy_slots
@@ -87,7 +88,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.7.44"
+    server_version = "AlphaPilotControlConsole/13.7.45"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -128,8 +129,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.7.44",
-                "source": "alphapilot_control_console_v13_7_44",
+                "version": "V13.7.45",
+                "source": "alphapilot_control_console_v13_7_45",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -237,6 +238,43 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path.startswith("/api/simulation-review/strategies/"):
             strategy_id = path.rsplit("/", 1)[-1]
             strategy = build_simulation_review_strategy(strategy_id)
+            if strategy is None:
+                self._send_json({"error": "strategy_not_found"}, 404)
+                return
+            self._send_json(strategy)
+            return
+        if path == "/api/closed-sample-replay":
+            query = parse_qs(parsed.query or "")
+            strategy_id = str((query.get("strategyId") or [""])[0]).strip() or None
+            limit = _safe_int((query.get("limit") or [80])[0], 80)
+            self._send_json(build_closed_sample_replay(strategy_id=strategy_id, limit=limit))
+            return
+        if path == "/api/closed-sample-replay/strategies":
+            payload = build_closed_sample_replay()
+            self._send_json({
+                "version": payload["version"],
+                "source": payload["source"],
+                "strategies": payload["strategies"],
+                "summary": payload["summary"],
+                "sampleSchema": payload["sampleSchema"],
+                "safetyBoundary": SAFETY_BOUNDARY,
+            })
+            return
+        if path == "/api/closed-sample-replay/samples":
+            query = parse_qs(parsed.query or "")
+            limit = _safe_int((query.get("limit") or [100])[0], 100)
+            payload = build_closed_sample_replay(limit=limit)
+            self._send_json({
+                "version": payload["version"],
+                "source": payload["source"],
+                "samples": payload["samples"],
+                "sampleSchema": payload["sampleSchema"],
+                "safetyBoundary": SAFETY_BOUNDARY,
+            })
+            return
+        if path.startswith("/api/closed-sample-replay/strategies/"):
+            strategy_id = path.rsplit("/", 1)[-1]
+            strategy = build_closed_sample_strategy_detail(strategy_id)
             if strategy is None:
                 self._send_json({"error": "strategy_not_found"}, 404)
                 return

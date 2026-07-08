@@ -1166,6 +1166,47 @@
             <div id="simulationReviewNextAction" class="simulation-review-action">等待本地模拟盘样本。</div>
             <div id="simulationReviewQueueList" class="simulation-review-list"></div>
           </div>
+          <div class="section-subpanel closed-sample-replay-panel">
+            <div class="section-header compact">
+              <div>
+                <p class="panel-eyebrow">CLOSED SAMPLE REPLAY</p>
+                <h4>闭合样本详情与单笔复盘</h4>
+                <p>按本地日报去重后的闭合样本展示代表样本、R 结果、数据来源和缺失字段。当前只做本地研究复盘，不创建订单。</p>
+              </div>
+              <span id="closedSampleReplayStatus" class="status-pill danger">实盘关闭</span>
+            </div>
+            <div class="closed-sample-grid">
+              <div>
+                <span>策略数</span>
+                <strong id="closedSampleReplayStrategies">--</strong>
+              </div>
+              <div>
+                <span>去重闭合样本</span>
+                <strong id="closedSampleReplayDeduped">--</strong>
+              </div>
+              <div>
+                <span>代表样本</span>
+                <strong id="closedSampleReplayRepresentatives">--</strong>
+              </div>
+              <div>
+                <span>路径待补</span>
+                <strong id="closedSampleReplayMissingPath">--</strong>
+              </div>
+              <div>
+                <span>Dry-run</span>
+                <strong id="closedSampleReplayDryRun">关闭</strong>
+              </div>
+              <div>
+                <span>实盘</span>
+                <strong id="closedSampleReplayLive">关闭</strong>
+              </div>
+            </div>
+            <div id="closedSampleReplayNextAction" class="closed-sample-action">等待闭合样本详情。</div>
+            <div class="closed-sample-layout">
+              <div id="closedSampleReplayStrategyList" class="closed-sample-list"></div>
+              <div id="closedSampleReplayDetail" class="closed-sample-detail"></div>
+            </div>
+          </div>
           <div class="research-task-columns">
             <div>
               <h4>重构候选</h4>

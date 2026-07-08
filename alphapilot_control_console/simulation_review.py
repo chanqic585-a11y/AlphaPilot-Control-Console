@@ -11,8 +11,8 @@ from .state_store import list_local_sandbox_daily_reports, list_paper_observatio
 from .usable_strategy_catalog import build_usable_strategy_catalog
 
 
-CONTROL_CONSOLE_VERSION = "V13.7.44"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_44"
+CONTROL_CONSOLE_VERSION = "V13.7.45"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_45"
 
 MIN_REVIEW_CLOSED_SAMPLES = 30
 MIN_DRY_RUN_CLOSED_SAMPLES = 100

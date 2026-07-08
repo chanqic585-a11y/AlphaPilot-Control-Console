@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.44 - Simulation Review Queue and Strategy Promotion Panel
+AlphaPilot V13.7.45 - Closed Sample Detail and Trade Replay View
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,39 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.7.45 Adds
+
+- Adds `GET /api/closed-sample-replay`.
+- Adds `GET /api/closed-sample-replay/strategies`.
+- Adds `GET /api/closed-sample-replay/samples`.
+- Adds `GET /api/closed-sample-replay/strategies/{strategyId}`.
+- Adds a closed-sample replay panel in the advanced research area.
+- Uses local sandbox daily-report `closedPaperSampleCount` as the de-duplicated
+  sample source instead of raw repeated auto-run logs.
+- Shows representative sample details:
+  - pair and timeframe
+  - run id
+  - outcome in R
+  - outcome reason
+  - virtual capital and virtual equity
+  - data status and source path
+  - missing replay fields
+- Marks incomplete trade-path fields as `pending` instead of fabricating them:
+  - entry / exit time
+  - entry / exit price
+  - direction
+  - market regime
+  - MFE / MAE
+  - fee and slippage estimates
+  - holding time
+- Keeps the view read-only. It does not promote strategies automatically and
+  does not create tickets, orders, Dry-run jobs, or exchange requests.
+
+V13.7.45 does not add API key storage, Trade API, Withdraw API, exchange
+testnet orders, real account reads, real position reads, order creation,
+exchange Dry-run, live trading, or automatic trading. The replay view is a
+local research and instrumentation gap panel only.
 
 ## What V13.7.44 Adds
 

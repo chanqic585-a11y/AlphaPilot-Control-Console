@@ -195,6 +195,8 @@ let selectedArtifactId = null;
 let selectedStrategyPlaybookTaskId = null;
 let latestStrategyPlaybookTask = null;
 let latestSimpleConsolePayload = {};
+let latestClosedSampleReplayPayload = {};
+let selectedClosedSampleReplayTaskId = null;
 const artifactFilters = {
   search: "",
   tier: "all",
@@ -1481,6 +1483,142 @@ function renderSimulationReview(payload) {
       </div>
     `;
   }).join("") || '<div class="simulation-review-empty">暂无本地模拟盘复核队列。请先启动本地沙盒并生成日报。</div>';
+}
+
+function closedSampleQualityLabel(value) {
+  const labels = {
+    full_path_ready: "完整路径",
+    partial_path_ready: "部分路径",
+    representative_sample_without_full_trade_path: "代表样本",
+  };
+  return labels[value] || value || "待补";
+}
+
+function renderClosedSampleReplay(payload) {
+  if (!el("closedSampleReplayStrategyList")) return;
+  latestClosedSampleReplayPayload = payload || {};
+  const summary = payload?.summary || {};
+  const rows = Array.isArray(payload?.strategies) ? payload.strategies : [];
+  setText("closedSampleReplayStrategies", String(summary.totalStrategies ?? rows.length));
+  setText("closedSampleReplayDeduped", String(summary.totalDedupedClosedSamples ?? 0));
+  setText("closedSampleReplayRepresentatives", String(summary.totalRepresentativeSamples ?? 0));
+  setText("closedSampleReplayMissingPath", String(summary.missingFullPathSampleCount ?? 0));
+  setText("closedSampleReplayDryRun", payload?.dryRunApproved ? "开启" : "关闭");
+  setText("closedSampleReplayLive", payload?.liveTradingApproved ? "开启" : "关闭");
+  setText("closedSampleReplayStatus", payload?.liveTradingApproved ? "异常：实盘开启" : "实盘关闭");
+  setText("closedSampleReplayNextAction", summary.nextAction || "继续收集闭合样本并补齐路径字段。");
+
+  if (!rows.length) {
+    el("closedSampleReplayStrategyList").innerHTML = '<div class="closed-sample-empty">暂无闭合样本复盘数据。</div>';
+    el("closedSampleReplayDetail").innerHTML = '<div class="closed-sample-empty">先运行本地沙盒，生成闭合样本后再复盘。</div>';
+    return;
+  }
+
+  if (!selectedClosedSampleReplayTaskId || !rows.some((row) => row.taskId === selectedClosedSampleReplayTaskId)) {
+    selectedClosedSampleReplayTaskId = rows.slice().sort((a, b) => (b.dedupedClosedSampleCount || 0) - (a.dedupedClosedSampleCount || 0))[0]?.taskId || rows[0].taskId;
+  }
+
+  el("closedSampleReplayStrategyList").innerHTML = rows.map((row) => {
+    const selected = row.taskId === selectedClosedSampleReplayTaskId ? " selected" : "";
+    const quality = row.quality || {};
+    return `
+      <button class="closed-sample-strategy${selected}" data-closed-sample-task-id="${escapeHtml(row.taskId || "")}" type="button">
+        <strong>${escapeHtml(row.strategyName || row.taskId || "--")}</strong>
+        <small>${escapeHtml(row.timeframe || "--")} · ${escapeHtml(row.statusLabel || row.status || "--")}</small>
+        <span>去重 ${row.dedupedClosedSampleCount ?? 0} · 原始 ${row.rawOutcomeLogCount ?? 0} · 路径待补 ${quality.missingPathFieldCount ?? 0}</span>
+      </button>
+    `;
+  }).join("");
+
+  el("closedSampleReplayStrategyList").querySelectorAll("[data-closed-sample-task-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      selectedClosedSampleReplayTaskId = button.getAttribute("data-closed-sample-task-id");
+      renderClosedSampleReplay(latestClosedSampleReplayPayload);
+    });
+  });
+
+  const selected = rows.find((row) => row.taskId === selectedClosedSampleReplayTaskId) || rows[0];
+  renderClosedSampleReplayDetail(selected);
+}
+
+function renderClosedSampleReplayDetail(row) {
+  if (!el("closedSampleReplayDetail")) return;
+  if (!row) {
+    el("closedSampleReplayDetail").innerHTML = '<div class="closed-sample-empty">请选择一条策略。</div>';
+    return;
+  }
+  const metrics = row.metrics || {};
+  const quality = row.quality || {};
+  const samples = Array.isArray(row.samples) ? row.samples : [];
+  const reviewable = Array.isArray(row.whatCanBeReviewed) ? row.whatCanBeReviewed : [];
+  const needs = Array.isArray(row.whatNeedsInstrumentation) ? row.whatNeedsInstrumentation : [];
+  el("closedSampleReplayDetail").innerHTML = `
+    <div class="closed-sample-detail-head">
+      <div>
+        <p class="panel-eyebrow">REPLAY DETAIL</p>
+        <h4>${escapeHtml(row.strategyName || row.taskId || "--")}</h4>
+        <small>${escapeHtml(row.taskId || "--")} · ${escapeHtml(row.timeframe || "--")} · 最近 ${formatDate(row.latestSampleAt)}</small>
+      </div>
+      <span class="badge ${row.status === "promoted_candidate" ? "success" : "warn"}">${escapeHtml(row.statusLabel || row.status || "--")}</span>
+    </div>
+    <div class="closed-sample-metrics">
+      <span>去重闭合 ${row.dedupedClosedSampleCount ?? 0}</span>
+      <span>代表样本 ${row.representativeSampleCount ?? 0}</span>
+      <span>总R ${formatNumber(metrics.totalR, 2)}R</span>
+      <span>胜率 ${formatPercent(metrics.winRate)}</span>
+      <span>PF ${formatNumber(metrics.profitFactor)}</span>
+      <span>权益 ${formatUsd(metrics.virtualEquity)}</span>
+    </div>
+    <div class="closed-sample-note">${escapeHtml(row.sampleSelectionNote || "代表样本按去重闭合样本生成。")}</div>
+    <div class="closed-sample-quality">
+      <span>唯一 sampleKey：${quality.hasUniqueSampleId ? "有" : "待补"}</span>
+      <span>入场/出场价格：${quality.hasEntryExitPrices ? "有" : "待补"}</span>
+      <span>MFE/MAE：${quality.hasPathMetrics ? "有" : "待补"}</span>
+      <span>费用/滑点：${quality.hasCostMetrics ? "有" : "待补"}</span>
+    </div>
+    <div class="closed-sample-two-col">
+      <div>
+        <strong>当前可复盘</strong>
+        ${(reviewable.length ? reviewable : ["本地 R 结果"]).map((item) => `<small>${escapeHtml(item)}</small>`).join("")}
+      </div>
+      <div>
+        <strong>后续需要补齐</strong>
+        ${(needs.length ? needs : ["完整成交路径字段"]).map((item) => `<small>${escapeHtml(item)}</small>`).join("")}
+      </div>
+    </div>
+    <div class="closed-sample-samples">
+      ${samples.map((sample) => renderClosedSampleCard(sample)).join("") || '<div class="closed-sample-empty">该策略暂无代表样本。</div>'}
+    </div>
+  `;
+}
+
+function renderClosedSampleCard(sample) {
+  const missing = Array.isArray(sample.missingFields) ? sample.missingFields : [];
+  return `
+    <div class="closed-sample-card">
+      <div class="closed-sample-card-head">
+        <div>
+          <strong>${escapeHtml(sample.pair || "--")} · ${escapeHtml(sample.timeframe || "--")}</strong>
+          <small>${formatDate(sample.createdAt)} · ${escapeHtml(sample.runId || "--")}</small>
+        </div>
+        <span class="badge ${Number(sample.outcomeR || 0) >= 0 ? "success" : "danger"}">${formatNumber(sample.outcomeR, 2)}R</span>
+      </div>
+      <p>${escapeHtml(sample.replayNarrative || "暂无复盘说明。")}</p>
+      <div class="closed-sample-metrics">
+        <span>结果 ${escapeHtml(sample.outcomeReason || sample.outcome || "--")}</span>
+        <span>数据 ${escapeHtml(sample.dataStatus || "--")}</span>
+        <span>方向 ${escapeHtml(sample.direction || "待补")}</span>
+        <span>Regime ${escapeHtml(sample.marketRegime || "待补")}</span>
+        <span>MFE ${sample.mfeR ?? "待补"}</span>
+        <span>MAE ${sample.maeR ?? "待补"}</span>
+      </div>
+      <div class="closed-sample-source">${escapeHtml(sample.dataSourcePathHint || "数据来源待补")}</div>
+      <div class="closed-sample-flags">
+        <small>${escapeHtml(closedSampleQualityLabel(sample.sampleQuality))}</small>
+        ${(missing.length ? missing.slice(0, 8) : [{ label: "路径字段完整" }]).map((item) => `<small>${escapeHtml(item.label || item.field || item)}</small>`).join("")}
+      </div>
+    </div>
+  `;
 }
 
 function pickPrimaryObservationTask(loopPayload) {
@@ -2986,7 +3124,7 @@ function renderAudit(events) {
 }
 
 async function refreshAll() {
-  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, shortCycleCandidates, usableStrategyCatalog, simulationBridge, simulationReview, strategyPromotionGate, researchTaskBoard, strategyLearningLoop, sandboxDailyReport, sandboxAutoRunner, liveReadiness, forwardReview] = await Promise.all([
+  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, shortCycleCandidates, usableStrategyCatalog, simulationBridge, simulationReview, closedSampleReplay, strategyPromotionGate, researchTaskBoard, strategyLearningLoop, sandboxDailyReport, sandboxAutoRunner, liveReadiness, forwardReview] = await Promise.all([
     getJson("/api/strategies"),
     getJson("/api/reports"),
     getJson("/api/mobile/status"),
@@ -3001,6 +3139,7 @@ async function refreshAll() {
     getJson("/api/usable-strategy-catalog"),
     getJson("/api/simulation-bridge"),
     getJson("/api/simulation-review"),
+    getJson("/api/closed-sample-replay"),
     getJson("/api/strategy-promotion-gate"),
     getJson("/api/research-task-board"),
     getJson("/api/strategy-learning-loop"),
@@ -3025,6 +3164,7 @@ async function refreshAll() {
   renderShortCycleCandidatePool(shortCycleCandidates);
   renderUsableStrategyCatalog(usableStrategyCatalog);
   renderSimulationReview(simulationReview);
+  renderClosedSampleReplay(closedSampleReplay);
   renderStrategyPromotionGate(strategyPromotionGate);
   renderResearchTaskBoard(researchTaskBoard);
   renderStrategyLearningLoop(strategyLearningLoop);

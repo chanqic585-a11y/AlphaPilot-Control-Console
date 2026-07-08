@@ -2443,6 +2443,156 @@ code {
   font-size: 12px;
 }
 
+.closed-sample-replay-panel {
+  border-color: rgba(249, 220, 92, 0.2);
+}
+
+.closed-sample-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.closed-sample-grid > div,
+.closed-sample-strategy,
+.closed-sample-detail,
+.closed-sample-card,
+.closed-sample-empty {
+  border: 1px solid var(--border);
+  background: rgba(9, 14, 20, 0.72);
+  border-radius: 6px;
+}
+
+.closed-sample-grid > div {
+  padding: 10px;
+}
+
+.closed-sample-grid span,
+.closed-sample-strategy small,
+.closed-sample-strategy span,
+.closed-sample-detail small,
+.closed-sample-empty {
+  color: var(--muted);
+}
+
+.closed-sample-grid strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 19px;
+  color: var(--text);
+}
+
+.closed-sample-action {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  color: #ffe58f;
+  background: rgba(249, 220, 92, 0.08);
+  border: 1px solid rgba(249, 220, 92, 0.18);
+}
+
+.closed-sample-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.85fr) minmax(0, 2fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.closed-sample-list,
+.closed-sample-samples {
+  display: grid;
+  gap: 8px;
+}
+
+.closed-sample-strategy {
+  width: 100%;
+  padding: 11px;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.closed-sample-strategy.selected {
+  border-color: rgba(28, 211, 169, 0.55);
+  background: rgba(28, 211, 169, 0.09);
+}
+
+.closed-sample-strategy strong,
+.closed-sample-strategy small,
+.closed-sample-strategy span {
+  display: block;
+}
+
+.closed-sample-strategy small,
+.closed-sample-strategy span {
+  margin-top: 5px;
+}
+
+.closed-sample-detail,
+.closed-sample-empty {
+  padding: 12px;
+}
+
+.closed-sample-detail-head,
+.closed-sample-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.closed-sample-detail h4 {
+  margin: 2px 0 4px;
+}
+
+.closed-sample-metrics,
+.closed-sample-quality,
+.closed-sample-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.closed-sample-metrics span,
+.closed-sample-quality span,
+.closed-sample-flags small,
+.closed-sample-two-col small {
+  padding: 6px 8px;
+  border-radius: 5px;
+  color: var(--muted);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.closed-sample-note,
+.closed-sample-source {
+  margin-top: 10px;
+  color: var(--muted);
+}
+
+.closed-sample-two-col {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.closed-sample-two-col > div {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+
+.closed-sample-card {
+  padding: 11px;
+}
+
+.closed-sample-card p {
+  margin: 10px 0 0;
+  color: var(--text);
+}
+
 .live-readiness-panel {
   border-color: rgba(255, 209, 102, 0.28);
   background:
@@ -3021,6 +3171,11 @@ code {
     .simulation-gate-row-head,
     .simulation-review-grid,
     .simulation-review-row-head,
+    .closed-sample-grid,
+    .closed-sample-layout,
+    .closed-sample-detail-head,
+    .closed-sample-card-head,
+    .closed-sample-two-col,
     .live-readiness-grid,
     .live-readiness-columns,
     .live-readiness-row-head,

@@ -13,8 +13,8 @@ from .state_store import (
 from .usable_strategy_catalog import build_usable_strategy_catalog
 
 
-CONTROL_CONSOLE_VERSION = "V13.7.44"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_44"
+CONTROL_CONSOLE_VERSION = "V13.7.45"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_45"
 MIN_CLOSED_SAMPLES_FOR_SIM_REVIEW = 30
 MIN_RULE_MATCHES_FOR_SIM_REVIEW = 12
 MIN_HEALTH_SCORE_FOR_SIM_REVIEW = 65
