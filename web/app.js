@@ -196,6 +196,7 @@ let selectedStrategyPlaybookTaskId = null;
 let latestStrategyPlaybookTask = null;
 let latestSimpleConsolePayload = {};
 let latestQualityCenterPayload = {};
+let latestConcentrationReviewPayload = {};
 let selectedQualityCenterTaskId = null;
 let latestClosedSampleReplayPayload = {};
 let selectedClosedSampleReplayTaskId = null;
@@ -908,7 +909,7 @@ function qualityTone(status) {
   return "warn";
 }
 
-function renderQualityStrategyDetail(row, readonlyPrep = {}) {
+function renderQualityStrategyDetail(row, readonlyPrep = {}, concentrationReview = {}) {
   const target = el("qualityStrategyDetail");
   if (!target) return;
   if (!row) {
@@ -921,6 +922,11 @@ function renderQualityStrategyDetail(row, readonlyPrep = {}) {
   const latest = row.latestTrigger || {};
   const warnings = Array.isArray(row.warnings) ? row.warnings : [];
   const bullets = Array.isArray(row.detailBullets) ? row.detailBullets : [];
+  const concentrationRows = Array.isArray(concentrationReview?.strategies) ? concentrationReview.strategies : [];
+  const concentrationRow = concentrationRows.find((item) => item.taskId === row.taskId);
+  const concentrationReasons = Array.isArray(concentrationRow?.reviewReasons) ? concentrationRow.reviewReasons : [];
+  const pairBreakdown = Array.isArray(concentrationRow?.pairBreakdown) ? concentrationRow.pairBreakdown : [];
+  const topPair = pairBreakdown[0] || {};
   target.innerHTML = `
     <div class="quality-detail-head">
       <div>
@@ -955,6 +961,13 @@ function renderQualityStrategyDetail(row, readonlyPrep = {}) {
       ${(bullets.length ? bullets : ["继续收集闭合样本"]).map((item) => `<small>${escapeHtml(item)}</small>`).join("")}
       ${(warnings.length ? warnings : ["暂无阻塞警告"]).slice(0, 4).map((item) => `<small>${escapeHtml(item)}</small>`).join("")}
     </div>
+    ${concentrationRow ? `
+      <div class="quality-detail-action">
+        <strong>集中度复核：${escapeHtml(concentrationRow.decisionLabel || "继续观察")}</strong>
+        <small>覆盖币种 ${concentrationRow.uniquePairCount ?? 0} 个；最高集中 ${escapeHtml(topPair.pair || "--")} · ${formatPercent((topPair.sampleShare ?? 0) * 100)}；回放窗口 ${concentrationRow.uniqueReplayWindowCount ?? 0} 个。</small>
+        ${concentrationReasons.slice(0, 3).map((item) => `<small>${escapeHtml(item)}</small>`).join("")}
+      </div>
+    ` : ""}
     <div class="quality-detail-action">
       <strong>${escapeHtml(row.nextAction || "继续本地沙盘观察。")}</strong>
       <small>${escapeHtml(readonlyPrep.nextAction || "只读准备阶段：不接 API Key、不连接私有交易接口、不创建订单。")}</small>
@@ -962,16 +975,24 @@ function renderQualityStrategyDetail(row, readonlyPrep = {}) {
   `;
 }
 
-function renderQualityCenter(payload) {
+function renderQualityCenter(payload, concentrationReview = {}) {
   latestQualityCenterPayload = payload || {};
+  latestConcentrationReviewPayload = concentrationReview || {};
   if (!el("simpleQualityCenter")) return;
   const summary = payload?.summary || {};
+  const concentrationSummary = concentrationReview?.summary || {};
   const rows = Array.isArray(payload?.strategies) ? payload.strategies : [];
   const readonlyPrep = payload?.readonlyPreparation || {};
   setText(
     "qualityCenterMeta",
     `共 ${summary.strategyCount ?? rows.length} 条策略 · replay ${summary.replayCursor ?? "--"} · ${summary.nextAction || "继续沙盘观察"}`,
   );
+  if (concentrationSummary.strategyCount !== undefined) {
+    setText(
+      "qualityCenterMeta",
+      `共 ${summary.strategyCount ?? rows.length} 条策略 · 集中复核 ${concentrationSummary.reviewReadyCount ?? 0} 条达标 / ${concentrationSummary.needsConcentrationExpansionCount ?? 0} 条需扩币种 · ${concentrationSummary.nextAction || "继续沙盘观察"}`,
+    );
+  }
   setText("qualityClosedSamples", String(summary.totalClosedSamples ?? 0));
   setText("qualityAverageScore", summary.averageQualityScore !== undefined ? formatNumber(summary.averageQualityScore, 1) : "--");
   setText("qualityContinueCount", String(summary.candidateContinueCount ?? 0));
@@ -1014,16 +1035,16 @@ function renderQualityCenter(payload) {
     list.querySelectorAll("[data-quality-task-id]").forEach((button) => {
       button.addEventListener("click", () => {
         selectedQualityCenterTaskId = button.getAttribute("data-quality-task-id");
-        renderQualityCenter(latestQualityCenterPayload);
+        renderQualityCenter(latestQualityCenterPayload, latestConcentrationReviewPayload);
       });
     });
   }
 
   const selected = rows.find((row) => row.taskId === selectedQualityCenterTaskId) || rows[0];
-  renderQualityStrategyDetail(selected, readonlyPrep);
+  renderQualityStrategyDetail(selected, readonlyPrep, concentrationReview);
 }
 
-function renderSimpleConsole(strategies, reports, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview, qualityCenter) {
+function renderSimpleConsole(strategies, reports, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview, qualityCenter, concentrationReview = {}) {
   if (!el("simpleConsole")) return;
   const rows = Array.isArray(usableStrategyCatalog?.strategies) ? usableStrategyCatalog.strategies : [];
   const catalogSummary = usableStrategyCatalog?.summary || {};
@@ -1074,10 +1095,10 @@ function renderSimpleConsole(strategies, reports, mobile, usableStrategyCatalog,
   updateSimpleSandboxButton(runnerState);
   renderSimpleSimulationBridge(simulationBridge);
   renderSimpleReviewQueue(simulationReview);
-  renderQualityCenter(qualityCenter);
+  renderQualityCenter(qualityCenter, concentrationReview);
   renderSimpleStrategyCards(rows);
   renderSimpleActionChecklist({ runnerState, rows, sandboxRows, dailySummary });
-  latestSimpleConsolePayload = { strategies, reports, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview, qualityCenter };
+  latestSimpleConsolePayload = { strategies, reports, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview, qualityCenter, concentrationReview };
 }
 
 function renderSandboxSimulationLane(observationTasks, qualityRows) {
@@ -3807,6 +3828,7 @@ async function refreshAll() {
     { key: "sandboxDailyReport", url: "/api/local-sandbox/daily-report?limit=10", fallback: { reports: [], latestReport: { summary: {}, strategyHealthRows: [] } } },
     { key: "sandboxAutoRunner", url: "/api/local-sandbox/auto-runner", fallback: { autoRunner: {}, events: [] } },
     { key: "sandboxQualityCenter", url: "/api/local-sandbox/quality-center", fallback: { summary: {}, strategies: [], readonlyPreparation: {} }, timeoutMs: 12000 },
+    { key: "sandboxConcentrationReview", url: "/api/local-sandbox/concentration-review", fallback: { summary: {}, strategies: [], variantGroups: [] }, timeoutMs: 12000 },
     { key: "liveReadiness", url: "/api/live-readiness", fallback: { rows: [], summary: {} } },
     { key: "forwardReview", url: "/api/forward-review", fallback: { rows: [], summary: {} } },
   ], 4);
@@ -3823,6 +3845,7 @@ async function refreshAll() {
   const sandboxDailyReport = core.sandboxDailyReport || { reports: [], latestReport: { summary: {}, strategyHealthRows: [] } };
   const sandboxAutoRunner = core.sandboxAutoRunner || { autoRunner: {}, events: [] };
   const sandboxQualityCenter = core.sandboxQualityCenter || { summary: {}, strategies: [], readonlyPreparation: {} };
+  const sandboxConcentrationReview = core.sandboxConcentrationReview || { summary: {}, strategies: [], variantGroups: [] };
   const liveReadiness = core.liveReadiness || { rows: [], summary: {} };
   const forwardReview = core.forwardReview || { rows: [], summary: {} };
   const emptySimulationBridge = { summary: {}, observationTasks: [] };
@@ -3831,7 +3854,7 @@ async function refreshAll() {
   const strategyItems = strategies.strategies || [];
   const reportItems = reports.reports || [];
   latestStrategyLearningLoopPayload = emptyStrategyLearningLoop;
-  renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, emptySimulationBridge, emptySimulationReview, sandboxQualityCenter);
+  renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, emptySimulationBridge, emptySimulationReview, sandboxQualityCenter, sandboxConcentrationReview);
   renderCommandCenter(strategyItems, reportItems, mobile);
   renderRuntimeMonitor(strategyItems, mobile);
   renderStrategies(strategyItems);
@@ -3882,7 +3905,7 @@ async function refreshAll() {
   const simulationReview = advanced.simulationReview || emptySimulationReview;
   const strategyLearningLoop = advanced.strategyLearningLoop || emptyStrategyLearningLoop;
   latestStrategyLearningLoopPayload = strategyLearningLoop;
-  renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview, sandboxQualityCenter);
+  renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview, sandboxQualityCenter, sandboxConcentrationReview);
   renderCandidateQueue(advanced.candidateQueue || { strategies: [], summary: {} });
   renderShortCycleCandidatePool(advanced.shortCycleCandidates || { candidates: [], summary: {} });
   renderSimulationReview(simulationReview);
