@@ -7,8 +7,8 @@ from .state_store import now_iso
 from .testnet_readiness_pack import REQUIRED_TESTNET_CONTROLS
 
 
-CONTROL_CONSOLE_VERSION = "V13.8.2"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_8_2"
+CONTROL_CONSOLE_VERSION = "V13.8.3"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_8_3"
 
 
 FUTURE_TESTNET_SEQUENCE = [

@@ -1927,6 +1927,10 @@ function renderPreLivePreparationPack(payload) {
   const killSwitchControls = Array.isArray(payload?.killSwitchControls) ? payload.killSwitchControls : [];
   const credentialItems = Array.isArray(payload?.credentialVaultDesign) ? payload.credentialVaultDesign : [];
   const referenceInputs = Array.isArray(payload?.referenceInputs) ? payload.referenceInputs : [];
+  const rehearsalSummary = payload?.rehearsalSummary || {};
+  const closureRows = Array.isArray(payload?.preLiveClosureReport) ? payload.preLiveClosureReport : [];
+  const runbookRows = Array.isArray(payload?.operationalRunbook) ? payload.operationalRunbook : [];
+  const recentRehearsals = Array.isArray(payload?.recentRehearsals) ? payload.recentRehearsals : [];
 
   setText("preLiveStage", summary.stageLabel || "实盘前本地演练");
   setText("preLiveLifecycleReady", summary.orderLifecycleSimulatorReady ? "已设计" : "未完成");
@@ -1936,6 +1940,59 @@ function renderPreLivePreparationPack(payload) {
   setText("preLiveOrderStatus", summary.orderCreationEnabled ? "开启" : "禁用");
   setText("preLiveDryRunStatus", summary.exchangeDryRunEnabled ? "开启" : "禁用");
   setText("preLiveNextAction", summary.nextAction || "先做本地生命周期预演，不连接交易所。");
+  setText("preLiveRehearsalTotal", rehearsalSummary.totalRehearsals ?? 0);
+  setText("preLiveRehearsalPassed", rehearsalSummary.passedRehearsals ?? 0);
+  setText("preLiveRehearsalRejected", rehearsalSummary.rejectedRehearsals ?? 0);
+  setText("preLiveLatestState", rehearsalSummary.latestFinalState || "--");
+  setText("preLiveClosureVerdict", rehearsalSummary.localLifecyclePathsComplete ? "本地闭环已补齐" : "待补演练");
+  setText("preLiveBlockerCount", rehearsalSummary.blockerCount ?? "--");
+
+  if (el("preLiveClosureList")) {
+    const toneForStatus = (status) => {
+      if (status === "passed") return "ok";
+      if (status === "disabled" || status === "future_required") return "danger";
+      return "warn";
+    };
+    el("preLiveClosureList").innerHTML = closureRows.map((item) => `
+      <div class="pre-live-row">
+        <div class="pre-live-row-head">
+          <div>
+            <strong>${escapeHtml(item.label || item.checkId || "--")}</strong>
+            <small>${escapeHtml(item.description || "--")}</small>
+          </div>
+          <span class="badge ${toneForStatus(item.status)}">${escapeHtml(item.status || "--")}</span>
+        </div>
+      </div>
+    `).join("") || '<div class="testnet-design-empty">暂无闭环检查。</div>';
+  }
+
+  if (el("preLiveRunbookList")) {
+    el("preLiveRunbookList").innerHTML = runbookRows.map((item) => `
+      <div class="pre-live-row">
+        <div class="pre-live-row-head">
+          <div>
+            <strong>${escapeHtml(item.label || item.stepId || "--")}</strong>
+            <small>${escapeHtml(item.description || "--")}</small>
+          </div>
+          <span class="badge warn">${escapeHtml(item.status || "--")}</span>
+        </div>
+      </div>
+    `).join("") || '<div class="testnet-design-empty">暂无运行手册。</div>';
+  }
+
+  if (el("preLiveRecentList")) {
+    el("preLiveRecentList").innerHTML = recentRehearsals.map((item) => `
+      <div class="pre-live-row">
+        <div class="pre-live-row-head">
+          <div>
+            <strong>${escapeHtml(item.symbol || "--")} · ${escapeHtml(item.finalState || "--")}</strong>
+            <small>${formatDate(item.createdAt || item.generatedAt)} · ${escapeHtml(item.strategyId || "--")} · ${formatNumber(item.notional, 2)} notional</small>
+          </div>
+          <span class="badge ${item.riskPassed ? "ok" : "danger"}">${item.riskPassed ? "通过" : "拒绝"}</span>
+        </div>
+      </div>
+    `).join("") || '<div class="testnet-design-empty">暂无本地演练记录。</div>';
+  }
 
   el("preLiveLifecycleList").innerHTML = lifecycle.map((item) => `
     <div class="pre-live-row">
@@ -2032,19 +2089,20 @@ async function runPreLiveLifecyclePreview() {
   const button = el("runPreLiveLifecyclePreviewButton");
   if (!button) return;
   button.disabled = true;
-  setText("preLivePreviewStatus", "正在生成本地生命周期预演...");
+  setText("preLivePreviewStatus", "正在保存本地生命周期演练记录...");
   try {
-    const preview = await postJson("/api/pre-live-order-lifecycle/simulate", {
+    const result = await postJson("/api/pre-live-order-lifecycle/rehearse", {
       strategyId: latestStrategyPlaybookTask?.taskId || "manual_rehearsal_strategy",
       symbol: "BTC/USDT:USDT",
       notional: 100,
       riskR: 1,
       manualDecision: "approve_for_rehearsal",
     });
-    renderPreLiveLifecyclePreview(preview);
-    setText("preLivePreviewStatus", "已完成本地预演：没有连接交易所，没有创建订单。");
+    renderPreLiveLifecyclePreview(result.rehearsal || {});
+    if (result.preLivePreparationPack) renderPreLivePreparationPack(result.preLivePreparationPack);
+    setText("preLivePreviewStatus", "已保存本地演练记录：没有连接交易所，没有创建订单。");
   } catch (error) {
-    setText("preLivePreviewStatus", `预演失败：${error.message}`);
+    setText("preLivePreviewStatus", `演练保存失败：${error.message}`);
   } finally {
     button.disabled = false;
   }

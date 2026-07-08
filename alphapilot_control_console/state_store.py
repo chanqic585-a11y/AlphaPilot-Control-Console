@@ -141,6 +141,8 @@ def load_state() -> dict[str, Any]:
         state["localSandboxLearningSnapshots"] = []
     if not isinstance(state.get("manualExecutionTickets"), list):
         state["manualExecutionTickets"] = []
+    if not isinstance(state.get("preLiveRehearsals"), list):
+        state["preLiveRehearsals"] = []
     if not isinstance(state.get("weaknessActionTasks"), dict):
         state["weaknessActionTasks"] = {}
     if not isinstance(state.get("researchActionExecutionRuns"), list):
@@ -720,3 +722,52 @@ def list_manual_execution_tickets(limit: int = 20) -> list[dict[str, Any]]:
     tickets = state.get("manualExecutionTickets") if isinstance(state.get("manualExecutionTickets"), list) else []
     safe_limit = max(1, min(int(limit or 20), 200))
     return [row for row in tickets if isinstance(row, dict)][-safe_limit:][::-1]
+
+
+def save_pre_live_rehearsal(rehearsal: dict[str, Any]) -> dict[str, Any]:
+    state = load_state()
+    rehearsals = state.get("preLiveRehearsals")
+    if not isinstance(rehearsals, list):
+        rehearsals = []
+    rehearsal = {
+        **rehearsal,
+        "rehearsalId": rehearsal.get("rehearsalId") or f"pre_live_rehearsal::{len(rehearsals) + 1}",
+        "createdAt": rehearsal.get("createdAt") or now_iso(),
+        "source": rehearsal.get("source") or CONTROL_CONSOLE_STATE_SOURCE,
+        "persistedAsRehearsal": True,
+        "createdExchangeOrder": False,
+        "connectedExchange": False,
+        "storedApiKey": False,
+        "safetyBoundary": {
+            **(rehearsal.get("safetyBoundary") if isinstance(rehearsal.get("safetyBoundary"), dict) else {}),
+            "localRecordOnly": True,
+            "notAnOrder": True,
+            "apiKeyUsed": False,
+            "tradeApiUsed": False,
+            "withdrawApiUsed": False,
+            "realAccountRead": False,
+            "realPositionRead": False,
+        },
+    }
+    rehearsals.append(rehearsal)
+    state["preLiveRehearsals"] = rehearsals[-200:]
+    save_state(state)
+    append_audit(
+        "pre_live_rehearsal_saved",
+        {
+            "rehearsalId": rehearsal.get("rehearsalId"),
+            "strategyId": rehearsal.get("strategyId"),
+            "symbol": rehearsal.get("symbol"),
+            "riskPassed": rehearsal.get("riskPassed"),
+            "finalState": rehearsal.get("finalState"),
+            "localRecordOnly": True,
+        },
+    )
+    return rehearsal
+
+
+def list_pre_live_rehearsals(limit: int = 20) -> list[dict[str, Any]]:
+    state = load_state()
+    rehearsals = state.get("preLiveRehearsals") if isinstance(state.get("preLiveRehearsals"), list) else []
+    safe_limit = max(1, min(int(limit or 20), 200))
+    return [row for row in rehearsals if isinstance(row, dict)][-safe_limit:][::-1]

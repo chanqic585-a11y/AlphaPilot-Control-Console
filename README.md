@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.8.2 - Pre-Live Preparation Pack
+AlphaPilot V13.8.3 - Pre-Live Operational Closure Pack
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,37 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.8.3 Adds
+
+V13.8.3 turns the V13.8.2 local lifecycle preview into a local pre-live
+operational closure pack.
+
+New local endpoint:
+
+- `POST /api/pre-live-order-lifecycle/rehearse`
+
+The console now saves local rehearsal records and shows:
+
+- total local rehearsals
+- passed local rehearsal paths
+- rejected local rehearsal paths
+- latest rehearsal state
+- pre-live closure checks
+- recent rehearsal records
+- a local runbook for the next safe steps
+
+Saved rehearsals are local audit records only. They do not create exchange
+orders, do not connect private exchange endpoints, do not store credentials, do
+not read accounts, do not read positions, and do not run exchange Dry-run.
+
+Even if the local rehearsal paths are complete, execution remains disabled until
+a separate future testnet design implements credential isolation, permission
+switches, manual confirmation, and kill-switch controls.
+
+This release does not add API key input, API key storage, Trade API, Withdraw
+API, real account reads, real position reads, order creation, exchange Dry-run,
+live trading, or automatic trading.
 
 ## What V13.8.2 Adds
 

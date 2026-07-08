@@ -3512,6 +3512,10 @@ code {
   margin-top: 14px;
 }
 
+.pre-live-closure-columns {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .pre-live-grid > div,
 .pre-live-row,
 .pre-live-preview {

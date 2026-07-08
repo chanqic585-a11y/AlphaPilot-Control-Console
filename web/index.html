@@ -1353,7 +1353,7 @@
               <span id="testnetDesignStatus" class="status-pill danger">交易关闭</span>
             </div>
             <div class="locked-notice">
-              V13.8.2 仍然只是准备中心和灰显入口：API Key 输入、Testnet 连接、订单创建和 exchange Dry-run 全部禁用。
+              V13.8.3 仍然只是准备中心和灰显入口：API Key 输入、Testnet 连接、订单创建和 exchange Dry-run 全部禁用。
             </div>
             <div class="testnet-design-grid">
               <div>
@@ -1409,7 +1409,7 @@
               <span id="preLiveStage" class="status-pill danger">交易关闭</span>
             </div>
             <div class="locked-notice">
-              V13.8.2 只允许本地生命周期预演：不输入 API Key，不连接私有接口，不提交订单，不撤单，不紧急平仓，不自动执行策略。
+              V13.8.3 只允许本地生命周期演练和本地审计记录：不输入 API Key，不连接私有接口，不提交订单，不撤单，不紧急平仓，不自动执行策略。
             </div>
             <div class="pre-live-grid">
               <div>
@@ -1436,12 +1436,50 @@
                 <span>交易所 Dry-run</span>
                 <strong id="preLiveDryRunStatus">禁用</strong>
               </div>
+              <div>
+                <span>本地演练</span>
+                <strong id="preLiveRehearsalTotal">--</strong>
+              </div>
+              <div>
+                <span>通过路径</span>
+                <strong id="preLiveRehearsalPassed">--</strong>
+              </div>
+              <div>
+                <span>拒绝路径</span>
+                <strong id="preLiveRehearsalRejected">--</strong>
+              </div>
+              <div>
+                <span>最新状态</span>
+                <strong id="preLiveLatestState">--</strong>
+              </div>
+              <div>
+                <span>闭环状态</span>
+                <strong id="preLiveClosureVerdict">--</strong>
+              </div>
+              <div>
+                <span>阻塞项</span>
+                <strong id="preLiveBlockerCount">--</strong>
+              </div>
             </div>
             <div class="pre-live-controls">
-              <button id="runPreLiveLifecyclePreviewButton" type="button">本地演练生命周期</button>
-              <span id="preLivePreviewStatus">只返回本地状态路径，不生成订单。</span>
+              <button id="runPreLiveLifecyclePreviewButton" type="button">保存本地演练记录</button>
+              <span id="preLivePreviewStatus">保存为本地审计记录，不生成订单，不连接交易所。</span>
             </div>
             <div id="preLiveNextAction" class="pre-live-next">等待实盘前准备包。</div>
+            <div class="pre-live-columns pre-live-closure-columns">
+              <div>
+                <h4>闭环检查</h4>
+                <div id="preLiveClosureList" class="pre-live-list"></div>
+              </div>
+              <div>
+                <h4>运行手册</h4>
+                <div id="preLiveRunbookList" class="pre-live-list"></div>
+              </div>
+              <div>
+                <h4>最近演练</h4>
+                <div id="preLiveRecentList" class="pre-live-list"></div>
+              </div>
+            </div>
             <div class="pre-live-columns">
               <div>
                 <h4>订单生命周期</h4>

@@ -16,6 +16,7 @@ from .local_sandbox_runner import run_local_sandbox
 from .mobile_connection import build_mobile_connection_info
 from .pre_live_preparation_pack import (
     build_pre_live_preparation_pack,
+    create_pre_live_rehearsal,
     simulate_pre_live_order_lifecycle,
 )
 from .sandbox_auto_runner import (
@@ -102,7 +103,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.8.2"
+    server_version = "AlphaPilotControlConsole/13.8.3"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -143,8 +144,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.8.2",
-                "source": "alphapilot_control_console_v13_8_2",
+                "version": "V13.8.3",
+                "source": "alphapilot_control_console_v13_8_3",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -651,6 +652,10 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/pre-live-order-lifecycle/simulate":
             payload = self._read_body_json()
             self._send_json(simulate_pre_live_order_lifecycle(payload))
+            return
+        if parsed.path == "/api/pre-live-order-lifecycle/rehearse":
+            payload = self._read_body_json()
+            self._send_json(create_pre_live_rehearsal(payload))
             return
         self._send_json({"error": "not_found"}, 404)
 
