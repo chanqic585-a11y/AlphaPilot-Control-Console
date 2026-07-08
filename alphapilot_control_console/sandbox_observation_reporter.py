@@ -9,13 +9,15 @@ from .local_sandbox_runner import RISK_UNIT_PERCENT, VIRTUAL_CAPITAL_PER_STRATEG
 from .state_store import (
     list_local_sandbox_daily_reports,
     list_local_sandbox_health_snapshots,
+    list_paper_observation_logs,
     now_iso,
     save_local_sandbox_daily_report,
 )
+from .usable_strategy_catalog import build_usable_sandbox_task_pack
 
 
-CONTROL_CONSOLE_VERSION = "V13.7.34"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_34"
+CONTROL_CONSOLE_VERSION = "V13.7.41"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_41"
 BEIJING_TZ = timezone(timedelta(hours=8))
 
 
@@ -230,10 +232,19 @@ def build_local_sandbox_daily_report(learning_loop: dict[str, Any] | None = None
 
         learning_loop = scan_quant_engine().get("strategyLearningLoop") or {}
     date_key = date_key or _beijing_date_key()
-    pack = learning_loop.get("paperObservationTaskPack") if isinstance(learning_loop.get("paperObservationTaskPack"), dict) else {}
+    pack = build_usable_sandbox_task_pack()
     tasks = pack.get("paperObservationTasks") if isinstance(pack.get("paperObservationTasks"), list) else []
+    enriched_tasks: list[dict[str, Any]] = []
+    for task in tasks:
+        if not isinstance(task, dict):
+            continue
+        task_id = str(task.get("taskId") or "").strip()
+        logs = list_paper_observation_logs(task_id)
+        enriched = dict(task)
+        enriched["recentLogs"] = logs if isinstance(logs, list) else []
+        enriched_tasks.append(enriched)
     previous = _previous_snapshot_by_task()
-    rows = [_build_health_row(task, date_key, previous) for task in tasks if isinstance(task, dict)]
+    rows = [_build_health_row(task, date_key, previous) for task in enriched_tasks]
     rows.sort(key=lambda row: (float(row.get("healthScore") or 0), float(row.get("totalR") or 0)), reverse=True)
     daily_log_count = sum(_safe_int(row.get("dailyLogCount")) for row in rows)
     daily_closed_count = sum(_safe_int(row.get("dailyClosedSampleCount")) for row in rows)

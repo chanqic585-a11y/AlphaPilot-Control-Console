@@ -19,8 +19,8 @@ from .state_store import (
 )
 
 
-CONTROL_CONSOLE_VERSION = "V13.7.34"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_34"
+CONTROL_CONSOLE_VERSION = "V13.7.41"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_41"
 BEIJING_TZ = timezone(timedelta(hours=8))
 
 
@@ -141,7 +141,7 @@ class LocalSandboxAutoRunner:
                 {"eventType": "run_started", "reason": reason},
             )
             try:
-                run = run_local_sandbox({"maxTasks": 5, "trigger": f"auto_runner_{reason}"})
+                run = run_local_sandbox({"maxTasks": 20, "trigger": f"auto_runner_{reason}"})
                 latest = scan_quant_engine()
                 report = build_local_sandbox_daily_report(latest.get("strategyLearningLoop") or {})
                 learning = build_learning_snapshot(run, report)

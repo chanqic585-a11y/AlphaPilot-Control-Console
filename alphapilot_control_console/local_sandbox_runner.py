@@ -9,13 +9,18 @@ from typing import Any
 
 from .config import DEFAULT_QUANT_ENGINE_PATH, SAFETY_BOUNDARY, get_quant_engine_path
 from .state_store import add_paper_observation_log, list_paper_observation_logs, now_iso, save_local_sandbox_run
+from .usable_strategy_catalog import (
+    USABLE_STRATEGY_CATALOG_REPORT,
+    build_usable_sandbox_task_pack,
+)
 
 
-CONTROL_CONSOLE_VERSION = "V13.7.34"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_34"
+CONTROL_CONSOLE_VERSION = "V13.7.41"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_41"
+SAMPLE_KEY_SCHEMA_VERSION = "V13.7.34"
 VIRTUAL_CAPITAL_PER_STRATEGY = 1000.0
 RISK_UNIT_PERCENT = 1.0
-TASK_PACK_REPORT = "v13_7_21_paper_observation_task_pack_report.json"
+TASK_PACK_REPORT = "v13_7_41_usable_sandbox_task_pack"
 REFERENCE_CHECKLIST = {
     "referenceOnly": True,
     "recordedReferences": [
@@ -131,7 +136,7 @@ def _digest_payload(value: Any) -> str:
 def _sample_key(task_id: str, pair: str, timeframe: str, cache: dict[str, Any], pair_metrics: dict[str, Any]) -> str:
     data_mode = "local_public_ohlcv_cache" if cache.get("available") else "task_pack_metrics_only"
     payload = {
-        "version": CONTROL_CONSOLE_VERSION,
+        "version": SAMPLE_KEY_SCHEMA_VERSION,
         "taskId": task_id,
         "pair": pair,
         "timeframe": timeframe,
@@ -247,9 +252,10 @@ def _build_run_id() -> str:
 def run_local_sandbox(payload: dict[str, Any] | None = None) -> dict[str, Any]:
     payload = payload if isinstance(payload, dict) else {}
     quant_path = Path(str(payload.get("quantEnginePath") or get_quant_engine_path() or DEFAULT_QUANT_ENGINE_PATH)).expanduser().resolve()
-    task_pack = _read_json(quant_path / "reports" / TASK_PACK_REPORT)
+    task_pack = build_usable_sandbox_task_pack(quant_path)
     tasks = task_pack.get("paperObservationTasks") if isinstance(task_pack.get("paperObservationTasks"), list) else []
-    max_tasks = max(1, min(_safe_int(payload.get("maxTasks"), 5), 20))
+    default_max_tasks = min(len(tasks) or 1, 20)
+    max_tasks = max(1, min(_safe_int(payload.get("maxTasks"), default_max_tasks), 20))
     run_id = _build_run_id()
     rows: list[dict[str, Any]] = []
     generated = 0
@@ -418,6 +424,8 @@ def run_local_sandbox(payload: dict[str, Any] | None = None) -> dict[str, Any]:
         "rows": rows,
         "quantEnginePath": str(quant_path),
         "taskPackReport": TASK_PACK_REPORT,
+        "usableStrategyCatalogReport": USABLE_STRATEGY_CATALOG_REPORT,
+        "taskPackSummary": task_pack.get("summary") if isinstance(task_pack.get("summary"), dict) else {},
         "referenceChecklist": REFERENCE_CHECKLIST,
         "safetyBoundary": SAFETY_BOUNDARY,
         "safetyNote": "Local sandbox replay uses virtual capital only; no Trade API, API key, account read, order, Dry-run, or auto trading.",

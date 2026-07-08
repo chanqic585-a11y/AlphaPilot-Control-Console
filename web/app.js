@@ -538,6 +538,70 @@ const sandboxSimulationSettings = {
   riskUnitPercent: 1,
 };
 
+function renderUsableStrategyCatalog(payload) {
+  if (!el("usableStrategyCatalogList")) return;
+  const summary = payload?.summary || {};
+  const rows = Array.isArray(payload?.strategies) ? payload.strategies : [];
+  el("usableStrategyCatalogStatus").textContent = rows.length ? "已整理" : "等待目录";
+  el("usableStrategyTotal").textContent = String(summary.totalUsableStrategies ?? rows.length);
+  el("usableStrategyLowFrequency").textContent = String(summary.lowFrequencyCount ?? 0);
+  el("usableStrategyShortCycle").textContent = String(summary.shortCycleCount ?? 0);
+  el("usableStrategySandboxReady").textContent = String(summary.sandboxReadyCount ?? 0);
+  el("usableStrategyTargetR").textContent = `${formatNumber(summary.targetR ?? 2, 1)}R`;
+  el("usableStrategyCapital").textContent = formatUsd(summary.virtualCapitalPerStrategy ?? sandboxSimulationSettings.virtualCapitalPerStrategy);
+  el("usableStrategyCatalogAction").textContent =
+    rows.length
+      ? `已把 ${rows.length} 条策略整理为本地沙盒观察目录：低频 ${summary.lowFrequencyCount ?? 0} 条，短周期 ${summary.shortCycleCount ?? 0} 条。可用不等于可交易。`
+      : "未找到可整理策略，请先确认量化仓库报告存在。";
+
+  el("usableStrategyCatalogList").innerHTML = rows.map((row) => {
+    const metrics = row.metrics || {};
+    const testMetrics = row.testMetrics || {};
+    const pairs = Array.isArray(row.selectedPairs) ? row.selectedPairs : [];
+    const tone = row.frequencyBucket === "short_cycle" ? "warn" : "ok";
+    return `
+      <div class="sandbox-lane-row">
+        <div class="sandbox-lane-row-head">
+          <div>
+            <strong>${escapeHtml(row.name || row.candidateId || row.strategyId || "--")}</strong>
+            <small>${escapeHtml(row.frequencyLabel || "--")} · ${escapeHtml(row.timeframe || "--")} · ${escapeHtml(row.direction || "--")} · score ${formatNumber(row.score, 1)}</small>
+          </div>
+          <span class="badge ${tone}">${escapeHtml(row.approvalTier || "sandbox_ready")}</span>
+        </div>
+        <div class="artifact-metrics">
+          <span>目标 ${formatNumber(row.targetR ?? 2, 1)}R</span>
+          <span>样本 ${metrics.tradeCount ?? "--"}</span>
+          <span>胜率 ${formatPercent(metrics.winRatePct)}</span>
+          <span>PF ${formatNumber(metrics.profitFactor)}</span>
+          <span>测试 PF ${formatNumber(testMetrics.profitFactor)}</span>
+          <span>回撤 ${formatPercent(metrics.maxDrawdownPctAt1PctRisk ?? metrics.maxDrawdownPct)}</span>
+        </div>
+        <div class="artifact-metrics">
+          <span>家族 ${escapeHtml(row.family || "--")}</span>
+          <span>候选币种 ${pairs.length}</span>
+          <span>${escapeHtml(pairs.slice(0, 8).join(", ") || "--")}${pairs.length > 8 ? "..." : ""}</span>
+        </div>
+        <div class="sandbox-lane-next">${escapeHtml(row.nextAction || "继续本地沙盒持续观察。")}</div>
+      </div>
+    `;
+  }).join("") || '<div class="sandbox-lane-empty">暂无可用策略目录。</div>';
+}
+
+function buildUsableCatalogObservationTasks(payload) {
+  const rows = Array.isArray(payload?.strategies) ? payload.strategies : [];
+  return rows.map((row) => ({
+    taskId: row.taskId || row.catalogId || row.candidateId || row.strategyId || "",
+    strategyId: row.strategyId || row.candidateId || "",
+    candidateId: row.candidateId || "",
+    title: row.name || row.shortName || row.candidateId || row.strategyId || "--",
+    timeframe: row.timeframe || "",
+    family: row.family || "",
+    historicalMetrics: row.metrics || {},
+    frequencyBucket: row.frequencyBucket || "",
+    selectedPairs: row.selectedPairs || [],
+  })).filter((row) => row.taskId);
+}
+
 function parsePaperOutcomeR(value) {
   if (value === null || value === undefined) return null;
   const match = String(value).match(/-?\d+(?:\.\d+)?/);
@@ -556,9 +620,15 @@ function buildSandboxSimulationRows(observationTasks, qualityRows) {
     const parsedRValues = recentLogs
       .map((log) => parsePaperOutcomeR(log.rMultiple ?? log.outcome))
       .filter((value) => value !== null);
-    const realizedR = parsedRValues.reduce((sum, value) => sum + value, 0);
+    const fallbackR = Number(row.totalR ?? localObservation.totalR ?? 0);
+    const realizedR = parsedRValues.length
+      ? parsedRValues.reduce((sum, value) => sum + value, 0)
+      : (Number.isFinite(fallbackR) ? fallbackR : 0);
     const capital = sandboxSimulationSettings.virtualCapitalPerStrategy;
-    const equity = capital * (1 + ((realizedR * sandboxSimulationSettings.riskUnitPercent) / 100));
+    const fallbackEquity = Number(row.virtualEquity ?? localObservation.virtualEquity);
+    const equity = Number.isFinite(fallbackEquity)
+      ? fallbackEquity
+      : capital * (1 + ((realizedR * sandboxSimulationSettings.riskUnitPercent) / 100));
     const pnl = equity - capital;
     const closedPaperSampleCount = Number(row.closedPaperSampleCount ?? localObservation.closedPaperSampleCount ?? 0);
     const riskWarningCount = Number(row.riskWarningCount ?? localObservation.riskWarningCount ?? 0);
@@ -2620,7 +2690,7 @@ function renderAudit(events) {
 }
 
 async function refreshAll() {
-  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, shortCycleCandidates, strategyPromotionGate, researchTaskBoard, strategyLearningLoop, sandboxDailyReport, sandboxAutoRunner, liveReadiness, forwardReview] = await Promise.all([
+  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, shortCycleCandidates, usableStrategyCatalog, strategyPromotionGate, researchTaskBoard, strategyLearningLoop, sandboxDailyReport, sandboxAutoRunner, liveReadiness, forwardReview] = await Promise.all([
     getJson("/api/strategies"),
     getJson("/api/reports"),
     getJson("/api/mobile/status"),
@@ -2632,6 +2702,7 @@ async function refreshAll() {
     getJson("/api/paper-observation-tasks"),
     getJson("/api/candidate-queue"),
     getJson("/api/short-cycle-candidates"),
+    getJson("/api/usable-strategy-catalog"),
     getJson("/api/strategy-promotion-gate"),
     getJson("/api/research-task-board"),
     getJson("/api/strategy-learning-loop"),
@@ -2653,9 +2724,14 @@ async function refreshAll() {
   renderStrategyArtifacts(artifacts);
   renderCandidateQueue(candidateQueue);
   renderShortCycleCandidatePool(shortCycleCandidates);
+  renderUsableStrategyCatalog(usableStrategyCatalog);
   renderStrategyPromotionGate(strategyPromotionGate);
   renderResearchTaskBoard(researchTaskBoard);
   renderStrategyLearningLoop(strategyLearningLoop);
+  renderSandboxSimulationLane(
+    buildUsableCatalogObservationTasks(usableStrategyCatalog),
+    sandboxDailyReport?.latestReport?.strategyHealthRows || [],
+  );
   renderSandboxDailyReport(sandboxDailyReport);
   renderSandboxAutoRunner(sandboxAutoRunner);
   renderLiveReadiness(liveReadiness);

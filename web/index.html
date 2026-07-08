@@ -811,6 +811,44 @@
           <div class="section-subpanel sandbox-lane-panel">
             <div class="section-header compact">
               <div>
+                <p class="panel-eyebrow">USABLE STRATEGY CATALOG</p>
+                <h4>可用策略目录</h4>
+                <p>把已过研究门槛的低频策略和短周期候选统一整理后放入本地沙盒；可用只代表可观察，不代表可交易。</p>
+              </div>
+              <span id="usableStrategyCatalogStatus" class="status-pill ok">本地沙盒目录</span>
+            </div>
+            <div class="sandbox-lane-grid">
+              <div class="sandbox-lane-card">
+                <span>可用策略</span>
+                <strong id="usableStrategyTotal">--</strong>
+              </div>
+              <div class="sandbox-lane-card">
+                <span>低频策略</span>
+                <strong id="usableStrategyLowFrequency">--</strong>
+              </div>
+              <div class="sandbox-lane-card">
+                <span>短周期策略</span>
+                <strong id="usableStrategyShortCycle">--</strong>
+              </div>
+              <div class="sandbox-lane-card">
+                <span>沙盒可运行</span>
+                <strong id="usableStrategySandboxReady">--</strong>
+              </div>
+              <div class="sandbox-lane-card">
+                <span>固定目标</span>
+                <strong id="usableStrategyTargetR">--</strong>
+              </div>
+              <div class="sandbox-lane-card">
+                <span>单策略本金</span>
+                <strong id="usableStrategyCapital">--</strong>
+              </div>
+            </div>
+            <div class="sandbox-lane-action" id="usableStrategyCatalogAction">等待可用策略目录。</div>
+            <div id="usableStrategyCatalogList" class="sandbox-lane-list"></div>
+          </div>
+          <div class="section-subpanel sandbox-lane-panel">
+            <div class="section-header compact">
+              <div>
                 <p class="panel-eyebrow">LOCAL SANDBOX SIMULATION</p>
                 <h4>本地沙盒模拟通道</h4>
                 <p>所有候选策略都可以先进入本地虚拟资金模拟；这里只记录虚拟状态，不连接交易所、不创建订单。</p>

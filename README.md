@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.39 - Strategy Promotion Gate
+AlphaPilot V13.7.41 - Usable Strategy Catalog and Sandbox Merge
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,26 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.7.41 Adds
+
+- Adds a unified usable strategy catalog for the local sandbox.
+- Merges:
+  - the V13.7.21 low-frequency paper-observation task pack
+  - the V13.7.40 strict short-cycle selected candidates
+- Adds `GET /api/usable-strategy-catalog`.
+- Updates the local sandbox runner so the default task pack includes both
+  low-frequency and short-cycle research candidates.
+- Keeps virtual capital at `1000 USDT` per strategy.
+- Keeps the fixed `2R` target requirement visible in the catalog.
+- Keeps sandbox sample de-duplication stable so version bumps do not inflate
+  closed samples.
+- Shows a Chinese usable-strategy catalog panel before the sandbox lane in the
+  desktop console.
+
+V13.7.41 does not add API key input, Trade API, Withdraw API, account reads,
+position reads, exchange Dry-run, order creation, live trading, or automatic
+trading. "Usable" means local-sandbox observable, not tradable.
 
 ## What V13.7.39 Adds
 
