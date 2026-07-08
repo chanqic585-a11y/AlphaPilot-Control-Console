@@ -34,15 +34,18 @@ from .state_store import (
     ALLOWED_ARTIFACT_REVIEW_STATUSES,
     ALLOWED_PAPER_OBSERVATION_LOG_TYPES,
     ALLOWED_PAPER_OBSERVATION_TASK_STATUSES,
+    ALLOWED_WEAKNESS_ACTION_STATUSES,
     add_paper_observation_log,
     list_local_sandbox_daily_reports,
     list_manual_execution_tickets,
     list_local_sandbox_runs,
     list_audit,
     list_paper_observation_logs,
+    list_weakness_action_tasks,
     update_artifact_review,
     upsert_paper_observation_task,
     update_strategy_status,
+    update_weakness_action_task,
 )
 
 
@@ -89,7 +92,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.7.48"
+    server_version = "AlphaPilotControlConsole/13.7.49"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -130,8 +133,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.7.48",
-                "source": "alphapilot_control_console_v13_7_48",
+                "version": "V13.7.49",
+                "source": "alphapilot_control_console_v13_7_49",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -287,6 +290,15 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 "actions": payload["actions"],
                 "dryRunApproved": False,
                 "liveTradingApproved": False,
+                "safetyBoundary": SAFETY_BOUNDARY,
+            })
+            return
+        if path == "/api/weakness-action-board/tasks":
+            self._send_json({
+                "version": "V13.7.49",
+                "source": "alphapilot_control_console_v13_7_49",
+                "tasks": list_weakness_action_tasks(),
+                "allowedStatuses": sorted(ALLOWED_WEAKNESS_ACTION_STATUSES),
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -511,6 +523,28 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 "strategyArtifactIndex": latest["strategyArtifactIndex"],
                 "strategyLearningLoop": latest.get("strategyLearningLoop") or {},
                 "paperObservationTasks": build_mobile_status(latest).get("paperObservationTasks"),
+                "safetyBoundary": SAFETY_BOUNDARY,
+            })
+            return
+        if parsed.path == "/api/weakness-action-task":
+            payload = self._read_body_json()
+            action_id = str(payload.get("actionId") or "").strip()
+            task_status = str(payload.get("taskStatus") or "").strip()
+            note = str(payload.get("note") or "").strip()
+            owner = str(payload.get("owner") or "local_research").strip() or "local_research"
+            if not action_id:
+                self._send_json({"error": "actionId_required"}, 400)
+                return
+            if task_status not in ALLOWED_WEAKNESS_ACTION_STATUSES:
+                self._send_json({
+                    "error": "unsupported_task_status",
+                    "allowed": sorted(ALLOWED_WEAKNESS_ACTION_STATUSES),
+                }, 400)
+                return
+            updated = update_weakness_action_task(action_id, task_status, note, owner)
+            self._send_json({
+                "updated": updated,
+                "weaknessActionBoard": build_weakness_action_board(),
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return

@@ -11,8 +11,8 @@ from .simulation_review import build_simulation_review
 from .state_store import list_paper_observation_logs
 
 
-CONTROL_CONSOLE_VERSION = "V13.7.48"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_48"
+CONTROL_CONSOLE_VERSION = "V13.7.49"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_49"
 
 PATH_FIELDS = {
     "sampleKey": "样本去重键",

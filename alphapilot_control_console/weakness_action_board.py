@@ -4,10 +4,11 @@ from typing import Any
 
 from .config import SAFETY_BOUNDARY
 from .simulation_replay import build_closed_sample_replay
+from .state_store import get_weakness_action_task, list_weakness_action_tasks
 
 
-CONTROL_CONSOLE_VERSION = "V13.7.48"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_48"
+CONTROL_CONSOLE_VERSION = "V13.7.49"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_49"
 
 ACTION_RECIPES: dict[str, dict[str, Any]] = {
     "deep_adverse_excursion": {
@@ -200,26 +201,62 @@ def _collect_action_rows(strategy: dict[str, Any]) -> list[dict[str, Any]]:
     return rows
 
 
+def _merge_task_state(action: dict[str, Any]) -> dict[str, Any]:
+    state = get_weakness_action_task(str(action.get("actionId") or ""))
+    status = str(state.get("taskStatus") or "todo")
+    return {
+        **action,
+        "taskStatus": status,
+        "taskStatusLabel": state.get("taskStatusLabel") or status,
+        "taskNote": state.get("taskNote") or "",
+        "taskOwner": state.get("owner") or "local_research",
+        "taskUpdatedAt": state.get("updatedAt"),
+        "taskResolvedAt": state.get("resolvedAt"),
+    }
+
+
 def build_weakness_action_board(limit: int = 200) -> dict[str, Any]:
     replay = build_closed_sample_replay(limit=limit)
     strategies = replay.get("strategies") if isinstance(replay.get("strategies"), list) else []
     actions = [
-        action
+        _merge_task_state(action)
         for strategy in strategies
         if isinstance(strategy, dict)
         for action in _collect_action_rows(strategy)
     ]
-    actions.sort(key=lambda row: (-_safe_float(row.get("priorityScore")), str(row.get("strategyName") or "")))
+    status_order = {
+        "in_progress": 0,
+        "todo": 1,
+        "needs_more_samples": 2,
+        "resolved": 3,
+        "archived": 4,
+    }
+    actions.sort(key=lambda row: (
+        status_order.get(str(row.get("taskStatus") or ""), 9),
+        -_safe_float(row.get("priorityScore")),
+        str(row.get("strategyName") or ""),
+    ))
     top_action = actions[0] if actions else None
     critical_count = sum(1 for row in actions if row.get("priorityTone") == "danger")
     warning_count = sum(1 for row in actions if row.get("priorityTone") == "warn")
     blocked_count = sum(1 for row in actions if row.get("blockedUpgrade"))
+    task_state = list_weakness_action_tasks()
+    status_counts: dict[str, int] = {}
+    for row in actions:
+        status = str(row.get("taskStatus") or "todo")
+        status_counts[status] = status_counts.get(status, 0) + 1
     summary = {
         "totalActions": len(actions),
         "criticalActionCount": critical_count,
         "warningActionCount": warning_count,
         "blockedUpgradeCount": blocked_count,
         "strategyCount": len(strategies),
+        "trackedTaskCount": len(task_state),
+        "todoCount": status_counts.get("todo", 0),
+        "inProgressCount": status_counts.get("in_progress", 0),
+        "needsMoreSamplesCount": status_counts.get("needs_more_samples", 0),
+        "resolvedCount": status_counts.get("resolved", 0),
+        "archivedCount": status_counts.get("archived", 0),
         "topPriorityAction": top_action,
         "dryRunApproved": False,
         "liveTradingApproved": False,

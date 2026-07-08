@@ -2624,7 +2624,16 @@ code {
   gap: 8px;
 }
 
+.weakness-task-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
 .weakness-action-grid > div,
+.weakness-task-grid > div,
+.weakness-task-grid label,
 .weakness-action-row,
 .weakness-action-empty {
   border: 1px solid var(--border);
@@ -2632,21 +2641,34 @@ code {
   border-radius: 8px;
 }
 
-.weakness-action-grid > div {
+.weakness-action-grid > div,
+.weakness-task-grid > div,
+.weakness-task-grid label {
   padding: 10px;
 }
 
 .weakness-action-grid span,
+.weakness-task-grid span,
 .weakness-action-empty,
 .weakness-action-row small,
 .weakness-action-body p {
   color: var(--muted);
 }
 
-.weakness-action-grid strong {
+.weakness-action-grid strong,
+.weakness-task-grid strong {
   display: block;
   margin-top: 4px;
   font-size: 18px;
+}
+
+.weakness-task-grid label {
+  display: grid;
+  gap: 6px;
+}
+
+.weakness-task-grid select {
+  width: 100%;
 }
 
 .weakness-action-next {
@@ -2698,12 +2720,37 @@ code {
   margin-top: 10px;
 }
 
+.weakness-action-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
 .weakness-action-tasks small,
-.weakness-action-flags small {
+.weakness-action-flags small,
+.weakness-action-controls button {
   padding: 6px 8px;
   border-radius: 5px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(0, 0, 0, 0.2);
+}
+
+.weakness-action-controls button {
+  color: var(--text);
+  cursor: pointer;
+}
+
+.weakness-action-controls button:hover {
+  border-color: rgba(24, 211, 166, 0.35);
+}
+
+.weakness-action-note {
+  margin-top: 10px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
 }
 
 .weakness-action-flags small.ok {
@@ -3305,6 +3352,7 @@ code {
     .closed-sample-card-head,
     .closed-sample-two-col,
     .weakness-action-grid,
+    .weakness-task-grid,
     .weakness-action-row-head,
     .live-readiness-grid,
     .live-readiness-columns,

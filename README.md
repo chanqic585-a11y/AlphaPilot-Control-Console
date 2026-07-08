@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.48 - Strategy Weakness Action Board
+AlphaPilot V13.7.49 - Research Action Tracker
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,33 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.7.49 Adds
+
+- Adds local task tracking for weakness action items.
+- Stores action task state in the local `console_state.json` file under
+  `weaknessActionTasks`.
+- Adds `GET /api/weakness-action-board/tasks`.
+- Adds `POST /api/weakness-action-task`.
+- Adds task statuses:
+  - todo
+  - in progress
+  - needs more samples
+  - resolved
+  - archived
+- Updates the web console action board with:
+  - task status counters
+  - status and priority filters
+  - buttons to start, pause for more samples, resolve, or archive an action
+  - local notes for each action
+
+This turns replay weaknesses into a repair workflow. It still does not modify
+strategy logic automatically, does not start testnet or Dry-run, and does not
+create orders.
+
+V13.7.49 does not add API key storage, Trade API, Withdraw API, exchange
+testnet orders, real account reads, real position reads, order creation,
+exchange Dry-run, live trading, or automatic trading.
 
 ## What V13.7.48 Adds
 

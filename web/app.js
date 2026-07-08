@@ -197,12 +197,24 @@ let latestStrategyPlaybookTask = null;
 let latestSimpleConsolePayload = {};
 let latestClosedSampleReplayPayload = {};
 let selectedClosedSampleReplayTaskId = null;
+let latestWeaknessActionBoardPayload = {};
 const artifactFilters = {
   search: "",
   tier: "all",
   reviewStatus: "all",
   mlDecision: "all",
   sort: "tier_score",
+};
+const weaknessActionFilters = {
+  status: "active",
+  priority: "all",
+};
+const weaknessActionStatusLabels = {
+  todo: "待处理",
+  in_progress: "处理中",
+  needs_more_samples: "待更多样本",
+  resolved: "已处理",
+  archived: "已归档",
 };
 
 function el(id) {
@@ -1673,25 +1685,41 @@ function renderClosedSampleCard(sample) {
 
 function renderWeaknessActionBoard(payload) {
   if (!el("weaknessActionList")) return;
+  latestWeaknessActionBoardPayload = payload || {};
   const summary = payload?.summary || {};
   const actions = Array.isArray(payload?.actions) ? payload.actions : [];
   setText("weaknessActionTotal", String(summary.totalActions ?? actions.length));
   setText("weaknessActionCritical", String(summary.criticalActionCount ?? 0));
   setText("weaknessActionWarning", String(summary.warningActionCount ?? 0));
   setText("weaknessActionBlocked", String(summary.blockedUpgradeCount ?? 0));
+  setText("weaknessActionTodo", String(summary.todoCount ?? 0));
+  setText("weaknessActionInProgress", String(summary.inProgressCount ?? 0));
+  setText("weaknessActionNeedsSamples", String(summary.needsMoreSamplesCount ?? 0));
+  setText("weaknessActionResolved", String(summary.resolvedCount ?? 0));
   setText("weaknessActionDryRun", payload?.dryRunApproved ? "开启" : "关闭");
   setText("weaknessActionLive", payload?.liveTradingApproved ? "开启" : "关闭");
   setText("weaknessActionStatus", payload?.liveTradingApproved ? "异常：实盘开启" : "执行关闭");
   setText("weaknessActionNextAction", summary.nextAction || "先等待闭合样本复盘产生弱点标签。");
 
-  if (!actions.length) {
+  const visibleActions = actions.filter((action) => {
+    const status = action.taskStatus || "todo";
+    const statusMatch =
+      weaknessActionFilters.status === "all"
+      || (weaknessActionFilters.status === "active" && !["resolved", "archived"].includes(status))
+      || weaknessActionFilters.status === status;
+    const priorityMatch = weaknessActionFilters.priority === "all" || weaknessActionFilters.priority === action.priorityTone;
+    return statusMatch && priorityMatch;
+  });
+
+  if (!visibleActions.length) {
     el("weaknessActionList").innerHTML = '<div class="weakness-action-empty">暂无弱点行动项。先运行本地沙盒并完成闭合样本复盘。</div>';
     return;
   }
 
-  el("weaknessActionList").innerHTML = actions.slice(0, 12).map((action) => {
+  el("weaknessActionList").innerHTML = visibleActions.slice(0, 20).map((action) => {
     const tasks = Array.isArray(action.researchTasks) ? action.researchTasks : [];
     const tone = action.priorityTone || weaknessTone(action.severity);
+    const status = action.taskStatus || "todo";
     return `
       <article class="weakness-action-row">
         <div class="weakness-action-row-head">
@@ -1711,14 +1739,44 @@ function renderWeaknessActionBoard(payload) {
         </div>
         <div class="weakness-action-flags">
           <small class="${weaknessTone(action.severity)}">${escapeHtml(action.severity || "warning")}</small>
+          <small>${escapeHtml(weaknessActionStatusLabels[status] || status)}</small>
           <small>样本 ${action.sampleCount ?? 0}</small>
           <small>均分 ${formatNumber(action.averageReviewScore, 1)}</small>
           <small>${action.blockedUpgrade ? "禁止升级" : "继续观察"}</small>
-          <small>${escapeHtml(action.safetyNote || "仅用于本地研究。")}</small>
+          <small>更新 ${formatDate(action.taskUpdatedAt)}</small>
+        </div>
+        <div class="weakness-action-note">${escapeHtml(action.taskNote || action.safetyNote || "仅用于本地研究。")}</div>
+        <div class="weakness-action-controls">
+          <button type="button" data-weakness-action-id="${escapeHtml(action.actionId || "")}" data-weakness-action-status="in_progress">开始处理</button>
+          <button type="button" data-weakness-action-id="${escapeHtml(action.actionId || "")}" data-weakness-action-status="needs_more_samples">待更多样本</button>
+          <button type="button" data-weakness-action-id="${escapeHtml(action.actionId || "")}" data-weakness-action-status="resolved">标记已处理</button>
+          <button type="button" data-weakness-action-id="${escapeHtml(action.actionId || "")}" data-weakness-action-status="archived">归档</button>
         </div>
       </article>
     `;
   }).join("");
+
+  el("weaknessActionList").querySelectorAll("[data-weakness-action-id]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const actionId = button.getAttribute("data-weakness-action-id") || "";
+      const taskStatus = button.getAttribute("data-weakness-action-status") || "todo";
+      const currentAction = actions.find((action) => action.actionId === actionId) || {};
+      const defaultNote = currentAction.recommendedAction || "本地研究任务状态更新。";
+      const note = window.prompt("备注（只保存到本地研究任务，不会创建订单）：", defaultNote) || defaultNote;
+      button.disabled = true;
+      try {
+        await postJson("/api/weakness-action-task", {
+          actionId,
+          taskStatus,
+          note,
+          owner: "local_research",
+        });
+        await refreshAll();
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
 }
 
 function pickPrimaryObservationTask(loopPayload) {
@@ -3363,6 +3421,14 @@ function toggleAdvancedMode() {
 
 el("refreshButton").addEventListener("click", refreshAll);
 el("simpleRefreshButton")?.addEventListener("click", refreshAll);
+el("weaknessActionStatusFilter")?.addEventListener("change", (event) => {
+  weaknessActionFilters.status = event.target.value || "active";
+  renderWeaknessActionBoard(latestWeaknessActionBoardPayload);
+});
+el("weaknessActionPriorityFilter")?.addEventListener("change", (event) => {
+  weaknessActionFilters.priority = event.target.value || "all";
+  renderWeaknessActionBoard(latestWeaknessActionBoardPayload);
+});
 el("importButton").addEventListener("click", () => importReportsNow("importButton"));
 el("simpleImportButton")?.addEventListener("click", () => importReportsNow("simpleImportButton"));
 el("simpleRunSandboxButton")?.addEventListener("click", runLocalSandboxFromSimple);

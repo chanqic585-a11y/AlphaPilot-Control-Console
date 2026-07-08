@@ -63,7 +63,23 @@ PAPER_OBSERVATION_LOG_LABELS = {
     "risk_warning": "风险提醒",
 }
 
-CONTROL_CONSOLE_STATE_SOURCE = "alphapilot_control_console_v13_7_41"
+ALLOWED_WEAKNESS_ACTION_STATUSES = {
+    "todo",
+    "in_progress",
+    "needs_more_samples",
+    "resolved",
+    "archived",
+}
+
+WEAKNESS_ACTION_STATUS_LABELS = {
+    "todo": "待处理",
+    "in_progress": "处理中",
+    "needs_more_samples": "待更多样本",
+    "resolved": "已处理",
+    "archived": "已归档",
+}
+
+CONTROL_CONSOLE_STATE_SOURCE = "alphapilot_control_console_v13_7_49"
 DEFAULT_LOCAL_SANDBOX_AUTO_RUNNER = {
     "enabled": False,
     "intervalMinutes": 360,
@@ -125,6 +141,8 @@ def load_state() -> dict[str, Any]:
         state["localSandboxLearningSnapshots"] = []
     if not isinstance(state.get("manualExecutionTickets"), list):
         state["manualExecutionTickets"] = []
+    if not isinstance(state.get("weaknessActionTasks"), dict):
+        state["weaknessActionTasks"] = {}
     return state
 
 
@@ -223,6 +241,69 @@ def update_artifact_review(artifact_id: str, review_status: str, note: str = "")
         {"artifactId": artifact_id, "reviewStatus": review_status, "note": note},
     )
     return review
+
+
+def list_weakness_action_tasks() -> dict[str, Any]:
+    state = load_state()
+    tasks = state.get("weaknessActionTasks")
+    return tasks if isinstance(tasks, dict) else {}
+
+
+def get_weakness_action_task(action_id: str) -> dict[str, Any]:
+    task = list_weakness_action_tasks().get(action_id)
+    if not isinstance(task, dict):
+        return {
+            "actionId": action_id,
+            "taskStatus": "todo",
+            "taskStatusLabel": WEAKNESS_ACTION_STATUS_LABELS["todo"],
+            "taskNote": "",
+            "owner": "local_research",
+            "updatedAt": None,
+            "source": CONTROL_CONSOLE_STATE_SOURCE,
+        }
+    status = str(task.get("taskStatus") or "todo")
+    if status not in ALLOWED_WEAKNESS_ACTION_STATUSES:
+        status = "todo"
+    return {
+        "actionId": action_id,
+        "taskStatus": status,
+        "taskStatusLabel": WEAKNESS_ACTION_STATUS_LABELS.get(status, status),
+        "taskNote": str(task.get("taskNote") or ""),
+        "owner": str(task.get("owner") or "local_research"),
+        "updatedAt": task.get("updatedAt"),
+        "resolvedAt": task.get("resolvedAt"),
+        "source": task.get("source") or CONTROL_CONSOLE_STATE_SOURCE,
+    }
+
+
+def update_weakness_action_task(
+    action_id: str,
+    task_status: str,
+    note: str = "",
+    owner: str = "local_research",
+) -> dict[str, Any]:
+    if task_status not in ALLOWED_WEAKNESS_ACTION_STATUSES:
+        raise ValueError(f"Unsupported weakness action task status: {task_status}")
+    state = load_state()
+    now = now_iso()
+    task = {
+        "actionId": action_id,
+        "taskStatus": task_status,
+        "taskStatusLabel": WEAKNESS_ACTION_STATUS_LABELS.get(task_status, task_status),
+        "taskNote": note,
+        "owner": owner or "local_research",
+        "updatedAt": now,
+        "source": CONTROL_CONSOLE_STATE_SOURCE,
+    }
+    if task_status == "resolved":
+        task["resolvedAt"] = now
+    state["weaknessActionTasks"][action_id] = task
+    save_state(state)
+    append_audit(
+        "weakness_action_task_updated",
+        {"actionId": action_id, "taskStatus": task_status, "note": note, "owner": task["owner"]},
+    )
+    return task
 
 
 def list_paper_observation_tasks() -> dict[str, Any]:
