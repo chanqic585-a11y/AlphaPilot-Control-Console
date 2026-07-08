@@ -14,6 +14,10 @@ from .importer import build_mobile_status, import_now, scan_quant_engine
 from .live_readiness import build_live_readiness, create_manual_execution_ticket
 from .local_sandbox_runner import run_local_sandbox
 from .mobile_connection import build_mobile_connection_info
+from .pre_live_preparation_pack import (
+    build_pre_live_preparation_pack,
+    simulate_pre_live_order_lifecycle,
+)
 from .sandbox_auto_runner import (
     get_local_sandbox_auto_runner_status,
     run_local_sandbox_auto_runner_now,
@@ -98,7 +102,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.8.1"
+    server_version = "AlphaPilotControlConsole/13.8.2"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -139,8 +143,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.8.1",
-                "source": "alphapilot_control_console_v13_8_1",
+                "version": "V13.8.2",
+                "source": "alphapilot_control_console_v13_8_2",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -322,6 +326,9 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/testnet-design-boundary":
             self._send_json(build_testnet_design_boundary())
+            return
+        if path == "/api/pre-live-preparation-pack":
+            self._send_json(build_pre_live_preparation_pack())
             return
         if path == "/api/research-execution-pipeline":
             self._send_json(build_research_execution_pipeline(apply_updates=False))
@@ -640,6 +647,10 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 "liveReadiness": build_live_readiness(latest),
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
+            return
+        if parsed.path == "/api/pre-live-order-lifecycle/simulate":
+            payload = self._read_body_json()
+            self._send_json(simulate_pre_live_order_lifecycle(payload))
             return
         self._send_json({"error": "not_found"}, 404)
 

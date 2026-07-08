@@ -200,6 +200,7 @@ let selectedClosedSampleReplayTaskId = null;
 let latestWeaknessActionBoardPayload = {};
 let latestResearchPipelinePayload = {};
 let latestTestnetDesignBoundaryPayload = {};
+let latestPreLivePreparationPayload = {};
 const artifactFilters = {
   search: "",
   tier: "all",
@@ -1917,6 +1918,138 @@ function renderTestnetDesignBoundary(payload) {
   }).join("") + actionRows;
 }
 
+function renderPreLivePreparationPack(payload) {
+  if (!el("preLiveLifecycleList")) return;
+  latestPreLivePreparationPayload = payload || {};
+  const summary = payload?.summary || {};
+  const lifecycle = Array.isArray(payload?.orderLifecycleStages) ? payload.orderLifecycleStages : [];
+  const riskLimits = Array.isArray(payload?.riskLimits) ? payload.riskLimits : [];
+  const killSwitchControls = Array.isArray(payload?.killSwitchControls) ? payload.killSwitchControls : [];
+  const credentialItems = Array.isArray(payload?.credentialVaultDesign) ? payload.credentialVaultDesign : [];
+  const referenceInputs = Array.isArray(payload?.referenceInputs) ? payload.referenceInputs : [];
+
+  setText("preLiveStage", summary.stageLabel || "实盘前本地演练");
+  setText("preLiveLifecycleReady", summary.orderLifecycleSimulatorReady ? "已设计" : "未完成");
+  setText("preLiveManualConfirm", summary.manualConfirmationRequired ? "强制" : "未设置");
+  setText("preLiveKillSwitch", summary.killSwitchDesigned ? "已设计" : "未完成");
+  setText("preLiveVaultStatus", summary.credentialVaultImplemented ? "已实现" : "未实现");
+  setText("preLiveOrderStatus", summary.orderCreationEnabled ? "开启" : "禁用");
+  setText("preLiveDryRunStatus", summary.exchangeDryRunEnabled ? "开启" : "禁用");
+  setText("preLiveNextAction", summary.nextAction || "先做本地生命周期预演，不连接交易所。");
+
+  el("preLiveLifecycleList").innerHTML = lifecycle.map((item) => `
+    <div class="pre-live-row">
+      <div class="pre-live-row-head">
+        <div>
+          <strong>${escapeHtml(item.label || item.stageId || "--")}</strong>
+          <small>${escapeHtml(item.description || "--")}</small>
+        </div>
+        <span class="badge warn">${escapeHtml(item.status || "local_preview")}</span>
+      </div>
+    </div>
+  `).join("") || '<div class="testnet-design-empty">暂无生命周期步骤。</div>';
+
+  const combinedRiskRows = [
+    ...riskLimits.map((item) => ({
+      title: item.label || item.limitId,
+      subtitle: item.value || item.description || "--",
+      badge: item.severity || "required",
+      description: item.description,
+    })),
+    ...killSwitchControls.map((item) => ({
+      title: item.label || item.controlId,
+      subtitle: item.state || "--",
+      badge: item.state || "designed",
+      description: item.description,
+    })),
+  ];
+  el("preLiveRiskList").innerHTML = combinedRiskRows.map((item) => `
+    <div class="pre-live-row">
+      <div class="pre-live-row-head">
+        <div>
+          <strong>${escapeHtml(item.title || "--")}</strong>
+          <small>${escapeHtml(item.description || item.subtitle || "--")}</small>
+        </div>
+        <span class="badge danger">${escapeHtml(item.badge || "--")}</span>
+      </div>
+    </div>
+  `).join("") || '<div class="testnet-design-empty">暂无风控和熔断设计。</div>';
+
+  el("preLiveCredentialList").innerHTML = credentialItems.map((item) => `
+    <div class="pre-live-row">
+      <div class="pre-live-row-head">
+        <div>
+          <strong>${escapeHtml(item.label || item.itemId || "--")}</strong>
+          <small>${escapeHtml(item.description || "--")}</small>
+        </div>
+        <span class="badge danger">${escapeHtml(item.status || "required_future")}</span>
+      </div>
+    </div>
+  `).join("") || '<div class="testnet-design-empty">暂无凭据边界设计。</div>';
+
+  el("preLiveReferenceList").innerHTML = referenceInputs.map((item) => `
+    <div class="pre-live-row">
+      <div class="pre-live-row-head">
+        <div>
+          <strong>${escapeHtml(item.label || item.sourceId || "--")}</strong>
+          <small>${escapeHtml(item.usableIdea || "--")}</small>
+        </div>
+        <span class="badge warn">${escapeHtml(item.storedUse || "reference")}</span>
+      </div>
+      <small>${escapeHtml(item.boundary || "仅作为参考，不复制执行代码。")}</small>
+    </div>
+  `).join("") || '<div class="testnet-design-empty">暂无参考资料记录。</div>';
+}
+
+function renderPreLiveLifecyclePreview(payload) {
+  if (!el("preLivePreviewPath")) return;
+  const path = Array.isArray(payload?.lifecyclePath) ? payload.lifecyclePath : [];
+  const tone = payload?.riskPassed ? "ok" : "danger";
+  el("preLivePreviewPath").innerHTML = `
+    <div class="pre-live-preview-head">
+      <div>
+        <strong>本地预演结果：${escapeHtml(payload?.finalState || "--")}</strong>
+        <small>${escapeHtml(payload?.symbol || "--")} · ${formatNumber(payload?.notional, 2)} notional · ${formatNumber(payload?.riskR, 2)}R</small>
+      </div>
+      <span class="badge ${tone}">${payload?.riskPassed ? "通过本地检查" : "本地拒绝"}</span>
+    </div>
+    <div class="pre-live-preview-path">
+      ${path.map((item) => `
+        <div>
+          <strong>${escapeHtml(item.label || item.stageId || "--")}</strong>
+          <small>${escapeHtml(item.state || "--")}</small>
+        </div>
+      `).join("")}
+    </div>
+    <div class="pre-live-preview-notes">
+      ${(payload?.riskNotes || []).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+    </div>
+    <small>${escapeHtml(payload?.safetyNote || "本地预演不创建订单。")}</small>
+  `;
+}
+
+async function runPreLiveLifecyclePreview() {
+  const button = el("runPreLiveLifecyclePreviewButton");
+  if (!button) return;
+  button.disabled = true;
+  setText("preLivePreviewStatus", "正在生成本地生命周期预演...");
+  try {
+    const preview = await postJson("/api/pre-live-order-lifecycle/simulate", {
+      strategyId: latestStrategyPlaybookTask?.taskId || "manual_rehearsal_strategy",
+      symbol: "BTC/USDT:USDT",
+      notional: 100,
+      riskR: 1,
+      manualDecision: "approve_for_rehearsal",
+    });
+    renderPreLiveLifecyclePreview(preview);
+    setText("preLivePreviewStatus", "已完成本地预演：没有连接交易所，没有创建订单。");
+  } catch (error) {
+    setText("preLivePreviewStatus", `预演失败：${error.message}`);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 async function runResearchPipeline() {
   const button = el("runResearchPipelineButton");
   if (!button) return;
@@ -3436,7 +3569,7 @@ function renderAudit(events) {
 }
 
 async function refreshAll() {
-  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, shortCycleCandidates, usableStrategyCatalog, simulationBridge, simulationReview, closedSampleReplay, weaknessActionBoard, researchPipeline, testnetDesignBoundary, strategyPromotionGate, researchTaskBoard, strategyLearningLoop, sandboxDailyReport, sandboxAutoRunner, liveReadiness, forwardReview] = await Promise.all([
+  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, shortCycleCandidates, usableStrategyCatalog, simulationBridge, simulationReview, closedSampleReplay, weaknessActionBoard, researchPipeline, testnetDesignBoundary, preLivePreparation, strategyPromotionGate, researchTaskBoard, strategyLearningLoop, sandboxDailyReport, sandboxAutoRunner, liveReadiness, forwardReview] = await Promise.all([
     getJson("/api/strategies"),
     getJson("/api/reports"),
     getJson("/api/mobile/status"),
@@ -3455,6 +3588,7 @@ async function refreshAll() {
     getJson("/api/weakness-action-board"),
     getJson("/api/research-execution-pipeline"),
     getJson("/api/testnet-design-boundary"),
+    getJson("/api/pre-live-preparation-pack"),
     getJson("/api/strategy-promotion-gate"),
     getJson("/api/research-task-board"),
     getJson("/api/strategy-learning-loop"),
@@ -3483,6 +3617,7 @@ async function refreshAll() {
   renderWeaknessActionBoard(weaknessActionBoard);
   renderResearchExecutionPipeline(researchPipeline);
   renderTestnetDesignBoundary(testnetDesignBoundary);
+  renderPreLivePreparationPack(preLivePreparation);
   renderStrategyPromotionGate(strategyPromotionGate);
   renderResearchTaskBoard(researchTaskBoard);
   renderStrategyLearningLoop(strategyLearningLoop);
@@ -3613,6 +3748,7 @@ el("buildSandboxDailyReportButton")?.addEventListener("click", buildSandboxDaily
 el("saveSandboxAutoRunnerButton")?.addEventListener("click", saveSandboxAutoRunnerSettings);
 el("runSandboxAutoOnceButton")?.addEventListener("click", runSandboxAutoRunnerOnce);
 el("refreshForwardReviewButton")?.addEventListener("click", refreshForwardReview);
+el("runPreLiveLifecyclePreviewButton")?.addEventListener("click", runPreLiveLifecyclePreview);
 el("strategyQuickLogType").addEventListener("change", () => {
   const logType = el("strategyQuickLogType").value || "no_signal";
   el("strategyQuickSignalObserved").checked = ["signal_seen", "rule_matched"].includes(logType);

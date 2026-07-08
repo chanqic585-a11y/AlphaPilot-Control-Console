@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.8.1 - Testnet Readiness UI Boundary
+AlphaPilot V13.8.2 - Pre-Live Preparation Pack
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,34 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.8.2 Adds
+
+V13.8.2 adds a local pre-live preparation pack before any future testnet or
+live integration.
+
+New local endpoints:
+
+- `GET /api/pre-live-preparation-pack`
+- `POST /api/pre-live-order-lifecycle/simulate`
+
+The console now shows:
+
+- a local order lifecycle rehearsal
+- risk limit and kill-switch design
+- credential-vault design requirements
+- reference-only lessons from alpha101, CryptoAgentPro.beta, TradingAgents, and
+  QuantDigger
+- disabled pre-live actions for API keys, private exchange connection, orders,
+  cancels, emergency close, and automatic execution
+
+The lifecycle simulation endpoint returns a local status path only. It does not
+persist an order, contact an exchange, store credentials, read accounts, read
+positions, or run exchange Dry-run.
+
+This release does not add API key input, API key storage, Trade API, Withdraw
+API, real account reads, real position reads, order creation, exchange Dry-run,
+live trading, or automatic trading.
 
 ## What V13.8.1 Adds
 
@@ -703,9 +731,11 @@ GET  /api/strategy-artifacts
 GET  /api/audit
 GET  /api/exchanges
 GET  /api/strategy-slots
+GET  /api/pre-live-preparation-pack
 POST /api/import
 POST /api/strategy-status
 POST /api/exchanges/probe-public
+POST /api/pre-live-order-lifecycle/simulate
 ```
 
 The POST endpoints only rescan local files or update local console state. They

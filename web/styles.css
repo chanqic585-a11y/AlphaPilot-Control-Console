@@ -3491,6 +3491,126 @@ code {
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
 }
 
+.pre-live-panel {
+  border-color: rgba(24, 211, 166, 0.24);
+}
+
+.pre-live-grid,
+.pre-live-columns,
+.pre-live-preview-path {
+  display: grid;
+  gap: 10px;
+}
+
+.pre-live-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin: 14px 0;
+}
+
+.pre-live-columns {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 14px;
+}
+
+.pre-live-grid > div,
+.pre-live-row,
+.pre-live-preview {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(24, 211, 166, 0.045), transparent 48%),
+    #0b1117;
+  box-shadow: var(--inner);
+}
+
+.pre-live-grid > div {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+}
+
+.pre-live-grid span,
+.pre-live-row small,
+.pre-live-preview small {
+  color: var(--muted);
+}
+
+.pre-live-grid strong {
+  color: var(--text);
+  font-size: 18px;
+}
+
+.pre-live-controls {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.pre-live-controls span,
+.pre-live-next {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.pre-live-list {
+  display: grid;
+  gap: 8px;
+}
+
+.pre-live-row {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.pre-live-row-head,
+.pre-live-preview-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.pre-live-row-head > div,
+.pre-live-preview-head > div {
+  display: grid;
+  gap: 4px;
+}
+
+.pre-live-preview {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 12px;
+}
+
+.pre-live-preview-path {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.pre-live-preview-path > div {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+  padding: 10px;
+}
+
+.pre-live-preview-notes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pre-live-preview-notes span {
+  border: 1px solid rgba(24, 211, 166, 0.2);
+  border-radius: 999px;
+  background: rgba(24, 211, 166, 0.06);
+  color: var(--muted);
+  padding: 4px 8px;
+}
+
 @media (max-width: 1180px) {
   body {
     min-width: 0;
@@ -3593,6 +3713,11 @@ code {
     .testnet-design-grid,
     .testnet-design-columns,
     .testnet-design-row-head,
+    .pre-live-grid,
+    .pre-live-columns,
+    .pre-live-row-head,
+    .pre-live-preview-path,
+    .pre-live-preview-head,
     .live-readiness-grid,
     .live-readiness-columns,
     .live-readiness-row-head,
