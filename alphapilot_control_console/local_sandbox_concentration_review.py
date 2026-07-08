@@ -10,8 +10,8 @@ from .simulation_review import build_simulation_review
 from .state_store import list_paper_observation_logs, now_iso
 
 
-CONTROL_CONSOLE_VERSION = "V13.8.6"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_8_6"
+CONTROL_CONSOLE_VERSION = "V13.8.7"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_8_7"
 REVIEW_MINIMUM_CLOSED_SAMPLES = 30
 PAIR_CONCENTRATION_LIMIT = 0.8
 WINDOW_CONCENTRATION_LIMIT = 0.5
@@ -228,16 +228,28 @@ def build_local_sandbox_concentration_review() -> dict[str, Any]:
             -_safe_float(item.get("profitFactor"), -1),
         )
     )
+    needs_expansion_count = sum(1 for item in strategies if item.get("reviewBucket") == "needs_concentration_expansion")
+    next_review_count = sum(1 for item in strategies if item.get("reviewBucket") == "next_review_candidate")
+    waiting_count = sum(1 for item in strategies if item.get("reviewBucket") == "waiting_for_samples")
+    if next_review_count and not needs_expansion_count and not waiting_count:
+        top_issue = "可进入下一轮复核"
+        next_action = "集中度门槛已通过；进入下一轮结果质量、策略变体合并和风控复核。仍不批准 testnet、API Key 或真实订单。"
+    elif needs_expansion_count:
+        top_issue = "样本集中度过高"
+        next_action = "无需手动进入阶段；继续让本地沙盒运行，并优先扩展集中策略的币种和回放窗口覆盖。"
+    else:
+        top_issue = "继续收集样本"
+        next_action = "继续让本地沙盒运行，先补足每条策略的闭合样本和失败样本。"
     summary = {
         "strategyCount": len(strategies),
         "reviewReadyCount": sum(1 for item in strategies if _safe_int(item.get("closedSamples")) >= REVIEW_MINIMUM_CLOSED_SAMPLES),
-        "needsConcentrationExpansionCount": sum(1 for item in strategies if item.get("reviewBucket") == "needs_concentration_expansion"),
-        "nextReviewCandidateCount": sum(1 for item in strategies if item.get("reviewBucket") == "next_review_candidate"),
-        "waitingForSamplesCount": sum(1 for item in strategies if item.get("reviewBucket") == "waiting_for_samples"),
+        "needsConcentrationExpansionCount": needs_expansion_count,
+        "nextReviewCandidateCount": next_review_count,
+        "waitingForSamplesCount": waiting_count,
         "variantGroupCount": len(variant_groups),
-        "topIssue": "样本集中度过高" if any(item.get("reviewBucket") == "needs_concentration_expansion" for item in strategies) else "继续收集样本",
+        "topIssue": top_issue,
         "manualActionRequired": False,
-        "nextAction": "无需手动进入阶段；继续让本地沙盒运行，并优先扩展集中策略的币种和回放窗口覆盖。",
+        "nextAction": next_action,
     }
     return {
         "version": CONTROL_CONSOLE_VERSION,

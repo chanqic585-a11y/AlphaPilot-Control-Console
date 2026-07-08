@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import hashlib
 import re
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -16,8 +17,8 @@ from .usable_strategy_catalog import (
 )
 
 
-CONTROL_CONSOLE_VERSION = "V13.8.4"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_8_4"
+CONTROL_CONSOLE_VERSION = "V13.8.7"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_8_7"
 SAMPLE_KEY_SCHEMA_VERSION = "V13.7.34"
 VIRTUAL_CAPITAL_PER_STRATEGY = 1000.0
 RISK_UNIT_PERCENT = 1.0
@@ -271,7 +272,7 @@ def _find_duplicate_closed_sample(
     return None
 
 
-def _select_replay_pair(task: dict[str, Any]) -> tuple[dict[str, Any], str]:
+def _select_replay_pair(task: dict[str, Any], replay_cursor: int = 1) -> tuple[dict[str, Any], str, dict[str, Any]]:
     recommended = task.get("recommendedPairs") if isinstance(task.get("recommendedPairs"), list) else []
     avoid_rows = task.get("avoidUntilReviewedPairs") if isinstance(task.get("avoidUntilReviewedPairs"), list) else []
     avoid_pairs = {
@@ -279,16 +280,61 @@ def _select_replay_pair(task: dict[str, Any]) -> tuple[dict[str, Any], str]:
         for row in avoid_rows
         if isinstance(row, dict)
     }
-    for row in recommended:
+    task_id = str(task.get("taskId") or "").strip()
+    logs = list_paper_observation_logs(task_id) if task_id else []
+    logs = logs if isinstance(logs, list) else []
+    pair_counts: Counter[str] = Counter()
+    for log in logs:
+        if not isinstance(log, dict) or not _has_closed_outcome(log):
+            continue
+        pair = str(log.get("pair") or "").strip()
+        if pair:
+            pair_counts[pair] += 1
+    candidates: list[tuple[dict[str, Any], str, int]] = []
+    for index, row in enumerate(recommended):
         if not isinstance(row, dict):
             continue
         pair = str(row.get("pair") or "").strip()
         if pair and pair not in avoid_pairs:
-            return row, pair
+            candidates.append((row, pair, index))
+    if candidates:
+        candidate_count = len(candidates)
+        pivot = (max(1, replay_cursor) - 1) % candidate_count
+        candidates.sort(
+            key=lambda item: (
+                pair_counts.get(item[1], 0),
+                (item[2] - pivot) % candidate_count,
+                item[2],
+            )
+        )
+        row, pair, index = candidates[0]
+        return row, pair, {
+            "pairSelectionMode": "least_used_recommended_pair_rotation",
+            "pairCandidateCount": candidate_count,
+            "pairCandidateIndex": index,
+            "pairSampleCountBefore": pair_counts.get(pair, 0),
+            "uniquePairsObservedBefore": len(pair_counts),
+            "concentrationExpansionApplied": any(count >= 10 for count in pair_counts.values()) and len(candidates) > 1,
+        }
     for row in recommended:
         if isinstance(row, dict) and str(row.get("pair") or "").strip():
-            return row, str(row.get("pair")).strip()
-    return {}, ""
+            pair = str(row.get("pair")).strip()
+            return row, pair, {
+                "pairSelectionMode": "fallback_recommended_pair",
+                "pairCandidateCount": 1,
+                "pairCandidateIndex": 0,
+                "pairSampleCountBefore": pair_counts.get(pair, 0),
+                "uniquePairsObservedBefore": len(pair_counts),
+                "concentrationExpansionApplied": False,
+            }
+    return {}, "", {
+        "pairSelectionMode": "no_recommended_pair",
+        "pairCandidateCount": 0,
+        "pairCandidateIndex": None,
+        "pairSampleCountBefore": 0,
+        "uniquePairsObservedBefore": len(pair_counts),
+        "concentrationExpansionApplied": False,
+    }
 
 
 def _deterministic_outcome_r(task: dict[str, Any], pair_metrics: dict[str, Any], sequence: int) -> tuple[float, str]:
@@ -343,8 +389,8 @@ def run_local_sandbox(payload: dict[str, Any] | None = None) -> dict[str, Any]:
         task_id = str(task.get("taskId") or "").strip()
         if not task_id:
             continue
-        pair_metrics, pair = _select_replay_pair(task)
         timeframe = str(task.get("timeframe") or "1d").strip()
+        pair_metrics, pair, pair_selection = _select_replay_pair(task, replay_cursor)
         cache = _find_local_public_ohlcv_cache(quant_path, pair, timeframe) if pair else {
             "available": False,
             "source": "missing_local_public_ohlcv_cache",
@@ -380,6 +426,7 @@ def run_local_sandbox(payload: dict[str, Any] | None = None) -> dict[str, Any]:
                     "dataStatus": "duplicate_sample_skipped",
                     "dataMode": data_mode,
                     "dataSourcePathHint": cache.get("pathHint"),
+                    **pair_selection,
                     **replay_context,
                 })
                 continue
@@ -400,6 +447,7 @@ def run_local_sandbox(payload: dict[str, Any] | None = None) -> dict[str, Any]:
                 "dataSourcePathHint": cache.get("pathHint"),
                 "dataSourceFileSize": cache.get("fileSize"),
                 "dataSourceModifiedAt": cache.get("modifiedAt"),
+                **pair_selection,
                 **replay_context,
                 "pair": pair,
                 "timeframe": timeframe,
@@ -441,6 +489,7 @@ def run_local_sandbox(payload: dict[str, Any] | None = None) -> dict[str, Any]:
                 "dataMode": data_mode,
                 "dataStatus": "cache_available" if cache.get("available") else "cache_missing_metrics_available",
                 "dataSourcePathHint": cache.get("pathHint"),
+                **pair_selection,
                 **replay_context,
                 "instrumentationStatus": log.get("instrumentationStatus"),
                 "instrumentationMode": log.get("instrumentationMode"),
@@ -477,6 +526,7 @@ def run_local_sandbox(payload: dict[str, Any] | None = None) -> dict[str, Any]:
                     "dataMode": "data_gap",
                     "dataStatus": "insufficient_data",
                     "dataGapReason": cache.get("reason") or "unknown",
+                    **pair_selection,
                     "pair": pair,
                     "timeframe": timeframe,
                     "virtualCapital": VIRTUAL_CAPITAL_PER_STRATEGY,
@@ -499,6 +549,7 @@ def run_local_sandbox(payload: dict[str, Any] | None = None) -> dict[str, Any]:
                 "virtualEquity": VIRTUAL_CAPITAL_PER_STRATEGY,
                 "dataStatus": "insufficient_data",
                 "dataGapReason": cache.get("reason") or "unknown",
+                **pair_selection,
             })
 
     run = {
