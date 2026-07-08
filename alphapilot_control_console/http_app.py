@@ -14,6 +14,7 @@ from .importer import build_mobile_status, import_now, scan_quant_engine
 from .live_readiness import build_live_readiness, create_manual_execution_ticket
 from .local_sandbox_concentration_review import build_local_sandbox_concentration_review
 from .local_sandbox_quality_center import build_local_sandbox_quality_center
+from .local_sandbox_result_review import build_local_sandbox_result_review
 from .local_sandbox_runner import run_local_sandbox
 from .mobile_connection import build_mobile_connection_info
 from .pre_live_preparation_pack import (
@@ -396,6 +397,9 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/local-sandbox/concentration-review":
             self._send_json(build_local_sandbox_concentration_review())
+            return
+        if path == "/api/local-sandbox/result-review":
+            self._send_json(build_local_sandbox_result_review())
             return
         if path == "/api/live-readiness":
             payload = scan_quant_engine()
