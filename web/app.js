@@ -195,6 +195,8 @@ let selectedArtifactId = null;
 let selectedStrategyPlaybookTaskId = null;
 let latestStrategyPlaybookTask = null;
 let latestSimpleConsolePayload = {};
+let latestQualityCenterPayload = {};
+let selectedQualityCenterTaskId = null;
 let latestClosedSampleReplayPayload = {};
 let selectedClosedSampleReplayTaskId = null;
 let latestWeaknessActionBoardPayload = {};
@@ -900,7 +902,128 @@ function renderSimpleReviewQueue(payload) {
   }).join("") || '<div class="simple-review-empty">暂无策略复核样本。保持本地沙盒运行。</div>';
 }
 
-function renderSimpleConsole(strategies, reports, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview) {
+function qualityTone(status) {
+  if (status === "testnet_prep_candidate" || status === "continue_observing") return "ok";
+  if (status === "pause_for_risk_review" || status === "pause_observation") return "danger";
+  return "warn";
+}
+
+function renderQualityStrategyDetail(row, readonlyPrep = {}) {
+  const target = el("qualityStrategyDetail");
+  if (!target) return;
+  if (!row) {
+    target.innerHTML = `
+      <strong>暂无策略详情</strong>
+      <small>先运行本地沙盒，生成闭合样本后再查看。</small>
+    `;
+    return;
+  }
+  const latest = row.latestTrigger || {};
+  const warnings = Array.isArray(row.warnings) ? row.warnings : [];
+  const bullets = Array.isArray(row.detailBullets) ? row.detailBullets : [];
+  target.innerHTML = `
+    <div class="quality-detail-head">
+      <div>
+        <strong>${escapeHtml(row.strategyName || row.taskId || "--")}</strong>
+        <small>${escapeHtml(row.taskId || "--")} · ${escapeHtml(row.timeframe || "--")}</small>
+      </div>
+      <span class="badge ${qualityTone(row.promotionStatus)}">${escapeHtml(row.promotionLabel || "--")}</span>
+    </div>
+    <div class="quality-detail-grid">
+      <div>
+        <span>这是什么策略</span>
+        <strong>${escapeHtml(row.strategyName || "--")}</strong>
+        <small>只用于本地沙盘观察，不是交易指令。</small>
+      </div>
+      <div>
+        <span>最近为什么触发</span>
+        <strong>${escapeHtml(latest.latestPair || "--")} · ${escapeHtml(latest.latestTimeframe || row.timeframe || "--")}</strong>
+        <small>${escapeHtml(latest.latestReason || "暂无触发说明")} · ${escapeHtml(latest.latestReplayWindowId || "无 replay 窗口")}</small>
+      </div>
+      <div>
+        <span>样本表现</span>
+        <strong>${row.closedSamples ?? 0}/${row.reviewMinimum ?? 30} 闭合</strong>
+        <small>胜率 ${formatPercent(row.winRate)} · PF ${formatNumber(row.profitFactor)} · 总R ${formatNumber(row.totalR, 2)}</small>
+      </div>
+      <div>
+        <span>最大风险</span>
+        <strong>连亏 ${row.maxConsecutiveLosses ?? 0} · 回撤 ${formatNumber(row.maxDrawdownR, 2)}R</strong>
+        <small>风险 ${row.riskWarningCount ?? 0} · 失效 ${row.invalidatedCount ?? 0} · 数据缺口 ${row.dataGapCount ?? 0}</small>
+      </div>
+    </div>
+    <div class="quality-detail-bullets">
+      ${(bullets.length ? bullets : ["继续收集闭合样本"]).map((item) => `<small>${escapeHtml(item)}</small>`).join("")}
+      ${(warnings.length ? warnings : ["暂无阻塞警告"]).slice(0, 4).map((item) => `<small>${escapeHtml(item)}</small>`).join("")}
+    </div>
+    <div class="quality-detail-action">
+      <strong>${escapeHtml(row.nextAction || "继续本地沙盘观察。")}</strong>
+      <small>${escapeHtml(readonlyPrep.nextAction || "只读准备阶段：不接 API Key、不连接私有交易接口、不创建订单。")}</small>
+    </div>
+  `;
+}
+
+function renderQualityCenter(payload) {
+  latestQualityCenterPayload = payload || {};
+  if (!el("simpleQualityCenter")) return;
+  const summary = payload?.summary || {};
+  const rows = Array.isArray(payload?.strategies) ? payload.strategies : [];
+  const readonlyPrep = payload?.readonlyPreparation || {};
+  setText(
+    "qualityCenterMeta",
+    `共 ${summary.strategyCount ?? rows.length} 条策略 · replay ${summary.replayCursor ?? "--"} · ${summary.nextAction || "继续沙盘观察"}`,
+  );
+  setText("qualityClosedSamples", String(summary.totalClosedSamples ?? 0));
+  setText("qualityAverageScore", summary.averageQualityScore !== undefined ? formatNumber(summary.averageQualityScore, 1) : "--");
+  setText("qualityContinueCount", String(summary.candidateContinueCount ?? 0));
+  setText("qualityTestnetPrepCount", String(summary.testnetPrepCandidateCount ?? 0));
+  setText("qualityInsufficientCount", String(summary.insufficientSampleCount ?? 0));
+  setText("qualityDataGapCount", String(summary.totalDataGapCount ?? 0));
+  setText("qualityRunnerStatus", summary.sandboxRunning ? "运行中" : "已暂停");
+  setText(
+    "qualityRunnerMeta",
+    `最近新增 ${summary.lastRunGenerated ?? "--"} · 闭合 ${summary.lastRunClosed ?? "--"} · 重复 ${summary.lastRunDuplicates ?? "--"} · 下次 ${formatDate(summary.nextRunAt)}`,
+  );
+  setText("qualityReadonlyStage", readonlyPrep.stageLabel || "--");
+  setText(
+    "qualityReadonlyMeta",
+    readonlyPrep.publicProbeReady
+      ? `${readonlyPrep.testnetReadinessStage || "阻塞中"} · public probe 已有`
+      : `${readonlyPrep.testnetReadinessStage || "阻塞中"} · public probe 待复核`,
+  );
+
+  if (!selectedQualityCenterTaskId || !rows.some((row) => row.taskId === selectedQualityCenterTaskId)) {
+    selectedQualityCenterTaskId = rows[0]?.taskId || null;
+  }
+
+  const list = el("qualityStrategyList");
+  if (list) {
+    list.innerHTML = rows.slice(0, 8).map((row) => {
+      const selected = row.taskId === selectedQualityCenterTaskId ? " selected" : "";
+      const tone = qualityTone(row.promotionStatus);
+      return `
+        <button class="quality-strategy-row${selected}" data-quality-task-id="${escapeHtml(row.taskId || "")}" type="button">
+          <span>
+            <strong>${escapeHtml(row.strategyName || row.taskId || "--")}</strong>
+            <small>${escapeHtml(row.timeframe || "--")} · ${escapeHtml(row.promotionLabel || "--")}</small>
+          </span>
+          <em class="${tone}">${row.closedSamples ?? 0}/${row.reviewMinimum ?? 30}</em>
+          <small>胜率 ${formatPercent(row.winRate)} · PF ${formatNumber(row.profitFactor)} · 质量 ${formatNumber(row.qualityScore, 1)}</small>
+        </button>
+      `;
+    }).join("") || '<div class="simple-review-empty">暂无沙盘质量策略。先运行本地沙盒。</div>';
+    list.querySelectorAll("[data-quality-task-id]").forEach((button) => {
+      button.addEventListener("click", () => {
+        selectedQualityCenterTaskId = button.getAttribute("data-quality-task-id");
+        renderQualityCenter(latestQualityCenterPayload);
+      });
+    });
+  }
+
+  const selected = rows.find((row) => row.taskId === selectedQualityCenterTaskId) || rows[0];
+  renderQualityStrategyDetail(selected, readonlyPrep);
+}
+
+function renderSimpleConsole(strategies, reports, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview, qualityCenter) {
   if (!el("simpleConsole")) return;
   const rows = Array.isArray(usableStrategyCatalog?.strategies) ? usableStrategyCatalog.strategies : [];
   const catalogSummary = usableStrategyCatalog?.summary || {};
@@ -951,9 +1074,10 @@ function renderSimpleConsole(strategies, reports, mobile, usableStrategyCatalog,
   updateSimpleSandboxButton(runnerState);
   renderSimpleSimulationBridge(simulationBridge);
   renderSimpleReviewQueue(simulationReview);
+  renderQualityCenter(qualityCenter);
   renderSimpleStrategyCards(rows);
   renderSimpleActionChecklist({ runnerState, rows, sandboxRows, dailySummary });
-  latestSimpleConsolePayload = { strategies, reports, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview };
+  latestSimpleConsolePayload = { strategies, reports, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview, qualityCenter };
 }
 
 function renderSandboxSimulationLane(observationTasks, qualityRows) {
@@ -3682,6 +3806,7 @@ async function refreshAll() {
     { key: "usableStrategyCatalog", url: "/api/usable-strategy-catalog", fallback: { strategies: [], summary: {} } },
     { key: "sandboxDailyReport", url: "/api/local-sandbox/daily-report?limit=10", fallback: { reports: [], latestReport: { summary: {}, strategyHealthRows: [] } } },
     { key: "sandboxAutoRunner", url: "/api/local-sandbox/auto-runner", fallback: { autoRunner: {}, events: [] } },
+    { key: "sandboxQualityCenter", url: "/api/local-sandbox/quality-center", fallback: { summary: {}, strategies: [], readonlyPreparation: {} }, timeoutMs: 12000 },
     { key: "liveReadiness", url: "/api/live-readiness", fallback: { rows: [], summary: {} } },
     { key: "forwardReview", url: "/api/forward-review", fallback: { rows: [], summary: {} } },
   ], 4);
@@ -3697,6 +3822,7 @@ async function refreshAll() {
   const usableStrategyCatalog = core.usableStrategyCatalog || { strategies: [], summary: {} };
   const sandboxDailyReport = core.sandboxDailyReport || { reports: [], latestReport: { summary: {}, strategyHealthRows: [] } };
   const sandboxAutoRunner = core.sandboxAutoRunner || { autoRunner: {}, events: [] };
+  const sandboxQualityCenter = core.sandboxQualityCenter || { summary: {}, strategies: [], readonlyPreparation: {} };
   const liveReadiness = core.liveReadiness || { rows: [], summary: {} };
   const forwardReview = core.forwardReview || { rows: [], summary: {} };
   const emptySimulationBridge = { summary: {}, observationTasks: [] };
@@ -3705,7 +3831,7 @@ async function refreshAll() {
   const strategyItems = strategies.strategies || [];
   const reportItems = reports.reports || [];
   latestStrategyLearningLoopPayload = emptyStrategyLearningLoop;
-  renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, emptySimulationBridge, emptySimulationReview);
+  renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, emptySimulationBridge, emptySimulationReview, sandboxQualityCenter);
   renderCommandCenter(strategyItems, reportItems, mobile);
   renderRuntimeMonitor(strategyItems, mobile);
   renderStrategies(strategyItems);
@@ -3756,7 +3882,7 @@ async function refreshAll() {
   const simulationReview = advanced.simulationReview || emptySimulationReview;
   const strategyLearningLoop = advanced.strategyLearningLoop || emptyStrategyLearningLoop;
   latestStrategyLearningLoopPayload = strategyLearningLoop;
-  renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview);
+  renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview, sandboxQualityCenter);
   renderCandidateQueue(advanced.candidateQueue || { strategies: [], summary: {} });
   renderShortCycleCandidatePool(advanced.shortCycleCandidates || { candidates: [], summary: {} });
   renderSimulationReview(simulationReview);

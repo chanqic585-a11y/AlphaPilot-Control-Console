@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.8.4 - Local Sandbox Replay Cursor
+AlphaPilot V13.8.5 - Sandbox Quality Center
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,36 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.8.5 Adds
+
+V13.8.5 adds a local Sandbox Quality Center to make the ongoing paper-observation
+loop easier to judge from the first screen.
+
+What changed:
+
+- Adds `GET /api/local-sandbox/quality-center`.
+- Aggregates local sandbox daily reports, simulation review rows, auto-runner
+  state, replay cursor state, and readonly testnet-preparation blockers.
+- Shows a one-screen quality panel with:
+  - closed sample count
+  - average quality score
+  - continue-observing count
+  - testnet-preparation candidate count
+  - insufficient-sample count
+  - data-gap count
+- Adds a clickable strategy quality detail pane showing:
+  - what the strategy is
+  - latest sandbox trigger context
+  - sample performance
+  - main risk points
+  - next recommended review action
+- Clarifies the sandbox run button state and readonly preparation stage.
+
+This version still does not add API key input, API key storage, Trade API,
+Withdraw API, real account reads, real position reads, order creation, exchange
+Dry-run, live trading, or automatic trading. Testnet preparation remains a
+readonly checklist only.
 
 ## Start After Reboot
 

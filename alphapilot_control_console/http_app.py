@@ -12,6 +12,7 @@ from .exchange_connectors.public_exchange_registry import list_public_exchange_s
 from .forward_review import build_forward_review, refresh_forward_review
 from .importer import build_mobile_status, import_now, scan_quant_engine
 from .live_readiness import build_live_readiness, create_manual_execution_ticket
+from .local_sandbox_quality_center import build_local_sandbox_quality_center
 from .local_sandbox_runner import run_local_sandbox
 from .mobile_connection import build_mobile_connection_info
 from .pre_live_preparation_pack import (
@@ -103,7 +104,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.8.3"
+    server_version = "AlphaPilotControlConsole/13.8.5"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -144,8 +145,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.8.4",
-                "source": "alphapilot_control_console_v13_8_4",
+                "version": "V13.8.5",
+                "source": "alphapilot_control_console_v13_8_5",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -388,6 +389,9 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/local-sandbox/auto-runner":
             self._send_json(get_local_sandbox_auto_runner_status())
+            return
+        if path == "/api/local-sandbox/quality-center":
+            self._send_json(build_local_sandbox_quality_center())
             return
         if path == "/api/live-readiness":
             payload = scan_quant_engine()

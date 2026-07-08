@@ -160,6 +160,57 @@
             </div>
             <div id="simpleReviewQueueList" class="simple-review-list"></div>
           </div>
+          <div class="simple-quality-center" id="simpleQualityCenter">
+            <div class="simple-section-title">
+              <strong>沙盘质量与晋级</strong>
+              <span id="qualityCenterMeta">等待沙盘质量中心。</span>
+            </div>
+            <div class="simple-quality-grid">
+              <div>
+                <span>闭合样本</span>
+                <strong id="qualityClosedSamples">--</strong>
+              </div>
+              <div>
+                <span>平均质量</span>
+                <strong id="qualityAverageScore">--</strong>
+              </div>
+              <div>
+                <span>继续观察</span>
+                <strong id="qualityContinueCount">--</strong>
+              </div>
+              <div>
+                <span>Testnet 准备</span>
+                <strong id="qualityTestnetPrepCount">--</strong>
+              </div>
+              <div>
+                <span>样本不足</span>
+                <strong id="qualityInsufficientCount">--</strong>
+              </div>
+              <div>
+                <span>数据缺口</span>
+                <strong id="qualityDataGapCount">--</strong>
+              </div>
+            </div>
+            <div class="simple-quality-runner">
+              <div>
+                <span>沙盘按钮状态</span>
+                <strong id="qualityRunnerStatus">--</strong>
+                <small id="qualityRunnerMeta">--</small>
+              </div>
+              <div>
+                <span>只读准备</span>
+                <strong id="qualityReadonlyStage">--</strong>
+                <small id="qualityReadonlyMeta">不接 API Key / 不下单</small>
+              </div>
+            </div>
+            <div class="simple-quality-columns">
+              <div id="qualityStrategyList" class="simple-quality-list"></div>
+              <div id="qualityStrategyDetail" class="simple-quality-detail">
+                <strong>请选择一条策略</strong>
+                <small>这里会显示策略说明、最近触发、样本质量、风险和下一步。</small>
+              </div>
+            </div>
+          </div>
           <div class="simple-columns">
             <div>
               <div class="simple-section-title">
@@ -1819,6 +1870,6 @@
         <button class="back-home-button" id="backHomeButton" type="button" aria-label="回到驾驶舱">回到驾驶舱</button>
       </main>
     </div>
-    <script src="/app.js?v=20260709-sandbox-replay-cursor"></script>
+    <script src="/app.js?v=20260709-sandbox-quality-center"></script>
   </body>
 </html>
