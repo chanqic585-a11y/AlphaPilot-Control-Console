@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.7.47 - Replay Scoring and Weakness Labels
+AlphaPilot V13.7.48 - Strategy Weakness Action Board
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,29 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.7.48 Adds
+
+- Adds `GET /api/weakness-action-board`.
+- Converts replay weakness labels into research action items.
+- Groups action items by strategy, weakness type, severity, sample count, and
+  average replay score.
+- Adds priority scoring for research repair work:
+  - high priority
+  - medium priority
+  - observe
+- Adds blocked-upgrade reasons when a weakness should prevent testnet, Dry-run,
+  or live escalation.
+- Updates the web console with a Strategy Weakness Action Board directly after
+  the closed-sample replay panel.
+
+The action board is a deterministic research layer. It does not change strategy
+parameters, does not generate trading advice, does not start Dry-run or testnet,
+and does not create orders.
+
+V13.7.48 does not add API key storage, Trade API, Withdraw API, exchange
+testnet orders, real account reads, real position reads, order creation,
+exchange Dry-run, live trading, or automatic trading.
 
 ## What V13.7.47 Adds
 

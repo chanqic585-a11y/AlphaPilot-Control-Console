@@ -1215,6 +1215,44 @@
               <div id="closedSampleReplayDetail" class="closed-sample-detail"></div>
             </div>
           </div>
+          <div class="section-subpanel weakness-action-panel">
+            <div class="section-header compact">
+              <div>
+                <p class="panel-eyebrow">WEAKNESS ACTION BOARD</p>
+                <h4>策略弱点行动板</h4>
+                <p>把复盘弱点转成研究行动项。这里不会自动改策略、不会进入 Dry-run，也不会创建订单。</p>
+              </div>
+              <span id="weaknessActionStatus" class="status-pill danger">执行关闭</span>
+            </div>
+            <div class="weakness-action-grid">
+              <div>
+                <span>行动项</span>
+                <strong id="weaknessActionTotal">--</strong>
+              </div>
+              <div>
+                <span>高优先级</span>
+                <strong id="weaknessActionCritical">--</strong>
+              </div>
+              <div>
+                <span>中优先级</span>
+                <strong id="weaknessActionWarning">--</strong>
+              </div>
+              <div>
+                <span>禁止升级</span>
+                <strong id="weaknessActionBlocked">--</strong>
+              </div>
+              <div>
+                <span>Dry-run</span>
+                <strong id="weaknessActionDryRun">关闭</strong>
+              </div>
+              <div>
+                <span>实盘</span>
+                <strong id="weaknessActionLive">关闭</strong>
+              </div>
+            </div>
+            <div id="weaknessActionNextAction" class="weakness-action-next">等待弱点行动项。</div>
+            <div id="weaknessActionList" class="weakness-action-list"></div>
+          </div>
           <div class="research-task-columns">
             <div>
               <h4>重构候选</h4>

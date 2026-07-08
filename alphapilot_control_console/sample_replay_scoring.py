@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 
-SCORING_VERSION = "V13.7.47"
+SCORING_VERSION = "V13.7.48"
 
 
 def _safe_float(value: Any, fallback: float = 0.0) -> float:

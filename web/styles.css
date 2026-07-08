@@ -2611,6 +2611,116 @@ code {
   color: var(--text);
 }
 
+.weakness-action-panel {
+  border-color: rgba(255, 95, 138, 0.22);
+  background:
+    linear-gradient(135deg, rgba(255, 95, 138, 0.06), transparent 38%),
+    rgba(9, 14, 20, 0.78);
+}
+
+.weakness-action-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.weakness-action-grid > div,
+.weakness-action-row,
+.weakness-action-empty {
+  border: 1px solid var(--border);
+  background: rgba(9, 14, 20, 0.72);
+  border-radius: 8px;
+}
+
+.weakness-action-grid > div {
+  padding: 10px;
+}
+
+.weakness-action-grid span,
+.weakness-action-empty,
+.weakness-action-row small,
+.weakness-action-body p {
+  color: var(--muted);
+}
+
+.weakness-action-grid strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 18px;
+}
+
+.weakness-action-next {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--red);
+  border-radius: 8px;
+  background: rgba(255, 95, 138, 0.07);
+}
+
+.weakness-action-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.weakness-action-row,
+.weakness-action-empty {
+  padding: 12px;
+}
+
+.weakness-action-row-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.weakness-action-row-head strong,
+.weakness-action-row-head small {
+  display: block;
+}
+
+.weakness-action-body {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.weakness-action-body p {
+  margin: 0;
+}
+
+.weakness-action-tasks,
+.weakness-action-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.weakness-action-tasks small,
+.weakness-action-flags small {
+  padding: 6px 8px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.weakness-action-flags small.ok {
+  color: var(--green);
+  border-color: rgba(24, 211, 166, 0.22);
+}
+
+.weakness-action-flags small.warn {
+  color: var(--gold);
+  border-color: rgba(255, 209, 61, 0.22);
+}
+
+.weakness-action-flags small.danger {
+  color: var(--red);
+  border-color: rgba(255, 95, 138, 0.22);
+}
+
 .live-readiness-panel {
   border-color: rgba(255, 209, 102, 0.28);
   background:
@@ -3194,6 +3304,8 @@ code {
     .closed-sample-detail-head,
     .closed-sample-card-head,
     .closed-sample-two-col,
+    .weakness-action-grid,
+    .weakness-action-row-head,
     .live-readiness-grid,
     .live-readiness-columns,
     .live-readiness-row-head,

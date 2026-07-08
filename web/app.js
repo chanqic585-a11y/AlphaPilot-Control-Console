@@ -1671,6 +1671,56 @@ function renderClosedSampleCard(sample) {
   `;
 }
 
+function renderWeaknessActionBoard(payload) {
+  if (!el("weaknessActionList")) return;
+  const summary = payload?.summary || {};
+  const actions = Array.isArray(payload?.actions) ? payload.actions : [];
+  setText("weaknessActionTotal", String(summary.totalActions ?? actions.length));
+  setText("weaknessActionCritical", String(summary.criticalActionCount ?? 0));
+  setText("weaknessActionWarning", String(summary.warningActionCount ?? 0));
+  setText("weaknessActionBlocked", String(summary.blockedUpgradeCount ?? 0));
+  setText("weaknessActionDryRun", payload?.dryRunApproved ? "开启" : "关闭");
+  setText("weaknessActionLive", payload?.liveTradingApproved ? "开启" : "关闭");
+  setText("weaknessActionStatus", payload?.liveTradingApproved ? "异常：实盘开启" : "执行关闭");
+  setText("weaknessActionNextAction", summary.nextAction || "先等待闭合样本复盘产生弱点标签。");
+
+  if (!actions.length) {
+    el("weaknessActionList").innerHTML = '<div class="weakness-action-empty">暂无弱点行动项。先运行本地沙盒并完成闭合样本复盘。</div>';
+    return;
+  }
+
+  el("weaknessActionList").innerHTML = actions.slice(0, 12).map((action) => {
+    const tasks = Array.isArray(action.researchTasks) ? action.researchTasks : [];
+    const tone = action.priorityTone || weaknessTone(action.severity);
+    return `
+      <article class="weakness-action-row">
+        <div class="weakness-action-row-head">
+          <div>
+            <p class="panel-eyebrow">${escapeHtml(action.weaknessCode || "--")}</p>
+            <strong>${escapeHtml(action.strategyName || "--")}</strong>
+            <small>${escapeHtml(action.timeframe || "--")} · ${escapeHtml(action.weaknessLabel || "--")} x${action.weaknessCount ?? 0}</small>
+          </div>
+          <span class="badge ${tone === "danger" ? "danger" : tone === "warn" ? "warn" : "success"}">${escapeHtml(action.priorityLabel || "--")} · ${formatNumber(action.priorityScore, 0)}</span>
+        </div>
+        <div class="weakness-action-body">
+          <strong>${escapeHtml(action.recommendedAction || "等待人工复盘。")}</strong>
+          <p>${escapeHtml(action.blockedUpgradeReason || "保持研究观察。")}</p>
+        </div>
+        <div class="weakness-action-tasks">
+          ${tasks.slice(0, 4).map((task, index) => `<small>${index + 1}. ${escapeHtml(task)}</small>`).join("")}
+        </div>
+        <div class="weakness-action-flags">
+          <small class="${weaknessTone(action.severity)}">${escapeHtml(action.severity || "warning")}</small>
+          <small>样本 ${action.sampleCount ?? 0}</small>
+          <small>均分 ${formatNumber(action.averageReviewScore, 1)}</small>
+          <small>${action.blockedUpgrade ? "禁止升级" : "继续观察"}</small>
+          <small>${escapeHtml(action.safetyNote || "仅用于本地研究。")}</small>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
 function pickPrimaryObservationTask(loopPayload) {
   const tasks = getObservationTasksFromLoop(loopPayload);
   if (selectedStrategyPlaybookTaskId) {
@@ -3174,7 +3224,7 @@ function renderAudit(events) {
 }
 
 async function refreshAll() {
-  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, shortCycleCandidates, usableStrategyCatalog, simulationBridge, simulationReview, closedSampleReplay, strategyPromotionGate, researchTaskBoard, strategyLearningLoop, sandboxDailyReport, sandboxAutoRunner, liveReadiness, forwardReview] = await Promise.all([
+  const [strategies, reports, mobile, connection, audit, exchanges, slots, artifacts, paperTasks, candidateQueue, shortCycleCandidates, usableStrategyCatalog, simulationBridge, simulationReview, closedSampleReplay, weaknessActionBoard, strategyPromotionGate, researchTaskBoard, strategyLearningLoop, sandboxDailyReport, sandboxAutoRunner, liveReadiness, forwardReview] = await Promise.all([
     getJson("/api/strategies"),
     getJson("/api/reports"),
     getJson("/api/mobile/status"),
@@ -3190,6 +3240,7 @@ async function refreshAll() {
     getJson("/api/simulation-bridge"),
     getJson("/api/simulation-review"),
     getJson("/api/closed-sample-replay"),
+    getJson("/api/weakness-action-board"),
     getJson("/api/strategy-promotion-gate"),
     getJson("/api/research-task-board"),
     getJson("/api/strategy-learning-loop"),
@@ -3215,6 +3266,7 @@ async function refreshAll() {
   renderUsableStrategyCatalog(usableStrategyCatalog);
   renderSimulationReview(simulationReview);
   renderClosedSampleReplay(closedSampleReplay);
+  renderWeaknessActionBoard(weaknessActionBoard);
   renderStrategyPromotionGate(strategyPromotionGate);
   renderResearchTaskBoard(researchTaskBoard);
   renderStrategyLearningLoop(strategyLearningLoop);

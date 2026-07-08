@@ -29,6 +29,7 @@ from .simulation_review import build_simulation_review, build_simulation_review_
 from .strategy_promotion_gate import build_strategy_promotion_gate
 from .strategy_slots import list_strategy_slots
 from .usable_strategy_catalog import build_usable_strategy_catalog
+from .weakness_action_board import build_weakness_action_board
 from .state_store import (
     ALLOWED_ARTIFACT_REVIEW_STATUSES,
     ALLOWED_PAPER_OBSERVATION_LOG_TYPES,
@@ -88,7 +89,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.7.47"
+    server_version = "AlphaPilotControlConsole/13.7.48"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -129,8 +130,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.7.47",
-                "source": "alphapilot_control_console_v13_7_47",
+                "version": "V13.7.48",
+                "source": "alphapilot_control_console_v13_7_48",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -269,6 +270,23 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 "source": payload["source"],
                 "samples": payload["samples"],
                 "sampleSchema": payload["sampleSchema"],
+                "safetyBoundary": SAFETY_BOUNDARY,
+            })
+            return
+        if path == "/api/weakness-action-board":
+            query = parse_qs(parsed.query or "")
+            limit = _safe_int((query.get("limit") or [200])[0], 200)
+            self._send_json(build_weakness_action_board(limit=limit))
+            return
+        if path == "/api/weakness-action-board/actions":
+            payload = build_weakness_action_board()
+            self._send_json({
+                "version": payload["version"],
+                "source": payload["source"],
+                "summary": payload["summary"],
+                "actions": payload["actions"],
+                "dryRunApproved": False,
+                "liveTradingApproved": False,
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
