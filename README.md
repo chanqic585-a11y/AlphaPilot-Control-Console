@@ -1459,3 +1459,34 @@ Safety boundary:
   `OKX_DEMO_ORDER_APPROVED` phrase, explicit OKX `sz`, and the 1000 USDT cap.
 - Live trading, Withdraw API, live API keys, real account trading, and automatic
   trading remain disabled.
+
+## V13.9.7 Page-separated Control Console and Demo Candidate Pipeline
+
+V13.9.7 makes the desktop control console easier to operate by separating the
+main workflow into four pages:
+
+1. `策略`
+2. `本地模拟`
+3. `Demo模拟`
+4. `实盘交易`
+
+Updated in this patch:
+
+- The left navigation now switches pages instead of forcing all modules into one
+  long scrolling page.
+- `本地模拟` now shows real simulation bridge, review queue, and learning-loop
+  status instead of empty placeholder cards.
+- The old advanced `运行本地沙盒` entry remains available only in advanced
+  research mode; the main flow has one clear local sandbox button.
+- `Demo模拟` now loads usable and candidate strategies, builds an automatic
+  candidate list, and can scan OKX public market data before filling the Demo
+  ticket.
+- The Demo candidate pipeline only uses local strategy data and public market
+  data. It does not use API keys, private endpoints, account data, positions,
+  or orders.
+- Filling a Demo ticket is not order execution. OKX Demo order submission still
+  requires environment-only Demo credentials, the order gate, explicit `sz`, and
+  the manual confirmation phrase.
+- `实盘交易` is a locked page that documents the future live gate. Live trading,
+  Withdraw API, raw API key storage, real account access, real position access,
+  real order creation, and auto trading remain disabled.

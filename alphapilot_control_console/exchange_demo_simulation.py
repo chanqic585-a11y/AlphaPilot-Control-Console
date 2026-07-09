@@ -13,11 +13,13 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from .config import SAFETY_BOUNDARY
+from .exchange_connectors.public_exchange_registry import probe_public_exchanges
 from .state_store import list_exchange_demo_events, now_iso, save_exchange_demo_event
+from .usable_strategy_catalog import build_usable_strategy_catalog
 
 
-CONTROL_CONSOLE_VERSION = "V13.9.6"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_9_6"
+CONTROL_CONSOLE_VERSION = "V13.9.7"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_9_7"
 DEFAULT_DEMO_BASE_URL = "https://www.okx.com"
 ALLOWED_DEMO_BASE_URLS = {"https://www.okx.com", "https://eea.okx.com"}
 MAX_DEMO_NOTIONAL_USDT = 1000.0
@@ -193,6 +195,135 @@ def _safe_float(value: Any, fallback: float = 0.0) -> float:
         return fallback
 
 
+def _safe_int(value: Any, fallback: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
+def _okx_inst_id_from_pair(pair: str) -> str:
+    value = (pair or "BTC/USDT:USDT").upper().replace(":USDT", "").strip()
+    if "/" in value:
+        base, quote = value.split("/", 1)
+    elif value.endswith("USDT"):
+        base, quote = value[:-4], "USDT"
+    else:
+        base, quote = value, "USDT"
+    return f"{base}-{quote}-SWAP"
+
+
+def _demo_side_from_direction(direction: str) -> str:
+    return "sell" if str(direction or "").lower() == "short" else "buy"
+
+
+def _build_strategy_candidates(limit: int = 12) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    catalog = build_usable_strategy_catalog()
+    strategies = catalog.get("strategies") if isinstance(catalog.get("strategies"), list) else []
+    rows: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for strategy in sorted(strategies, key=lambda item: _safe_float(item.get("score")), reverse=True):
+        pairs = strategy.get("selectedPairs") if isinstance(strategy.get("selectedPairs"), list) else []
+        if not pairs:
+            pairs = ["BTC/USDT:USDT"]
+        direction = str(strategy.get("direction") or "long")
+        for pair in pairs[:3]:
+            inst_id = _okx_inst_id_from_pair(str(pair))
+            key = (str(strategy.get("strategyId") or strategy.get("taskId") or ""), inst_id)
+            if key in seen:
+                continue
+            seen.add(key)
+            metrics = strategy.get("testMetrics") if isinstance(strategy.get("testMetrics"), dict) else strategy.get("metrics") or {}
+            rows.append({
+                "candidateId": f"demo::{strategy.get('strategyId') or strategy.get('taskId') or len(rows)}::{inst_id}",
+                "strategyId": strategy.get("strategyId") or strategy.get("taskId"),
+                "strategyName": strategy.get("name") or strategy.get("shortName") or "本地候选策略",
+                "family": strategy.get("family") or "--",
+                "frequencyLabel": strategy.get("frequencyLabel") or strategy.get("timeframe") or "--",
+                "symbol": str(pair),
+                "instId": inst_id,
+                "side": _demo_side_from_direction(direction),
+                "direction": direction,
+                "timeframe": strategy.get("timeframe") or "--",
+                "score": _safe_float(strategy.get("score")),
+                "targetR": _safe_float(strategy.get("targetR"), 2.0),
+                "winRatePct": _safe_float(metrics.get("winRatePct")),
+                "profitFactor": _safe_float(metrics.get("profitFactor")),
+                "tradeCount": _safe_int(metrics.get("tradeCount")),
+                "marketDataStatus": "not_scanned",
+                "screeningStatus": "strategy_loaded",
+                "reason": "来自本地可用策略库；需公共行情扫描后再考虑 Demo 票据。",
+                "manualOrderRequired": True,
+            })
+            if len(rows) >= limit:
+                break
+        if len(rows) >= limit:
+            break
+    summary = catalog.get("summary") if isinstance(catalog.get("summary"), dict) else {}
+    return rows, {
+        "strategyCount": _safe_int(summary.get("totalUsableStrategies"), len(strategies)),
+        "sandboxReadyCount": _safe_int(summary.get("sandboxReadyCount")),
+        "candidateCount": len(rows),
+        "catalogSource": summary.get("sourceReports") or [],
+    }
+
+
+def _build_automation_pipeline(scan_payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    candidates, catalog_summary = _build_strategy_candidates()
+    market_probe_count = 0
+    ok_market_count = 0
+    probe_by_inst: dict[str, dict[str, Any]] = {}
+    if isinstance(scan_payload, dict):
+        for item in scan_payload.get("scans", []) if isinstance(scan_payload.get("scans"), list) else []:
+            inst_id = item.get("instId")
+            probe = item.get("publicProbe") if isinstance(item.get("publicProbe"), dict) else {}
+            results = probe.get("results") if isinstance(probe.get("results"), list) else []
+            okx = next((result for result in results if result.get("exchange") == "okx"), None)
+            if inst_id:
+                probe_by_inst[str(inst_id)] = okx or {}
+            market_probe_count += 1
+            if okx and okx.get("ok"):
+                ok_market_count += 1
+    for candidate in candidates:
+        probe = probe_by_inst.get(candidate["instId"])
+        if probe:
+            candidate["marketDataStatus"] = "public_ok" if probe.get("ok") else "public_gap"
+            candidate["screeningStatus"] = "market_ready" if probe.get("ok") else "market_gap"
+            candidate["marketLatencyMs"] = probe.get("latencyMs")
+            candidate["missingPublicFields"] = probe.get("missingPublicFields") or []
+            candidate["reason"] = (
+                "本地策略通过候选筛选，OKX 公共行情可用；仍需人工确认 Demo 票据。"
+                if probe.get("ok")
+                else "本地策略通过候选筛选，但公共行情字段不完整，暂不填入票据。"
+            )
+    preferred = next((item for item in candidates if item.get("screeningStatus") == "market_ready"), None) or (candidates[0] if candidates else None)
+    return {
+        "status": "scanned" if scan_payload else "strategy_loaded",
+        "summary": {
+            **catalog_summary,
+            "publicProbeCount": market_probe_count,
+            "publicOkCount": ok_market_count,
+            "preferredCandidateId": preferred.get("candidateId") if preferred else None,
+            "preferredInstId": preferred.get("instId") if preferred else None,
+            "manualOrderRequired": True,
+            "autoOrderAllowed": False,
+            "nextAction": (
+                "公共行情扫描完成；可以把首选候选填入 Demo 票据，但仍需人工确认和订单闸门。"
+                if scan_payload else "先点击扫描 Demo 候选，使用 OKX 公共行情确认候选币种是否可观察。"
+            ),
+        },
+        "candidates": candidates,
+        "preferredCandidate": preferred,
+        "flow": [
+            {"stepId": "load_strategies", "label": "加载可用策略", "status": "ready", "count": catalog_summary.get("strategyCount")},
+            {"stepId": "public_market_scan", "label": "接入公共实时行情", "status": "ready" if scan_payload else "waiting"},
+            {"stepId": "auto_screen_symbols", "label": "自动筛选候选币种", "status": "ready" if candidates else "blocked", "count": len(candidates)},
+            {"stepId": "manual_demo_ticket", "label": "填入 Demo 票据", "status": "manual_required"},
+            {"stepId": "gated_order", "label": "订单闸门", "status": "blocked", "description": "仍需 Demo 开关、订单开关、sz 和人工确认。"},
+        ],
+    }
+
+
 def _latest_readonly_event(events: list[dict[str, Any]]) -> dict[str, Any] | None:
     for event in events:
         if event.get("eventType") == "readonly_check":
@@ -284,6 +415,8 @@ def build_exchange_demo_simulation() -> dict[str, Any]:
     recent_events = list_exchange_demo_events(limit=20)
     base_url, base_url_warning = _demo_base_url()
     readonly_summary = _build_readonly_summary(recent_events)
+    automation_pipeline = _build_automation_pipeline()
+    preferred = automation_pipeline.get("preferredCandidate") if isinstance(automation_pipeline.get("preferredCandidate"), dict) else {}
     return {
         "version": CONTROL_CONSOLE_VERSION,
         "source": CONTROL_CONSOLE_SOURCE,
@@ -347,15 +480,16 @@ def build_exchange_demo_simulation() -> dict[str, Any]:
             "envOnly": True,
         },
         "defaultTicket": {
-            "strategyId": strategy.get("taskId") or strategy.get("strategyId") or "demo_strategy_candidate",
-            "readableName": strategy.get("readableName") or strategy.get("plainName") or "本地候选策略",
-            "instId": "BTC-USDT-SWAP",
-            "side": "buy",
+            "strategyId": preferred.get("strategyId") or strategy.get("taskId") or strategy.get("strategyId") or "demo_strategy_candidate",
+            "readableName": preferred.get("strategyName") or strategy.get("readableName") or strategy.get("plainName") or "本地候选策略",
+            "instId": preferred.get("instId") or "BTC-USDT-SWAP",
+            "side": preferred.get("side") or "buy",
             "tdMode": "isolated",
             "ordType": "market",
             "size": "",
             "notionalUsdt": MAX_DEMO_NOTIONAL_USDT,
         },
+        "automationPipeline": automation_pipeline,
         "recentEvents": recent_events,
         "safetyBoundary": {
             **SAFETY_BOUNDARY,
@@ -366,6 +500,64 @@ def build_exchange_demo_simulation() -> dict[str, Any]:
             "maxDemoOrderNotionalUsdt": MAX_DEMO_NOTIONAL_USDT,
         },
         "safetyNote": "OKX Demo is separated from local sandbox and live trading. Raw API keys are not stored in the browser or SQLite. Withdraw and live trading remain disabled.",
+    }
+
+
+def scan_exchange_demo_candidates(payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    payload = payload if isinstance(payload, dict) else {}
+    raw_limit = _safe_int(payload.get("limit"), 5)
+    limit = max(1, min(raw_limit, 8))
+    candidates, _ = _build_strategy_candidates(limit=limit)
+    scans: list[dict[str, Any]] = []
+    for candidate in candidates:
+        probe = probe_public_exchanges(
+            exchanges=["okx"],
+            symbol=str(candidate.get("symbol") or "BTC/USDT:USDT"),
+            timeframe=str(candidate.get("timeframe") or "1h"),
+            limit=2,
+        )
+        scans.append({
+            "candidateId": candidate.get("candidateId"),
+            "strategyId": candidate.get("strategyId"),
+            "strategyName": candidate.get("strategyName"),
+            "symbol": candidate.get("symbol"),
+            "instId": candidate.get("instId"),
+            "side": candidate.get("side"),
+            "publicProbe": probe,
+        })
+    scan_payload = {
+        "version": CONTROL_CONSOLE_VERSION,
+        "source": CONTROL_CONSOLE_SOURCE,
+        "generatedAt": now_iso(),
+        "publicOnly": True,
+        "usesApiKey": False,
+        "createsOrder": False,
+        "scans": scans,
+    }
+    pipeline = _build_automation_pipeline(scan_payload)
+    preferred = pipeline.get("preferredCandidate") if isinstance(pipeline.get("preferredCandidate"), dict) else {}
+    event = save_exchange_demo_event({
+        "eventType": "demo_candidate_scan",
+        "status": "completed",
+        "instId": preferred.get("instId"),
+        "side": preferred.get("side"),
+        "notionalUsdt": MAX_DEMO_NOTIONAL_USDT,
+        "candidateCount": len(candidates),
+        "publicProbeCount": pipeline.get("summary", {}).get("publicProbeCount"),
+        "publicOkCount": pipeline.get("summary", {}).get("publicOkCount"),
+        "liveTrading": False,
+        "apiKeyUsed": False,
+        "ordersCreated": False,
+    })
+    return {
+        "ok": True,
+        "event": event,
+        "automationPipeline": pipeline,
+        "exchangeDemoSimulation": {
+            **build_exchange_demo_simulation(),
+            "automationPipeline": pipeline,
+        },
+        "safetyBoundary": SAFETY_BOUNDARY,
     }
 
 

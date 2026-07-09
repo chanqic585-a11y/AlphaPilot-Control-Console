@@ -17,14 +17,17 @@
           </div>
         </div>
         <nav class="rail-nav">
-          <a class="rail-item active" href="#simpleConsole" title="&#39318;&#39029;" aria-label="&#39318;&#39029;">
-            <span class="nav-key">H</span><span>&#39318;&#39029;</span>
+          <a class="rail-item active" href="#simpleConsole" title="策略" aria-label="策略">
+            <span class="nav-key">S</span><span>策略</span>
           </a>
-          <a class="rail-item" href="#localLab" title="&#26412;&#22320;&#23454;&#39564;&#23460;" aria-label="&#26412;&#22320;&#23454;&#39564;&#23460;">
-            <span class="nav-key">L</span><span>&#26412;&#22320;&#23454;&#39564;&#23460;</span>
+          <a class="rail-item" href="#localLab" title="本地模拟" aria-label="本地模拟">
+            <span class="nav-key">L</span><span>本地模拟</span>
           </a>
-          <a class="rail-item" href="#exchangeDemo" title="OKX Demo" aria-label="OKX Demo">
-            <span class="nav-key">D</span><span>OKX Demo</span>
+          <a class="rail-item" href="#exchangeDemo" title="交易所 Demo" aria-label="交易所 Demo">
+            <span class="nav-key">D</span><span>Demo模拟</span>
+          </a>
+          <a class="rail-item" href="#liveTradingPage" title="实盘交易" aria-label="实盘交易">
+            <span class="nav-key">X</span><span>实盘交易</span>
           </a>
           <a class="rail-item advanced-nav-item" href="#command" title="&#31574;&#30053;&#24635;&#25511;" aria-label="&#31574;&#30053;&#24635;&#25511;">
             <span class="nav-key">S</span><span>&#31574;&#30053;&#24635;&#25511;</span>
@@ -50,7 +53,7 @@
           <a class="rail-item advanced-nav-item" href="#exchanges" title="公共行情" aria-label="公共行情">
             <span class="nav-key">M</span><span>公共行情</span>
           </a>
-          <a class="rail-item" href="#mobile" title="手机连接" aria-label="手机连接">
+          <a class="rail-item advanced-nav-item" href="#mobile" title="手机连接" aria-label="手机连接">
             <span class="nav-key">P</span><span>手机控制台</span>
           </a>
           <a class="rail-item advanced-nav-item" href="#audit" title="审计日志" aria-label="审计日志">
@@ -86,7 +89,7 @@
           不保存 API Key，不接 Trade API，不接 Withdraw API，不读取真实账户，不读取真实持仓，不创建订单，不自动交易。
         </section>
 
-        <section id="simpleConsole" class="panel simple-console-panel">
+        <section id="simpleConsole" class="panel simple-console-panel page-section active-page">
           <div class="simple-hero">
             <div>
               <p class="panel-eyebrow">SIMPLE CONTROL MODE</p>
@@ -520,12 +523,12 @@
 
 
 
-        <section id="localLab" class="panel local-lab-panel">
+        <section id="localLab" class="panel local-lab-panel page-section">
           <div class="section-header">
             <div>
               <p class="panel-eyebrow">LOCAL SIMULATION LAB</p>
-              <h2>&#26412;&#22320;&#23454;&#39564;&#23460;</h2>
-              <p>&#26412;&#22320;&#27801;&#30418;&#21644;&#26412;&#22320;&#27169;&#25311;&#25918;&#22312;&#21516;&#19968;&#39029;&#65306;&#36305;&#31574;&#30053;&#26679;&#26412;&#12289;&#30475;&#34394;&#25311;&#26435;&#30410;&#12289;&#30475;&#38381;&#21512;&#26679;&#26412;&#21644;&#21319;&#32423; OKX Demo &#20505;&#36873;&#12290;&#36825;&#37324;&#19981;&#36830;&#25509;&#20132;&#26131;&#25152;&#65292;&#19981;&#21019;&#24314;&#20132;&#26131;&#25152;&#35746;&#21333;&#12290;</p>
+              <h2>本地模拟</h2>
+              <p>本地沙盒和本地模拟放在同一页：跑策略样本、看虚拟权益、看闭合样本、看可复核策略和学习状态。这里不连接交易所，不创建交易所订单。</p>
             </div>
             <span class="status-pill ok">&#26412;&#22320;&#36816;&#34892;</span>
           </div>
@@ -540,6 +543,9 @@
             <div class="local-lab-card"><span>&#34394;&#25311;&#26435;&#30410;</span><strong id="localLabEquity">--</strong><small id="localLabCapital">--</small></div>
             <div class="local-lab-card"><span>&#38381;&#21512;&#26679;&#26412;</span><strong id="localLabClosedSamples">--</strong><small id="localLabQuality">--</small></div>
             <div class="local-lab-card"><span>&#21487;&#22797;&#26680;&#31574;&#30053;</span><strong id="localLabReviewReady">--</strong><small id="localLabTestnetCandidates">--</small></div>
+            <div class="local-lab-card"><span>模拟盘接入状态</span><strong id="localLabSimulationState">--</strong><small id="localLabSimulationMeta">--</small></div>
+            <div class="local-lab-card"><span>学习状态</span><strong id="localLabLearningState">--</strong><small id="localLabLearningMeta">--</small></div>
+            <div class="local-lab-card"><span>策略复核队列</span><strong id="localLabQueueState">--</strong><small id="localLabQueueMeta">--</small></div>
           </div>
           <div class="local-lab-actions">
             <button id="localLabRunSandboxButton" type="button">&#36816;&#34892;&#26412;&#22320;&#27801;&#30418;</button>
@@ -559,7 +565,7 @@
           </div>
         </section>
 
-        <section id="exchangeDemo" class="panel exchange-demo-panel">
+        <section id="exchangeDemo" class="panel exchange-demo-panel page-section">
           <div class="section-header">
             <div>
               <p class="panel-eyebrow">OKX DEMO TRADING</p>
@@ -575,6 +581,24 @@
               <span id="exchangeDemoLauncherCommand">&#31561;&#24453;&#21551;&#21160;&#21629;&#20196;</span>
             </div>
             <div id="exchangeDemoRunbookList" class="exchange-demo-runbook-list"></div>
+          </div>
+          <div class="exchange-demo-section exchange-demo-pipeline">
+            <div class="simple-section-title">
+              <strong>Demo 自动筛选流水线</strong>
+              <span id="exchangeDemoPipelineMeta">加载策略、读取公共行情、筛选候选，再人工确认 Demo 票据。</span>
+            </div>
+            <div class="exchange-demo-pipeline-grid">
+              <div><span>可用策略</span><strong id="exchangeDemoLoadedStrategies">--</strong><small id="exchangeDemoLoadedStrategiesMeta">--</small></div>
+              <div><span>候选币种</span><strong id="exchangeDemoCandidateSymbols">--</strong><small id="exchangeDemoCandidateSymbolsMeta">--</small></div>
+              <div><span>实时行情接入</span><strong id="exchangeDemoMarketState">--</strong><small id="exchangeDemoMarketMeta">--</small></div>
+              <div><span>自动下单边界</span><strong id="exchangeDemoAutomationState">--</strong><small id="exchangeDemoAutomationMeta">--</small></div>
+            </div>
+            <div class="exchange-demo-candidates" id="exchangeDemoCandidateList"></div>
+            <div class="exchange-ticket-actions">
+              <button id="exchangeDemoScanButton" type="button">扫描 Demo 候选</button>
+              <button id="exchangeDemoFillTicketButton" class="secondary" type="button">填入首选票据</button>
+              <span id="exchangeDemoPipelineStatus">候选扫描只使用公共行情和本地策略库，不会下单。</span>
+            </div>
           </div>
           <div class="mode-flow-grid" id="exchangeDemoModeCards"></div>
           <div class="exchange-demo-layout">
@@ -603,6 +627,54 @@
               <div class="exchange-demo-side-card"><span>&#21482;&#35835;&#26816;&#26597;</span><strong id="exchangeDemoReadOnlyState">--</strong><small id="exchangeDemoReadOnlyMeta">--</small></div>
               <div class="exchange-demo-side-card"><span>&#19978;&#27425;&#21482;&#35835;&#32467;&#26524;</span><div id="exchangeDemoReadOnlyDetails" class="exchange-demo-readonly-details"></div></div>
               <div class="exchange-demo-side-card"><span>&#38459;&#22622;&#39033;</span><div id="exchangeDemoBlockers" class="exchange-demo-blockers"></div></div>
+            </aside>
+          </div>
+        </section>
+
+        <section id="liveTradingPage" class="panel exchange-demo-panel live-trading-panel page-section">
+          <div class="section-header">
+            <div>
+              <p class="panel-eyebrow">LIVE TRADING GATE</p>
+              <h2>实盘交易</h2>
+              <p>这是未来实盘交易的独立页面。当前只展示安全边界、前置条件和关闭状态，不接实盘 API Key，不读取真实账户，不创建真实订单，不自动交易。</p>
+            </div>
+            <span class="status-pill danger">实盘关闭</span>
+          </div>
+          <div class="exchange-demo-warning"><strong>当前状态：</strong>实盘交易入口被锁定。必须先完成本地模拟、交易所 Demo 模拟、只读权限检查、风控复核和人工确认设计，才允许进入后续版本。</div>
+          <div class="mode-flow-grid">
+            <div class="mode-flow-card active"><span>1</span><strong>策略库</strong><small>只读取已验收策略和候选策略，不直接生成实盘指令。</small></div>
+            <div class="mode-flow-card active"><span>2</span><strong>本地模拟</strong><small>先用虚拟样本观察胜率、2R 目标、连续亏损和集中度。</small></div>
+            <div class="mode-flow-card locked"><span>3</span><strong>交易所 Demo</strong><small>只允许模拟账户，订单能力需要单独开关和人工确认。</small></div>
+            <div class="mode-flow-card disabled"><span>4</span><strong>实盘闸门</strong><small>当前关闭；未来必须独立验收 Trade API、风控和紧急停止。</small></div>
+          </div>
+          <div class="exchange-demo-layout">
+            <div class="exchange-demo-main">
+              <div class="exchange-demo-section">
+                <div class="simple-section-title"><strong>上线前必须满足</strong><span>这些条件现在不会自动通过。</span></div>
+                <div class="exchange-demo-blockers">
+                  <span>策略通过本地模拟复核</span>
+                  <span>Demo 模拟闭环样本足够</span>
+                  <span>只读权限检查通过</span>
+                  <span>订单权限最小化</span>
+                  <span>紧急停止演练通过</span>
+                  <span>人工确认策略上线</span>
+                </div>
+              </div>
+              <div class="exchange-demo-section">
+                <div class="simple-section-title"><strong>不做的事情</strong><span>当前版本强制关闭。</span></div>
+                <div class="exchange-demo-blockers">
+                  <span>不保存 raw API Key</span>
+                  <span>不接 Withdraw API</span>
+                  <span>不读取真实账户</span>
+                  <span>不读取真实持仓</span>
+                  <span>不创建真实订单</span>
+                  <span>不自动交易</span>
+                </div>
+              </div>
+            </div>
+            <aside class="exchange-demo-side">
+              <div class="exchange-demo-side-card"><span>实盘状态</span><strong>锁定</strong><small>独立页面保留未来扩展，不混入本地模拟或 OKX Demo。</small></div>
+              <div class="exchange-demo-side-card"><span>下一步</span><strong>先跑 Demo</strong><small>先让可用策略在 Demo 模拟页完成候选筛选和小额模拟演练。</small></div>
             </aside>
           </div>
         </section>
@@ -2182,6 +2254,6 @@
         <button class="back-home-button" id="backHomeButton" type="button" aria-label="回到驾驶舱">回到驾驶舱</button>
       </main>
     </div>
-    <script src="/app.js?v=20260709-sandbox-quality-center"></script>
+    <script src="/app.js?v=20260710-v13-9-7-page-routing"></script>
   </body>
 </html>

@@ -266,6 +266,14 @@ section[id] {
   scroll-margin-top: 16px;
 }
 
+.page-section {
+  display: none;
+}
+
+.page-section.active-page {
+  display: block;
+}
+
 .advanced-section {
   display: none;
 }
@@ -4105,6 +4113,86 @@ code {
   background: rgba(255, 211, 75, 0.035);
 }
 
+.exchange-demo-pipeline {
+  margin: 14px 0;
+}
+
+.exchange-demo-pipeline-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.exchange-demo-pipeline-grid > div,
+.exchange-demo-candidate-row {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.18);
+  padding: 10px;
+}
+
+.exchange-demo-pipeline-grid span,
+.exchange-demo-pipeline-grid strong,
+.exchange-demo-pipeline-grid small {
+  display: block;
+}
+
+.exchange-demo-pipeline-grid span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.exchange-demo-pipeline-grid strong {
+  margin-top: 7px;
+  color: #f5f8ff;
+  font-size: 20px;
+}
+
+.exchange-demo-pipeline-grid small {
+  margin-top: 7px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.exchange-demo-candidates {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.exchange-demo-candidate-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.exchange-demo-candidate-row.is-selected {
+  border-color: rgba(255, 211, 75, 0.42);
+  background: rgba(255, 211, 75, 0.055);
+}
+
+.exchange-demo-candidate-row-head {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.exchange-demo-candidate-row small {
+  color: var(--muted);
+  display: block;
+  line-height: 1.45;
+  margin-top: 4px;
+}
+
+.exchange-demo-candidate-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .exchange-demo-runbook-list {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -4387,6 +4475,8 @@ body:not(.show-advanced) #strategyAssetPlaybook {
     .local-lab-columns,
     .exchange-demo-layout,
     .exchange-ticket-grid,
+    .exchange-demo-pipeline-grid,
+    .exchange-demo-candidate-row,
     .exchange-demo-runbook-list,
     .testnet-drill-columns,
     .testnet-audit-columns,

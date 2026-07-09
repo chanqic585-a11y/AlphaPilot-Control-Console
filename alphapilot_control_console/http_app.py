@@ -13,6 +13,7 @@ from .exchange_demo_simulation import (
     build_exchange_demo_simulation,
     run_exchange_demo_emergency_drill,
     run_exchange_demo_readonly_check,
+    scan_exchange_demo_candidates,
     submit_exchange_demo_order,
 )
 from .forward_review import build_forward_review, refresh_forward_review
@@ -161,8 +162,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.9.6",
-                "source": "alphapilot_control_console_v13_9_6",
+                "version": "V13.9.7",
+                "source": "alphapilot_control_console_v13_9_7",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -707,6 +708,10 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/exchange-demo/read-only-check":
             self._send_json(run_exchange_demo_readonly_check())
+            return
+        if parsed.path == "/api/exchange-demo/scan-candidates":
+            payload = self._read_body_json()
+            self._send_json(scan_exchange_demo_candidates(payload))
             return
         if parsed.path == "/api/exchange-demo/order":
             payload = self._read_body_json()

@@ -173,9 +173,10 @@ const healthLabels = {
 };
 
 const sectionLabels = {
-  simpleConsole: "首页",
-  localLab: "本地实验室",
-  exchangeDemo: "OKX Demo",
+  simpleConsole: "策略",
+  localLab: "本地模拟",
+  exchangeDemo: "Demo模拟",
+  liveTradingPage: "实盘交易",
   overview: "驾驶舱",
   command: "策略总控",
   runtime: "运行监控",
@@ -188,6 +189,8 @@ const sectionLabels = {
   mobile: "手机控制台",
   audit: "审计日志",
 };
+
+const primaryPageIds = ["simpleConsole", "localLab", "exchangeDemo", "liveTradingPage"];
 
 let latestStrategies = [];
 let latestArtifactIndex = {};
@@ -213,6 +216,7 @@ let latestTestnetAuditPayload = {};
 let latestTestnetPermissionPayload = {};
 let latestTestnetSmallOrderPayload = {};
 let latestExchangeDemoPayload = {};
+let latestExchangeDemoCandidate = null;
 const artifactFilters = {
   search: "",
   tier: "all",
@@ -1448,7 +1452,7 @@ function renderSimpleConsole(strategies, reports, mobile, usableStrategyCatalog,
   latestSimpleConsolePayload = { strategies, reports, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview, qualityCenter, concentrationReview, resultReview, strategyAssetPlaybook };
 }
 
-function renderLocalLabPage(usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, qualityCenter = {}, resultReview = {}) {
+function renderLocalLabPage(usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, qualityCenter = {}, resultReview = {}, simulationBridge = {}, simulationReview = {}, strategyLearningLoop = {}) {
   if (!el("localLab")) return;
   const runnerState = getSimpleRunnerState(sandboxAutoRunner);
   const report = sandboxDailyReport?.latestReport || {};
@@ -1460,19 +1464,33 @@ function renderLocalLabPage(usableStrategyCatalog, sandboxDailyReport, sandboxAu
   const totalEquity = sandboxRows.reduce((sum, row) => sum + Number(row.equity || 0), 0);
   const totalClosedSamples = sandboxRows.reduce((sum, row) => sum + Number(row.closedPaperSampleCount || 0), 0);
   const qualitySummary = qualityCenter?.summary || {};
-  const reviewRows = Array.isArray(qualityCenter?.strategies) ? qualityCenter.strategies : [];
+  const bridgeSummary = simulationBridge?.summary || {};
+  const reviewSummary = simulationReview?.summary || {};
+  const reviewQueue = Array.isArray(simulationReview?.queue) ? simulationReview.queue : [];
+  const reviewRows = reviewQueue.length ? reviewQueue : (Array.isArray(qualityCenter?.strategies) ? qualityCenter.strategies : []);
   const resultSummary = resultReview?.summary || {};
+  const learningRoot = strategyLearningLoop?.strategyLearningLoop || strategyLearningLoop || {};
+  const learningSummary = learningRoot?.learningLoop?.summary || learningRoot?.summary || {};
 
   setText("localLabRunnerState", runnerState.enabled ? "运行中" : "未开启");
   setText("localLabRunnerMeta", `每 ${runnerState.intervalMinutes} 分钟 · 今日 ${runnerState.todayRunCount}/${runnerState.maxRunsPerDay} · 最近 ${formatDate(runnerState.lastRunAt)}`);
-  setText("localLabEquity", sandboxRows.length ? formatUsd(totalEquity) : "--");
-  setText("localLabCapital", sandboxRows.length ? `虚拟本金 ${formatUsd(totalCapital)} · 浮动 ${formatUsd(totalEquity - totalCapital, 2)}` : "等待本地沙盒样本");
-  setText("localLabClosedSamples", String(totalClosedSamples));
+  const bridgeEquity = Number(bridgeSummary.totalVirtualEquity || totalEquity || 0);
+  const bridgeCapital = Number(bridgeSummary.totalVirtualCapital || totalCapital || 0);
+  const bridgeClosedSamples = Number(bridgeSummary.totalClosedSampleCount || reviewSummary.totalClosedSamples || totalClosedSamples || 0);
+  setText("localLabEquity", bridgeEquity ? formatUsd(bridgeEquity) : "--");
+  setText("localLabCapital", bridgeEquity ? `虚拟本金 ${formatUsd(bridgeCapital)} · 浮动 ${formatUsd(bridgeEquity - bridgeCapital, 2)}` : "等待本地沙盒样本");
+  setText("localLabClosedSamples", String(bridgeClosedSamples));
   setText("localLabQuality", `今日闭合 ${dailySummary.dailyClosedSampleCount ?? 0} · 平均健康 ${formatNumber(dailySummary.averageHealthScore ?? qualitySummary.averageHealthScore, 0)}`);
-  setText("localLabReviewReady", String(qualitySummary.testnetPrepCandidateCount ?? resultSummary.reviewReadyStrategyCount ?? 0));
-  setText("localLabTestnetCandidates", `Demo 候选 ${qualitySummary.testnetReadinessCandidateCount ?? qualitySummary.testnetPrepCandidateCount ?? 0}`);
-  setText("localLabStrategyMeta", `${sandboxRows.length} 条策略在本地观察 · 总闭合 ${totalClosedSamples} 个样本`);
-  setText("localLabReviewMeta", `复核候选 ${qualitySummary.testnetPrepCandidateCount ?? 0} · 风险复盘 ${qualitySummary.riskReviewCount ?? 0}`);
+  setText("localLabReviewReady", String(reviewSummary.reviewReadyStrategies ?? qualitySummary.testnetPrepCandidateCount ?? resultSummary.reviewReadyStrategyCount ?? 0));
+  setText("localLabTestnetCandidates", `Demo 候选 ${reviewSummary.promotedCandidates ?? qualitySummary.testnetReadinessCandidateCount ?? qualitySummary.testnetPrepCandidateCount ?? 0}`);
+  setText("localLabSimulationState", bridgeSummary.stageLabel || (bridgeSummary.localSimulationRunning ? "本地模拟盘运行中" : "等待本地模拟"));
+  setText("localLabSimulationMeta", `策略 ${bridgeSummary.strategyCount ?? sandboxRows.length} · 候选 ${bridgeSummary.simulationReviewCandidateCount ?? reviewSummary.promotedCandidates ?? 0}`);
+  setText("localLabLearningState", `${learningSummary.learningItemCount ?? 0} 条`);
+  setText("localLabLearningMeta", `观察 ${learningSummary.researchWatchlistCount ?? 0} · 暂拒 ${learningSummary.graveyardCount ?? 0} · 因子 ${learningSummary.factorMemoryCount ?? 0}`);
+  setText("localLabQueueState", String(reviewSummary.totalStrategies ?? reviewRows.length ?? 0));
+  setText("localLabQueueMeta", `晋级 ${reviewSummary.promotedCandidates ?? 0} · 样本门槛 ${reviewSummary.reviewMinimumClosedSamples ?? 30}`);
+  setText("localLabStrategyMeta", `${sandboxRows.length} 条策略在本地观察 · 总闭合 ${bridgeClosedSamples} 个样本`);
+  setText("localLabReviewMeta", `复核候选 ${reviewSummary.promotedCandidates ?? qualitySummary.testnetPrepCandidateCount ?? 0} · 风险复盘 ${qualitySummary.riskReviewCount ?? 0}`);
   setText("localLabActionStatus", runnerState.enabled
     ? `已开启持续观察：每 ${runnerState.intervalMinutes} 分钟检查一次。`
     : "点击运行后，本地沙盒会持续生成本地观察样本。");
@@ -1513,22 +1531,23 @@ function renderLocalLabPage(usableStrategyCatalog, sandboxDailyReport, sandboxAu
   if (reviewTarget) {
     reviewTarget.innerHTML = reviewRows.slice(0, 8).map((row) => {
       const tone = qualityTone(row.status);
+      const metrics = row.metrics || row;
       return `
         <div class="sandbox-lane-row">
           <div class="sandbox-lane-row-head">
             <div>
-              <strong>${escapeHtml(row.title || row.taskId || "--")}</strong>
-              <small>${escapeHtml(row.taskId || "--")} · ${escapeHtml(row.timeframe || "--")} · 最近 ${formatDate(row.latestLogAt)}</small>
+              <strong>${escapeHtml(row.strategyName || row.title || row.taskId || "--")}</strong>
+              <small>${escapeHtml(row.taskId || row.strategyId || "--")} · ${escapeHtml(row.timeframe || "--")} · 最近 ${formatDate(row.latestLogAt)}</small>
             </div>
-            <span class="badge ${tone}">${escapeHtml(observationQualityLabels[row.status] || row.status || "复核中")}</span>
+            <span class="badge ${tone}">${escapeHtml(row.statusLabel || observationQualityLabels[row.status] || row.status || "复核中")}</span>
           </div>
           <div class="artifact-metrics">
-            <span>闭合 ${row.closedPaperSampleCount ?? 0}</span>
-            <span>规则 ${row.ruleMatchedCount ?? 0}</span>
-            <span>风险 ${row.riskWarningCount ?? 0}</span>
-            <span>健康 ${formatNumber(row.healthScore, 0)}</span>
+            <span>闭合 ${metrics.closedSamples ?? metrics.closedPaperSampleCount ?? 0}</span>
+            <span>胜率 ${formatPercent(metrics.winRate)}</span>
+            <span>PF ${formatNumber(metrics.profitFactor)}</span>
+            <span>健康 ${formatNumber(metrics.healthScore, 0)}</span>
           </div>
-          <div class="sandbox-lane-next">${escapeHtml(row.nextAction || "继续补充本地闭合样本和失败样本。")}</div>
+          <div class="sandbox-lane-next">${escapeHtml(row.recommendedAction || row.nextAction || "继续补充本地闭合样本和失败样本。")}</div>
         </div>
       `;
     }).join("") || '<div class="sandbox-lane-empty">暂无达到复核门槛的策略。本地沙盒继续跑即可。</div>';
@@ -1562,14 +1581,75 @@ function translateExchangeDemoStatus(value) {
     blocked: "已阻塞",
     passed: "通过",
     failed: "失败",
+    completed: "已完成",
     submitted: "已提交",
     local_drill_saved: "本地演练已保存",
     not_run: "尚未检查",
     manual_required: "需要人工处理",
     waiting_credentials: "等待凭据",
+    waiting: "等待",
     ready: "就绪",
+    strategy_loaded: "策略已载入",
+    scanned: "已扫描",
+    market_ready: "行情可用",
+    market_gap: "行情缺口",
+    manual_required: "需要人工确认",
   };
   return labels[value] || value || "--";
+}
+
+function renderExchangeDemoPipeline(pipeline = {}) {
+  const summary = pipeline.summary || {};
+  const candidates = Array.isArray(pipeline.candidates) ? pipeline.candidates : [];
+  const preferredCandidate = pipeline.preferredCandidate || candidates[0] || null;
+  latestExchangeDemoCandidate = preferredCandidate;
+
+  setText("exchangeDemoLoadedStrategies", String(summary.strategyCount ?? 0));
+  setText("exchangeDemoLoadedStrategiesMeta", `沙盒可用 ${summary.sandboxReadyCount ?? 0} · 候选 ${summary.candidateCount ?? candidates.length}`);
+  setText("exchangeDemoCandidateSymbols", String(summary.candidateCount ?? candidates.length));
+  setText("exchangeDemoCandidateSymbolsMeta", preferredCandidate ? `首选 ${preferredCandidate.instId || preferredCandidate.symbol || "--"}` : "等待策略候选");
+  setText("exchangeDemoMarketState", summary.publicProbeCount ? `${summary.publicOkCount ?? 0}/${summary.publicProbeCount}` : "未扫描");
+  setText("exchangeDemoMarketMeta", summary.publicProbeCount ? "OKX 公共行情探测结果" : "点击扫描后读取 OKX 公共行情");
+  setText("exchangeDemoAutomationState", summary.autoOrderAllowed ? "允许" : "手动确认");
+  setText("exchangeDemoAutomationMeta", summary.manualOrderRequired ? "只自动筛选和填票据，不自动提交订单" : "订单仍受 Demo 闸门控制");
+  setText("exchangeDemoPipelineMeta", summary.nextAction || "加载策略、读取公共行情、筛选候选，再人工确认 Demo 票据。");
+
+  const target = el("exchangeDemoCandidateList");
+  if (!target) return;
+  target.innerHTML = candidates.slice(0, 8).map((candidate, index) => {
+    const isSelected = preferredCandidate && candidate.candidateId === preferredCandidate.candidateId;
+    const status = translateExchangeDemoStatus(candidate.screeningStatus || candidate.marketDataStatus);
+    return `
+      <div class="exchange-demo-candidate-row ${isSelected ? "is-selected" : ""}" data-candidate-index="${index}">
+        <div>
+          <div class="exchange-demo-candidate-row-head">
+            <div>
+              <strong>${escapeHtml(candidate.strategyName || "--")}</strong>
+              <small>${escapeHtml(candidate.instId || candidate.symbol || "--")} · ${escapeHtml(candidate.timeframe || "--")} · ${escapeHtml(candidate.frequencyLabel || "--")}</small>
+            </div>
+            <span class="badge ${candidate.screeningStatus === "market_ready" ? "ok" : candidate.screeningStatus === "market_gap" ? "warn" : "neutral"}">${escapeHtml(status)}</span>
+          </div>
+          <div class="artifact-metrics">
+            <span>方向 ${escapeHtml(candidate.side === "sell" ? "做空方向" : "做多方向")}</span>
+            <span>评分 ${formatNumber(candidate.score, 1)}</span>
+            <span>胜率 ${formatPercent(candidate.winRatePct)}</span>
+            <span>PF ${formatNumber(candidate.profitFactor)}</span>
+            <span>目标 ${formatNumber(candidate.targetR, 1)}R</span>
+          </div>
+          <div class="sandbox-lane-next">${escapeHtml(candidate.reason || "候选等待扫描。")}</div>
+        </div>
+        <div class="exchange-demo-candidate-actions">
+          <button class="secondary exchange-demo-use-candidate" type="button" data-candidate-index="${index}">填入</button>
+        </div>
+      </div>
+    `;
+  }).join("") || '<div class="testnet-design-empty">暂无 Demo 候选。请先导入或刷新可用策略库。</div>';
+  target.querySelectorAll(".exchange-demo-use-candidate").forEach((button) => {
+    button.addEventListener("click", () => {
+      const idx = Number(button.getAttribute("data-candidate-index") || 0);
+      fillExchangeDemoTicketFromCandidate(candidates[idx]);
+    });
+  });
 }
 
 function renderExchangeDemoSimulation(payload = {}) {
@@ -1584,6 +1664,7 @@ function renderExchangeDemoSimulation(payload = {}) {
   const readonlySummary = payload.readonlySummary || {};
   const launcher = payload.launcher || {};
   const runbook = Array.isArray(payload.runbook) ? payload.runbook : [];
+  const pipeline = payload.automationPipeline || {};
 
   const modeBadge = el("exchangeDemoModeBadge");
   if (modeBadge) {
@@ -1645,6 +1726,8 @@ function renderExchangeDemoSimulation(payload = {}) {
       <div><span>阻塞</span><strong>${blockers.length ? blockers.map(translateExchangeDemoBlocker).join(" · ") : "无"}</strong></div>
     `;
   }
+
+  renderExchangeDemoPipeline(pipeline);
 
   const instInput = el("exchangeDemoInstIdInput");
   const sideInput = el("exchangeDemoSideInput");
@@ -4399,6 +4482,32 @@ function renderAudit(events) {
 }
 
 async function refreshAll() {
+  const emptySimulationBridge = { summary: {}, observationTasks: [] };
+  const emptySimulationReview = { queue: [], summary: {} };
+  const emptyStrategyLearningLoop = { summary: {}, refactorCandidates: [], experimentSpecs: [] };
+  const early = await loadJsonMap([
+    { key: "usableStrategyCatalog", url: "/api/usable-strategy-catalog", fallback: { strategies: [], summary: {} }, timeoutMs: 6000 },
+    { key: "sandboxDailyReport", url: "/api/local-sandbox/daily-report?limit=10", fallback: { reports: [], latestReport: { summary: {}, strategyHealthRows: [] } }, timeoutMs: 6000 },
+    { key: "sandboxAutoRunner", url: "/api/local-sandbox/auto-runner", fallback: { autoRunner: {}, events: [] }, timeoutMs: 6000 },
+    { key: "sandboxQualityCenter", url: "/api/local-sandbox/quality-center", fallback: { summary: {}, strategies: [], readonlyPreparation: {} }, timeoutMs: 12000 },
+    { key: "sandboxResultReview", url: "/api/local-sandbox/result-review", fallback: { summary: {}, strategies: [], familyReviews: [] }, timeoutMs: 12000 },
+    { key: "simulationBridge", url: "/api/simulation-bridge", fallback: emptySimulationBridge, timeoutMs: 6000 },
+    { key: "simulationReview", url: "/api/simulation-review", fallback: emptySimulationReview, timeoutMs: 6000 },
+    { key: "strategyLearningLoop", url: "/api/strategy-learning-loop", fallback: emptyStrategyLearningLoop, timeoutMs: 6000 },
+    { key: "exchangeDemo", url: "/api/exchange-demo/simulation", fallback: { summary: {}, modeCards: [], recentEvents: [], credentialStatus: {} }, timeoutMs: 12000 },
+  ], 4);
+  renderLocalLabPage(
+    early.usableStrategyCatalog || { strategies: [], summary: {} },
+    early.sandboxDailyReport || { reports: [], latestReport: { summary: {}, strategyHealthRows: [] } },
+    early.sandboxAutoRunner || { autoRunner: {}, events: [] },
+    early.sandboxQualityCenter || { summary: {}, strategies: [], readonlyPreparation: {} },
+    early.sandboxResultReview || { summary: {}, strategies: [], familyReviews: [] },
+    early.simulationBridge || emptySimulationBridge,
+    early.simulationReview || emptySimulationReview,
+    early.strategyLearningLoop || emptyStrategyLearningLoop,
+  );
+  renderExchangeDemoSimulation(early.exchangeDemo || { summary: {}, modeCards: [], recentEvents: [], credentialStatus: {} });
+
   const core = await loadJsonMap([
     { key: "strategies", url: "/api/strategies", fallback: { strategies: [] } },
     { key: "reports", url: "/api/reports", fallback: { reports: [] } },
@@ -4439,14 +4548,11 @@ async function refreshAll() {
   const exchangeDemo = core.exchangeDemo || { summary: {}, modeCards: [], recentEvents: [], credentialStatus: {} };
   const liveReadiness = core.liveReadiness || { rows: [], summary: {} };
   const forwardReview = core.forwardReview || { rows: [], summary: {} };
-  const emptySimulationBridge = { summary: {}, observationTasks: [] };
-  const emptySimulationReview = { queue: [], summary: {} };
-  const emptyStrategyLearningLoop = { summary: {}, refactorCandidates: [], experimentSpecs: [] };
   const strategyItems = strategies.strategies || [];
   const reportItems = reports.reports || [];
   latestStrategyLearningLoopPayload = emptyStrategyLearningLoop;
   renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, emptySimulationBridge, emptySimulationReview, sandboxQualityCenter, sandboxConcentrationReview, sandboxResultReview, strategyAssetPlaybook);
-  renderLocalLabPage(usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, sandboxQualityCenter, sandboxResultReview);
+  renderLocalLabPage(usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, sandboxQualityCenter, sandboxResultReview, emptySimulationBridge, emptySimulationReview, emptyStrategyLearningLoop);
   renderExchangeDemoSimulation(exchangeDemo);
   renderCommandCenter(strategyItems, reportItems, mobile);
   renderRuntimeMonitor(strategyItems, mobile);
@@ -4507,7 +4613,7 @@ async function refreshAll() {
   const strategyLearningLoop = advanced.strategyLearningLoop || emptyStrategyLearningLoop;
   latestStrategyLearningLoopPayload = strategyLearningLoop;
   renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview, sandboxQualityCenter, sandboxConcentrationReview, sandboxResultReview, strategyAssetPlaybook);
-  renderLocalLabPage(usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, sandboxQualityCenter, sandboxResultReview);
+  renderLocalLabPage(usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, sandboxQualityCenter, sandboxResultReview, simulationBridge, simulationReview, strategyLearningLoop);
   renderExchangeDemoSimulation(latestExchangeDemoPayload);
   renderCandidateQueue(advanced.candidateQueue || { strategies: [], summary: {} });
   renderShortCycleCandidatePool(advanced.shortCycleCandidates || { candidates: [], summary: {} });
@@ -4544,24 +4650,32 @@ function renderMobileConnectionInfo(connection) {
 }
 
 function updateCurrentSection() {
-  const sections = Object.keys(sectionLabels)
-    .map((id) => document.getElementById(id))
-    .filter((section) => section && section.offsetParent !== null);
-  const active = sections.reduce((best, section) => {
-    const top = Math.abs(section.getBoundingClientRect().top - 84);
-    if (!best || top < best.top) return { id: section.id, top };
-    return best;
-  }, null);
-  if (!active) return;
+  const hashId = (window.location.hash || "#simpleConsole").replace("#", "");
+  const requestedId = sectionLabels[hashId] ? hashId : "simpleConsole";
+  const isPrimaryPage = primaryPageIds.includes(requestedId);
+  if (isPrimaryPage) {
+    document.querySelectorAll(".page-section").forEach((section) => {
+      section.classList.toggle("active-page", section.id === requestedId);
+    });
+  } else if (document.body.classList.contains("show-advanced")) {
+    document.querySelectorAll(".page-section").forEach((section) => {
+      section.classList.remove("active-page");
+    });
+  } else {
+    window.location.hash = "#simpleConsole";
+    return;
+  }
   document.querySelectorAll(".rail-item").forEach((item) => {
-    item.classList.toggle("active", item.getAttribute("href") === `#${active.id}`);
+    item.classList.toggle("active", item.getAttribute("href") === `#${requestedId}`);
   });
   const current = el("currentSectionLabel");
-  if (current) current.textContent = `当前：${sectionLabels[active.id] || active.id}`;
+  if (current) current.textContent = `当前：${sectionLabels[requestedId] || requestedId}`;
 }
 
 function scrollToOverview() {
-  document.getElementById("simpleConsole")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  window.location.hash = "#simpleConsole";
+  updateCurrentSection();
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 async function importReportsNow(buttonId = "importButton") {
@@ -4628,6 +4742,43 @@ function getExchangeDemoTicketPayload() {
   };
 }
 
+function fillExchangeDemoTicketFromCandidate(candidate = null) {
+  const row = candidate || latestExchangeDemoCandidate || {};
+  if (!row.instId) {
+    setText("exchangeDemoPipelineStatus", "暂无可填入候选。请先扫描 Demo 候选。");
+    return;
+  }
+  const instInput = el("exchangeDemoInstIdInput");
+  const sideInput = el("exchangeDemoSideInput");
+  const ordInput = el("exchangeDemoOrdTypeInput");
+  const notionalInput = el("exchangeDemoNotionalInput");
+  const sizeInput = el("exchangeDemoSizeInput");
+  if (instInput) instInput.value = row.instId;
+  if (sideInput) sideInput.value = row.side || "buy";
+  if (ordInput) ordInput.value = "market";
+  if (notionalInput) notionalInput.value = String(Math.min(Number(notionalInput.value || 1000), 1000));
+  if (sizeInput && !sizeInput.value) sizeInput.placeholder = "仍需手动填写 OKX sz";
+  latestExchangeDemoCandidate = row;
+  setText("exchangeDemoPipelineStatus", `已填入 ${row.instId} · ${row.side === "sell" ? "做空方向" : "做多方向"}。仍需手动填写 sz 和确认口令，不会自动提交订单。`);
+}
+
+async function scanExchangeDemoCandidates() {
+  const button = el("exchangeDemoScanButton");
+  if (button) button.disabled = true;
+  setText("exchangeDemoPipelineStatus", "正在用 OKX 公共行情扫描 Demo 候选；不会使用 API Key 或下单。");
+  try {
+    const response = await postJson("/api/exchange-demo/scan-candidates", { limit: 5 });
+    renderExchangeDemoSimulation(response.exchangeDemoSimulation || {});
+    setText("exchangeDemoPipelineStatus", response.ok
+      ? "候选扫描完成。可以填入首选票据，再人工决定是否做 Demo 演练。"
+      : "候选扫描未通过，请查看阻塞原因。");
+  } catch (error) {
+    setText("exchangeDemoPipelineStatus", `候选扫描失败：${error.message}`);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
 async function runExchangeDemoReadOnlyCheck() {
   const button = el("exchangeDemoReadOnlyButton");
   if (button) button.disabled = true;
@@ -4691,6 +4842,7 @@ function setAdvancedMode(enabled) {
   } catch {
     // Local storage may be unavailable in strict browser modes; UI can still work.
   }
+  updateCurrentSection();
 }
 
 function toggleAdvancedMode() {
@@ -4714,6 +4866,8 @@ el("localLabRunSandboxButton")?.addEventListener("click", runLocalLabSandboxFrom
 el("localLabDailyReportButton")?.addEventListener("click", buildLocalLabDailyReport);
 el("localLabRefreshButton")?.addEventListener("click", refreshAll);
 el("exchangeDemoReadOnlyButton")?.addEventListener("click", runExchangeDemoReadOnlyCheck);
+el("exchangeDemoScanButton")?.addEventListener("click", scanExchangeDemoCandidates);
+el("exchangeDemoFillTicketButton")?.addEventListener("click", () => fillExchangeDemoTicketFromCandidate());
 el("exchangeDemoSubmitButton")?.addEventListener("click", submitExchangeDemoOrder);
 el("exchangeDemoEmergencyButton")?.addEventListener("click", runExchangeDemoEmergencyStop);
 el("toggleAdvancedModeButton")?.addEventListener("click", toggleAdvancedMode);
