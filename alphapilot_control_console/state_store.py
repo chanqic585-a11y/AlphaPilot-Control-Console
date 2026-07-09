@@ -79,7 +79,7 @@ WEAKNESS_ACTION_STATUS_LABELS = {
     "archived": "已归档",
 }
 
-CONTROL_CONSOLE_STATE_SOURCE = "alphapilot_control_console_v13_8_4"
+CONTROL_CONSOLE_STATE_SOURCE = "alphapilot_control_console_v13_9_5"
 DEFAULT_LOCAL_SANDBOX_AUTO_RUNNER = {
     "enabled": False,
     "intervalMinutes": 360,
@@ -150,6 +150,8 @@ def load_state() -> dict[str, Any]:
         state["preLiveRehearsals"] = []
     if not isinstance(state.get("testnetSimulatedOrders"), list):
         state["testnetSimulatedOrders"] = []
+    if not isinstance(state.get("exchangeDemoEvents"), list):
+        state["exchangeDemoEvents"] = []
     if not isinstance(state.get("weaknessActionTasks"), dict):
         state["weaknessActionTasks"] = {}
     if not isinstance(state.get("researchActionExecutionRuns"), list):
@@ -822,4 +824,43 @@ def list_testnet_simulated_orders(limit: int = 20) -> list[dict[str, Any]]:
     state = load_state()
     records = state.get("testnetSimulatedOrders") if isinstance(state.get("testnetSimulatedOrders"), list) else []
     safe_limit = max(1, min(int(limit or 20), 200))
+    return [row for row in records if isinstance(row, dict)][-safe_limit:][::-1]
+
+
+def save_exchange_demo_event(record: dict[str, Any]) -> dict[str, Any]:
+    state = load_state()
+    records = state.get("exchangeDemoEvents")
+    if not isinstance(records, list):
+        records = []
+    record = {
+        **record,
+        "eventId": record.get("eventId") or f"exchange_demo_event::{len(records) + 1}",
+        "createdAt": record.get("createdAt") or now_iso(),
+        "source": record.get("source") or CONTROL_CONSOLE_STATE_SOURCE,
+        "environment": "okx_demo",
+        "liveTrading": False,
+        "withdrawEnabled": False,
+    }
+    records.append(record)
+    state["exchangeDemoEvents"] = records[-300:]
+    save_state(state)
+    append_audit(
+        "exchange_demo_event_saved",
+        {
+            "eventId": record.get("eventId"),
+            "eventType": record.get("eventType"),
+            "status": record.get("status"),
+            "instId": record.get("instId"),
+            "notionalUsdt": record.get("notionalUsdt"),
+            "environment": "okx_demo",
+            "liveTrading": False,
+        },
+    )
+    return record
+
+
+def list_exchange_demo_events(limit: int = 30) -> list[dict[str, Any]]:
+    state = load_state()
+    records = state.get("exchangeDemoEvents") if isinstance(state.get("exchangeDemoEvents"), list) else []
+    safe_limit = max(1, min(int(limit or 30), 300))
     return [row for row in records if isinstance(row, dict)][-safe_limit:][::-1]

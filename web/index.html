@@ -17,11 +17,17 @@
           </div>
         </div>
         <nav class="rail-nav">
-          <a class="rail-item active" href="#simpleConsole" title="首页" aria-label="首页">
-            <span class="nav-key">H</span><span>首页</span>
+          <a class="rail-item active" href="#simpleConsole" title="&#39318;&#39029;" aria-label="&#39318;&#39029;">
+            <span class="nav-key">H</span><span>&#39318;&#39029;</span>
           </a>
-          <a class="rail-item" href="#command" title="策略总控" aria-label="策略总控">
-            <span class="nav-key">S</span><span>策略总控</span>
+          <a class="rail-item" href="#localLab" title="&#26412;&#22320;&#23454;&#39564;&#23460;" aria-label="&#26412;&#22320;&#23454;&#39564;&#23460;">
+            <span class="nav-key">L</span><span>&#26412;&#22320;&#23454;&#39564;&#23460;</span>
+          </a>
+          <a class="rail-item" href="#exchangeDemo" title="OKX Demo" aria-label="OKX Demo">
+            <span class="nav-key">D</span><span>OKX Demo</span>
+          </a>
+          <a class="rail-item advanced-nav-item" href="#command" title="&#31574;&#30053;&#24635;&#25511;" aria-label="&#31574;&#30053;&#24635;&#25511;">
+            <span class="nav-key">S</span><span>&#31574;&#30053;&#24635;&#25511;</span>
           </a>
           <a class="rail-item advanced-nav-item" href="#runtime" title="运行监控" aria-label="运行监控">
             <span class="nav-key">R</span><span>运行监控</span>
@@ -512,7 +518,88 @@
           </div>
         </section>
 
-        <section id="command" class="panel command-panel">
+
+
+        <section id="localLab" class="panel local-lab-panel">
+          <div class="section-header">
+            <div>
+              <p class="panel-eyebrow">LOCAL SIMULATION LAB</p>
+              <h2>&#26412;&#22320;&#23454;&#39564;&#23460;</h2>
+              <p>&#26412;&#22320;&#27801;&#30418;&#21644;&#26412;&#22320;&#27169;&#25311;&#25918;&#22312;&#21516;&#19968;&#39029;&#65306;&#36305;&#31574;&#30053;&#26679;&#26412;&#12289;&#30475;&#34394;&#25311;&#26435;&#30410;&#12289;&#30475;&#38381;&#21512;&#26679;&#26412;&#21644;&#21319;&#32423; OKX Demo &#20505;&#36873;&#12290;&#36825;&#37324;&#19981;&#36830;&#25509;&#20132;&#26131;&#25152;&#65292;&#19981;&#21019;&#24314;&#20132;&#26131;&#25152;&#35746;&#21333;&#12290;</p>
+            </div>
+            <span class="status-pill ok">&#26412;&#22320;&#36816;&#34892;</span>
+          </div>
+          <div class="mode-flow-grid">
+            <div class="mode-flow-card active"><span>1</span><strong>&#26412;&#22320;&#27801;&#30418;</strong><small>&#25345;&#32493;&#29983;&#25104;&#34394;&#25311;&#35266;&#23519;&#26679;&#26412;</small></div>
+            <div class="mode-flow-card active"><span>2</span><strong>&#26412;&#22320;&#27169;&#25311;</strong><small>&#20445;&#23384;&#26412;&#22320;&#31080;&#25454;&#21644;&#38381;&#21512;&#32467;&#26524;</small></div>
+            <div class="mode-flow-card locked"><span>3</span><strong>OKX Demo</strong><small>&#36890;&#36807;&#21518;&#20877;&#36827;&#20837;&#20132;&#26131;&#25152;&#27169;&#25311;</small></div>
+            <div class="mode-flow-card disabled"><span>4</span><strong>&#23454;&#30424;</strong><small>&#24403;&#21069;&#20851;&#38381;&#65292;&#26410;&#26469;&#21333;&#29420;&#35299;&#38145;</small></div>
+          </div>
+          <div class="local-lab-grid">
+            <div class="local-lab-card primary"><span>&#27801;&#30418;&#29366;&#24577;</span><strong id="localLabRunnerState">--</strong><small id="localLabRunnerMeta">--</small></div>
+            <div class="local-lab-card"><span>&#34394;&#25311;&#26435;&#30410;</span><strong id="localLabEquity">--</strong><small id="localLabCapital">--</small></div>
+            <div class="local-lab-card"><span>&#38381;&#21512;&#26679;&#26412;</span><strong id="localLabClosedSamples">--</strong><small id="localLabQuality">--</small></div>
+            <div class="local-lab-card"><span>&#21487;&#22797;&#26680;&#31574;&#30053;</span><strong id="localLabReviewReady">--</strong><small id="localLabTestnetCandidates">--</small></div>
+          </div>
+          <div class="local-lab-actions">
+            <button id="localLabRunSandboxButton" type="button">&#36816;&#34892;&#26412;&#22320;&#27801;&#30418;</button>
+            <button id="localLabDailyReportButton" class="secondary" type="button">&#29983;&#25104;&#27801;&#30418;&#26085;&#25253;</button>
+            <button id="localLabRefreshButton" class="secondary" type="button">&#21047;&#26032;&#26412;&#39029;</button>
+            <span id="localLabActionStatus">&#26412;&#22320;&#23454;&#39564;&#23460;&#21482;&#20889;&#20837;&#26412;&#22320;&#35266;&#23519;&#25968;&#25454;&#12290;</span>
+          </div>
+          <div class="local-lab-columns">
+            <div>
+              <div class="simple-section-title"><strong>&#27491;&#22312;&#35266;&#23519;&#30340;&#31574;&#30053;</strong><span id="localLabStrategyMeta">&#31561;&#24453;&#27801;&#30418;&#25968;&#25454;&#12290;</span></div>
+              <div id="localLabStrategyList" class="sandbox-lane-list"></div>
+            </div>
+            <div>
+              <div class="simple-section-title"><strong>&#26412;&#22320;&#27169;&#25311;&#22797;&#26680;</strong><span id="localLabReviewMeta">&#31561;&#24453;&#38381;&#21512;&#26679;&#26412;&#12290;</span></div>
+              <div id="localLabReviewList" class="sandbox-lane-list"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="exchangeDemo" class="panel exchange-demo-panel">
+          <div class="section-header">
+            <div>
+              <p class="panel-eyebrow">OKX DEMO TRADING</p>
+              <h2>&#20132;&#26131;&#25152; Demo &#27169;&#25311;</h2>
+              <p>&#36825;&#26159; OKX Demo Trading &#30340;&#29420;&#31435;&#39029;&#38754;&#65292;&#25353;&#20132;&#26131;&#25152;&#19979;&#21333;&#21644;&#35266;&#23519;&#20064;&#24815;&#35774;&#35745;&#12290;&#40664;&#35748;&#19981;&#20445;&#23384; API Key&#12289;&#19981;&#36830;&#25509;&#31169;&#26377;&#25509;&#21475;&#12289;&#19981;&#19979;&#21333;&#65307;&#21482;&#26377;&#29615;&#22659;&#21464;&#37327;&#12289;Demo &#24320;&#20851;&#21644;&#20154;&#24037;&#30830;&#35748;&#37117;&#28385;&#36275;&#26102;&#25165;&#20250;&#35831;&#27714; OKX Demo&#12290;</p>
+            </div>
+            <span id="exchangeDemoModeBadge" class="status-pill danger">Demo &#38145;&#23450;</span>
+          </div>
+          <div class="exchange-demo-warning"><strong>&#23433;&#20840;&#36793;&#30028;&#65306;</strong>OKX Demo &#21644;&#26412;&#22320;&#27801;&#30418;&#12289;&#26410;&#26469;&#23454;&#30424;&#23436;&#20840;&#20998;&#24320;&#12290;Demo &#21482;&#20801;&#35768;&#27169;&#25311;&#36134;&#25143;&#65307;&#23454;&#30424;&#12289;&#25552;&#29616;&#12289;&#33258;&#21160;&#20132;&#26131;&#24403;&#21069;&#20840;&#37096;&#20851;&#38381;&#12290;</div>
+          <div class="mode-flow-grid" id="exchangeDemoModeCards"></div>
+          <div class="exchange-demo-layout">
+            <div class="exchange-demo-main">
+              <div class="exchange-ticket-card">
+                <div class="exchange-ticket-head"><div><p class="panel-eyebrow">ORDER TICKET</p><h3>OKX Demo &#27169;&#25311;&#19979;&#21333;&#31080;&#25454;</h3></div><span id="exchangeDemoOrderGate" class="badge warn">&#35746;&#21333;&#20851;&#38381;</span></div>
+                <div class="exchange-ticket-grid">
+                  <label>&#21512;&#32422; <input id="exchangeDemoInstIdInput" value="BTC-USDT-SWAP" autocomplete="off" /></label>
+                  <label>&#26041;&#21521; <select id="exchangeDemoSideInput"><option value="buy">&#20080;&#20837; / &#24320;&#22810;&#26041;&#21521;</option><option value="sell">&#21334;&#20986; / &#24320;&#31354;&#26041;&#21521;</option></select></label>
+                  <label>&#20445;&#35777;&#37329;&#27169;&#24335; <select id="exchangeDemoTdModeInput"><option value="isolated">&#36880;&#20179; isolated</option><option value="cross">&#20840;&#20179; cross</option></select></label>
+                  <label>&#35746;&#21333;&#31867;&#22411; <select id="exchangeDemoOrdTypeInput"><option value="market">&#24066;&#20215; market</option><option value="limit">&#38480;&#20215; limit</option></select></label>
+                  <label>&#25968;&#37327; sz <input id="exchangeDemoSizeInput" placeholder="&#24517;&#39035;&#25163;&#21160;&#36755;&#20837; OKX sz" autocomplete="off" /></label>
+                  <label>&#38480;&#20215; px <input id="exchangeDemoPriceInput" placeholder="&#38480;&#20215;&#21333;&#22635;&#20889;" autocomplete="off" /></label>
+                  <label>&#21517;&#20041;&#37329;&#39069;&#19978;&#38480; USDT <input id="exchangeDemoNotionalInput" type="number" min="1" max="1000" step="1" value="1000" /></label>
+                  <label>ordId <input id="exchangeDemoOrdIdInput" placeholder="Demo &#25764;&#21333;&#28436;&#32451;&#21487;&#22635;" autocomplete="off" /></label>
+                  <label>&#20154;&#24037;&#30830;&#35748; <input id="exchangeDemoConfirmInput" placeholder="&#36755;&#20837; OKX_DEMO_ORDER_APPROVED" autocomplete="off" /></label>
+                </div>
+                <div class="exchange-ticket-actions"><button id="exchangeDemoReadOnlyButton" type="button">&#21482;&#35835;&#26816;&#26597;</button><button id="exchangeDemoSubmitButton" type="button">&#25552;&#20132; Demo &#35746;&#21333;</button><button id="exchangeDemoEmergencyButton" class="danger-action" type="button">&#32039;&#24613;&#20572;&#27490;&#28436;&#32451;</button></div>
+                <div id="exchangeDemoActionStatus" class="exchange-demo-status">&#31561;&#24453;&#37197;&#32622; OKX Demo &#29615;&#22659;&#21464;&#37327;&#12290;</div>
+              </div>
+              <div class="exchange-demo-section"><div class="simple-section-title"><strong>&#26368;&#36817; Demo &#20107;&#20214;</strong><span id="exchangeDemoRecentMeta">&#31561;&#24453;&#20107;&#20214;&#12290;</span></div><div id="exchangeDemoRecentEvents" class="testnet-drill-list"></div></div>
+            </div>
+            <aside class="exchange-demo-side">
+              <div class="exchange-demo-side-card"><span>&#36830;&#25509;&#29366;&#24577;</span><strong id="exchangeDemoConnectionState">--</strong><small id="exchangeDemoConnectionMeta">--</small></div>
+              <div class="exchange-demo-side-card"><span>&#20973;&#25454;&#29366;&#24577;</span><strong id="exchangeDemoCredentialState">--</strong><small>&#21482;&#35835;&#21462;&#29615;&#22659;&#21464;&#37327;&#65292;&#19981;&#20889;&#20837;&#32593;&#39029;&#25110; SQLite&#12290;</small></div>
+              <div class="exchange-demo-side-card"><span>&#21482;&#35835;&#26816;&#26597;</span><strong id="exchangeDemoReadOnlyState">--</strong><small id="exchangeDemoReadOnlyMeta">--</small></div>
+              <div class="exchange-demo-side-card"><span>&#38459;&#22622;&#39033;</span><div id="exchangeDemoBlockers" class="exchange-demo-blockers"></div></div>
+            </aside>
+          </div>
+        </section>
+
+        <section id="command" class="panel command-panel advanced-section">
           <div class="section-header">
             <div>
               <p class="panel-eyebrow">COCKPIT SUMMARY</p>

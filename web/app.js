@@ -174,6 +174,8 @@ const healthLabels = {
 
 const sectionLabels = {
   simpleConsole: "首页",
+  localLab: "本地实验室",
+  exchangeDemo: "OKX Demo",
   overview: "驾驶舱",
   command: "策略总控",
   runtime: "运行监控",
@@ -210,6 +212,7 @@ let latestTestnetDrillPayload = {};
 let latestTestnetAuditPayload = {};
 let latestTestnetPermissionPayload = {};
 let latestTestnetSmallOrderPayload = {};
+let latestExchangeDemoPayload = {};
 const artifactFilters = {
   search: "",
   tier: "all",
@@ -1445,6 +1448,212 @@ function renderSimpleConsole(strategies, reports, mobile, usableStrategyCatalog,
   latestSimpleConsolePayload = { strategies, reports, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview, qualityCenter, concentrationReview, resultReview, strategyAssetPlaybook };
 }
 
+function renderLocalLabPage(usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, qualityCenter = {}, resultReview = {}) {
+  if (!el("localLab")) return;
+  const runnerState = getSimpleRunnerState(sandboxAutoRunner);
+  const report = sandboxDailyReport?.latestReport || {};
+  const dailySummary = report.summary || {};
+  const qualityRows = Array.isArray(report.strategyHealthRows) ? report.strategyHealthRows : [];
+  const observationTasks = buildUsableCatalogObservationTasks(usableStrategyCatalog);
+  const sandboxRows = buildSandboxSimulationRows(observationTasks, qualityRows);
+  const totalCapital = sandboxRows.reduce((sum, row) => sum + Number(row.capital || 0), 0);
+  const totalEquity = sandboxRows.reduce((sum, row) => sum + Number(row.equity || 0), 0);
+  const totalClosedSamples = sandboxRows.reduce((sum, row) => sum + Number(row.closedPaperSampleCount || 0), 0);
+  const qualitySummary = qualityCenter?.summary || {};
+  const reviewRows = Array.isArray(qualityCenter?.strategies) ? qualityCenter.strategies : [];
+  const resultSummary = resultReview?.summary || {};
+
+  setText("localLabRunnerState", runnerState.enabled ? "运行中" : "未开启");
+  setText("localLabRunnerMeta", `每 ${runnerState.intervalMinutes} 分钟 · 今日 ${runnerState.todayRunCount}/${runnerState.maxRunsPerDay} · 最近 ${formatDate(runnerState.lastRunAt)}`);
+  setText("localLabEquity", sandboxRows.length ? formatUsd(totalEquity) : "--");
+  setText("localLabCapital", sandboxRows.length ? `虚拟本金 ${formatUsd(totalCapital)} · 浮动 ${formatUsd(totalEquity - totalCapital, 2)}` : "等待本地沙盒样本");
+  setText("localLabClosedSamples", String(totalClosedSamples));
+  setText("localLabQuality", `今日闭合 ${dailySummary.dailyClosedSampleCount ?? 0} · 平均健康 ${formatNumber(dailySummary.averageHealthScore ?? qualitySummary.averageHealthScore, 0)}`);
+  setText("localLabReviewReady", String(qualitySummary.testnetPrepCandidateCount ?? resultSummary.reviewReadyStrategyCount ?? 0));
+  setText("localLabTestnetCandidates", `Demo 候选 ${qualitySummary.testnetReadinessCandidateCount ?? qualitySummary.testnetPrepCandidateCount ?? 0}`);
+  setText("localLabStrategyMeta", `${sandboxRows.length} 条策略在本地观察 · 总闭合 ${totalClosedSamples} 个样本`);
+  setText("localLabReviewMeta", `复核候选 ${qualitySummary.testnetPrepCandidateCount ?? 0} · 风险复盘 ${qualitySummary.riskReviewCount ?? 0}`);
+  setText("localLabActionStatus", runnerState.enabled
+    ? `已开启持续观察：每 ${runnerState.intervalMinutes} 分钟检查一次。`
+    : "点击运行后，本地沙盒会持续生成本地观察样本。");
+  updateLocalSandboxRunButton(runnerState.enabled, runnerState.status);
+
+  const strategyTarget = el("localLabStrategyList");
+  if (strategyTarget) {
+    strategyTarget.innerHTML = sandboxRows.slice(0, 8).map((row) => {
+      const metrics = row.historicalMetrics || {};
+      return `
+        <div class="sandbox-lane-row">
+          <div class="sandbox-lane-row-head">
+            <div>
+              <strong>${escapeHtml(row.title)}</strong>
+              <small>${escapeHtml(row.taskId || "--")} · ${escapeHtml(row.timeframe || "--")} · ${escapeHtml(row.pair || "等待信号")}</small>
+            </div>
+            <span class="badge ${row.tone}">${escapeHtml(row.statusLabel)}</span>
+          </div>
+          <div class="artifact-metrics">
+            <span>权益 ${formatUsd(row.equity)}</span>
+            <span>浮动 ${formatUsd(row.pnl, 2)}</span>
+            <span>累计 ${formatNumber(row.realizedR, 2)}R</span>
+            <span>闭合 ${row.closedPaperSampleCount}</span>
+            <span>规则 ${row.ruleMatchedCount}</span>
+          </div>
+          <div class="artifact-metrics">
+            <span>历史样本 ${metrics.tradeCount ?? "--"}</span>
+            <span>历史胜率 ${formatPercent(metrics.winRatePct)}</span>
+            <span>历史 PF ${formatNumber(metrics.profitFactor)}</span>
+          </div>
+          <div class="sandbox-lane-next">${escapeHtml(row.nextAction)}</div>
+        </div>
+      `;
+    }).join("") || '<div class="sandbox-lane-empty">暂无本地实验室策略。请先导入策略报告或运行本地沙盒。</div>';
+  }
+
+  const reviewTarget = el("localLabReviewList");
+  if (reviewTarget) {
+    reviewTarget.innerHTML = reviewRows.slice(0, 8).map((row) => {
+      const tone = qualityTone(row.status);
+      return `
+        <div class="sandbox-lane-row">
+          <div class="sandbox-lane-row-head">
+            <div>
+              <strong>${escapeHtml(row.title || row.taskId || "--")}</strong>
+              <small>${escapeHtml(row.taskId || "--")} · ${escapeHtml(row.timeframe || "--")} · 最近 ${formatDate(row.latestLogAt)}</small>
+            </div>
+            <span class="badge ${tone}">${escapeHtml(observationQualityLabels[row.status] || row.status || "复核中")}</span>
+          </div>
+          <div class="artifact-metrics">
+            <span>闭合 ${row.closedPaperSampleCount ?? 0}</span>
+            <span>规则 ${row.ruleMatchedCount ?? 0}</span>
+            <span>风险 ${row.riskWarningCount ?? 0}</span>
+            <span>健康 ${formatNumber(row.healthScore, 0)}</span>
+          </div>
+          <div class="sandbox-lane-next">${escapeHtml(row.nextAction || "继续补充本地闭合样本和失败样本。")}</div>
+        </div>
+      `;
+    }).join("") || '<div class="sandbox-lane-empty">暂无达到复核门槛的策略。本地沙盒继续跑即可。</div>';
+  }
+}
+
+function translateExchangeDemoBlocker(value) {
+  const labels = {
+    okx_demo_private_gate_disabled: "OKX Demo 私有接口开关未开启",
+    okx_demo_private_connection_disabled: "OKX Demo 私有连接开关未开启",
+    okx_demo_order_gate_disabled: "OKX Demo 下单开关未开启",
+    okx_demo_cancel_gate_disabled: "OKX Demo 撤单演练开关未开启",
+    okx_demo_credentials_missing: "OKX Demo 环境变量凭据不完整",
+    manual_confirm_required: "缺少人工订单确认口令",
+    manual_emergency_confirm_required: "缺少紧急演练确认口令",
+    explicit_size_required_for_okx_demo_order: "必须手动填写 OKX sz 数量",
+    limit_price_required: "限价单必须填写 px",
+    ord_id_required_for_real_demo_cancel: "真实 Demo 撤单必须填写 ordId",
+    notional_out_of_demo_cap: "名义金额超过 Demo 上限",
+    invalid_demo_base_url: "Demo Base URL 不在允许列表",
+  };
+  return labels[value] || value || "--";
+}
+
+function translateExchangeDemoStatus(value) {
+  const labels = {
+    available: "可用",
+    locked: "锁定",
+    readonly_ready: "只读就绪",
+    disabled: "关闭",
+    blocked: "已阻塞",
+    passed: "通过",
+    failed: "失败",
+    submitted: "已提交",
+    local_drill_saved: "本地演练已保存",
+  };
+  return labels[value] || value || "--";
+}
+
+function renderExchangeDemoSimulation(payload = {}) {
+  if (!el("exchangeDemo")) return;
+  latestExchangeDemoPayload = payload || {};
+  const summary = payload.summary || {};
+  const credentialStatus = payload.credentialStatus || {};
+  const privateBlockers = Array.isArray(payload.privateBlockers) ? payload.privateBlockers : [];
+  const orderBlockers = Array.isArray(payload.orderBlockers) ? payload.orderBlockers : [];
+  const recentEvents = Array.isArray(payload.recentEvents) ? payload.recentEvents : [];
+  const defaultTicket = payload.defaultTicket || {};
+
+  const modeBadge = el("exchangeDemoModeBadge");
+  if (modeBadge) {
+    const demoEnabled = Boolean(summary.demoPrivateEnabled);
+    modeBadge.className = `status-pill ${demoEnabled ? "warn" : "danger"}`;
+    modeBadge.textContent = demoEnabled ? "Demo 已启用" : "Demo 锁定";
+  }
+  const orderGate = el("exchangeDemoOrderGate");
+  if (orderGate) {
+    const canSubmit = Boolean(summary.canSubmitDemoOrder);
+    orderGate.className = `badge ${canSubmit ? "ok" : "warn"}`;
+    orderGate.textContent = canSubmit ? "订单门槛满足" : "订单关闭";
+  }
+
+  setText("exchangeDemoConnectionState", summary.demoPrivateEnabled ? "Demo 开关已开" : "默认锁定");
+  setText("exchangeDemoConnectionMeta", `${summary.exchange || "OKX Demo Trading"} · ${summary.baseUrl || "--"}`);
+  setText("exchangeDemoCredentialState", credentialStatus.allConfigured ? "环境变量已配置" : "凭据未完整");
+  setText("exchangeDemoReadOnlyState", summary.canRunReadOnlyCheck ? "可检查" : "阻塞");
+  setText("exchangeDemoReadOnlyMeta", summary.nextAction || "先配置 OKX Demo 环境变量。");
+  setText("exchangeDemoRecentMeta", `${recentEvents.length} 条事件 · 最近 ${formatDate(recentEvents[0]?.createdAt)}`);
+
+  const blockerTarget = el("exchangeDemoBlockers");
+  if (blockerTarget) {
+    const blockers = Array.from(new Set([...privateBlockers, ...orderBlockers]));
+    blockerTarget.innerHTML = blockers.map((item) => `<span>${escapeHtml(translateExchangeDemoBlocker(item))}</span>`).join("")
+      || '<span class="ok">当前无 Demo 阻塞项；仍需人工确认才能提交订单。</span>';
+  }
+
+  const modeTarget = el("exchangeDemoModeCards");
+  if (modeTarget) {
+    modeTarget.innerHTML = (payload.modeCards || []).map((card, index) => `
+      <div class="mode-flow-card ${card.status === "available" || card.status === "readonly_ready" ? "active" : card.status === "locked" ? "locked" : "disabled"}">
+        <span>${index + 1}</span>
+        <strong>${escapeHtml(card.label)}</strong>
+        <small>${escapeHtml(translateExchangeDemoStatus(card.status))} · ${escapeHtml(card.description)}</small>
+      </div>
+    `).join("");
+  }
+
+  const instInput = el("exchangeDemoInstIdInput");
+  const sideInput = el("exchangeDemoSideInput");
+  const tdInput = el("exchangeDemoTdModeInput");
+  const ordInput = el("exchangeDemoOrdTypeInput");
+  const sizeInput = el("exchangeDemoSizeInput");
+  const notionalInput = el("exchangeDemoNotionalInput");
+  if (instInput && !instInput.value) instInput.value = defaultTicket.instId || "BTC-USDT-SWAP";
+  if (sideInput && defaultTicket.side) sideInput.value = defaultTicket.side;
+  if (tdInput && defaultTicket.tdMode) tdInput.value = defaultTicket.tdMode;
+  if (ordInput && defaultTicket.ordType) ordInput.value = defaultTicket.ordType;
+  if (sizeInput && !sizeInput.placeholder) sizeInput.placeholder = "必须手动填写 OKX sz";
+  if (notionalInput && !notionalInput.value) notionalInput.value = String(defaultTicket.notionalUsdt || summary.maxNotionalUsdt || 1000);
+
+  const eventsTarget = el("exchangeDemoRecentEvents");
+  if (eventsTarget) {
+    eventsTarget.innerHTML = recentEvents.map((event) => {
+      const blockers = Array.isArray(event.blockers) ? event.blockers : [];
+      return `
+        <div class="testnet-drill-row">
+          <div class="testnet-drill-row-head">
+            <div>
+              <strong>${escapeHtml(event.eventType || "--")}</strong>
+              <small>${escapeHtml(event.instId || "OKX Demo")} · ${formatDate(event.createdAt)}</small>
+            </div>
+            <span class="badge ${event.status === "passed" || event.status === "submitted" || event.status === "local_drill_saved" ? "ok" : event.status === "blocked" ? "warn" : "danger"}">${escapeHtml(translateExchangeDemoStatus(event.status))}</span>
+          </div>
+          <div class="artifact-metrics">
+            <span>方向 ${escapeHtml(event.side || "--")}</span>
+            <span>金额 ${formatNumber(event.notionalUsdt, 2)} USDT</span>
+            <span>订单 ${escapeHtml(event.clientOrderId || event.ordId || "--")}</span>
+          </div>
+          ${blockers.length ? `<div class="sandbox-lane-next">${blockers.map((item) => escapeHtml(translateExchangeDemoBlocker(item))).join(" · ")}</div>` : ""}
+        </div>
+      `;
+    }).join("") || '<div class="testnet-design-empty">暂无 OKX Demo 事件。先做只读检查或本地紧急停止演练。</div>';
+  }
+}
+
 function renderSandboxSimulationLane(observationTasks, qualityRows) {
   if (!el("learningSandboxLaneList")) return;
   const rows = buildSandboxSimulationRows(observationTasks, qualityRows);
@@ -1500,14 +1709,16 @@ function renderSandboxSimulationLane(observationTasks, qualityRows) {
 }
 
 function updateLocalSandboxRunButton(enabled, runnerStatus = "") {
-  const button = el("runLocalSandboxButton");
-  if (!button) return;
-  button.classList.toggle("is-running", Boolean(enabled));
-  button.dataset.running = enabled ? "true" : "false";
-  button.textContent = enabled ? "沙盒运行中 · 点击停止" : "运行本地沙盒";
-  button.title = enabled
-    ? `本地沙盒正在持续观察，当前状态：${runnerStatus || "waiting"}。点击后停止自动观察。`
-    : "点击后开启本地沙盒持续观察，并立即运行一轮。";
+  ["runLocalSandboxButton", "localLabRunSandboxButton"].forEach((buttonId) => {
+    const button = el(buttonId);
+    if (!button) return;
+    button.classList.toggle("is-running", Boolean(enabled));
+    button.dataset.running = enabled ? "true" : "false";
+    button.textContent = enabled ? "沙盒运行中 · 点击停止" : "运行本地沙盒";
+    button.title = enabled
+      ? `本地沙盒正在持续观察，当前状态：${runnerStatus || "waiting"}。点击后停止自动观察。`
+      : "点击后开启本地沙盒持续观察，并立即运行一轮。";
+  });
 }
 
 async function runLocalSandboxNow() {
@@ -1675,7 +1886,7 @@ function renderSandboxAutoRunner(payload) {
 
 function liveReadinessBadge(row) {
   const tone = row?.tone || "warn";
-  return `<span class="badge ${tone}">${escapeHtml(row?.statusLabel || "--")} ? ${formatNumber(row?.readinessScore, 0)}?</span>`;
+  return `<span class="badge ${tone}">${escapeHtml(row?.statusLabel || "--")} · ${formatNumber(row?.readinessScore, 0)}分</span>`;
 }
 
 function renderLiveReadiness(payload) {
@@ -1690,9 +1901,9 @@ function renderLiveReadiness(payload) {
   el("liveBlockedCount").textContent = String(summary.blockedForReviewCount ?? 0);
   el("liveTicketCount").textContent = String(summary.ticketCount ?? tickets.length ?? 0);
   el("liveReviewDate").textContent = payload?.reviewDateLabel || "--";
-  el("liveReadinessStatus").textContent = summary.manualTicketReadyCount > 0 ? "??????" : "????";
+  el("liveReadinessStatus").textContent = summary.manualTicketReadyCount > 0 ? "可人工复核" : "继续观察";
   el("liveReadinessStatus").className = `status-pill ${summary.manualTicketReadyCount > 0 ? "warn" : "danger"}`;
-  el("liveReadinessNextAction").textContent = summary.nextAction || "?? 7?10? ????????????";
+  el("liveReadinessNextAction").textContent = summary.nextAction || "等待前向观察和本地样本闭合；未通过前不进入实盘。";
 
   el("liveReadinessList").innerHTML = rows.map((row) => {
     const metrics = row.metrics || {};
@@ -1700,68 +1911,68 @@ function renderLiveReadiness(payload) {
     const blockers = Array.isArray(row.blockers) ? row.blockers : [];
     const passed = Array.isArray(row.passedChecks) ? row.passedChecks : [];
     const buttonDisabled = row.manualTicketAllowed ? "" : "disabled";
-    const buttonLabel = row.manualTicketAllowed ? "??????" : "????";
+    const buttonLabel = row.manualTicketAllowed ? "生成复核票据" : "未达门槛";
     return `
       <div class="live-readiness-row">
         <div class="live-readiness-row-head">
           <div>
             <strong>${escapeHtml(row.title || row.taskId || "--")}</strong>
-            <small>${escapeHtml(row.taskId || "--")} ? ${escapeHtml(row.timeframe || "--")} ? ?? ${formatDate(quality.latestLogAt)}</small>
+            <small>${escapeHtml(row.taskId || "--")} · ${escapeHtml(row.timeframe || "--")} · 最近 ${formatDate(quality.latestLogAt)}</small>
           </div>
           ${liveReadinessBadge(row)}
         </div>
         <div class="artifact-metrics">
-          <span>?? ${metrics.tradeCount ?? metrics.filledSignalCount ?? "--"}/${thresholds.minHistoricalTrades ?? "--"}</span>
-          <span>?? ${formatPercent(metrics.winRatePct)}</span>
+          <span>样本 ${metrics.tradeCount ?? metrics.filledSignalCount ?? "--"}/${thresholds.minHistoricalTrades ?? "--"}</span>
+          <span>胜率 ${formatPercent(metrics.winRatePct)}</span>
           <span>PF ${formatNumber(metrics.profitFactor)}</span>
-          <span>??? ${formatNumber(metrics.rewardRiskRatio || metrics.targetRewardRiskRatio)}</span>
-          <span>?? ${formatPercent(metrics.maxDrawdownPct)}</span>
-          <span>?? ${formatNumber(quality.qualityScore, 0)}</span>
-          <span>?? ${quality.logCount ?? 0}</span>
-          <span>?? ${quality.ruleMatchedCount ?? 0}</span>
-          <span>?? ${quality.closedPaperSampleCount ?? 0}</span>
+          <span>盈亏比 ${formatNumber(metrics.rewardRiskRatio || metrics.targetRewardRiskRatio)}</span>
+          <span>回撤 ${formatPercent(metrics.maxDrawdownPct)}</span>
+          <span>质量 ${formatNumber(quality.qualityScore, 0)}</span>
+          <span>日志 ${quality.logCount ?? 0}</span>
+          <span>规则 ${quality.ruleMatchedCount ?? 0}</span>
+          <span>闭合 ${quality.closedPaperSampleCount ?? 0}</span>
         </div>
         <div class="live-readiness-blockers">
-          ${(blockers.length ? blockers : ["??????????????????"])
+          ${(blockers.length ? blockers : ["暂无阻塞项，但仍需人工复核"])
             .slice(0, 8)
             .map((item) => `<small>${escapeHtml(item)}</small>`)
             .join("")}
         </div>
         <details class="live-readiness-checks">
-          <summary>?????????????</summary>
+          <summary>门槛检查详情</summary>
           <div>
-            <strong>???</strong>
-            ${(passed.length ? passed : ["?????"])
+            <strong>已通过</strong>
+            ${(passed.length ? passed : ["暂无通过项"])
               .map((item) => `<small>${escapeHtml(item)}</small>`)
               .join("")}
           </div>
           <div>
-            <strong>?????</strong>
+            <strong>硬阻塞</strong>
             ${(row.hardExecutionBlockers || [])
               .map((item) => `<small>${escapeHtml(item)}</small>`)
               .join("")}
           </div>
         </details>
         <div class="live-readiness-ticket-line">
-          <span>${escapeHtml(row.nextAction || "???????")}</span>
+          <span>${escapeHtml(row.nextAction || "继续观察，不自动进入实盘。")}</span>
           <button type="button" data-live-ticket="${escapeHtml(row.taskId || "")}" ${buttonDisabled}>${buttonLabel}</button>
         </div>
       </div>
     `;
-  }).join("") || '<div class="live-readiness-empty">????????????? Quant Engine ??????????</div>';
+  }).join("") || '<div class="live-readiness-empty">暂无可复核策略；请先导入 Quant Engine 报告并运行本地沙盒。</div>';
 
   el("liveTicketList").innerHTML = tickets.slice(0, 10).map((ticket) => `
     <div class="live-ticket-row">
       <strong>${escapeHtml(ticket.title || ticket.taskId || "--")}</strong>
-      <small>${formatDate(ticket.createdAt)} ? ${escapeHtml(ticket.status || "draft_manual_review")}</small>
+      <small>${formatDate(ticket.createdAt)} · ${escapeHtml(ticket.status || "draft_manual_review")}</small>
       <div class="artifact-metrics">
-        <span>?? ${formatNumber(ticket.readinessScore, 0)}</span>
-        <span>?? ${escapeHtml(ticket.timeframe || "--")}</span>
-        <span>?? ${escapeHtml(ticket.selectedPair || "?????")}</span>
+        <span>分数 ${formatNumber(ticket.readinessScore, 0)}</span>
+        <span>周期 ${escapeHtml(ticket.timeframe || "--")}</span>
+        <span>币种 ${escapeHtml(ticket.selectedPair || "待选择")}</span>
       </div>
-      <div>?????????????????????????????????</div>
+      <div>这只是人工复核票据，不会自动连接交易所或创建订单。</div>
     </div>
-  `).join("") || '<div class="live-readiness-empty">?????????????????</div>';
+  `).join("") || '<div class="live-readiness-empty">暂无人工复核票据。</div>';
 
   el("liveReadinessList").querySelectorAll("[data-live-ticket]").forEach((button) => {
     button.addEventListener("click", async () => {
@@ -1770,11 +1981,11 @@ function renderLiveReadiness(payload) {
       try {
         await postJson("/api/manual-execution-ticket", {
           taskId,
-          note: "?????????????????????????",
+          note: "人工复核票据，仅用于记录，不自动下单。",
         });
         await refreshAll();
       } catch (error) {
-        el("liveReadinessNextAction").textContent = `??????${error.message}??????????`;
+        el("liveReadinessNextAction").textContent = `票据保存失败：${error.message}。请稍后重试。`;
       } finally {
         button.disabled = false;
       }
@@ -4175,6 +4386,7 @@ async function refreshAll() {
     { key: "sandboxConcentrationReview", url: "/api/local-sandbox/concentration-review", fallback: { summary: {}, strategies: [], variantGroups: [] }, timeoutMs: 12000 },
     { key: "sandboxResultReview", url: "/api/local-sandbox/result-review", fallback: { summary: {}, strategies: [], familyReviews: [] }, timeoutMs: 12000 },
     { key: "strategyAssetPlaybook", url: "/api/strategy-asset-playbook", fallback: { summary: {}, strategies: [], executionReadiness: {} }, timeoutMs: 30000 },
+    { key: "exchangeDemo", url: "/api/exchange-demo/simulation", fallback: { summary: {}, modeCards: [], recentEvents: [], credentialStatus: {} }, timeoutMs: 12000 },
     { key: "liveReadiness", url: "/api/live-readiness", fallback: { rows: [], summary: {} } },
     { key: "forwardReview", url: "/api/forward-review", fallback: { rows: [], summary: {} } },
   ], 4);
@@ -4194,6 +4406,7 @@ async function refreshAll() {
   const sandboxConcentrationReview = core.sandboxConcentrationReview || { summary: {}, strategies: [], variantGroups: [] };
   const sandboxResultReview = core.sandboxResultReview || { summary: {}, strategies: [], familyReviews: [] };
   const strategyAssetPlaybook = core.strategyAssetPlaybook || { summary: {}, strategies: [], executionReadiness: {} };
+  const exchangeDemo = core.exchangeDemo || { summary: {}, modeCards: [], recentEvents: [], credentialStatus: {} };
   const liveReadiness = core.liveReadiness || { rows: [], summary: {} };
   const forwardReview = core.forwardReview || { rows: [], summary: {} };
   const emptySimulationBridge = { summary: {}, observationTasks: [] };
@@ -4203,6 +4416,8 @@ async function refreshAll() {
   const reportItems = reports.reports || [];
   latestStrategyLearningLoopPayload = emptyStrategyLearningLoop;
   renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, emptySimulationBridge, emptySimulationReview, sandboxQualityCenter, sandboxConcentrationReview, sandboxResultReview, strategyAssetPlaybook);
+  renderLocalLabPage(usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, sandboxQualityCenter, sandboxResultReview);
+  renderExchangeDemoSimulation(exchangeDemo);
   renderCommandCenter(strategyItems, reportItems, mobile);
   renderRuntimeMonitor(strategyItems, mobile);
   renderStrategies(strategyItems);
@@ -4262,6 +4477,8 @@ async function refreshAll() {
   const strategyLearningLoop = advanced.strategyLearningLoop || emptyStrategyLearningLoop;
   latestStrategyLearningLoopPayload = strategyLearningLoop;
   renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview, sandboxQualityCenter, sandboxConcentrationReview, sandboxResultReview, strategyAssetPlaybook);
+  renderLocalLabPage(usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, sandboxQualityCenter, sandboxResultReview);
+  renderExchangeDemoSimulation(latestExchangeDemoPayload);
   renderCandidateQueue(advanced.candidateQueue || { strategies: [], summary: {} });
   renderShortCycleCandidatePool(advanced.shortCycleCandidates || { candidates: [], summary: {} });
   renderSimulationReview(simulationReview);
@@ -4338,6 +4555,100 @@ async function runLocalSandboxFromSimple() {
   }
 }
 
+async function runLocalLabSandboxFromPanel() {
+  const button = el("localLabRunSandboxButton");
+  if (button) button.disabled = true;
+  setText("localLabActionStatus", "正在切换本地沙盒持续观察状态...");
+  try {
+    await runLocalSandboxNow();
+    setText("localLabActionStatus", "本地沙盒状态已更新。页面会继续显示虚拟观察数据，不连接交易所。");
+  } catch (error) {
+    setText("localLabActionStatus", `本地沙盒操作失败：${error.message}`);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+async function buildLocalLabDailyReport() {
+  const button = el("localLabDailyReportButton");
+  if (button) button.disabled = true;
+  setText("localLabActionStatus", "正在生成本地沙盒日报...");
+  try {
+    await postJson("/api/local-sandbox/build-daily-report", {});
+    await refreshAll();
+    setText("localLabActionStatus", "已生成本地沙盒日报。");
+  } catch (error) {
+    setText("localLabActionStatus", `沙盒日报生成失败：${error.message}`);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+function getExchangeDemoTicketPayload() {
+  return {
+    instId: el("exchangeDemoInstIdInput")?.value || "BTC-USDT-SWAP",
+    side: el("exchangeDemoSideInput")?.value || "buy",
+    tdMode: el("exchangeDemoTdModeInput")?.value || "isolated",
+    ordType: el("exchangeDemoOrdTypeInput")?.value || "market",
+    size: el("exchangeDemoSizeInput")?.value || "",
+    px: el("exchangeDemoPriceInput")?.value || "",
+    notionalUsdt: Number(el("exchangeDemoNotionalInput")?.value || 1000),
+    ordId: el("exchangeDemoOrdIdInput")?.value || "",
+    manualConfirm: el("exchangeDemoConfirmInput")?.value || "",
+  };
+}
+
+async function runExchangeDemoReadOnlyCheck() {
+  const button = el("exchangeDemoReadOnlyButton");
+  if (button) button.disabled = true;
+  setText("exchangeDemoActionStatus", "正在执行 OKX Demo 只读检查；默认不下单、不撤单。");
+  try {
+    const response = await postJson("/api/exchange-demo/read-only-check", {});
+    renderExchangeDemoSimulation(response.exchangeDemoSimulation || {});
+    setText("exchangeDemoActionStatus", response.ok
+      ? "OKX Demo 只读检查通过。订单能力仍需单独开关和人工确认。"
+      : `只读检查被阻塞或失败：${(response.event?.blockers || response.rejectionReasons || []).map(translateExchangeDemoBlocker).join(" · ") || "请查看最近事件"}`);
+  } catch (error) {
+    setText("exchangeDemoActionStatus", `只读检查失败：${error.message}`);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+async function submitExchangeDemoOrder() {
+  const button = el("exchangeDemoSubmitButton");
+  if (button) button.disabled = true;
+  setText("exchangeDemoActionStatus", "正在提交 OKX Demo 订单请求；只有 Demo 开关、订单开关和人工确认都满足时才会发出。");
+  try {
+    const response = await postJson("/api/exchange-demo/order", getExchangeDemoTicketPayload());
+    renderExchangeDemoSimulation(response.exchangeDemoSimulation || {});
+    setText("exchangeDemoActionStatus", response.ok
+      ? "OKX Demo 订单已提交到模拟环境。请在最近事件里复核返回结果。"
+      : `Demo 订单未提交：${(response.rejectionReasons || response.event?.blockers || []).map(translateExchangeDemoBlocker).join(" · ") || "请查看最近事件"}`);
+  } catch (error) {
+    setText("exchangeDemoActionStatus", `Demo 订单请求失败：${error.message}`);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+async function runExchangeDemoEmergencyStop() {
+  const button = el("exchangeDemoEmergencyButton");
+  if (button) button.disabled = true;
+  setText("exchangeDemoActionStatus", "正在保存紧急停止演练；没有 ordId 或确认口令时只保存本地演练记录。");
+  try {
+    const response = await postJson("/api/exchange-demo/emergency-stop", getExchangeDemoTicketPayload());
+    renderExchangeDemoSimulation(response.exchangeDemoSimulation || {});
+    setText("exchangeDemoActionStatus", response.exchangeCancelSent
+      ? "已向 OKX Demo 发出撤单请求。请复核最近事件。"
+      : "已保存本地紧急停止演练，没有向交易所发送撤单请求。");
+  } catch (error) {
+    setText("exchangeDemoActionStatus", `紧急停止演练失败：${error.message}`);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
 function setAdvancedMode(enabled) {
   document.body.classList.toggle("show-advanced", Boolean(enabled));
   const button = el("toggleAdvancedModeButton");
@@ -4369,6 +4680,12 @@ el("weaknessActionPriorityFilter")?.addEventListener("change", (event) => {
 el("importButton").addEventListener("click", () => importReportsNow("importButton"));
 el("simpleImportButton")?.addEventListener("click", () => importReportsNow("simpleImportButton"));
 el("simpleRunSandboxButton")?.addEventListener("click", runLocalSandboxFromSimple);
+el("localLabRunSandboxButton")?.addEventListener("click", runLocalLabSandboxFromPanel);
+el("localLabDailyReportButton")?.addEventListener("click", buildLocalLabDailyReport);
+el("localLabRefreshButton")?.addEventListener("click", refreshAll);
+el("exchangeDemoReadOnlyButton")?.addEventListener("click", runExchangeDemoReadOnlyCheck);
+el("exchangeDemoSubmitButton")?.addEventListener("click", submitExchangeDemoOrder);
+el("exchangeDemoEmergencyButton")?.addEventListener("click", runExchangeDemoEmergencyStop);
 el("toggleAdvancedModeButton")?.addEventListener("click", toggleAdvancedMode);
 el("runResearchPipelineButton")?.addEventListener("click", runResearchPipeline);
 

@@ -1357,3 +1357,56 @@ Safety boundary:
 - It does not accept, store, or log raw API keys.
 - It does not enable Trade API, Withdraw API, real account reads, real position
   reads, exchange orders, exchange Dry-run, live trading, or automatic trading.
+
+## V13.9.5 Mode-separated Console and OKX Demo Simulation
+
+V13.9.5 reorganizes the control console around the real operating path:
+
+1. Local Sandbox and Local Simulation
+2. OKX Demo Trading simulation
+3. Future live trading, still locked
+
+What changed:
+
+- Adds a first-level Local Lab page that combines local sandbox, local
+  simulation equity, closed samples, and strategy review status.
+- Adds a separate OKX Demo page designed like an exchange order and observation
+  panel.
+- Adds `GET /api/exchange-demo/simulation`.
+- Adds `POST /api/exchange-demo/read-only-check`.
+- Adds `POST /api/exchange-demo/order`.
+- Adds `POST /api/exchange-demo/emergency-stop`.
+- Hides older detailed observation/testnet panels behind Advanced Research mode
+  so the main console is easier to operate.
+
+OKX Demo credentials are environment-variable only:
+
+```powershell
+$env:ALPHAPILOT_OKX_DEMO_ENABLED="1"
+$env:ALPHAPILOT_OKX_DEMO_API_KEY="your-demo-key"
+$env:ALPHAPILOT_OKX_DEMO_SECRET_KEY="your-demo-secret"
+$env:ALPHAPILOT_OKX_DEMO_PASSPHRASE="your-demo-passphrase"
+```
+
+Demo order submission is separately locked:
+
+```powershell
+$env:ALPHAPILOT_OKX_DEMO_ORDER_ENABLED="1"
+```
+
+Demo emergency cancel is also separately locked:
+
+```powershell
+$env:ALPHAPILOT_OKX_DEMO_CANCEL_ENABLED="1"
+```
+
+Safety boundary:
+
+- Use OKX Demo credentials only, never live API credentials.
+- Raw API keys are not stored in the browser, SQLite, or console state.
+- OKX Demo requests require the `x-simulated-trading: 1` header.
+- Demo order requests require a user-entered `OKX_DEMO_ORDER_APPROVED`
+  confirmation phrase.
+- Demo order notional is capped at 1000 USDT.
+- Live trading, Withdraw API, real account trading, real order creation, and
+  automatic trading remain disabled.

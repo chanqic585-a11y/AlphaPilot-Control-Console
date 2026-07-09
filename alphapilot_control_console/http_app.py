@@ -9,6 +9,12 @@ from urllib.parse import parse_qs, urlparse
 
 from .config import ALLOWED_STRATEGY_STATUSES, SAFETY_BOUNDARY, WEB_DIR
 from .exchange_connectors.public_exchange_registry import list_public_exchange_sources, probe_public_exchanges
+from .exchange_demo_simulation import (
+    build_exchange_demo_simulation,
+    run_exchange_demo_emergency_drill,
+    run_exchange_demo_readonly_check,
+    submit_exchange_demo_order,
+)
 from .forward_review import build_forward_review, refresh_forward_review
 from .importer import build_mobile_status, import_now, scan_quant_engine
 from .live_readiness import build_live_readiness, create_manual_execution_ticket
@@ -114,7 +120,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.9.1"
+    server_version = "AlphaPilotControlConsole/13.9.5"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -155,8 +161,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.9.1",
-                "source": "alphapilot_control_console_v13_9_1",
+                "version": "V13.9.5",
+                "source": "alphapilot_control_console_v13_9_5",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -353,6 +359,9 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/testnet-small-order-simulation":
             self._send_json(build_testnet_small_order_simulation())
+            return
+        if path == "/api/exchange-demo/simulation":
+            self._send_json(build_exchange_demo_simulation())
             return
         if path == "/api/research-execution-pipeline":
             self._send_json(build_research_execution_pipeline(apply_updates=False))
@@ -695,6 +704,17 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/testnet-small-order-simulation/rehearse":
             payload = self._read_body_json()
             self._send_json(create_testnet_small_order_simulation(payload))
+            return
+        if parsed.path == "/api/exchange-demo/read-only-check":
+            self._send_json(run_exchange_demo_readonly_check())
+            return
+        if parsed.path == "/api/exchange-demo/order":
+            payload = self._read_body_json()
+            self._send_json(submit_exchange_demo_order(payload))
+            return
+        if parsed.path == "/api/exchange-demo/emergency-stop":
+            payload = self._read_body_json()
+            self._send_json(run_exchange_demo_emergency_drill(payload))
             return
         self._send_json({"error": "not_found"}, 404)
 
