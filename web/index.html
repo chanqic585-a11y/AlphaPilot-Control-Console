@@ -610,6 +610,55 @@
               </div>
               <div id="autoLifecycleLanes" class="auto-lifecycle-lanes"></div>
             </div>
+            <div id="autoReviewPanel" class="auto-review-panel">
+              <div class="simple-section-title">
+                <strong>本地自动执行复核队列</strong>
+                <span id="autoReviewStatus">当前是执行链路观察阶段，不是策略晋级阶段。</span>
+              </div>
+              <div class="exchange-demo-warning"><strong>复核边界：</strong>这里整理本地生命周期、阻塞原因和样本门槛，只提供解释与人工复核依据，不自动晋级、淘汰或执行策略。</div>
+              <div class="exchange-demo-pipeline-grid auto-review-summary">
+                <div><span>生命周期记录</span><strong id="autoReviewTotal">--</strong><small>全部本地记录</small></div>
+                <div><span>活跃持有</span><strong id="autoReviewActive">--</strong><small>本地模拟观察</small></div>
+                <div><span>阻塞记录</span><strong id="autoReviewBlocked">--</strong><small>等待原因复核</small></div>
+                <div><span>闭合结果</span><strong id="autoReviewClosed">--</strong><small>2R / -1R / 过期</small></div>
+                <div><span>等待触发</span><strong id="autoReviewWaiting">--</strong><small>通过本地门槛</small></div>
+                <div><span>原因标准化覆盖</span><strong id="autoReviewCoverage">--</strong><small>统计可信度辅助</small></div>
+                <div><span>Dry-run 批准</span><strong>否</strong><small>当前锁定</small></div>
+                <div><span>实盘批准</span><strong>否</strong><small>当前锁定</small></div>
+              </div>
+              <div class="auto-review-section">
+                <div class="simple-section-title"><strong>系统建议</strong><span>只排序复核优先级，不自动执行。</span></div>
+                <div id="autoReviewRecommendations" class="auto-review-advice-grid"></div>
+              </div>
+              <div class="auto-review-grid">
+                <div class="auto-review-section">
+                  <div class="simple-section-title"><strong>阻塞原因分布</strong><span>按每条记录的主要原因统计。</span></div>
+                  <div id="autoReviewBlockReasons" class="auto-review-list"></div>
+                </div>
+                <div class="auto-review-section">
+                  <div class="simple-section-title"><strong>币种与方向拆分</strong><span>观察阻塞是否集中。</span></div>
+                  <div id="autoReviewSplitSummary" class="auto-review-split"></div>
+                </div>
+              </div>
+              <div class="auto-review-grid">
+                <div class="auto-review-section">
+                  <div class="simple-section-title"><strong>活跃持有队列</strong><span>缺少价格时不会伪造 R 值。</span></div>
+                  <div id="autoReviewActiveQueue" class="auto-review-card-list"></div>
+                </div>
+                <div class="auto-review-section">
+                  <div class="simple-section-title"><strong>闭合结果队列</strong><span>达到 2R / 触发 -1R / 过期退出。</span></div>
+                  <div id="autoReviewClosedQueue" class="auto-review-card-list"></div>
+                </div>
+              </div>
+              <div class="auto-review-section">
+                <div class="simple-section-title"><strong>阻塞复核队列</strong><span>高优先级、数据问题和未知原因优先。</span></div>
+                <div id="autoReviewBlockedQueue" class="auto-review-card-grid"></div>
+              </div>
+              <div class="auto-review-section">
+                <div class="simple-section-title"><strong>策略生命周期汇总</strong><span>建议状态不会自动写回策略。</span></div>
+                <div id="autoReviewStrategySummary" class="auto-review-list"></div>
+              </div>
+            </div>
           </div>
           <div class="exchange-demo-runbook">
             <div class="simple-section-title">

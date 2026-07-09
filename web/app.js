@@ -226,6 +226,7 @@ let latestNoKeyPreLivePayload = {};
 let latestNoKeyPreLiveCandidate = null;
 let latestAutoExecutionEnginePayload = {};
 let latestAutoExecutionLifecyclePayload = {};
+let latestAutoExecutionReviewPayload = {};
 let latestMobilePayload = {};
 let latestSandboxReviewPayload = {};
 let latestCoreConsolePayload = {};
@@ -1834,6 +1835,47 @@ function renderNoKeyPreLiveWorkbench(payload = {}) {
   }
 }
 
+const autoExecutionCodeLabels = {
+  completed: "已完成",
+  ready: "已就绪",
+  waiting: "等待中",
+  selected: "已选中",
+  passed: "已通过",
+  blocked: "已阻塞",
+  local_tp_sl_watch: "本地模拟持有",
+  local_simulated_open: "本地模拟持有",
+  blocked_before_local_execution: "本地执行前已阻塞",
+  take_profit_2r: "达到 2R",
+  target_2r_hit: "达到 2R",
+  stop_loss_1r: "触发 -1R",
+  stop_loss_hit: "触发 -1R",
+  expired_exit: "过期退出",
+  timeout_exit: "过期退出",
+  public_market_not_ready: "公共行情筛选未就绪",
+  target_r_below_2: "目标收益风险比低于 2R",
+  score_below_gate: "候选评分未达门槛",
+  trade_count_below_gate: "回测样本数未达门槛",
+  profit_factor_below_gate: "盈亏因子未达门槛",
+  notional_above_local_cap: "本地名义金额超过上限",
+  cooldown_duplicate_open_record: "已有同类活跃记录，当前处于冷却中",
+  max_executions_per_run_reached: "本轮本地观察名额已满",
+};
+
+function translateAutoExecutionCode(value) {
+  const code = String(value || "").trim();
+  if (!code) return "--";
+  if (autoExecutionCodeLabels[code]) return autoExecutionCodeLabels[code];
+  if (code.startsWith("higher_rank_candidate_selected_for_")) {
+    return "同币种已有更高排名候选入选";
+  }
+  return /[a-z][a-z0-9_]+/i.test(code) ? "未标准化原因" : code;
+}
+
+function formatReviewR(value) {
+  if (value === null || value === undefined || value === "") return "--";
+  return `${formatNumber(value, 2)}R`;
+}
+
 function renderAutoExecutionEngine(payload = {}) {
   latestAutoExecutionEnginePayload = payload || {};
   const summary = payload.summary || {};
@@ -1867,8 +1909,8 @@ function renderAutoExecutionEngine(payload = {}) {
           <span>样本 ${record.tradeCount ?? "--"}</span>
         </div>
         <div class="no-key-mini-list">
-          ${lifecycle.slice(0, 4).map((step) => `<span>${escapeHtml(step.label || step.stepId || "--")}：${escapeHtml(step.status || "--")}</span>`).join("")}
-          ${(routerBlockers.length || blockers.length) ? `<span>阻塞：${escapeHtml([...routerBlockers, ...blockers].join(" / "))}</span>` : "<span>实盘订单：锁定；仅保存本地模拟执行记录。</span>"}
+          ${lifecycle.slice(0, 4).map((step) => `<span>${escapeHtml(step.label || "生命周期步骤")}：${escapeHtml(translateAutoExecutionCode(step.status))}</span>`).join("")}
+          ${(routerBlockers.length || blockers.length) ? `<span>阻塞：${escapeHtml([...routerBlockers, ...blockers].map(translateAutoExecutionCode).join(" / "))}</span>` : "<span>实盘订单：锁定；仅保存本地模拟执行记录。</span>"}
         </div>
       </div>
     `;
@@ -1919,7 +1961,7 @@ function renderAutoExecutionLifecycle(payload = {}) {
                   <span>样本 ${record.tradeCount ?? "--"}</span>
                 </div>
                 <p>${escapeHtml(record.lifecycleNote || "本地模拟生命周期记录。")}</p>
-                ${blockers.length ? `<div class="auto-lifecycle-blockers">${escapeHtml(blockers.slice(0, 3).join(" / "))}</div>` : ""}
+                ${blockers.length ? `<div class="auto-lifecycle-blockers">${escapeHtml(blockers.slice(0, 3).map(translateAutoExecutionCode).join(" / "))}</div>` : ""}
               </div>
             `;
           }).join("") || '<div class="testnet-design-empty">暂无记录</div>'}
@@ -1927,6 +1969,124 @@ function renderAutoExecutionLifecycle(payload = {}) {
       </div>
     `;
   }).join("") || '<div class="testnet-design-empty">暂无生命周期数据。先运行自动执行引擎。</div>';
+}
+
+function renderAutoExecutionReview(payload = {}) {
+  latestAutoExecutionReviewPayload = payload || {};
+  const summary = payload.summary || {};
+  const reasons = Array.isArray(payload.blockedReasonBreakdown) ? payload.blockedReasonBreakdown : [];
+  const activeRows = Array.isArray(payload.activeHoldingQueue) ? payload.activeHoldingQueue : [];
+  const closedRows = Array.isArray(payload.closedResultsQueue) ? payload.closedResultsQueue : [];
+  const blockedRows = Array.isArray(payload.blockedReviewQueue) ? payload.blockedReviewQueue : [];
+  const strategyRows = Array.isArray(payload.strategyLifecycleSummary) ? payload.strategyLifecycleSummary : [];
+  const symbolRows = Array.isArray(payload.symbolBreakdown) ? payload.symbolBreakdown : [];
+  const directionRows = Array.isArray(payload.directionBreakdown) ? payload.directionBreakdown : [];
+  const recommendations = Array.isArray(payload.systemRecommendations) ? payload.systemRecommendations : [];
+
+  setText("autoReviewStatus", summary.stageConclusion || "当前是执行链路观察阶段，不是策略晋级阶段。");
+  setText("autoReviewTotal", String(summary.totalRecords ?? 0));
+  setText("autoReviewActive", String(summary.activeHoldingRecords ?? 0));
+  setText("autoReviewBlocked", String(summary.blockedRecords ?? 0));
+  setText("autoReviewClosed", String(summary.closedResults ?? 0));
+  setText("autoReviewWaiting", String(summary.waitingTriggerRecords ?? 0));
+  setText("autoReviewCoverage", `${formatNumber(summary.reasonStandardizationCoveragePct ?? 0, 0)}%`);
+
+  const recommendationTarget = el("autoReviewRecommendations");
+  if (recommendationTarget) {
+    recommendationTarget.innerHTML = recommendations.map((item) => `
+      <div class="auto-review-advice auto-review-priority-${item.priority === "高" ? "high" : item.priority === "中" ? "medium" : "low"}">
+        <span>${escapeHtml(item.priority || "中")}优先级</span>
+        <strong>${escapeHtml(item.title || "系统建议")}</strong>
+        <p>${escapeHtml(item.detail || "继续收集本地复核样本。")}</p>
+      </div>
+    `).join("") || '<div class="testnet-design-empty">暂无系统建议。</div>';
+  }
+
+  const reasonTarget = el("autoReviewBlockReasons");
+  if (reasonTarget) {
+    reasonTarget.innerHTML = reasons.map((row) => `
+      <div class="auto-review-row">
+        <div><strong>${escapeHtml(row.blockReason || "未知原因")}</strong><small>${escapeHtml(row.reviewPriority || "低")}优先级</small></div>
+        <span>${formatNumber(row.count, 0)} 条</span>
+        <span>${formatPercent(row.percentage)}</span>
+        <span>${formatNumber(row.strategyCount, 0)} 个策略</span>
+        <span>${formatNumber(row.symbolCount, 0)} 个币种</span>
+        <em>${escapeHtml(row.recommendation || "检查阻塞原因")}</em>
+      </div>
+    `).join("") || '<div class="testnet-design-empty">暂无阻塞记录。</div>';
+  }
+
+  const activeTarget = el("autoReviewActiveQueue");
+  if (activeTarget) {
+    activeTarget.innerHTML = activeRows.map((row) => `
+      <div class="auto-review-card is-active">
+        <div class="auto-lifecycle-card-head"><strong>${escapeHtml(row.strategyName || "--")}</strong><span>${escapeHtml(row.status || "本地模拟持有")}</span></div>
+        <small>${escapeHtml(row.symbol || "--")} · ${escapeHtml(row.direction || "未知方向")} · ${escapeHtml(row.timeframe || "--")}</small>
+        <div class="artifact-metrics">
+          <span>当前 ${formatReviewR(row.currentR)}</span>
+          <span>距目标 ${formatReviewR(row.distanceToTargetR)}</span>
+          <span>距止损 ${formatReviewR(row.distanceToStopR)}</span>
+          <span>持有 ${escapeHtml(row.holdDuration || "时间未知")}</span>
+        </div>
+        <p>${escapeHtml(row.warning || "本地观察字段完整")}</p>
+      </div>
+    `).join("") || '<div class="testnet-design-empty">暂无本地模拟持有记录。</div>';
+  }
+
+  const closedTarget = el("autoReviewClosedQueue");
+  if (closedTarget) {
+    closedTarget.innerHTML = closedRows.map((row) => `
+      <div class="auto-review-card is-closed">
+        <div class="auto-lifecycle-card-head"><strong>${escapeHtml(row.strategyName || "--")}</strong><span>${escapeHtml(row.exitReason || "已结束")}</span></div>
+        <small>${escapeHtml(row.symbol || "--")} · ${escapeHtml(row.direction || "未知方向")} · ${escapeHtml(row.holdDuration || "时间未知")}</small>
+        <div class="artifact-metrics">
+          <span>结果 ${formatReviewR(row.resultR)}</span>
+          <span>最大浮盈 ${formatReviewR(row.maxFavorableR)}</span>
+          <span>最大浮亏 ${formatReviewR(row.maxAdverseR)}</span>
+        </div>
+      </div>
+    `).join("") || '<div class="testnet-design-empty">暂无闭合执行结果，请继续收集样本。</div>';
+  }
+
+  const blockedTarget = el("autoReviewBlockedQueue");
+  if (blockedTarget) {
+    blockedTarget.innerHTML = blockedRows.slice(0, 16).map((row) => `
+      <div class="auto-review-card is-blocked">
+        <div class="auto-lifecycle-card-head"><strong>${escapeHtml(row.strategyName || "--")}</strong><span>${escapeHtml(row.reviewPriority || "低")}优先级</span></div>
+        <small>${escapeHtml(row.symbol || "--")} · ${escapeHtml(row.direction || "未知方向")} · ${escapeHtml(row.timeframe || "--")}</small>
+        <div class="auto-review-reason"><b>${escapeHtml(row.blockReason || "未知原因")}</b><span>${escapeHtml(row.blockDetail || "现有记录未提供详细说明")}</span></div>
+        <p>建议：${escapeHtml(row.recommendation || "检查阻塞原因")}</p>
+      </div>
+    `).join("") || '<div class="testnet-design-empty">暂无阻塞复核记录。</div>';
+  }
+
+  const strategyTarget = el("autoReviewStrategySummary");
+  if (strategyTarget) {
+    strategyTarget.innerHTML = strategyRows.map((row) => `
+      <div class="auto-review-row strategy-row">
+        <div><strong>${escapeHtml(row.strategyName || row.strategyId || "--")}</strong><small>${escapeHtml(row.suggestedStatus || "闭合样本不足")}</small></div>
+        <span>总记录 ${formatNumber(row.totalRecords, 0)}</span>
+        <span>活跃 ${formatNumber(row.activeHoldingCount, 0)}</span>
+        <span>闭合 ${formatNumber(row.closedResultCount, 0)}</span>
+        <span>阻塞 ${formatNumber(row.blockedCount, 0)} / ${formatPercent(row.blockedRatePct)}</span>
+        <em>${escapeHtml(row.recommendation || "继续收集样本")}</em>
+      </div>
+    `).join("") || '<div class="testnet-design-empty">暂无策略生命周期汇总。</div>';
+  }
+
+  const splitTarget = el("autoReviewSplitSummary");
+  if (splitTarget) {
+    splitTarget.innerHTML = `
+      <div class="auto-review-split-column">
+        <strong>按币种</strong>
+        ${symbolRows.slice(0, 8).map((row) => `<span>${escapeHtml(row.symbol || "--")}：${formatNumber(row.totalRecords, 0)} 条，阻塞 ${formatPercent(row.blockedRatePct)}</span>`).join("") || "<span>暂无币种记录</span>"}
+      </div>
+      <div class="auto-review-split-column">
+        <strong>按方向</strong>
+        ${directionRows.map((row) => `<span>${escapeHtml(row.direction || "未知方向")}：${formatNumber(row.totalRecords, 0)} 条，活跃 ${formatNumber(row.activeHoldingCount, 0)}，阻塞 ${formatPercent(row.blockedRatePct)}</span>`).join("") || "<span>暂无方向记录</span>"}
+      </div>
+    `;
+  }
 }
 
 function renderExchangeDemoSimulation(payload = {}) {
@@ -4785,6 +4945,7 @@ function renderConsoleFromPayloads() {
   const noKeyPreLive = core.noKeyPreLive || { summary: {}, strategyCards: [], publicCandidates: [], recentTickets: [] };
   const autoExecutionEngine = core.autoExecutionEngine || { summary: {}, records: [], recentRuns: [] };
   const autoExecutionLifecycle = core.autoExecutionLifecycle || { summary: {}, lanes: [], records: [] };
+  const autoExecutionReview = core.autoExecutionReview || { summary: {}, blockedReasonBreakdown: [], activeHoldingQueue: [], closedResultsQueue: [], blockedReviewQueue: [], strategyLifecycleSummary: [] };
   const exchangeDemo = core.exchangeDemo || { summary: {}, modeCards: [], recentEvents: [], credentialStatus: {} };
   const liveReadiness = core.liveReadiness || { rows: [], summary: {} };
   const forwardReview = core.forwardReview || { rows: [], summary: {} };
@@ -4797,6 +4958,7 @@ function renderConsoleFromPayloads() {
   renderNoKeyPreLiveWorkbench(noKeyPreLive);
   renderAutoExecutionEngine(autoExecutionEngine);
   renderAutoExecutionLifecycle(autoExecutionLifecycle);
+  renderAutoExecutionReview(autoExecutionReview);
   renderExchangeDemoSimulation(exchangeDemo);
   renderCommandCenter(strategyItems, reportItems, mobile);
   renderRuntimeMonitor(strategyItems, mobile);
@@ -4959,6 +5121,7 @@ async function refreshAll() {
     { key: "noKeyPreLive", url: "/api/no-key-pre-live", fallback: { summary: {}, strategyCards: [], publicCandidates: [], recentTickets: [] }, timeoutMs: 8000 },
     { key: "autoExecutionEngine", url: "/api/auto-execution-engine", fallback: { summary: {}, records: [], recentRuns: [] }, timeoutMs: 8000 },
     { key: "autoExecutionLifecycle", url: "/api/auto-execution-lifecycle", fallback: { summary: {}, lanes: [], records: [] }, timeoutMs: 8000 },
+    { key: "autoExecutionReview", url: "/api/auto-execution-review", fallback: { summary: {}, blockedReasonBreakdown: [], activeHoldingQueue: [], closedResultsQueue: [], blockedReviewQueue: [], strategyLifecycleSummary: [] }, timeoutMs: 8000 },
     { key: "exchangeDemo", url: "/api/exchange-demo/simulation", fallback: { summary: {}, modeCards: [], recentEvents: [], credentialStatus: {} }, timeoutMs: 12000 },
     { key: "liveReadiness", url: "/api/live-readiness", fallback: { rows: [], summary: {} }, timeoutMs: 8000 },
     { key: "forwardReview", url: "/api/forward-review", fallback: { rows: [], summary: {} }, timeoutMs: 8000 },
@@ -5131,13 +5294,16 @@ async function scanNoKeyPreLiveCandidates() {
     renderNoKeyPreLiveWorkbench(response.noKeyPreLive || {});
     const autoPayload = await getJsonSafe("/api/auto-execution-engine?fresh=1", { summary: {}, records: [], recentRuns: [] }, 8000);
     const lifecyclePayload = await getJsonSafe("/api/auto-execution-lifecycle?fresh=1", { summary: {}, lanes: [], records: [] }, 8000);
+    const reviewPayload = await getJsonSafe("/api/auto-execution-review?fresh=1", { summary: {}, blockedReasonBreakdown: [], activeHoldingQueue: [], closedResultsQueue: [], blockedReviewQueue: [], strategyLifecycleSummary: [] }, 8000);
     latestCoreConsolePayload = {
       ...latestCoreConsolePayload,
       autoExecutionEngine: autoPayload || {},
       autoExecutionLifecycle: lifecyclePayload || {},
+      autoExecutionReview: reviewPayload || {},
     };
     renderAutoExecutionEngine(autoPayload || {});
     renderAutoExecutionLifecycle(lifecyclePayload || {});
+    renderAutoExecutionReview(reviewPayload || {});
     setText("noKeyActionStatus", response.ok
       ? "公共行情扫描完成。可以直接运行自动执行引擎生成本地生命周期记录。"
       : "公共行情扫描未完成，请查看候选状态。");
@@ -5184,15 +5350,18 @@ async function runAutoExecutionEngine() {
       refreshPublicScan: true,
     });
     const lifecyclePayload = await getJsonSafe("/api/auto-execution-lifecycle?fresh=1", { summary: {}, lanes: [], records: [] }, 8000);
+    const reviewPayload = await getJsonSafe("/api/auto-execution-review?fresh=1", { summary: {}, blockedReasonBreakdown: [], activeHoldingQueue: [], closedResultsQueue: [], blockedReviewQueue: [], strategyLifecycleSummary: [] }, 8000);
     latestCoreConsolePayload = {
       ...latestCoreConsolePayload,
       noKeyPreLive: response.noKeyPreLive || latestCoreConsolePayload.noKeyPreLive,
       autoExecutionEngine: response.autoExecutionEngine || {},
       autoExecutionLifecycle: lifecyclePayload || {},
+      autoExecutionReview: reviewPayload || {},
     };
     if (response.noKeyPreLive) renderNoKeyPreLiveWorkbench(response.noKeyPreLive);
     renderAutoExecutionEngine(response.autoExecutionEngine || {});
     renderAutoExecutionLifecycle(lifecyclePayload || {});
+    renderAutoExecutionReview(reviewPayload || {});
     const selected = response.run?.selectedCount ?? 0;
     const blocked = response.run?.blockedCount ?? 0;
     setText("autoExecutionStatus", `自动执行引擎完成：本地观察 ${selected} 条，阻塞 ${blocked} 条；实盘和 Demo 订单仍然锁定。`);

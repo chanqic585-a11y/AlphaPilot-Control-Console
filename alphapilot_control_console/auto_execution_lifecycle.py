@@ -6,8 +6,8 @@ from .config import SAFETY_BOUNDARY
 from .state_store import list_auto_execution_records, list_auto_execution_runs, now_iso
 
 
-CONTROL_CONSOLE_VERSION = "V13.10.3"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_10_3"
+CONTROL_CONSOLE_VERSION = "V13.10.4"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_10_4"
 
 LANE_ORDER = [
     "waiting_trigger",
@@ -39,6 +39,17 @@ EXIT_STATUS_TO_LANE = {
     "expired": "expired_exit",
 }
 
+BLOCKER_LABELS = {
+    "public_market_not_ready": "公共行情筛选未就绪",
+    "target_r_below_2": "目标收益风险比低于 2R",
+    "score_below_gate": "候选评分未达门槛",
+    "trade_count_below_gate": "回测样本数未达门槛",
+    "profit_factor_below_gate": "盈亏因子未达门槛",
+    "notional_above_local_cap": "本地名义金额超过上限",
+    "cooldown_duplicate_open_record": "已有同类活跃记录，当前处于冷却中",
+    "max_executions_per_run_reached": "本轮本地观察名额已满",
+}
+
 
 def _safe_float(value: Any, fallback: float = 0.0) -> float:
     try:
@@ -60,6 +71,15 @@ def _safe_int(value: Any, fallback: int = 0) -> int:
 
 def _as_list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
+
+
+def _blocker_label(value: Any) -> str:
+    code = str(value or "").strip()
+    if code in BLOCKER_LABELS:
+        return BLOCKER_LABELS[code]
+    if code.startswith("higher_rank_candidate_selected_for_"):
+        return "同币种已有更高排名候选入选"
+    return "未标准化原因"
 
 
 def _record_lane(record: dict[str, Any]) -> str:
@@ -92,7 +112,7 @@ def _lane_note(lane_id: str, record: dict[str, Any]) -> str:
         return "本地模拟记录显示触发 -1R 条件。"
     if lane_id == "expired_exit":
         return "本地模拟记录显示观察窗口过期退出。"
-    blockers = [str(item) for item in [*_as_list(record.get("routerBlockers")), *_as_list(record.get("riskBlockers"))] if item]
+    blockers = [_blocker_label(item) for item in [*_as_list(record.get("routerBlockers")), *_as_list(record.get("riskBlockers"))] if item]
     return f"被本地路由或风控阻塞：{' / '.join(blockers[:3])}" if blockers else "被本地路由或风控阻塞。"
 
 
@@ -136,6 +156,11 @@ def _normalize_record(record: dict[str, Any]) -> dict[str, Any]:
         "demoOrderCreated": False,
         "liveTrading": False,
     }
+
+
+def normalize_auto_execution_record(record: dict[str, Any]) -> dict[str, Any]:
+    """Return the stable local lifecycle projection used by read-only review modules."""
+    return _normalize_record(record)
 
 
 def _build_lanes(records: list[dict[str, Any]]) -> list[dict[str, Any]]:

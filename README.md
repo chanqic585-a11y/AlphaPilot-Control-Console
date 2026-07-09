@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.10.3 - Local Auto Execution Lifecycle Monitor
+AlphaPilot V13.10.4 - Local Auto Execution Review Queue
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,33 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.10.4 Adds
+
+V13.10.4 turns the V13.10.3 local lifecycle records into a Chinese review
+queue for explanation and manual strategy research.
+
+What changed:
+
+- Adds `GET /api/auto-execution-review`.
+- Adds Chinese review summaries for lifecycle records, active local holdings,
+  blocked records, closed results, and waiting triggers.
+- Standardizes user-facing blocker reasons and recommended review actions in
+  Chinese without changing the original local records.
+- Adds blocker-reason distribution, strategy lifecycle aggregation, symbol and
+  direction breakdowns, active holding review, closed result review, and a
+  blocked-review queue.
+- Adds review priority and blocker-reason standardization coverage so missing
+  or ambiguous data can be reviewed before strategy comparisons.
+- Keeps unavailable entry price, current price, and R values as null instead of
+  inventing results.
+- Adds a Chinese `本地自动执行复核队列` panel to the Demo page.
+
+This version only reads local lifecycle and audit records. It does not require
+or store API keys, does not connect Trade API or Withdraw API, does not read
+real accounts or positions, does not create Demo or live orders, does not run
+exchange Dry-run, and does not enable automatic trading or automatic strategy
+promotion.
 
 ## What V13.10.3 Adds
 

@@ -11,6 +11,7 @@ from urllib.parse import parse_qs, urlparse
 from .config import ALLOWED_STRATEGY_STATUSES, SAFETY_BOUNDARY, WEB_DIR
 from .auto_execution_engine import build_auto_execution_engine, run_auto_execution_engine
 from .auto_execution_lifecycle import build_auto_execution_lifecycle_monitor
+from .auto_execution_review import build_auto_execution_review
 from .exchange_connectors.public_exchange_registry import list_public_exchange_sources, probe_public_exchanges
 from .exchange_demo_simulation import (
     build_exchange_demo_simulation,
@@ -191,8 +192,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.10.3",
-                "source": "alphapilot_control_console_v13_10_3",
+                "version": "V13.10.4",
+                "source": "alphapilot_control_console_v13_10_4",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -471,6 +472,14 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 "auto-execution-lifecycle",
                 10,
                 build_auto_execution_lifecycle_monitor,
+                fresh=fresh,
+            ))
+            return
+        if path == "/api/auto-execution-review":
+            self._send_json(_cached_payload(
+                "auto-execution-review",
+                10,
+                build_auto_execution_review,
                 fresh=fresh,
             ))
             return
