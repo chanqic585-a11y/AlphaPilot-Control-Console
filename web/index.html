@@ -244,6 +244,56 @@
             </div>
             <div id="strategyAssetList" class="strategy-asset-list"></div>
           </div>
+          <div class="simple-quality-center testnet-drill-panel" id="testnetDrillPanel">
+            <div class="simple-section-title">
+              <strong>Testnet 本地演练</strong>
+              <span id="testnetDrillMeta">等待本地演练状态。</span>
+            </div>
+            <div class="simple-quality-grid">
+              <div>
+                <span>虚拟账户</span>
+                <strong id="testnetDrillCapital">--</strong>
+              </div>
+              <div>
+                <span>可复核策略</span>
+                <strong id="testnetDrillReviewCandidates">--</strong>
+              </div>
+              <div>
+                <span>Testnet 演练候选</span>
+                <strong id="testnetDrillCandidates">--</strong>
+              </div>
+              <div>
+                <span>本地演练</span>
+                <strong id="testnetDrillRehearsals">--</strong>
+              </div>
+              <div>
+                <span>闭环状态</span>
+                <strong id="testnetDrillClosure">--</strong>
+              </div>
+              <div>
+                <span>执行权限</span>
+                <strong id="testnetDrillExecution">关闭</strong>
+              </div>
+            </div>
+            <div class="testnet-drill-actions">
+              <button id="runTestnetDrillButton" type="button">保存一次本地演练</button>
+              <span id="testnetDrillActionStatus">只保存本地审计记录，不连接交易所。</span>
+            </div>
+            <div class="testnet-drill-columns">
+              <div>
+                <h4>演练策略</h4>
+                <div id="testnetDrillStrategyList" class="testnet-drill-list"></div>
+              </div>
+              <div>
+                <h4>生命周期</h4>
+                <div id="testnetDrillLifecycleList" class="testnet-drill-list"></div>
+              </div>
+              <div>
+                <h4>风控模板</h4>
+                <div id="testnetDrillRiskList" class="testnet-drill-list"></div>
+              </div>
+            </div>
+          </div>
           <div class="simple-columns">
             <div>
               <div class="simple-section-title">

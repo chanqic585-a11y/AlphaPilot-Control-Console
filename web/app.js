@@ -206,6 +206,7 @@ let latestWeaknessActionBoardPayload = {};
 let latestResearchPipelinePayload = {};
 let latestTestnetDesignBoundaryPayload = {};
 let latestPreLivePreparationPayload = {};
+let latestTestnetDrillPayload = {};
 const artifactFilters = {
   search: "",
   tier: "all",
@@ -1114,6 +1115,106 @@ function renderStrategyAssetPlaybook(payload) {
       </div>
     `;
   }).join("") || '<div class="simple-review-empty">暂无策略资产手册。请先运行本地沙盒质量中心。</div>';
+}
+
+function renderTestnetDrill(payload) {
+  latestTestnetDrillPayload = payload || {};
+  if (!el("testnetDrillPanel")) return;
+  const summary = payload?.summary || {};
+  const stageCounts = summary.stageCounts || {};
+  const rehearsalSummary = payload?.rehearsalSummary || {};
+  const strategies = Array.isArray(payload?.strategies) ? payload.strategies : [];
+  const lifecycle = Array.isArray(payload?.orderLifecycle) ? payload.orderLifecycle : [];
+  const riskTemplate = Array.isArray(payload?.riskTemplate) ? payload.riskTemplate : [];
+  const disabledExecution = Array.isArray(payload?.disabledExecution) ? payload.disabledExecution : [];
+
+  setText("testnetDrillMeta", summary.nextAction || "本地 Testnet 演练只保存审计记录，不连接交易所。");
+  setText("testnetDrillCapital", formatUsd(summary.virtualAccountUsdt, 0));
+  setText("testnetDrillReviewCandidates", String(stageCounts.localReviewCandidate ?? 0));
+  setText("testnetDrillCandidates", String(stageCounts.testnetDrillCandidate ?? 0));
+  setText("testnetDrillRehearsals", String(summary.rehearsalCount ?? rehearsalSummary.total ?? 0));
+  setText("testnetDrillClosure", summary.localPathsComplete ? "本地闭环已补齐" : "待补演练");
+  setText("testnetDrillExecution", summary.executionLocked === false ? "异常开启" : "关闭");
+
+  const strategyTarget = el("testnetDrillStrategyList");
+  if (strategyTarget) {
+    strategyTarget.innerHTML = strategies.slice(0, 5).map((row) => {
+      const tone = row.stage === "testnet_drill_candidate" ? "ok" : row.stage === "local_review_candidate" ? "warn" : "neutral";
+      return `
+        <div class="testnet-drill-row">
+          <div class="testnet-drill-row-head">
+            <div>
+              <strong>${escapeHtml(row.plainName || row.readableName || row.taskId || "--")}</strong>
+              <small>${escapeHtml(row.timeframe || "--")} / ${escapeHtml(row.stageLabel || row.stage || "--")}</small>
+            </div>
+            <span class="badge ${tone}">${escapeHtml(row.stageLabel || "观察")}</span>
+          </div>
+          <small>样本 ${row.closedSamples ?? 0} / 胜率 ${formatPercent(row.winRate)} / PF ${formatNumber(row.profitFactor)} / 累计R ${formatNumber(row.totalR, 1)}</small>
+          <small>${escapeHtml(row.nextAction || "继续本地沙盒观察。")}</small>
+        </div>
+      `;
+    }).join("") || '<div class="testnet-design-empty">暂无可演练策略；先让本地沙盒继续积累样本。</div>';
+  }
+
+  const lifecycleTarget = el("testnetDrillLifecycleList");
+  if (lifecycleTarget) {
+    lifecycleTarget.innerHTML = lifecycle.map((item) => `
+      <div class="testnet-drill-row">
+        <div class="testnet-drill-row-head">
+          <strong>${escapeHtml(item.label || item.stageId || "--")}</strong>
+          <span class="badge ${item.state === "required" ? "warn" : "ok"}">${escapeHtml(item.state || "local_only")}</span>
+        </div>
+        <small>${escapeHtml(item.description || "")}</small>
+      </div>
+    `).join("") || '<div class="testnet-design-empty">暂无生命周期演练步骤。</div>';
+  }
+
+  const riskTarget = el("testnetDrillRiskList");
+  if (riskTarget) {
+    riskTarget.innerHTML = riskTemplate.map((item) => `
+      <div class="testnet-drill-row">
+        <div class="testnet-drill-row-head">
+          <strong>${escapeHtml(item.label || item.itemId || "--")}</strong>
+          <span class="badge warn">${escapeHtml(item.status || "required")}</span>
+        </div>
+        <small>${escapeHtml(item.value || "")}</small>
+      </div>
+    `).join("") || '<div class="testnet-design-empty">暂无风控模板。</div>';
+  }
+
+  setText(
+    "testnetDrillActionStatus",
+    disabledExecution.length
+      ? `执行权限关闭：${disabledExecution.slice(0, 3).join(" / ")}`
+      : "只保存本地审计记录，不连接交易所。",
+  );
+}
+
+async function runTestnetDrill() {
+  const button = el("runTestnetDrillButton");
+  if (!button) return;
+  button.disabled = true;
+  setText("testnetDrillActionStatus", "正在保存本地 Testnet 生命周期演练...");
+  const rehearsal = latestTestnetDrillPayload?.rehearsalSummary || {};
+  const needRejectPath = Number(rehearsal.rejected || 0) <= 0;
+  const strategy = (latestTestnetDrillPayload?.strategies || [])[0] || {};
+  try {
+    await postJson("/api/pre-live-order-lifecycle/rehearse", {
+      strategyId: strategy.taskId || strategy.strategyId || "local_testnet_drill_strategy",
+      symbol: strategy.symbol || "LOCAL/USDT",
+      direction: strategy.direction || "research_only",
+      notionalValue: 100,
+      riskR: needRejectPath ? 2.5 : 1,
+      manualDecision: needRejectPath ? "reject_for_rehearsal" : "approve_for_rehearsal",
+    });
+    const refreshed = await getJsonSafe("/api/testnet-drill", { summary: {}, strategies: [], orderLifecycle: [], riskTemplate: [] }, 30000);
+    renderTestnetDrill(refreshed);
+    setText("testnetDrillActionStatus", "已保存本地演练记录：没有连接交易所，没有创建订单。");
+  } catch (error) {
+    setText("testnetDrillActionStatus", `演练保存失败：${error.message}`);
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function renderSimpleConsole(strategies, reports, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview, qualityCenter, concentrationReview = {}, resultReview = {}, strategyAssetPlaybook = {}) {
@@ -3947,6 +4048,7 @@ async function refreshAll() {
   renderResearchExecutionPipeline({ summary: {}, stages: [], actions: [] });
   renderTestnetDesignBoundary({ summary: {}, checklist: [], disabledActions: [] });
   renderPreLivePreparationPack({ summary: {}, rehearsalSummary: {}, preLiveClosureReport: [], recentRehearsals: [] });
+  renderTestnetDrill({ summary: {}, strategies: [], orderLifecycle: [], riskTemplate: [] });
   renderStrategyPromotionGate({ candidates: [], summary: {} });
   renderResearchTaskBoard({ tasks: [], summary: {} });
   renderStrategyLearningLoop(emptyStrategyLearningLoop);
@@ -3974,6 +4076,7 @@ async function refreshAll() {
     { key: "researchPipeline", url: "/api/research-execution-pipeline", fallback: { summary: {}, stages: [], actions: [] }, timeoutMs: 12000 },
     { key: "testnetDesignBoundary", url: "/api/testnet-design-boundary", fallback: { summary: {}, checklist: [], disabledActions: [] } },
     { key: "preLivePreparation", url: "/api/pre-live-preparation-pack", fallback: { summary: {}, rehearsalSummary: {}, preLiveClosureReport: [], recentRehearsals: [] } },
+    { key: "testnetDrill", url: "/api/testnet-drill", fallback: { summary: {}, strategies: [], orderLifecycle: [], riskTemplate: [] }, timeoutMs: 30000 },
     { key: "strategyPromotionGate", url: "/api/strategy-promotion-gate", fallback: { candidates: [], summary: {} }, timeoutMs: 12000 },
     { key: "researchTaskBoard", url: "/api/research-task-board", fallback: { tasks: [], summary: {} } },
     { key: "strategyLearningLoop", url: "/api/strategy-learning-loop", fallback: emptyStrategyLearningLoop, timeoutMs: 12000 },
@@ -3991,6 +4094,7 @@ async function refreshAll() {
   renderResearchExecutionPipeline(advanced.researchPipeline || { summary: {}, stages: [], actions: [] });
   renderTestnetDesignBoundary(advanced.testnetDesignBoundary || { summary: {}, checklist: [], disabledActions: [] });
   renderPreLivePreparationPack(advanced.preLivePreparation || { summary: {}, rehearsalSummary: {}, preLiveClosureReport: [], recentRehearsals: [] });
+  renderTestnetDrill(advanced.testnetDrill || { summary: {}, strategies: [], orderLifecycle: [], riskTemplate: [] });
   renderStrategyPromotionGate(advanced.strategyPromotionGate || { candidates: [], summary: {} });
   renderResearchTaskBoard(advanced.researchTaskBoard || { tasks: [], summary: {} });
   renderStrategyLearningLoop(strategyLearningLoop);
@@ -4110,6 +4214,7 @@ el("saveSandboxAutoRunnerButton")?.addEventListener("click", saveSandboxAutoRunn
 el("runSandboxAutoOnceButton")?.addEventListener("click", runSandboxAutoRunnerOnce);
 el("refreshForwardReviewButton")?.addEventListener("click", refreshForwardReview);
 el("runPreLiveLifecyclePreviewButton")?.addEventListener("click", runPreLiveLifecyclePreview);
+el("runTestnetDrillButton")?.addEventListener("click", runTestnetDrill);
 el("strategyQuickLogType").addEventListener("change", () => {
   const logType = el("strategyQuickLogType").value || "no_signal";
   el("strategyQuickSignalObserved").checked = ["signal_seen", "rule_matched"].includes(logType);

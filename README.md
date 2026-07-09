@@ -827,6 +827,7 @@ GET  /api/audit
 GET  /api/exchanges
 GET  /api/strategy-slots
 GET  /api/pre-live-preparation-pack
+GET  /api/testnet-drill
 POST /api/import
 POST /api/strategy-status
 POST /api/exchanges/probe-public
@@ -1266,3 +1267,27 @@ What changed:
 The Testnet gate remains blocked until credential isolation, order lifecycle
 simulation, kill switch, max-order and max-loss limits, manual confirmation,
 and audit trail controls are implemented and reviewed.
+
+## V13.8.9 Local Testnet Drill Panel
+
+V13.8.9 adds a local Testnet Drill layer on top of the Strategy Asset Gate and
+the pre-live rehearsal records.
+
+What changed:
+
+- Adds `GET /api/testnet-drill`.
+- Adds a Testnet local drill panel to the web console.
+- Uses 1,000 USDT virtual account sizing for the drill template.
+- Shows review candidates, testnet-drill candidates, rehearsal count, closure
+  state, lifecycle steps, and risk template in one place.
+- Adds a button that saves one local lifecycle rehearsal record only.
+- Alternates the saved rehearsal path toward missing approval/rejection coverage
+  so the local lifecycle audit can be reviewed faster.
+
+Safety boundary:
+
+- The drill is local audit rehearsal only.
+- It does not add API key input or API key storage.
+- It does not connect private exchange endpoints.
+- It does not enable Trade API, Withdraw API, real account reads, real position
+  reads, order creation, exchange Dry-run, live trading, or automatic trading.

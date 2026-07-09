@@ -1046,6 +1046,61 @@ small {
   background: rgba(24, 211, 166, 0.08);
 }
 
+.testnet-drill-panel {
+  margin-top: 14px;
+}
+
+.testnet-drill-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.testnet-drill-actions span {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.testnet-drill-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.testnet-drill-columns h4 {
+  margin: 0 0 8px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.testnet-drill-list {
+  display: grid;
+  gap: 8px;
+}
+
+.testnet-drill-row {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.testnet-drill-row-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.testnet-drill-row small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
 .simple-quality-columns {
   display: grid;
   grid-template-columns: minmax(300px, 0.9fr) minmax(0, 1.1fr);
@@ -3957,6 +4012,8 @@ code {
     .pre-live-row-head,
     .pre-live-preview-path,
     .pre-live-preview-head,
+    .testnet-drill-columns,
+    .testnet-drill-row-head,
     .live-readiness-grid,
     .live-readiness-columns,
     .live-readiness-row-head,
