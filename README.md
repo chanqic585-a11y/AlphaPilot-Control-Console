@@ -1490,3 +1490,26 @@ Updated in this patch:
 - `实盘交易` is a locked page that documents the future live gate. Live trading,
   Withdraw API, raw API key storage, real account access, real position access,
   real order creation, and auto trading remain disabled.
+
+## V13.9.8 Navigation Simplification and Mobile Console Page
+
+V13.9.8 removes duplicated research/debug entries from the main navigation and
+keeps the console focused on five operator-facing pages:
+
+1. `策略`
+2. `本地模拟`
+3. `Demo模拟`
+4. `实盘交易`
+5. `手机控制台`
+
+Updated in this patch:
+
+- The left navigation now only shows the five main workflow pages.
+- The former `手机端连接` panel is promoted to a standalone `手机控制台` page.
+- Advanced research, audit, public probe, strategy slots, and debug JSON remain
+  in the codebase but stay behind the `展开高级研究` control instead of crowding
+  the primary navigation.
+- The `#mobile` legacy hash redirects to `#mobileConsole` for compatibility.
+- No trading capability is added. Live trading, Withdraw API, raw API key
+  storage, real account access, real position access, real order creation, and
+  auto trading remain disabled.

@@ -29,35 +29,8 @@
           <a class="rail-item" href="#liveTradingPage" title="实盘交易" aria-label="实盘交易">
             <span class="nav-key">X</span><span>实盘交易</span>
           </a>
-          <a class="rail-item advanced-nav-item" href="#command" title="&#31574;&#30053;&#24635;&#25511;" aria-label="&#31574;&#30053;&#24635;&#25511;">
-            <span class="nav-key">S</span><span>&#31574;&#30053;&#24635;&#25511;</span>
-          </a>
-          <a class="rail-item advanced-nav-item" href="#runtime" title="运行监控" aria-label="运行监控">
-            <span class="nav-key">R</span><span>运行监控</span>
-          </a>
-          <a class="rail-item advanced-nav-item" href="#artifacts" title="策略资产" aria-label="策略资产">
-            <span class="nav-key">C</span><span>策略资产</span>
-          </a>
-          <a class="rail-item advanced-nav-item" href="#observationTasks" title="观察任务" aria-label="观察任务">
-            <span class="nav-key">O</span><span>观察任务</span>
-          </a>
-          <a class="rail-item advanced-nav-item" href="#learning" title="学习闭环" aria-label="学习闭环">
-            <span class="nav-key">L</span><span>学习闭环</span>
-          </a>
-          <a class="rail-item advanced-nav-item" href="#liveReadiness" title="实盘准备" aria-label="实盘准备">
-            <span class="nav-key">G</span><span>实盘准备</span>
-          </a>
-          <a class="rail-item advanced-nav-item" href="#forwardReview" title="前向复核" aria-label="前向复核">
-            <span class="nav-key">F</span><span>前向复核</span>
-          </a>
-          <a class="rail-item advanced-nav-item" href="#exchanges" title="公共行情" aria-label="公共行情">
-            <span class="nav-key">M</span><span>公共行情</span>
-          </a>
-          <a class="rail-item advanced-nav-item" href="#mobile" title="手机连接" aria-label="手机连接">
+          <a class="rail-item" href="#mobileConsole" title="手机控制台" aria-label="手机控制台">
             <span class="nav-key">P</span><span>手机控制台</span>
-          </a>
-          <a class="rail-item advanced-nav-item" href="#audit" title="审计日志" aria-label="审计日志">
-            <span class="nav-key">A</span><span>审计日志</span>
           </a>
         </nav>
         <div class="rail-footer">
@@ -77,7 +50,7 @@
             <p class="subtitle">总控台先给结论，再分层展开策略逻辑、信号样本、纸面观察和回测证据。</p>
           </div>
           <div class="top-status">
-            <span class="status-pill location" id="currentSectionLabel">当前：驾驶舱</span>
+            <span class="status-pill location" id="currentSectionLabel">当前：策略</span>
             <span class="status-pill ok">本地记录模式</span>
             <span class="status-pill neutral">公共行情</span>
             <span class="status-pill danger">实盘关闭</span>
@@ -1165,7 +1138,7 @@
           <div id="artifactList" class="artifact-list"></div>
         </section>
 
-        <section class="content-grid">
+        <section class="content-grid advanced-section">
           <section class="panel">
             <div class="section-header">
               <div>
@@ -2211,27 +2184,65 @@
             </div>
             <div id="strategySlotList" class="slot-grid"></div>
           </section>
+        </section>
 
-          <section id="mobile" class="panel">
-            <div class="section-header">
-              <div>
-                <p class="panel-eyebrow">MOBILE BRIDGE</p>
-                <h2>手机端连接</h2>
-                <p>给手机 App 读取状态的只读桥接。</p>
-              </div>
+        <section id="mobileConsole" class="panel mobile-console-panel page-section">
+          <div class="section-header">
+            <div>
+              <p class="panel-eyebrow">MOBILE CONSOLE</p>
+              <h2>手机控制台</h2>
+              <p>手机端只作为状态控制台：读取策略、本地模拟、Demo 模拟和安全状态，不保存 API Key，不创建真实订单。</p>
             </div>
-            <div class="mobile-helper">
-              <div>
-                <span>电脑本机接口</span>
-                <code id="mobileBridgeUrl">http://127.0.0.1:8766/api/mobile/status</code>
-              </div>
-              <div>
-                <span>手机推荐接口</span>
-                <code id="recommendedMobileUrl">加载中…</code>
-              </div>
+            <span class="status-pill ok">只读桥接</span>
+          </div>
+          <div class="mobile-console-hero">
+            <div>
+              <span>推荐打开方式</span>
+              <strong id="recommendedMobileUrl">加载中…</strong>
+              <small>手机和电脑需要在同一 Wi-Fi；如果看不到数据，请用 Mobile 模式重启控制台。</small>
             </div>
-            <div id="mobileConnectionNotes" class="list"></div>
-          </section>
+            <div>
+              <span>本机接口</span>
+              <strong id="mobileBridgeUrl">http://127.0.0.1:8766/api/mobile/status</strong>
+              <small>电脑浏览器或本机调试可直接访问。</small>
+            </div>
+          </div>
+          <div class="mobile-console-grid">
+            <div class="mobile-console-card">
+              <span>手机端职责</span>
+              <strong>状态查看 / 人工确认</strong>
+              <small>不承载策略计算，不自动执行交易。</small>
+            </div>
+            <div class="mobile-console-card">
+              <span>同步内容</span>
+              <strong>策略 · 沙盒 · Demo · 实盘锁</strong>
+              <small>读取当前控制台状态，方便手机端快速巡检。</small>
+            </div>
+            <div class="mobile-console-card">
+              <span>安全边界</span>
+              <strong>只读</strong>
+              <small>不保存 raw API Key，不接 Withdraw API，不自动下单。</small>
+            </div>
+          </div>
+          <div class="mobile-console-body">
+            <div>
+              <div class="section-header compact">
+                <div>
+                  <p class="panel-eyebrow">CONNECTION NOTES</p>
+                  <h3>连接检查</h3>
+                </div>
+              </div>
+              <div id="mobileConnectionNotes" class="list"></div>
+            </div>
+            <div>
+              <div class="section-header compact">
+                <div>
+                  <p class="panel-eyebrow">READONLY PAYLOAD</p>
+                  <h3>手机状态数据</h3>
+                </div>
+              </div>
+              <pre id="mobilePreview" class="preview mobile-preview">加载中…</pre>
+            </div>
         </section>
 
         <section id="audit" class="panel advanced-section">
@@ -2245,15 +2256,15 @@
           <div id="auditList" class="audit-grid"></div>
         </section>
 
-        <section class="panel debug-panel">
+        <section class="panel debug-panel advanced-section">
           <details>
             <summary>调试 JSON</summary>
-            <pre id="mobilePreview" class="preview">加载中…</pre>
+            <pre id="debugPreview" class="preview">高级调试已折叠；手机状态 JSON 在“手机控制台”页面查看。</pre>
           </details>
         </section>
-        <button class="back-home-button" id="backHomeButton" type="button" aria-label="回到驾驶舱">回到驾驶舱</button>
+        <button class="back-home-button" id="backHomeButton" type="button" aria-label="回到策略页">回到策略</button>
       </main>
     </div>
-    <script src="/app.js?v=20260710-v13-9-7-page-routing"></script>
+    <script src="/app.js?v=20260710-v13-9-8-nav-simplify"></script>
   </body>
 </html>

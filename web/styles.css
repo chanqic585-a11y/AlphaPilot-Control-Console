@@ -2012,6 +2012,77 @@ code {
   margin-bottom: 5px;
 }
 
+.mobile-console-panel {
+  border-color: rgba(24, 211, 166, 0.24);
+}
+
+.mobile-console-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  gap: 14px;
+  margin: 16px 0;
+}
+
+.mobile-console-hero > div,
+.mobile-console-card,
+.mobile-console-body > div {
+  border: 1px solid var(--border);
+  background: rgba(8, 13, 19, 0.72);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.mobile-console-hero span,
+.mobile-console-card span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.mobile-console-hero strong,
+.mobile-console-card strong {
+  display: block;
+  color: var(--text);
+  font-size: 18px;
+  word-break: break-word;
+}
+
+.mobile-console-hero small,
+.mobile-console-card small {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.mobile-console-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.mobile-console-body {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(420px, 1.1fr);
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.section-header.compact {
+  margin-bottom: 12px;
+}
+
+.section-header.compact h3 {
+  margin: 4px 0 0;
+  font-size: 18px;
+}
+
+.mobile-preview {
+  max-height: 420px;
+  overflow: auto;
+}
+
 .item strong {
   display: block;
   margin-bottom: 4px;
@@ -4358,6 +4429,15 @@ body:not(.show-advanced) #strategyAssetPlaybook {
   display: none;
 }
 
+body:not(.show-advanced) .advanced-section {
+  display: none !important;
+}
+
+body.show-advanced .content-grid.advanced-section,
+body.show-advanced .hero-grid.advanced-section {
+  display: grid;
+}
+
 @media (max-width: 1180px) {
   body {
     min-width: 0;
@@ -4382,7 +4462,7 @@ body:not(.show-advanced) #strategyAssetPlaybook {
 
   .rail-nav {
     grid-auto-flow: column;
-    grid-template-columns: repeat(8, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     justify-content: stretch;
     overflow-x: auto;
   }
@@ -4497,6 +4577,9 @@ body:not(.show-advanced) #strategyAssetPlaybook {
     .exchange-grid,
   .slot-grid,
   .mobile-helper,
+  .mobile-console-hero,
+  .mobile-console-grid,
+  .mobile-console-body,
   .probe-controls,
   .position-strip {
     grid-template-columns: 1fr;

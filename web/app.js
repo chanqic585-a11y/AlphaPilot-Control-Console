@@ -177,6 +177,7 @@ const sectionLabels = {
   localLab: "本地模拟",
   exchangeDemo: "Demo模拟",
   liveTradingPage: "实盘交易",
+  mobileConsole: "手机控制台",
   overview: "驾驶舱",
   command: "策略总控",
   runtime: "运行监控",
@@ -190,7 +191,11 @@ const sectionLabels = {
   audit: "审计日志",
 };
 
-const primaryPageIds = ["simpleConsole", "localLab", "exchangeDemo", "liveTradingPage"];
+const hashAliases = {
+  mobile: "mobileConsole",
+};
+
+const primaryPageIds = ["simpleConsole", "localLab", "exchangeDemo", "liveTradingPage", "mobileConsole"];
 
 let latestStrategies = [];
 let latestArtifactIndex = {};
@@ -4651,7 +4656,11 @@ function renderMobileConnectionInfo(connection) {
 
 function updateCurrentSection() {
   const hashId = (window.location.hash || "#simpleConsole").replace("#", "");
-  const requestedId = sectionLabels[hashId] ? hashId : "simpleConsole";
+  const requestedId = hashAliases[hashId] || (sectionLabels[hashId] ? hashId : "simpleConsole");
+  if (requestedId !== hashId && window.location.hash) {
+    window.location.hash = `#${requestedId}`;
+    return;
+  }
   const isPrimaryPage = primaryPageIds.includes(requestedId);
   if (isPrimaryPage) {
     document.querySelectorAll(".page-section").forEach((section) => {
