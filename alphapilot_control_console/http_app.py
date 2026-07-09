@@ -39,6 +39,7 @@ from .simulation_command_center import build_simulation_command_center
 from .simulation_replay import build_closed_sample_replay, build_closed_sample_strategy_detail
 from .simulation_review import build_simulation_review, build_simulation_review_strategy
 from .strategy_promotion_gate import build_strategy_promotion_gate
+from .strategy_asset_playbook import build_strategy_asset_playbook
 from .strategy_slots import list_strategy_slots
 from .testnet_design_boundary import build_testnet_design_boundary
 from .testnet_readiness_pack import build_testnet_readiness_pack
@@ -106,7 +107,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.8.5"
+    server_version = "AlphaPilotControlConsole/13.8.8"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -147,8 +148,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.8.5",
-                "source": "alphapilot_control_console_v13_8_5",
+                "version": "V13.8.8",
+                "source": "alphapilot_control_console_v13_8_8",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -348,6 +349,9 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/strategy-promotion-gate":
             payload = scan_quant_engine()
             self._send_json(build_strategy_promotion_gate(payload))
+            return
+        if path == "/api/strategy-asset-playbook":
+            self._send_json(build_strategy_asset_playbook())
             return
         if path == "/api/research-task-board":
             payload = scan_quant_engine()

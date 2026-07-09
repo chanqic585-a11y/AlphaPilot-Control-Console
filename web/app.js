@@ -198,6 +198,7 @@ let latestSimpleConsolePayload = {};
 let latestQualityCenterPayload = {};
 let latestConcentrationReviewPayload = {};
 let latestResultReviewPayload = {};
+let latestStrategyAssetPlaybookPayload = {};
 let selectedQualityCenterTaskId = null;
 let latestClosedSampleReplayPayload = {};
 let selectedClosedSampleReplayTaskId = null;
@@ -1064,7 +1065,58 @@ function renderQualityCenter(payload, concentrationReview = {}, resultReview = {
   renderQualityStrategyDetail(selected, readonlyPrep, concentrationReview, resultReview);
 }
 
-function renderSimpleConsole(strategies, reports, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview, qualityCenter, concentrationReview = {}, resultReview = {}) {
+function renderStrategyAssetPlaybook(payload) {
+  latestStrategyAssetPlaybookPayload = payload || {};
+  if (!el("strategyAssetPlaybook")) return;
+  const summary = payload?.summary || {};
+  const readiness = payload?.executionReadiness || {};
+  const rows = Array.isArray(payload?.strategies) ? payload.strategies : [];
+  setText(
+    "strategyAssetMeta",
+    summary.nextAction || "策略资产手册只用于本地研究，不连接交易所，不创建订单。",
+  );
+  setText("strategyAssetCount", String(summary.strategyCount ?? rows.length));
+  setText("strategyAssetClosedSamples", String(summary.totalClosedSamples ?? 0));
+  setText("strategyAssetSandboxCandidates", String(summary.sandboxReviewCandidateCount ?? 0));
+  setText("strategyAssetTestnetCandidates", String(summary.testnetReadinessCandidateCount ?? summary.testnetPrepCandidateCount ?? 0));
+  setText("strategyAssetExecutionGate", summary.blockedFromExecution === false ? "异常开启" : "关闭");
+  setText("strategyAssetBlockers", String(summary.testnetBlockerCount ?? (readiness.blockers || []).length ?? 0));
+  const target = el("strategyAssetList");
+  if (!target) return;
+  target.innerHTML = rows.slice(0, 6).map((row, index) => {
+    const evidence = row.evidence || {};
+    const gate = row.gate || {};
+    const tone = gate.canEnterTestnetReadiness ? "ok" : qualityTone(gate.status);
+    const blockers = Array.isArray(gate.testnetBlockers) ? gate.testnetBlockers : [];
+    const rules = Array.isArray(row.coreRules) ? row.coreRules.slice(0, 2) : [];
+    return `
+      <div class="strategy-asset-card${index === 0 ? " primary" : ""}">
+        <div class="strategy-asset-card-head">
+          <div>
+            <strong>${escapeHtml(row.plainName || row.readableName || "--")}</strong>
+            <small>${escapeHtml(row.readableName || row.taskId || "--")} · ${escapeHtml(row.timeframe || "--")} · ${escapeHtml(row.directionLabel || "研究样本")}</small>
+          </div>
+          <span class="badge ${tone}">${escapeHtml(gate.label || gate.status || "继续观察")}</span>
+        </div>
+        <span>${escapeHtml(row.oneLine || "继续本地沙盒观察，补足可复盘样本。")}</span>
+        <div class="strategy-asset-metrics">
+          <div><span>样本</span><strong>${evidence.closedSamples ?? 0}</strong></div>
+          <div><span>胜率</span><strong>${formatPercent(evidence.winRate)}</strong></div>
+          <div><span>PF</span><strong>${formatNumber(evidence.profitFactor)}</strong></div>
+          <div><span>累计R</span><strong>${formatNumber(evidence.totalR, 1)}</strong></div>
+        </div>
+        <small>${rules.map((item) => escapeHtml(item)).join(" / ") || "规则说明待补充"}</small>
+        <div class="strategy-asset-next">
+          <strong>下一步</strong>
+          <small>${escapeHtml(row.nextAction || "继续本地沙盒观察。")}</small>
+        </div>
+        <small>Testnet 阻塞：${escapeHtml(blockers.slice(0, 2).join(" / ") || "仍需安全设计复核")}。不接 API Key，不创建订单。</small>
+      </div>
+    `;
+  }).join("") || '<div class="simple-review-empty">暂无策略资产手册。请先运行本地沙盒质量中心。</div>';
+}
+
+function renderSimpleConsole(strategies, reports, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview, qualityCenter, concentrationReview = {}, resultReview = {}, strategyAssetPlaybook = {}) {
   if (!el("simpleConsole")) return;
   const rows = Array.isArray(usableStrategyCatalog?.strategies) ? usableStrategyCatalog.strategies : [];
   const catalogSummary = usableStrategyCatalog?.summary || {};
@@ -1116,9 +1168,10 @@ function renderSimpleConsole(strategies, reports, mobile, usableStrategyCatalog,
   renderSimpleSimulationBridge(simulationBridge);
   renderSimpleReviewQueue(simulationReview);
   renderQualityCenter(qualityCenter, concentrationReview, resultReview);
+  renderStrategyAssetPlaybook(strategyAssetPlaybook);
   renderSimpleStrategyCards(rows);
   renderSimpleActionChecklist({ runnerState, rows, sandboxRows, dailySummary });
-  latestSimpleConsolePayload = { strategies, reports, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview, qualityCenter, concentrationReview, resultReview };
+  latestSimpleConsolePayload = { strategies, reports, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview, qualityCenter, concentrationReview, resultReview, strategyAssetPlaybook };
 }
 
 function renderSandboxSimulationLane(observationTasks, qualityRows) {
@@ -3850,6 +3903,7 @@ async function refreshAll() {
     { key: "sandboxQualityCenter", url: "/api/local-sandbox/quality-center", fallback: { summary: {}, strategies: [], readonlyPreparation: {} }, timeoutMs: 12000 },
     { key: "sandboxConcentrationReview", url: "/api/local-sandbox/concentration-review", fallback: { summary: {}, strategies: [], variantGroups: [] }, timeoutMs: 12000 },
     { key: "sandboxResultReview", url: "/api/local-sandbox/result-review", fallback: { summary: {}, strategies: [], familyReviews: [] }, timeoutMs: 12000 },
+    { key: "strategyAssetPlaybook", url: "/api/strategy-asset-playbook", fallback: { summary: {}, strategies: [], executionReadiness: {} }, timeoutMs: 12000 },
     { key: "liveReadiness", url: "/api/live-readiness", fallback: { rows: [], summary: {} } },
     { key: "forwardReview", url: "/api/forward-review", fallback: { rows: [], summary: {} } },
   ], 4);
@@ -3868,6 +3922,7 @@ async function refreshAll() {
   const sandboxQualityCenter = core.sandboxQualityCenter || { summary: {}, strategies: [], readonlyPreparation: {} };
   const sandboxConcentrationReview = core.sandboxConcentrationReview || { summary: {}, strategies: [], variantGroups: [] };
   const sandboxResultReview = core.sandboxResultReview || { summary: {}, strategies: [], familyReviews: [] };
+  const strategyAssetPlaybook = core.strategyAssetPlaybook || { summary: {}, strategies: [], executionReadiness: {} };
   const liveReadiness = core.liveReadiness || { rows: [], summary: {} };
   const forwardReview = core.forwardReview || { rows: [], summary: {} };
   const emptySimulationBridge = { summary: {}, observationTasks: [] };
@@ -3876,7 +3931,7 @@ async function refreshAll() {
   const strategyItems = strategies.strategies || [];
   const reportItems = reports.reports || [];
   latestStrategyLearningLoopPayload = emptyStrategyLearningLoop;
-  renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, emptySimulationBridge, emptySimulationReview, sandboxQualityCenter, sandboxConcentrationReview, sandboxResultReview);
+  renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, emptySimulationBridge, emptySimulationReview, sandboxQualityCenter, sandboxConcentrationReview, sandboxResultReview, strategyAssetPlaybook);
   renderCommandCenter(strategyItems, reportItems, mobile);
   renderRuntimeMonitor(strategyItems, mobile);
   renderStrategies(strategyItems);
@@ -3927,7 +3982,7 @@ async function refreshAll() {
   const simulationReview = advanced.simulationReview || emptySimulationReview;
   const strategyLearningLoop = advanced.strategyLearningLoop || emptyStrategyLearningLoop;
   latestStrategyLearningLoopPayload = strategyLearningLoop;
-  renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview, sandboxQualityCenter, sandboxConcentrationReview, sandboxResultReview);
+  renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview, sandboxQualityCenter, sandboxConcentrationReview, sandboxResultReview, strategyAssetPlaybook);
   renderCandidateQueue(advanced.candidateQueue || { strategies: [], summary: {} });
   renderShortCycleCandidatePool(advanced.shortCycleCandidates || { candidates: [], summary: {} });
   renderSimulationReview(simulationReview);

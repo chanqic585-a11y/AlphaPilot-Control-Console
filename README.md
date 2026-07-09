@@ -1244,3 +1244,25 @@ Safety boundary:
 - The task pack is a local research checklist.
 - It does not create orders, run exchange Dry-run, use API keys, read accounts
   or positions, enable live trading, or enable automatic trading.
+
+## V13.8.8 Strategy Asset Playbook and Testnet Gate
+
+V13.8.8 makes the current local sandbox strategy set easier to understand before
+any testnet or live-trading work is considered.
+
+What changed:
+
+- Adds `GET /api/strategy-asset-playbook`.
+- Adds a Strategy Asset Gate panel to the local web console.
+- Groups current candidates into readable strategy families such as 1h upper
+  wick rejection, daily oversold repair, daily low-volatility breakout, and
+  daily trend confirmation.
+- Shows closed samples, win rate, profit factor, total R, next action, and
+  blocker status in one place.
+- Keeps execution locked: no API key input, no Trade API, no Withdraw API, no
+  account or position reads, no order creation, no exchange dry-run, and no
+  automatic trading.
+
+The Testnet gate remains blocked until credential isolation, order lifecycle
+simulation, kill switch, max-order and max-loss limits, manual confirmation,
+and audit trail controls are implemented and reviewed.
