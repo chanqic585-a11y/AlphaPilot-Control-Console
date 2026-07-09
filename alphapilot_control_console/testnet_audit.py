@@ -1,18 +1,23 @@
 from __future__ import annotations
 
 import json
+import time
 from typing import Any
 
 from .config import SAFETY_BOUNDARY
+from .exchange_connectors.public_exchange_registry import list_public_exchange_sources
 from .pre_live_preparation_pack import build_pre_live_preparation_pack
-from .state_store import now_iso
+from .state_store import now_iso, read_exchange_probe_results
 from .testnet_design_boundary import build_testnet_design_boundary
 from .testnet_drill import build_testnet_drill
-from .testnet_readiness_pack import build_testnet_readiness_pack
+from .testnet_readiness_pack import REQUIRED_TESTNET_CONTROLS
 
 
 CONTROL_CONSOLE_VERSION = "V13.8.10"
 CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_8_10"
+AUDIT_CACHE_TTL_SECONDS = 60
+_AUDIT_CACHE: dict[str, Any] | None = None
+_AUDIT_CACHE_EXPIRES_AT = 0.0
 
 
 def _safe_int(value: Any, fallback: int = 0) -> int:
@@ -32,19 +37,54 @@ def _status(label: str, passed: bool, detail: str, severity: str = "required") -
     }
 
 
+def _build_lightweight_readiness_summary(testnet_candidates: int) -> tuple[dict[str, Any], list[str]]:
+    missing_controls = [
+        item for item in REQUIRED_TESTNET_CONTROLS if item.get("required") and not item.get("implemented")
+    ]
+    blockers = [str(item.get("label")) for item in missing_controls]
+    probe = read_exchange_probe_results() or {}
+    public_sources = list_public_exchange_sources()
+    if testnet_candidates <= 0:
+        blockers.append("没有策略达到 testnet readiness candidate 门槛")
+    if not probe:
+        blockers.append("尚未完成本地 public exchange probe 复核")
+    return {
+        "readinessStage": "blocked" if blockers else "design_review_only",
+        "readinessStageLabel": "阻塞中" if blockers else "仅可进入设计复核",
+        "testnetCandidateCount": testnet_candidates,
+        "implementedControlCount": sum(1 for item in REQUIRED_TESTNET_CONTROLS if item.get("implemented")),
+        "missingRequiredControlCount": len(missing_controls),
+        "blockerCount": len(blockers),
+        "publicSourceCount": len(public_sources.get("sources", [])) if isinstance(public_sources, dict) else 0,
+        "hasPublicProbe": bool(probe),
+        "testnetEnabled": False,
+        "dryRunApproved": False,
+        "liveTradingApproved": False,
+        "nextAction": (
+            "先完成 testnet 凭据隔离、订单生命周期模拟、kill switch 和限额模型设计。"
+            if blockers
+            else "可以写 testnet 设计文档，但仍不能接密钥或下单。"
+        ),
+    }, blockers
+
+
 def build_testnet_audit_pack() -> dict[str, Any]:
+    global _AUDIT_CACHE, _AUDIT_CACHE_EXPIRES_AT
+    current_time = time.monotonic()
+    if _AUDIT_CACHE is not None and current_time < _AUDIT_CACHE_EXPIRES_AT:
+        return _AUDIT_CACHE
+
     drill = build_testnet_drill()
-    readiness = build_testnet_readiness_pack()
     boundary = build_testnet_design_boundary()
     pre_live = build_pre_live_preparation_pack()
 
     drill_summary = drill.get("summary") if isinstance(drill.get("summary"), dict) else {}
-    readiness_summary = readiness.get("summary") if isinstance(readiness.get("summary"), dict) else {}
     boundary_summary = boundary.get("summary") if isinstance(boundary.get("summary"), dict) else {}
     pre_live_summary = pre_live.get("summary") if isinstance(pre_live.get("summary"), dict) else {}
     rehearsal_summary = drill.get("rehearsalSummary") if isinstance(drill.get("rehearsalSummary"), dict) else {}
     stage_counts = drill_summary.get("stageCounts") if isinstance(drill_summary.get("stageCounts"), dict) else {}
-    readiness_blockers = readiness.get("blockers") if isinstance(readiness.get("blockers"), list) else []
+    testnet_drill_candidates = _safe_int(stage_counts.get("testnetDrillCandidate"))
+    readiness_summary, readiness_blockers = _build_lightweight_readiness_summary(testnet_drill_candidates)
     audit_items = [
         _status(
             "本地通过路径演练",
@@ -106,7 +146,7 @@ def build_testnet_audit_pack() -> dict[str, Any]:
     elif not hard_blockers:
         stage = "local_design_review_ready"
     critical_blockers = hard_blockers + [str(item) for item in readiness_blockers[:6]]
-    return {
+    payload = {
         "version": CONTROL_CONSOLE_VERSION,
         "source": CONTROL_CONSOLE_SOURCE,
         "generatedAt": now_iso(),
@@ -125,7 +165,7 @@ def build_testnet_audit_pack() -> dict[str, Any]:
             "canCreateOrders": False,
             "localLifecycleComplete": bool(rehearsal_summary.get("localPathsComplete")),
             "reviewCandidateCount": _safe_int(stage_counts.get("localReviewCandidate")),
-            "testnetDrillCandidateCount": _safe_int(stage_counts.get("testnetDrillCandidate")),
+            "testnetDrillCandidateCount": testnet_drill_candidates,
             "rehearsalCount": _safe_int(rehearsal_summary.get("total")),
             "passedRehearsals": _safe_int(rehearsal_summary.get("passed")),
             "rejectedRehearsals": _safe_int(rehearsal_summary.get("rejected")),
@@ -151,6 +191,9 @@ def build_testnet_audit_pack() -> dict[str, Any]:
         "safetyBoundary": SAFETY_BOUNDARY,
         "safetyNote": "Testnet audit is local review only. It cannot store API keys, connect private endpoints, run exchange dry-run, create orders, or trade automatically.",
     }
+    _AUDIT_CACHE = payload
+    _AUDIT_CACHE_EXPIRES_AT = current_time + AUDIT_CACHE_TTL_SECONDS
+    return payload
 
 
 if __name__ == "__main__":
