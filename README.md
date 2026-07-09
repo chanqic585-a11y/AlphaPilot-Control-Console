@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.8.5 - Sandbox Quality Center
+AlphaPilot V13.10.0 - No-Key Pre-Live Workbench
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,37 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.10.0 Adds
+
+V13.10.0 adds a no-key pre-live workbench for the waiting period before OKX
+Demo credentials are available.
+
+What changed:
+
+- Adds `GET /api/no-key-pre-live`.
+- Adds `POST /api/no-key-pre-live/scan`.
+- Adds `POST /api/no-key-pre-live/create-ticket`.
+- Shows a Chinese desktop panel that explains usable strategies in plain
+  language.
+- Uses public OKX market data only to screen candidate strategy/symbol pairs.
+- Saves local observation tickets with a 1000 USDT maximum notional reference.
+- Keeps OKX Demo private connection, Demo order rehearsal, and live trading as
+  separate gated stages.
+
+This version does not require API keys, does not store raw API keys, does not
+connect private exchange endpoints, does not read accounts or positions, does
+not submit Demo or live orders, and does not enable automatic trading.
+
+When OKX Demo credentials are ready, start the console with:
+
+```text
+powershell -ExecutionPolicy Bypass -File scripts\start_okx_demo_console.ps1
+```
+
+Enter credentials only in the local PowerShell prompt. Do not paste them into
+chat. The V13.10.0 no-key tickets can then be used as review context before
+running the OKX Demo read-only check.
 
 ## What V13.8.5 Adds
 

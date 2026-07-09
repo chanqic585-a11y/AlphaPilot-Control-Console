@@ -25,6 +25,11 @@ from .local_sandbox_quality_center import build_local_sandbox_quality_center
 from .local_sandbox_result_review import build_local_sandbox_result_review
 from .local_sandbox_runner import run_local_sandbox
 from .mobile_connection import build_mobile_connection_info
+from .no_key_pre_live import (
+    build_no_key_pre_live_workbench,
+    create_no_key_observation_ticket,
+    scan_no_key_pre_live_candidates,
+)
 from .pre_live_preparation_pack import (
     build_pre_live_preparation_pack,
     create_pre_live_rehearsal,
@@ -141,7 +146,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.9.9"
+    server_version = "AlphaPilotControlConsole/13.10.0"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -184,8 +189,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.9.9",
-                "source": "alphapilot_control_console_v13_9_9",
+                "version": "V13.10.0",
+                "source": "alphapilot_control_console_v13_10_0",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -452,6 +457,9 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/exchange-demo/simulation":
             self._send_json(_cached_payload("exchange-demo-simulation", 15, build_exchange_demo_simulation, fresh=fresh))
+            return
+        if path == "/api/no-key-pre-live":
+            self._send_json(_cached_payload("no-key-pre-live", 15, build_no_key_pre_live_workbench, fresh=fresh))
             return
         if path == "/api/research-execution-pipeline":
             self._send_json(_cached_payload(
@@ -846,6 +854,14 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/exchange-demo/scan-candidates":
             payload = self._read_body_json()
             self._send_json(scan_exchange_demo_candidates(payload))
+            return
+        if parsed.path == "/api/no-key-pre-live/scan":
+            payload = self._read_body_json()
+            self._send_json(scan_no_key_pre_live_candidates(payload))
+            return
+        if parsed.path == "/api/no-key-pre-live/create-ticket":
+            payload = self._read_body_json()
+            self._send_json(create_no_key_observation_ticket(payload))
             return
         if parsed.path == "/api/exchange-demo/order":
             payload = self._read_body_json()

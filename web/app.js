@@ -222,6 +222,8 @@ let latestTestnetPermissionPayload = {};
 let latestTestnetSmallOrderPayload = {};
 let latestExchangeDemoPayload = {};
 let latestExchangeDemoCandidate = null;
+let latestNoKeyPreLivePayload = {};
+let latestNoKeyPreLiveCandidate = null;
 let latestMobilePayload = {};
 let latestSandboxReviewPayload = {};
 let latestCoreConsolePayload = {};
@@ -1677,6 +1679,114 @@ function renderExchangeDemoPipeline(pipeline = {}) {
       fillExchangeDemoTicketFromCandidate(candidates[idx]);
     });
   });
+}
+
+function renderNoKeyPreLiveWorkbench(payload = {}) {
+  if (!el("noKeyPreLivePanel")) return;
+  latestNoKeyPreLivePayload = payload || {};
+  const summary = payload.summary || {};
+  const cards = Array.isArray(payload.strategyCards) ? payload.strategyCards : [];
+  const candidates = Array.isArray(payload.publicCandidates) ? payload.publicCandidates : [];
+  const tickets = Array.isArray(payload.recentTickets) ? payload.recentTickets : [];
+  const preferred = payload.preferredCandidate || candidates.find((row) => row.screeningStatus === "market_ready") || candidates[0] || null;
+  latestNoKeyPreLiveCandidate = preferred;
+
+  setText("noKeyStrategyCount", String(summary.strategyCardCount ?? cards.length ?? 0));
+  setText("noKeyMarketReady", String(summary.marketReadyCount ?? candidates.filter((row) => row.screeningStatus === "market_ready").length));
+  setText("noKeyTicketCount", String(summary.ticketCount ?? tickets.length ?? 0));
+  setText("noKeyLatestScan", summary.latestScanAt ? formatDate(summary.latestScanAt) : "尚未扫描");
+  setText("noKeyActionStatus", summary.nextAction || "先用公共行情扫描候选，不需要 API Key。");
+
+  const cardsTarget = el("noKeyStrategyCards");
+  if (cardsTarget) {
+    cardsTarget.innerHTML = cards.slice(0, 5).map((card) => {
+      const metrics = card.metrics || {};
+      const riskNotes = Array.isArray(card.riskNotes) ? card.riskNotes : [];
+      const entryContext = Array.isArray(card.entryContext) ? card.entryContext : [];
+      return `
+        <div class="no-key-strategy-card">
+          <div class="no-key-card-head">
+            <div>
+              <strong>${escapeHtml(card.plainName || card.name || "--")}</strong>
+              <small>${escapeHtml(card.frequencyLabel || card.timeframe || "--")} · ${escapeHtml(card.direction || "--")} · 目标 ${formatNumber(card.targetR, 1)}R</small>
+            </div>
+            <span class="badge neutral">${escapeHtml(card.family || "strategy")}</span>
+          </div>
+          <p>${escapeHtml(card.explanation || "本地候选策略，等待更多观察样本。")}</p>
+          <div class="artifact-metrics">
+            <span>样本 ${metrics.tradeCount ?? "--"}</span>
+            <span>胜率 ${formatPercent(metrics.winRatePct)}</span>
+            <span>PF ${formatNumber(metrics.profitFactor)}</span>
+            <span>回撤 ${formatNumber(metrics.maxDrawdownR, 1)}R</span>
+          </div>
+          <div class="no-key-mini-list">
+            ${entryContext.slice(0, 2).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+            ${riskNotes.slice(0, 1).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+          </div>
+        </div>
+      `;
+    }).join("") || '<div class="testnet-design-empty">暂无可解释策略。请先刷新策略目录。</div>';
+  }
+
+  const candidateTarget = el("noKeyCandidateList");
+  if (candidateTarget) {
+    candidateTarget.innerHTML = candidates.slice(0, 10).map((candidate, index) => {
+      const selected = preferred && candidate.candidateId === preferred.candidateId;
+      const ready = candidate.screeningStatus === "market_ready";
+      return `
+        <div class="exchange-demo-candidate-row ${selected ? "is-selected" : ""}" data-no-key-index="${index}">
+          <div>
+            <div class="exchange-demo-candidate-row-head">
+              <div>
+                <strong>${escapeHtml(candidate.strategyName || "--")}</strong>
+                <small>${escapeHtml(candidate.instId || candidate.symbol || "--")} · ${escapeHtml(candidate.timeframe || "--")} · ${escapeHtml(candidate.frequencyLabel || "--")}</small>
+              </div>
+              <span class="badge ${ready ? "ok" : candidate.screeningStatus === "market_gap" ? "warn" : "neutral"}">${ready ? "公共行情可用" : translateExchangeDemoStatus(candidate.screeningStatus || candidate.marketDataStatus)}</span>
+            </div>
+            <div class="artifact-metrics">
+              <span>方向 ${escapeHtml(candidate.side === "sell" ? "空头观察" : "多头观察")}</span>
+              <span>评分 ${formatNumber(candidate.score, 1)}</span>
+              <span>胜率 ${formatPercent(candidate.winRatePct)}</span>
+              <span>PF ${formatNumber(candidate.profitFactor)}</span>
+              <span>目标 ${formatNumber(candidate.targetR, 1)}R</span>
+            </div>
+            <div class="sandbox-lane-next">${escapeHtml(candidate.reason || "等待公共行情扫描。")}</div>
+          </div>
+          <div class="exchange-demo-candidate-actions">
+            <button class="secondary no-key-use-candidate" type="button" data-no-key-index="${index}">选中</button>
+          </div>
+        </div>
+      `;
+    }).join("") || '<div class="testnet-design-empty">暂无候选。点击公共行情扫描后会显示可观察币种。</div>';
+    candidateTarget.querySelectorAll(".no-key-use-candidate").forEach((button) => {
+      button.addEventListener("click", () => {
+        const idx = Number(button.getAttribute("data-no-key-index") || 0);
+        latestNoKeyPreLiveCandidate = candidates[idx];
+        setText("noKeyActionStatus", `已选中 ${latestNoKeyPreLiveCandidate.instId || latestNoKeyPreLiveCandidate.symbol || "--"}，可以生成本地观察票据。`);
+        renderNoKeyPreLiveWorkbench({ ...latestNoKeyPreLivePayload, preferredCandidate: latestNoKeyPreLiveCandidate });
+      });
+    });
+  }
+
+  const ticketTarget = el("noKeyRecentTickets");
+  if (ticketTarget) {
+    ticketTarget.innerHTML = tickets.slice(0, 6).map((ticket) => `
+      <div class="testnet-drill-row">
+        <div class="testnet-drill-row-head">
+          <div>
+            <strong>${escapeHtml(ticket.strategyName || ticket.strategyId || "--")}</strong>
+            <small>${escapeHtml(ticket.instId || ticket.symbol || "--")} · ${formatDate(ticket.createdAt)}</small>
+          </div>
+          <span class="badge ${ticket.ticketStatus === "local_observation" ? "ok" : "warn"}">${escapeHtml(ticket.ticketStatus || "--")}</span>
+        </div>
+        <div class="artifact-metrics">
+          <span>方向 ${escapeHtml(ticket.side === "sell" ? "空头观察" : "多头观察")}</span>
+          <span>名义 ${formatNumber(ticket.notionalUsdt, 0)} USDT</span>
+          <span>不下单</span>
+        </div>
+      </div>
+    `).join("") || '<div class="testnet-design-empty">暂无本地观察票据。</div>';
+  }
 }
 
 function renderExchangeDemoSimulation(payload = {}) {
@@ -4532,6 +4642,7 @@ function renderConsoleFromPayloads() {
   const sandboxConcentrationReview = review.sandboxConcentrationReview || { summary: {}, strategies: [], variantGroups: [] };
   const sandboxResultReview = review.sandboxResultReview || { summary: {}, strategies: [], familyReviews: [] };
   const strategyAssetPlaybook = review.strategyAssetPlaybook || { summary: {}, strategies: [], executionReadiness: {} };
+  const noKeyPreLive = core.noKeyPreLive || { summary: {}, strategyCards: [], publicCandidates: [], recentTickets: [] };
   const exchangeDemo = core.exchangeDemo || { summary: {}, modeCards: [], recentEvents: [], credentialStatus: {} };
   const liveReadiness = core.liveReadiness || { rows: [], summary: {} };
   const forwardReview = core.forwardReview || { rows: [], summary: {} };
@@ -4541,6 +4652,7 @@ function renderConsoleFromPayloads() {
 
   renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview, sandboxQualityCenter, sandboxConcentrationReview, sandboxResultReview, strategyAssetPlaybook);
   renderLocalLabPage(usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, sandboxQualityCenter, sandboxResultReview, simulationBridge, simulationReview, strategyLearningLoop);
+  renderNoKeyPreLiveWorkbench(noKeyPreLive);
   renderExchangeDemoSimulation(exchangeDemo);
   renderCommandCenter(strategyItems, reportItems, mobile);
   renderRuntimeMonitor(strategyItems, mobile);
@@ -4700,6 +4812,7 @@ async function refreshAll() {
     { key: "usableStrategyCatalog", url: "/api/usable-strategy-catalog", fallback: { strategies: [], summary: {} }, timeoutMs: 6000 },
     { key: "sandboxDailyReport", url: "/api/local-sandbox/daily-report?limit=10", fallback: { reports: [], latestReport: { summary: {}, strategyHealthRows: [] } }, timeoutMs: 6000 },
     { key: "sandboxAutoRunner", url: "/api/local-sandbox/auto-runner", fallback: { autoRunner: {}, events: [] }, timeoutMs: 6000 },
+    { key: "noKeyPreLive", url: "/api/no-key-pre-live", fallback: { summary: {}, strategyCards: [], publicCandidates: [], recentTickets: [] }, timeoutMs: 8000 },
     { key: "exchangeDemo", url: "/api/exchange-demo/simulation", fallback: { summary: {}, modeCards: [], recentEvents: [], credentialStatus: {} }, timeoutMs: 12000 },
     { key: "liveReadiness", url: "/api/live-readiness", fallback: { rows: [], summary: {} }, timeoutMs: 8000 },
     { key: "forwardReview", url: "/api/forward-review", fallback: { rows: [], summary: {} }, timeoutMs: 8000 },
@@ -4859,6 +4972,52 @@ async function scanExchangeDemoCandidates() {
   }
 }
 
+async function scanNoKeyPreLiveCandidates() {
+  const button = el("noKeyScanButton");
+  if (button) button.disabled = true;
+  setText("noKeyActionStatus", "正在用公共行情扫描候选；不需要 API Key，不会下单。");
+  try {
+    const response = await postJson("/api/no-key-pre-live/scan", { limit: 8 });
+    latestCoreConsolePayload = {
+      ...latestCoreConsolePayload,
+      noKeyPreLive: response.noKeyPreLive || {},
+    };
+    renderNoKeyPreLiveWorkbench(response.noKeyPreLive || {});
+    setText("noKeyActionStatus", response.ok
+      ? "公共行情扫描完成。可选择一条候选生成本地观察票据，等待 Demo 凭据准备好后再做只读检查。"
+      : "公共行情扫描未完成，请查看候选状态。");
+  } catch (error) {
+    setText("noKeyActionStatus", `公共行情扫描失败：${error.message}`);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+async function createNoKeyPreLiveTicket() {
+  const button = el("noKeyCreateTicketButton");
+  if (button) button.disabled = true;
+  const candidate = latestNoKeyPreLiveCandidate || {};
+  setText("noKeyActionStatus", "正在生成本地观察票据；不会提交 Demo 或实盘订单。");
+  try {
+    const response = await postJson("/api/no-key-pre-live/create-ticket", {
+      candidateId: candidate.candidateId || "",
+      notionalUsdt: Number(el("noKeyTicketNotionalInput")?.value || 1000),
+    });
+    latestCoreConsolePayload = {
+      ...latestCoreConsolePayload,
+      noKeyPreLive: response.noKeyPreLive || {},
+    };
+    renderNoKeyPreLiveWorkbench(response.noKeyPreLive || {});
+    setText("noKeyActionStatus", response.ok
+      ? "已保存本地观察票据。它只是预实盘复核记录，不是交易所订单。"
+      : "票据已按阻塞状态保存或未找到可用候选；请先完成公共行情扫描。");
+  } catch (error) {
+    setText("noKeyActionStatus", `本地观察票据生成失败：${error.message}`);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
 async function runExchangeDemoReadOnlyCheck() {
   const button = el("exchangeDemoReadOnlyButton");
   if (button) button.disabled = true;
@@ -4948,6 +5107,8 @@ el("localLabRefreshButton")?.addEventListener("click", refreshAll);
 el("exchangeDemoReadOnlyButton")?.addEventListener("click", runExchangeDemoReadOnlyCheck);
 el("exchangeDemoScanButton")?.addEventListener("click", scanExchangeDemoCandidates);
 el("exchangeDemoFillTicketButton")?.addEventListener("click", () => fillExchangeDemoTicketFromCandidate());
+el("noKeyScanButton")?.addEventListener("click", scanNoKeyPreLiveCandidates);
+el("noKeyCreateTicketButton")?.addEventListener("click", createNoKeyPreLiveTicket);
 el("exchangeDemoSubmitButton")?.addEventListener("click", submitExchangeDemoOrder);
 el("exchangeDemoEmergencyButton")?.addEventListener("click", runExchangeDemoEmergencyStop);
 el("toggleAdvancedModeButton")?.addEventListener("click", () => {
