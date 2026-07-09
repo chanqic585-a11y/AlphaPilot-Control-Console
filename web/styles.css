@@ -4299,6 +4299,115 @@ code {
   border-left-color: rgba(255, 184, 77, 0.85);
 }
 
+.auto-lifecycle-panel {
+  margin-top: 16px;
+  border: 1px solid rgba(38, 211, 154, 0.16);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(38, 211, 154, 0.045), transparent 36%),
+    rgba(0, 0, 0, 0.16);
+  padding: 12px;
+}
+
+.auto-lifecycle-summary {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.auto-lifecycle-lanes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.auto-lifecycle-lane {
+  min-height: 120px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+  padding: 10px;
+}
+
+.auto-lifecycle-lane-simulated_holding {
+  border-color: rgba(38, 211, 154, 0.25);
+}
+
+.auto-lifecycle-lane-take_profit_2r {
+  border-color: rgba(38, 211, 154, 0.42);
+  background: rgba(38, 211, 154, 0.04);
+}
+
+.auto-lifecycle-lane-stop_loss_1r,
+.auto-lifecycle-lane-blocked {
+  border-color: rgba(255, 91, 122, 0.32);
+}
+
+.auto-lifecycle-lane-expired_exit {
+  border-color: rgba(255, 211, 75, 0.28);
+}
+
+.auto-lifecycle-lane-head,
+.auto-lifecycle-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.auto-lifecycle-lane-head span {
+  min-width: 28px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f5f8ff;
+  text-align: center;
+  font-weight: 800;
+  padding: 3px 7px;
+}
+
+.auto-lifecycle-cards {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.auto-lifecycle-card {
+  border-left: 3px solid rgba(255, 211, 75, 0.7);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 10px;
+}
+
+.auto-lifecycle-card.is-active {
+  border-left-color: rgba(38, 211, 154, 0.85);
+}
+
+.auto-lifecycle-card.is-blocked {
+  border-left-color: rgba(255, 91, 122, 0.85);
+}
+
+.auto-lifecycle-card strong,
+.auto-lifecycle-card small {
+  display: block;
+}
+
+.auto-lifecycle-card small,
+.auto-lifecycle-card p,
+.auto-lifecycle-blockers {
+  color: var(--muted);
+}
+
+.auto-lifecycle-card p {
+  margin: 8px 0 0;
+  line-height: 1.45;
+}
+
+.auto-lifecycle-blockers {
+  margin-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 8px;
+  font-size: 12px;
+}
+
 .exchange-demo-pipeline-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -4666,6 +4775,8 @@ body.show-advanced .hero-grid.advanced-section {
     .local-lab-columns,
     .no-key-layout,
     .no-key-explain-grid,
+    .auto-lifecycle-summary,
+    .auto-lifecycle-lanes,
     .exchange-demo-layout,
     .exchange-ticket-grid,
     .exchange-demo-pipeline-grid,

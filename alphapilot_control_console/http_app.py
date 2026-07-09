@@ -10,6 +10,7 @@ from urllib.parse import parse_qs, urlparse
 
 from .config import ALLOWED_STRATEGY_STATUSES, SAFETY_BOUNDARY, WEB_DIR
 from .auto_execution_engine import build_auto_execution_engine, run_auto_execution_engine
+from .auto_execution_lifecycle import build_auto_execution_lifecycle_monitor
 from .exchange_connectors.public_exchange_registry import list_public_exchange_sources, probe_public_exchanges
 from .exchange_demo_simulation import (
     build_exchange_demo_simulation,
@@ -147,7 +148,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.10.2"
+    server_version = "AlphaPilotControlConsole/13.10.3"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -190,8 +191,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.10.2",
-                "source": "alphapilot_control_console_v13_10_2",
+                "version": "V13.10.3",
+                "source": "alphapilot_control_console_v13_10_3",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -464,6 +465,14 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/auto-execution-engine":
             self._send_json(_cached_payload("auto-execution-engine", 15, build_auto_execution_engine, fresh=fresh))
+            return
+        if path == "/api/auto-execution-lifecycle":
+            self._send_json(_cached_payload(
+                "auto-execution-lifecycle",
+                10,
+                build_auto_execution_lifecycle_monitor,
+                fresh=fresh,
+            ))
             return
         if path == "/api/research-execution-pipeline":
             self._send_json(_cached_payload(

@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.10.2 - No-Ticket Auto Execution Engine
+AlphaPilot V13.10.3 - Local Auto Execution Lifecycle Monitor
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,26 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.10.3 Adds
+
+V13.10.3 adds a local lifecycle monitor for the no-ticket auto execution
+records created by V13.10.2.
+
+What changed:
+
+- Adds `GET /api/auto-execution-lifecycle`.
+- Adds a visual lifecycle board on the Demo page.
+- Groups local auto-execution records into: waiting trigger, local simulated
+  holding, 2R take-profit, -1R stop-loss, expired exit, and blocked.
+- Shows blockers from the strategy router and local risk gate in a user-facing
+  way.
+- Keeps the existing no-ticket auto execution engine intact.
+
+This version only reads local simulation and audit records. It does not require
+API keys, does not store raw API keys, does not connect private exchange
+endpoints, does not read accounts or positions, does not submit Demo or live
+orders, and does not enable live automatic trading.
 
 ## What V13.10.2 Adds
 
