@@ -4207,6 +4207,29 @@ code {
   gap: 10px;
 }
 
+.no-key-explain-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.no-key-explain-card,
+.no-key-long-lane {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+  padding: 12px;
+}
+
+.no-key-long-lane {
+  margin-top: 12px;
+  border-color: rgba(38, 211, 154, 0.18);
+  background:
+    linear-gradient(135deg, rgba(38, 211, 154, 0.055), transparent 38%),
+    rgba(255, 255, 255, 0.03);
+}
+
 .no-key-strategy-card {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
@@ -4627,6 +4650,7 @@ body.show-advanced .hero-grid.advanced-section {
     .local-lab-grid,
     .local-lab-columns,
     .no-key-layout,
+    .no-key-explain-grid,
     .exchange-demo-layout,
     .exchange-ticket-grid,
     .exchange-demo-pipeline-grid,

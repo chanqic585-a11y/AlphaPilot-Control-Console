@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.10.0 - No-Key Pre-Live Workbench
+AlphaPilot V13.10.1 - Strategy Sample and Direction Balance Polish
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,30 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.10.1 Adds
+
+V13.10.1 makes the no-key pre-live workbench easier to understand before OKX
+Demo credentials are available.
+
+What changed:
+
+- Separates old local sandbox samples from new no-key pre-live candidates.
+- Shows local sandbox sample counts, daily reports, health snapshots, and
+  learning snapshots so existing samples do not look lost.
+- Shows long/short direction balance for both the strategy catalog and current
+  public-market candidates.
+- Changes no-key candidate generation from score-only ordering to a
+  balanced-strategy-first order so long research strategies can enter the public
+  candidate list.
+- Clarifies that current scans use historical `selectedPairs`, not a full OKX
+  market-wide scanner yet.
+- Adds a long-candidate lane for mean reversion, breakout, and squeeze-breakout
+  research candidates.
+
+This version still does not require API keys, does not store raw API keys, does
+not connect private exchange endpoints, does not read accounts or positions,
+does not submit Demo or live orders, and does not enable automatic trading.
 
 ## What V13.10.0 Adds
 

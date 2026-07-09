@@ -1681,6 +1681,48 @@ function renderExchangeDemoPipeline(pipeline = {}) {
   });
 }
 
+function renderNoKeyMiniRows(targetId, rows = []) {
+  const target = el(targetId);
+  if (!target) return;
+  target.innerHTML = rows.length
+    ? rows.map((item) => `<span>${escapeHtml(item)}</span>`).join("")
+    : '<span>暂无数据。</span>';
+}
+
+function renderNoKeyLayerExplanations(payload = {}) {
+  const sample = payload.sampleLayerSummary || payload.summary?.sampleLayer || {};
+  const balance = payload.directionBalance || payload.summary?.directionBalance || {};
+  const universe = payload.universeScope || payload.summary?.universeScope || {};
+  const longLane = payload.longCandidateLane || payload.summary?.longCandidateLane || {};
+  const directionRows = Array.isArray(balance.rows) ? balance.rows : [];
+
+  renderNoKeyMiniRows("noKeySampleLayer", [
+    `旧沙盒闭合样本：${sample.paperObservationLogRows ?? 0} 条`,
+    `沙盒运行 / 日报：${sample.localSandboxRunCount ?? 0} / ${sample.localSandboxDailyReportCount ?? 0}`,
+    `健康快照 / 学习快照：${sample.localSandboxHealthSnapshotCount ?? 0} / ${sample.localSandboxLearningSnapshotCount ?? 0}`,
+    sample.note || "旧样本和新的候选票据是两层数据。",
+  ]);
+
+  renderNoKeyMiniRows("noKeyDirectionBalance", [
+    ...directionRows.map((row) => `${row.label || row.direction}: 策略 ${row.strategyCount ?? 0} / 当前候选 ${row.candidateCount ?? 0}`),
+    balance.note || "策略库会同时保留多头和空头研究方向。",
+  ]);
+
+  renderNoKeyMiniRows("noKeyUniverseScope", [
+    `${universe.currentModeLabel || "当前 selectedPairs 公共行情探测"}`,
+    `已选币种池：${universe.selectedPairCount ?? 0}；当前候选币种：${universe.candidatePairCount ?? 0}`,
+    universe.marketWideScanEnabled ? "全市场扫描：已开启" : "全市场扫描：未开启，下一步进入流动性过滤扫描",
+    universe.note || "当前不是单一固定币种，也还不是全市场实时扫描。",
+  ]);
+
+  setText("noKeyLongLaneStatus", longLane.nextAction || "等待多头候选池扫描。");
+  renderNoKeyMiniRows("noKeyLongLaneItems", [
+    `多头研究策略：${longLane.strategyCount ?? 0} 条；当前多头公共候选：${longLane.publicCandidateCount ?? 0} 条`,
+    ...(Array.isArray(longLane.watchItems) ? longLane.watchItems : []),
+    longLane.note || "多头候选必须通过和空头一样的复核门槛。",
+  ]);
+}
+
 function renderNoKeyPreLiveWorkbench(payload = {}) {
   if (!el("noKeyPreLivePanel")) return;
   latestNoKeyPreLivePayload = payload || {};
@@ -1696,10 +1738,11 @@ function renderNoKeyPreLiveWorkbench(payload = {}) {
   setText("noKeyTicketCount", String(summary.ticketCount ?? tickets.length ?? 0));
   setText("noKeyLatestScan", summary.latestScanAt ? formatDate(summary.latestScanAt) : "尚未扫描");
   setText("noKeyActionStatus", summary.nextAction || "先用公共行情扫描候选，不需要 API Key。");
+  renderNoKeyLayerExplanations(payload);
 
   const cardsTarget = el("noKeyStrategyCards");
   if (cardsTarget) {
-    cardsTarget.innerHTML = cards.slice(0, 5).map((card) => {
+    cardsTarget.innerHTML = cards.slice(0, 10).map((card) => {
       const metrics = card.metrics || {};
       const riskNotes = Array.isArray(card.riskNotes) ? card.riskNotes : [];
       const entryContext = Array.isArray(card.entryContext) ? card.entryContext : [];
@@ -4977,7 +5020,7 @@ async function scanNoKeyPreLiveCandidates() {
   if (button) button.disabled = true;
   setText("noKeyActionStatus", "正在用公共行情扫描候选；不需要 API Key，不会下单。");
   try {
-    const response = await postJson("/api/no-key-pre-live/scan", { limit: 8 });
+    const response = await postJson("/api/no-key-pre-live/scan", { limit: 12 });
     latestCoreConsolePayload = {
       ...latestCoreConsolePayload,
       noKeyPreLive: response.noKeyPreLive || {},

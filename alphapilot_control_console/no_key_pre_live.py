@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+from collections import Counter
 from typing import Any
 
 from .config import SAFETY_BOUNDARY
 from .exchange_connectors.public_exchange_registry import probe_public_exchanges
 from .state_store import (
+    list_local_sandbox_daily_reports,
+    list_local_sandbox_health_snapshots,
+    list_local_sandbox_learning_snapshots,
+    list_local_sandbox_runs,
     list_no_key_pre_live_scans,
     list_no_key_pre_live_tickets,
+    list_paper_observation_logs,
     now_iso,
     save_no_key_pre_live_scan,
     save_no_key_pre_live_ticket,
@@ -14,8 +20,8 @@ from .state_store import (
 from .usable_strategy_catalog import build_usable_strategy_catalog
 
 
-CONTROL_CONSOLE_VERSION = "V13.10.0"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_10_0"
+CONTROL_CONSOLE_VERSION = "V13.10.1"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_10_1"
 MAX_LOCAL_OBSERVATION_NOTIONAL_USDT = 1000
 
 
@@ -67,6 +73,118 @@ def _metric_pack(strategy: dict[str, Any]) -> dict[str, Any]:
         "expectancyR": _safe_float(metrics.get("expectancyR")),
         "totalR": _safe_float(metrics.get("totalR")),
         "maxDrawdownR": _safe_float(metrics.get("maxDrawdownR") or metrics.get("maxDrawdownPctAt1PctRisk")),
+    }
+
+
+def _direction_label(direction: Any) -> str:
+    value = str(direction or "").lower()
+    if value == "short":
+        return "空头候选"
+    if value in {"long", "long_research"}:
+        return "多头研究"
+    if value in {"neutral", "market_neutral"}:
+        return "中性研究"
+    return "未知方向"
+
+
+def _direction_balance(cards: list[dict[str, Any]], candidates: list[dict[str, Any]]) -> dict[str, Any]:
+    strategy_counts = Counter(str(card.get("direction") or "unknown") for card in cards)
+    candidate_counts = Counter(str(row.get("direction") or "unknown") for row in candidates)
+    rows: list[dict[str, Any]] = []
+    for direction in sorted(set(strategy_counts) | set(candidate_counts)):
+        rows.append({
+            "direction": direction,
+            "label": _direction_label(direction),
+            "strategyCount": int(strategy_counts.get(direction, 0)),
+            "candidateCount": int(candidate_counts.get(direction, 0)),
+        })
+    short_candidates = candidate_counts.get("short", 0)
+    long_candidates = candidate_counts.get("long", 0) + candidate_counts.get("long_research", 0)
+    if short_candidates and not long_candidates:
+        note = "当前公共行情候选偏空；这来自最新扫描结果，不代表策略库没有多头候选。"
+    elif long_candidates and not short_candidates:
+        note = "当前公共行情候选偏多；仍需按同一套 2R 和风险门槛复核。"
+    else:
+        note = "策略库同时保留多头和空头研究方向；公共行情扫描会随市场状态变化。"
+    return {
+        "rows": rows,
+        "strategyDirectionCounts": dict(strategy_counts),
+        "candidateDirectionCounts": dict(candidate_counts),
+        "shortCandidateCount": int(short_candidates),
+        "longCandidateCount": int(long_candidates),
+        "note": note,
+    }
+
+
+def _sample_layer_summary() -> dict[str, Any]:
+    logs_by_artifact = list_paper_observation_logs()
+    log_rows = 0
+    if isinstance(logs_by_artifact, dict):
+        log_rows = sum(len(rows) for rows in logs_by_artifact.values() if isinstance(rows, list))
+    runs = list_local_sandbox_runs(limit=50)
+    reports = list_local_sandbox_daily_reports(limit=60)
+    health_snapshots = list_local_sandbox_health_snapshots(limit=500)
+    learning_snapshots = list_local_sandbox_learning_snapshots(limit=500)
+    latest_report = reports[0] if reports else {}
+    latest_report_summary = latest_report.get("summary") if isinstance(latest_report.get("summary"), dict) else {}
+    return {
+        "paperObservationLogBuckets": len(logs_by_artifact) if isinstance(logs_by_artifact, dict) else 0,
+        "paperObservationLogRows": log_rows,
+        "localSandboxRunCount": len(runs),
+        "localSandboxDailyReportCount": len(reports),
+        "localSandboxHealthSnapshotCount": len(health_snapshots),
+        "localSandboxLearningSnapshotCount": len(learning_snapshots),
+        "latestSandboxReportId": latest_report.get("reportId"),
+        "latestSandboxDateKey": latest_report.get("dateKey"),
+        "latestSandboxClosedSamples": latest_report_summary.get("totalClosedSampleCount"),
+        "latestSandboxDailyR": latest_report_summary.get("dailyR"),
+        "note": "旧沙盒样本仍保存在本地 state；无私钥预实盘候选是新的候选/票据层，不会覆盖旧样本。",
+    }
+
+
+def _universe_scope(cards: list[dict[str, Any]], candidates: list[dict[str, Any]]) -> dict[str, Any]:
+    selected_pairs: set[str] = set()
+    for card in cards:
+        pairs = card.get("selectedPairs") if isinstance(card.get("selectedPairs"), list) else []
+        selected_pairs.update(str(pair) for pair in pairs if pair)
+    candidate_pairs = {str(row.get("symbol")) for row in candidates if row.get("symbol")}
+    return {
+        "currentMode": "selected_pairs_public_probe",
+        "currentModeLabel": "当前是 selectedPairs 公共行情探测",
+        "selectedPairCount": len(selected_pairs),
+        "candidatePairCount": len(candidate_pairs),
+        "marketWideScanEnabled": False,
+        "nextMode": "liquidity_filtered_market_wide_scan",
+        "nextModeLabel": "下一步扩展为流动性过滤后的全市场扫描",
+        "note": "当前策略不是固定单一币种，但也还不是 OKX 全市场实时扫描；它先使用历史回测筛出的 selectedPairs。",
+    }
+
+
+def _long_candidate_lane(cards: list[dict[str, Any]], candidates: list[dict[str, Any]]) -> dict[str, Any]:
+    long_cards = [
+        card for card in cards
+        if str(card.get("direction") or "").lower() in {"long", "long_research"}
+    ]
+    long_candidates = [
+        row for row in candidates
+        if str(row.get("direction") or "").lower() in {"long", "long_research"}
+    ]
+    return {
+        "strategyCount": len(long_cards),
+        "publicCandidateCount": len(long_candidates),
+        "nextAction": (
+            "多头策略已经在策略库中，但当前公共行情扫描未优先展开多头；下一步应增加多头优先扫描和全市场相对强势筛选。"
+            if long_cards and not long_candidates
+            else "继续用同一套 2R、样本数、回撤和风险规则复核多头候选。"
+        ),
+        "candidateFamilies": list(dict.fromkeys(str(card.get("family") or "--") for card in long_cards)),
+        "watchItems": [
+            "熊市震荡里的相对强势币",
+            "日线超跌修复后仍保持结构的币",
+            "低波压缩后放量突破的币",
+            "BTC 下跌时抗跌、BTC 企稳时先反弹的币",
+        ],
+        "note": "多头候选不能为了平衡方向硬凑，必须通过和空头同样的回测、沙盒和 Demo 门槛。",
     }
 
 
@@ -154,11 +272,15 @@ def _strategy_cards(limit: int = 10) -> tuple[list[dict[str, Any]], dict[str, An
 def _candidate_rows(cards: list[dict[str, Any]], limit: int = 12) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     seen: set[tuple[str, str]] = set()
-    for card in cards:
-        pairs = card.get("selectedPairs") if isinstance(card.get("selectedPairs"), list) else []
-        if not pairs:
-            pairs = ["BTC/USDT:USDT"]
-        for pair in pairs[:3]:
+    max_pairs_per_strategy = 3
+    for pair_index in range(max_pairs_per_strategy):
+        for card in cards:
+            pairs = card.get("selectedPairs") if isinstance(card.get("selectedPairs"), list) else []
+            if not pairs:
+                pairs = ["BTC/USDT:USDT"]
+            if pair_index >= len(pairs[:max_pairs_per_strategy]):
+                continue
+            pair = pairs[pair_index]
             inst_id = _okx_inst_id_from_pair(str(pair))
             key = (str(card.get("strategyId") or ""), inst_id)
             if key in seen:
@@ -185,6 +307,7 @@ def _candidate_rows(cards: list[dict[str, Any]], limit: int = 12) -> list[dict[s
                 "reason": "策略已加载；等待公共行情扫描后再生成本地观察票据。",
                 "apiKeyRequired": False,
                 "ordersCreated": False,
+                "selectionLayer": "balanced_strategy_first",
             })
             if len(rows) >= limit:
                 return rows
@@ -215,6 +338,10 @@ def build_no_key_pre_live_workbench() -> dict[str, Any]:
     candidates = _apply_latest_scan(_candidate_rows(cards), latest_scan)
     ready = [row for row in candidates if row.get("screeningStatus") == "market_ready"]
     preferred = ready[0] if ready else (candidates[0] if candidates else None)
+    direction_balance = _direction_balance(cards, candidates)
+    sample_layer_summary = _sample_layer_summary()
+    universe_scope = _universe_scope(cards, candidates)
+    long_candidate_lane = _long_candidate_lane(cards, candidates)
     return {
         "version": CONTROL_CONSOLE_VERSION,
         "source": CONTROL_CONSOLE_SOURCE,
@@ -229,6 +356,10 @@ def build_no_key_pre_live_workbench() -> dict[str, Any]:
             "ticketCount": len(tickets),
             "latestScanAt": latest_scan.get("createdAt") if latest_scan else None,
             "preferredCandidateId": preferred.get("candidateId") if preferred else None,
+            "sampleLayer": sample_layer_summary,
+            "directionBalance": direction_balance,
+            "universeScope": universe_scope,
+            "longCandidateLane": long_candidate_lane,
             "nextAction": (
                 "公共行情已有可观察候选，可以先生成本地观察票据；等 OKX Demo 凭据准备好后再做只读检查。"
                 if ready else "先点击公共行情扫描；不需要 API Key，不会下单。"
@@ -237,6 +368,10 @@ def build_no_key_pre_live_workbench() -> dict[str, Any]:
         "strategyCards": cards,
         "publicCandidates": candidates,
         "preferredCandidate": preferred,
+        "sampleLayerSummary": sample_layer_summary,
+        "directionBalance": direction_balance,
+        "universeScope": universe_scope,
+        "longCandidateLane": long_candidate_lane,
         "recentScans": scans,
         "recentTickets": tickets,
         "workflow": [
@@ -260,7 +395,7 @@ def build_no_key_pre_live_workbench() -> dict[str, Any]:
 
 def scan_no_key_pre_live_candidates(payload: dict[str, Any] | None = None) -> dict[str, Any]:
     payload = payload if isinstance(payload, dict) else {}
-    limit = max(1, min(_safe_int(payload.get("limit"), 8), 12))
+    limit = max(1, min(_safe_int(payload.get("limit"), 12), 12))
     cards, catalog_summary = _strategy_cards()
     candidates = _candidate_rows(cards, limit=limit)
     scanned: list[dict[str, Any]] = []
