@@ -4097,6 +4097,66 @@ code {
   color: var(--gold);
 }
 
+.exchange-demo-runbook {
+  margin: 14px 0;
+  padding: 14px;
+  border: 1px solid rgba(255, 211, 75, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 211, 75, 0.035);
+}
+
+.exchange-demo-runbook-list {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.exchange-demo-runbook-step {
+  min-height: 120px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.exchange-demo-runbook-step span,
+.exchange-demo-runbook-step strong,
+.exchange-demo-runbook-step small {
+  display: block;
+}
+
+.exchange-demo-runbook-step span {
+  color: var(--gold);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.exchange-demo-runbook-step strong {
+  margin-top: 8px;
+  color: #f5f8ff;
+}
+
+.exchange-demo-runbook-step small {
+  margin-top: 8px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.exchange-demo-runbook-step.ok {
+  border-color: rgba(24, 211, 166, 0.24);
+  background: rgba(24, 211, 166, 0.05);
+}
+
+.exchange-demo-runbook-step.blocked,
+.exchange-demo-runbook-step.warn {
+  border-color: rgba(255, 211, 75, 0.2);
+}
+
+.exchange-demo-runbook-step.disabled {
+  opacity: 0.62;
+}
+
 .exchange-demo-main,
 .exchange-demo-side {
   display: grid;
@@ -4167,6 +4227,33 @@ code {
   border-color: rgba(24, 211, 166, 0.22);
   background: rgba(24, 211, 166, 0.07);
   color: #72e1c3;
+}
+
+.exchange-demo-readonly-details {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.exchange-demo-readonly-details div {
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.exchange-demo-readonly-details span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.exchange-demo-readonly-details strong {
+  margin: 0;
+  color: #eef4ff;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .danger-action {
@@ -4300,6 +4387,7 @@ body:not(.show-advanced) #strategyAssetPlaybook {
     .local-lab-columns,
     .exchange-demo-layout,
     .exchange-ticket-grid,
+    .exchange-demo-runbook-list,
     .testnet-drill-columns,
     .testnet-audit-columns,
     .testnet-drill-row-head,

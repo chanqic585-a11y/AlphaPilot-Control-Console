@@ -79,7 +79,7 @@ WEAKNESS_ACTION_STATUS_LABELS = {
     "archived": "已归档",
 }
 
-CONTROL_CONSOLE_STATE_SOURCE = "alphapilot_control_console_v13_9_5"
+CONTROL_CONSOLE_STATE_SOURCE = "alphapilot_control_console_v13_9_6"
 DEFAULT_LOCAL_SANDBOX_AUTO_RUNNER = {
     "enabled": False,
     "intervalMinutes": 360,

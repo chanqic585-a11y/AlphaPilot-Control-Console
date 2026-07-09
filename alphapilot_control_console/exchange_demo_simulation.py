@@ -14,11 +14,10 @@ from urllib.request import Request, urlopen
 
 from .config import SAFETY_BOUNDARY
 from .state_store import list_exchange_demo_events, now_iso, save_exchange_demo_event
-from .strategy_asset_playbook import build_strategy_asset_playbook
 
 
-CONTROL_CONSOLE_VERSION = "V13.9.5"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_9_5"
+CONTROL_CONSOLE_VERSION = "V13.9.6"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_9_6"
 DEFAULT_DEMO_BASE_URL = "https://www.okx.com"
 ALLOWED_DEMO_BASE_URLS = {"https://www.okx.com", "https://eea.okx.com"}
 MAX_DEMO_NOTIONAL_USDT = 1000.0
@@ -140,12 +139,10 @@ def _okx_request(method: str, path: str, query: dict[str, Any] | None = None, bo
 
 
 def _pick_default_strategy() -> dict[str, Any]:
-    playbook = build_strategy_asset_playbook()
-    rows = playbook.get("strategies") if isinstance(playbook.get("strategies"), list) else []
-    for row in rows:
-        if isinstance(row, dict):
-            return row
-    return {}
+    return {
+        "taskId": "manual_okx_demo_observation",
+        "readableName": "手动 OKX Demo 观察票据",
+    }
 
 
 def _private_blockers(order: bool = False) -> list[str]:
@@ -196,6 +193,89 @@ def _safe_float(value: Any, fallback: float = 0.0) -> float:
         return fallback
 
 
+def _latest_readonly_event(events: list[dict[str, Any]]) -> dict[str, Any] | None:
+    for event in events:
+        if event.get("eventType") == "readonly_check":
+            return event
+    return None
+
+
+def _build_readonly_summary(events: list[dict[str, Any]]) -> dict[str, Any]:
+    event = _latest_readonly_event(events)
+    if not event:
+        return {
+            "status": "not_run",
+            "statusLabel": "尚未检查",
+            "lastCheckedAt": None,
+            "balanceStatus": None,
+            "positionStatus": None,
+            "balanceCode": None,
+            "positionCode": None,
+            "blockers": [],
+            "nextAction": "先用 OKX Demo 启动脚本启动控制台，再点击只读检查。",
+        }
+    blockers = event.get("blockers") if isinstance(event.get("blockers"), list) else []
+    status = str(event.get("status") or "unknown")
+    labels = {
+        "passed": "只读检查通过",
+        "failed": "只读检查失败",
+        "blocked": "只读检查被阻塞",
+        "unknown": "状态未知",
+    }
+    if status == "passed":
+        next_action = "只读检查已通过；若要做 Demo 订单演练，仍需单独开启订单开关并人工确认。"
+    elif status == "blocked":
+        next_action = "先补齐 OKX Demo 环境变量和 Demo 私有连接开关。"
+    else:
+        next_action = "请复核 OKX Demo 返回码、网络连接和模拟账户权限。"
+    return {
+        "status": status,
+        "statusLabel": labels.get(status, status),
+        "lastCheckedAt": event.get("createdAt"),
+        "balanceStatus": event.get("balanceStatus"),
+        "positionStatus": event.get("positionStatus"),
+        "balanceCode": event.get("okxBalanceCode"),
+        "positionCode": event.get("okxPositionCode"),
+        "blockers": blockers,
+        "nextAction": next_action,
+    }
+
+
+def _build_runbook(private_blockers: list[str], order_blockers: list[str]) -> list[dict[str, Any]]:
+    return [
+        {
+            "stepId": "create_okx_demo_key",
+            "label": "准备 OKX Demo API Key",
+            "status": "manual_required",
+            "description": "只使用 OKX Demo Trading 模拟账户密钥，不使用实盘密钥，不勾选提现权限。",
+        },
+        {
+            "stepId": "start_with_env_launcher",
+            "label": "用启动器注入临时环境变量",
+            "status": "ready" if "okx_demo_credentials_missing" not in private_blockers else "waiting_credentials",
+            "description": "运行 scripts/start_okx_demo_console.ps1；脚本只把密钥放在当前进程环境变量里，不写入文件。",
+        },
+        {
+            "stepId": "run_readonly_check",
+            "label": "只读检查",
+            "status": "ready" if not private_blockers else "blocked",
+            "description": "点击 OKX Demo 页面里的只读检查，验证模拟余额和模拟持仓接口。",
+        },
+        {
+            "stepId": "manual_demo_order",
+            "label": "人工 Demo 订单演练",
+            "status": "ready" if not order_blockers else "blocked",
+            "description": "订单演练必须单独开启订单开关、手动填写 sz，并输入 OKX_DEMO_ORDER_APPROVED。",
+        },
+        {
+            "stepId": "future_live_gate",
+            "label": "未来实盘闸门",
+            "status": "disabled",
+            "description": "实盘、自动交易、Withdraw API 仍关闭，未来必须单独设计和验收。",
+        },
+    ]
+
+
 def build_exchange_demo_simulation() -> dict[str, Any]:
     credential_status = _credential_status()
     strategy = _pick_default_strategy()
@@ -203,6 +283,7 @@ def build_exchange_demo_simulation() -> dict[str, Any]:
     order_blockers = _private_blockers(order=True)
     recent_events = list_exchange_demo_events(limit=20)
     base_url, base_url_warning = _demo_base_url()
+    readonly_summary = _build_readonly_summary(recent_events)
     return {
         "version": CONTROL_CONSOLE_VERSION,
         "source": CONTROL_CONSOLE_SOURCE,
@@ -253,8 +334,18 @@ def build_exchange_demo_simulation() -> dict[str, Any]:
             },
         ],
         "credentialStatus": credential_status,
+        "readonlySummary": readonly_summary,
         "privateBlockers": private_blockers,
         "orderBlockers": order_blockers,
+        "runbook": _build_runbook(private_blockers, order_blockers),
+        "launcher": {
+            "script": "scripts/start_okx_demo_console.ps1",
+            "readOnlyCommand": "powershell -ExecutionPolicy Bypass -File scripts\\start_okx_demo_console.ps1",
+            "orderCommand": "powershell -ExecutionPolicy Bypass -File scripts\\start_okx_demo_console.ps1 -EnableOrder",
+            "mobileCommand": "powershell -ExecutionPolicy Bypass -File scripts\\start_okx_demo_console.ps1 -Mobile",
+            "storesRawKeys": False,
+            "envOnly": True,
+        },
         "defaultTicket": {
             "strategyId": strategy.get("taskId") or strategy.get("strategyId") or "demo_strategy_candidate",
             "readableName": strategy.get("readableName") or strategy.get("plainName") or "本地候选策略",

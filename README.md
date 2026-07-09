@@ -1410,3 +1410,52 @@ Safety boundary:
 - Demo order notional is capped at 1000 USDT.
 - Live trading, Withdraw API, real account trading, real order creation, and
   automatic trading remain disabled.
+
+## V13.9.6 OKX Demo Runbook and Launcher
+
+V13.9.6 makes OKX Demo startup safer and easier to operate.
+
+What changed:
+
+- Adds `scripts/start_okx_demo_console.ps1`.
+- Adds an OKX Demo runbook strip to the Demo page.
+- Adds a latest read-only check result panel showing balance endpoint status,
+  position endpoint status, OKX return codes, blockers, and next action.
+- Updates `/api/exchange-demo/simulation` to include `readonlySummary`,
+  `runbook`, and `launcher` metadata.
+
+Read-only Demo startup:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\start_okx_demo_console.ps1
+```
+
+Mobile Demo startup:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\start_okx_demo_console.ps1 -Mobile
+```
+
+Manual Demo order rehearsal startup:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\start_okx_demo_console.ps1 -EnableOrder
+```
+
+Emergency cancel rehearsal startup:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\start_okx_demo_console.ps1 -EnableCancel
+```
+
+Safety boundary:
+
+- The launcher prompts for OKX Demo credentials and injects them into the
+  current PowerShell process environment only.
+- The launcher does not write raw API keys to files.
+- `-EnableOrder` is not enabled by default.
+- `-EnableCancel` is not enabled by default.
+- OKX Demo order submission still requires the page-level
+  `OKX_DEMO_ORDER_APPROVED` phrase, explicit OKX `sz`, and the 1000 USDT cap.
+- Live trading, Withdraw API, live API keys, real account trading, and automatic
+  trading remain disabled.

@@ -1564,6 +1564,10 @@ function translateExchangeDemoStatus(value) {
     failed: "失败",
     submitted: "已提交",
     local_drill_saved: "本地演练已保存",
+    not_run: "尚未检查",
+    manual_required: "需要人工处理",
+    waiting_credentials: "等待凭据",
+    ready: "就绪",
   };
   return labels[value] || value || "--";
 }
@@ -1577,6 +1581,9 @@ function renderExchangeDemoSimulation(payload = {}) {
   const orderBlockers = Array.isArray(payload.orderBlockers) ? payload.orderBlockers : [];
   const recentEvents = Array.isArray(payload.recentEvents) ? payload.recentEvents : [];
   const defaultTicket = payload.defaultTicket || {};
+  const readonlySummary = payload.readonlySummary || {};
+  const launcher = payload.launcher || {};
+  const runbook = Array.isArray(payload.runbook) ? payload.runbook : [];
 
   const modeBadge = el("exchangeDemoModeBadge");
   if (modeBadge) {
@@ -1594,9 +1601,10 @@ function renderExchangeDemoSimulation(payload = {}) {
   setText("exchangeDemoConnectionState", summary.demoPrivateEnabled ? "Demo 开关已开" : "默认锁定");
   setText("exchangeDemoConnectionMeta", `${summary.exchange || "OKX Demo Trading"} · ${summary.baseUrl || "--"}`);
   setText("exchangeDemoCredentialState", credentialStatus.allConfigured ? "环境变量已配置" : "凭据未完整");
-  setText("exchangeDemoReadOnlyState", summary.canRunReadOnlyCheck ? "可检查" : "阻塞");
-  setText("exchangeDemoReadOnlyMeta", summary.nextAction || "先配置 OKX Demo 环境变量。");
+  setText("exchangeDemoReadOnlyState", readonlySummary.statusLabel || (summary.canRunReadOnlyCheck ? "可检查" : "阻塞"));
+  setText("exchangeDemoReadOnlyMeta", readonlySummary.nextAction || summary.nextAction || "先配置 OKX Demo 环境变量。");
   setText("exchangeDemoRecentMeta", `${recentEvents.length} 条事件 · 最近 ${formatDate(recentEvents[0]?.createdAt)}`);
+  setText("exchangeDemoLauncherCommand", launcher.readOnlyCommand || "powershell -ExecutionPolicy Bypass -File scripts\\start_okx_demo_console.ps1");
 
   const blockerTarget = el("exchangeDemoBlockers");
   if (blockerTarget) {
@@ -1614,6 +1622,28 @@ function renderExchangeDemoSimulation(payload = {}) {
         <small>${escapeHtml(translateExchangeDemoStatus(card.status))} · ${escapeHtml(card.description)}</small>
       </div>
     `).join("");
+  }
+
+  const runbookTarget = el("exchangeDemoRunbookList");
+  if (runbookTarget) {
+    runbookTarget.innerHTML = runbook.map((step) => `
+      <div class="exchange-demo-runbook-step ${step.status === "ready" ? "ok" : step.status === "disabled" ? "disabled" : step.status === "blocked" ? "blocked" : "warn"}">
+        <span>${escapeHtml(translateExchangeDemoStatus(step.status))}</span>
+        <strong>${escapeHtml(step.label || step.stepId || "--")}</strong>
+        <small>${escapeHtml(step.description || "--")}</small>
+      </div>
+    `).join("") || '<div class="testnet-design-empty">暂无 Demo 运行手册。</div>';
+  }
+
+  const readonlyTarget = el("exchangeDemoReadOnlyDetails");
+  if (readonlyTarget) {
+    const blockers = Array.isArray(readonlySummary.blockers) ? readonlySummary.blockers : [];
+    readonlyTarget.innerHTML = `
+      <div><span>检查时间</span><strong>${formatDate(readonlySummary.lastCheckedAt)}</strong></div>
+      <div><span>余额接口</span><strong>${escapeHtml(readonlySummary.balanceStatus ?? "--")} / ${escapeHtml(readonlySummary.balanceCode ?? "--")}</strong></div>
+      <div><span>持仓接口</span><strong>${escapeHtml(readonlySummary.positionStatus ?? "--")} / ${escapeHtml(readonlySummary.positionCode ?? "--")}</strong></div>
+      <div><span>阻塞</span><strong>${blockers.length ? blockers.map(translateExchangeDemoBlocker).join(" · ") : "无"}</strong></div>
+    `;
   }
 
   const instInput = el("exchangeDemoInstIdInput");

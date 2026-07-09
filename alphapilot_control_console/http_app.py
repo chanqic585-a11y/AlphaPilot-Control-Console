@@ -120,7 +120,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.9.5"
+    server_version = "AlphaPilotControlConsole/13.9.6"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -161,8 +161,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.9.5",
-                "source": "alphapilot_control_console_v13_9_5",
+                "version": "V13.9.6",
+                "source": "alphapilot_control_console_v13_9_6",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
