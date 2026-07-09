@@ -9,6 +9,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from .config import ALLOWED_STRATEGY_STATUSES, SAFETY_BOUNDARY, WEB_DIR
+from .auto_execution_engine import build_auto_execution_engine, run_auto_execution_engine
 from .exchange_connectors.public_exchange_registry import list_public_exchange_sources, probe_public_exchanges
 from .exchange_demo_simulation import (
     build_exchange_demo_simulation,
@@ -146,7 +147,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.10.0"
+    server_version = "AlphaPilotControlConsole/13.10.2"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -189,8 +190,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.10.1",
-                "source": "alphapilot_control_console_v13_10_1",
+                "version": "V13.10.2",
+                "source": "alphapilot_control_console_v13_10_2",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -460,6 +461,9 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/no-key-pre-live":
             self._send_json(_cached_payload("no-key-pre-live", 15, build_no_key_pre_live_workbench, fresh=fresh))
+            return
+        if path == "/api/auto-execution-engine":
+            self._send_json(_cached_payload("auto-execution-engine", 15, build_auto_execution_engine, fresh=fresh))
             return
         if path == "/api/research-execution-pipeline":
             self._send_json(_cached_payload(
@@ -862,6 +866,10 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/no-key-pre-live/create-ticket":
             payload = self._read_body_json()
             self._send_json(create_no_key_observation_ticket(payload))
+            return
+        if parsed.path == "/api/auto-execution-engine/run":
+            payload = self._read_body_json()
+            self._send_json(run_auto_execution_engine(payload))
             return
         if parsed.path == "/api/exchange-demo/order":
             payload = self._read_body_json()

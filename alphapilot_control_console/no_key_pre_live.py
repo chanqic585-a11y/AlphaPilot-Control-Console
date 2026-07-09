@@ -20,8 +20,8 @@ from .state_store import (
 from .usable_strategy_catalog import build_usable_strategy_catalog
 
 
-CONTROL_CONSOLE_VERSION = "V13.10.1"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_10_1"
+CONTROL_CONSOLE_VERSION = "V13.10.2"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_10_2"
 MAX_LOCAL_OBSERVATION_NOTIONAL_USDT = 1000
 
 

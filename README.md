@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.10.1 - Strategy Sample and Direction Balance Polish
+AlphaPilot V13.10.2 - No-Ticket Auto Execution Engine
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,31 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.10.2 Adds
+
+V13.10.2 combines the auto-execution lifecycle work and the no-ticket execution
+boundary into one local-only patch.
+
+What changed:
+
+- Adds `GET /api/auto-execution-engine`.
+- Adds `POST /api/auto-execution-engine/run`.
+- Removes the user-facing no-key observation ticket action from the main Demo
+  page flow.
+- Adds a strategy router that resolves same-symbol conflicts, caps each run to
+  five local lifecycle records, applies a cooldown, and keeps the 1000 USDT
+  local notional cap.
+- Adds local risk gates for public-market readiness, 2R target, score, sample
+  count, profit factor, and notional size.
+- Saves immutable local auto-execution records for review, including TP/SL
+  lifecycle policy, route status, risk status, blockers, and safety flags.
+- Keeps all exchange order paths locked. The records are local simulation and
+  audit records only.
+
+This version still does not require API keys, does not store raw API keys, does
+not connect private exchange endpoints, does not read accounts or positions,
+does not submit Demo or live orders, and does not enable live automatic trading.
 
 ## What V13.10.1 Adds
 

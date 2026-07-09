@@ -224,6 +224,7 @@ let latestExchangeDemoPayload = {};
 let latestExchangeDemoCandidate = null;
 let latestNoKeyPreLivePayload = {};
 let latestNoKeyPreLiveCandidate = null;
+let latestAutoExecutionEnginePayload = {};
 let latestMobilePayload = {};
 let latestSandboxReviewPayload = {};
 let latestCoreConsolePayload = {};
@@ -1805,7 +1806,7 @@ function renderNoKeyPreLiveWorkbench(payload = {}) {
       button.addEventListener("click", () => {
         const idx = Number(button.getAttribute("data-no-key-index") || 0);
         latestNoKeyPreLiveCandidate = candidates[idx];
-        setText("noKeyActionStatus", `已选中 ${latestNoKeyPreLiveCandidate.instId || latestNoKeyPreLiveCandidate.symbol || "--"}，可以生成本地观察票据。`);
+        setText("noKeyActionStatus", `已选中 ${latestNoKeyPreLiveCandidate.instId || latestNoKeyPreLiveCandidate.symbol || "--"}，可以运行自动执行引擎生成本地生命周期记录。`);
         renderNoKeyPreLiveWorkbench({ ...latestNoKeyPreLivePayload, preferredCandidate: latestNoKeyPreLiveCandidate });
       });
     });
@@ -1830,6 +1831,52 @@ function renderNoKeyPreLiveWorkbench(payload = {}) {
       </div>
     `).join("") || '<div class="testnet-design-empty">暂无本地观察票据。</div>';
   }
+}
+
+function renderAutoExecutionEngine(payload = {}) {
+  latestAutoExecutionEnginePayload = payload || {};
+  const summary = payload.summary || {};
+  const records = Array.isArray(payload.records) ? payload.records : [];
+  const runs = Array.isArray(payload.recentRuns) ? payload.recentRuns : [];
+  setText("noKeyTicketCount", String(summary.openLifecycleRecords ?? records.filter((row) => row.executionStatus === "local_tp_sl_watch").length));
+  setText("autoExecutionStatus", summary.nextAction || "无票据流程：策略→仲裁→风控→本地生命周期记录。");
+
+  const target = el("autoExecutionRecordList");
+  if (!target) return;
+  target.innerHTML = records.slice(0, 10).map((record) => {
+    const selected = record.routeStatus === "selected" && record.riskStatus === "passed";
+    const blockers = Array.isArray(record.riskBlockers) ? record.riskBlockers : [];
+    const routerBlockers = Array.isArray(record.routerBlockers) ? record.routerBlockers : [];
+    const lifecycle = Array.isArray(record.lifecycle) ? record.lifecycle : [];
+    return `
+      <div class="testnet-drill-row auto-execution-row ${selected ? "is-open" : "is-blocked"}">
+        <div class="testnet-drill-row-head">
+          <div>
+            <strong>${escapeHtml(record.strategyName || record.strategyId || "--")}</strong>
+            <small>${escapeHtml(record.instId || record.symbol || "--")} · ${escapeHtml(record.timeframe || "--")} · ${formatDate(record.createdAt)}</small>
+          </div>
+          <span class="badge ${selected ? "ok" : "warn"}">${selected ? "本地观察中" : "已阻塞"}</span>
+        </div>
+        <div class="artifact-metrics">
+          <span>方向 ${escapeHtml(record.directionLabel || (record.side === "sell" ? "空头观察" : "多头观察"))}</span>
+          <span>名义 ${formatNumber(record.notionalUsdt, 0)} USDT</span>
+          <span>目标 ${formatNumber(record.targetR, 1)}R / 止损 1R</span>
+          <span>胜率 ${formatPercent(record.winRatePct)}</span>
+          <span>PF ${formatNumber(record.profitFactor)}</span>
+          <span>样本 ${record.tradeCount ?? "--"}</span>
+        </div>
+        <div class="no-key-mini-list">
+          ${lifecycle.slice(0, 4).map((step) => `<span>${escapeHtml(step.label || step.stepId || "--")}：${escapeHtml(step.status || "--")}</span>`).join("")}
+          ${(routerBlockers.length || blockers.length) ? `<span>阻塞：${escapeHtml([...routerBlockers, ...blockers].join(" / "))}</span>` : "<span>实盘订单：锁定；仅保存本地模拟执行记录。</span>"}
+        </div>
+      </div>
+    `;
+  }).join("") || `
+    <div class="testnet-design-empty">
+      暂无自动执行生命周期记录。先扫描公共行情，再点击“运行自动执行引擎”。
+      ${runs.length ? `最近运行：${escapeHtml(runs[0].runId || "--")}` : ""}
+    </div>
+  `;
 }
 
 function renderExchangeDemoSimulation(payload = {}) {
@@ -4686,6 +4733,7 @@ function renderConsoleFromPayloads() {
   const sandboxResultReview = review.sandboxResultReview || { summary: {}, strategies: [], familyReviews: [] };
   const strategyAssetPlaybook = review.strategyAssetPlaybook || { summary: {}, strategies: [], executionReadiness: {} };
   const noKeyPreLive = core.noKeyPreLive || { summary: {}, strategyCards: [], publicCandidates: [], recentTickets: [] };
+  const autoExecutionEngine = core.autoExecutionEngine || { summary: {}, records: [], recentRuns: [] };
   const exchangeDemo = core.exchangeDemo || { summary: {}, modeCards: [], recentEvents: [], credentialStatus: {} };
   const liveReadiness = core.liveReadiness || { rows: [], summary: {} };
   const forwardReview = core.forwardReview || { rows: [], summary: {} };
@@ -4696,6 +4744,7 @@ function renderConsoleFromPayloads() {
   renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview, sandboxQualityCenter, sandboxConcentrationReview, sandboxResultReview, strategyAssetPlaybook);
   renderLocalLabPage(usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, sandboxQualityCenter, sandboxResultReview, simulationBridge, simulationReview, strategyLearningLoop);
   renderNoKeyPreLiveWorkbench(noKeyPreLive);
+  renderAutoExecutionEngine(autoExecutionEngine);
   renderExchangeDemoSimulation(exchangeDemo);
   renderCommandCenter(strategyItems, reportItems, mobile);
   renderRuntimeMonitor(strategyItems, mobile);
@@ -4856,6 +4905,7 @@ async function refreshAll() {
     { key: "sandboxDailyReport", url: "/api/local-sandbox/daily-report?limit=10", fallback: { reports: [], latestReport: { summary: {}, strategyHealthRows: [] } }, timeoutMs: 6000 },
     { key: "sandboxAutoRunner", url: "/api/local-sandbox/auto-runner", fallback: { autoRunner: {}, events: [] }, timeoutMs: 6000 },
     { key: "noKeyPreLive", url: "/api/no-key-pre-live", fallback: { summary: {}, strategyCards: [], publicCandidates: [], recentTickets: [] }, timeoutMs: 8000 },
+    { key: "autoExecutionEngine", url: "/api/auto-execution-engine", fallback: { summary: {}, records: [], recentRuns: [] }, timeoutMs: 8000 },
     { key: "exchangeDemo", url: "/api/exchange-demo/simulation", fallback: { summary: {}, modeCards: [], recentEvents: [], credentialStatus: {} }, timeoutMs: 12000 },
     { key: "liveReadiness", url: "/api/live-readiness", fallback: { rows: [], summary: {} }, timeoutMs: 8000 },
     { key: "forwardReview", url: "/api/forward-review", fallback: { rows: [], summary: {} }, timeoutMs: 8000 },
@@ -5026,8 +5076,14 @@ async function scanNoKeyPreLiveCandidates() {
       noKeyPreLive: response.noKeyPreLive || {},
     };
     renderNoKeyPreLiveWorkbench(response.noKeyPreLive || {});
+    const autoPayload = await getJsonSafe("/api/auto-execution-engine?fresh=1", { summary: {}, records: [], recentRuns: [] }, 8000);
+    latestCoreConsolePayload = {
+      ...latestCoreConsolePayload,
+      autoExecutionEngine: autoPayload || {},
+    };
+    renderAutoExecutionEngine(autoPayload || {});
     setText("noKeyActionStatus", response.ok
-      ? "公共行情扫描完成。可选择一条候选生成本地观察票据，等待 Demo 凭据准备好后再做只读检查。"
+      ? "公共行情扫描完成。可以直接运行自动执行引擎生成本地生命周期记录。"
       : "公共行情扫描未完成，请查看候选状态。");
   } catch (error) {
     setText("noKeyActionStatus", `公共行情扫描失败：${error.message}`);
@@ -5056,6 +5112,33 @@ async function createNoKeyPreLiveTicket() {
       : "票据已按阻塞状态保存或未找到可用候选；请先完成公共行情扫描。");
   } catch (error) {
     setText("noKeyActionStatus", `本地观察票据生成失败：${error.message}`);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+async function runAutoExecutionEngine() {
+  const button = el("autoExecutionRunButton");
+  if (button) button.disabled = true;
+  setText("autoExecutionStatus", "正在运行策略仲裁和本地自动生命周期记录；不会提交 Demo 或实盘订单。");
+  try {
+    const response = await postJson("/api/auto-execution-engine/run", {
+      maxExecutions: 5,
+      notionalUsdt: Number(el("noKeyTicketNotionalInput")?.value || 1000),
+      refreshPublicScan: true,
+    });
+    latestCoreConsolePayload = {
+      ...latestCoreConsolePayload,
+      noKeyPreLive: response.noKeyPreLive || latestCoreConsolePayload.noKeyPreLive,
+      autoExecutionEngine: response.autoExecutionEngine || {},
+    };
+    if (response.noKeyPreLive) renderNoKeyPreLiveWorkbench(response.noKeyPreLive);
+    renderAutoExecutionEngine(response.autoExecutionEngine || {});
+    const selected = response.run?.selectedCount ?? 0;
+    const blocked = response.run?.blockedCount ?? 0;
+    setText("autoExecutionStatus", `自动执行引擎完成：本地观察 ${selected} 条，阻塞 ${blocked} 条；实盘和 Demo 订单仍然锁定。`);
+  } catch (error) {
+    setText("autoExecutionStatus", `自动执行引擎失败：${error.message}`);
   } finally {
     if (button) button.disabled = false;
   }
@@ -5151,6 +5234,7 @@ el("exchangeDemoReadOnlyButton")?.addEventListener("click", runExchangeDemoReadO
 el("exchangeDemoScanButton")?.addEventListener("click", scanExchangeDemoCandidates);
 el("exchangeDemoFillTicketButton")?.addEventListener("click", () => fillExchangeDemoTicketFromCandidate());
 el("noKeyScanButton")?.addEventListener("click", scanNoKeyPreLiveCandidates);
+el("autoExecutionRunButton")?.addEventListener("click", runAutoExecutionEngine);
 el("noKeyCreateTicketButton")?.addEventListener("click", createNoKeyPreLiveTicket);
 el("exchangeDemoSubmitButton")?.addEventListener("click", submitExchangeDemoOrder);
 el("exchangeDemoEmergencyButton")?.addEventListener("click", runExchangeDemoEmergencyStop);

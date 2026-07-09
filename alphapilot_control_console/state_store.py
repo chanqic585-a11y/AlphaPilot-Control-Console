@@ -79,7 +79,7 @@ WEAKNESS_ACTION_STATUS_LABELS = {
     "archived": "已归档",
 }
 
-CONTROL_CONSOLE_STATE_SOURCE = "alphapilot_control_console_v13_10_0"
+CONTROL_CONSOLE_STATE_SOURCE = "alphapilot_control_console_v13_10_2"
 DEFAULT_LOCAL_SANDBOX_AUTO_RUNNER = {
     "enabled": False,
     "intervalMinutes": 360,
@@ -156,6 +156,10 @@ def load_state() -> dict[str, Any]:
         state["noKeyPreLiveScans"] = []
     if not isinstance(state.get("noKeyPreLiveTickets"), list):
         state["noKeyPreLiveTickets"] = []
+    if not isinstance(state.get("autoExecutionRuns"), list):
+        state["autoExecutionRuns"] = []
+    if not isinstance(state.get("autoExecutionRecords"), list):
+        state["autoExecutionRecords"] = []
     if not isinstance(state.get("weaknessActionTasks"), dict):
         state["weaknessActionTasks"] = {}
     if not isinstance(state.get("researchActionExecutionRuns"), list):
@@ -950,4 +954,92 @@ def list_no_key_pre_live_tickets(limit: int = 20) -> list[dict[str, Any]]:
     state = load_state()
     records = state.get("noKeyPreLiveTickets") if isinstance(state.get("noKeyPreLiveTickets"), list) else []
     safe_limit = max(1, min(int(limit or 20), 200))
+    return [row for row in records if isinstance(row, dict)][-safe_limit:][::-1]
+
+
+def save_auto_execution_run(record: dict[str, Any]) -> dict[str, Any]:
+    state = load_state()
+    records = state.get("autoExecutionRuns")
+    if not isinstance(records, list):
+        records = []
+    record = {
+        **record,
+        "runId": record.get("runId") or f"auto_execution_run::{len(records) + 1}",
+        "createdAt": record.get("createdAt") or now_iso(),
+        "source": record.get("source") or CONTROL_CONSOLE_STATE_SOURCE,
+        "environment": "local_auto_execution",
+        "apiKeyUsed": False,
+        "ordersCreated": False,
+        "demoOrderCreated": False,
+        "liveTrading": False,
+        "withdrawEnabled": False,
+    }
+    records.append(record)
+    state["autoExecutionRuns"] = records[-100:]
+    save_state(state)
+    append_audit(
+        "auto_execution_run_saved",
+        {
+            "runId": record.get("runId"),
+            "selectedCount": record.get("selectedCount"),
+            "blockedCount": record.get("blockedCount"),
+            "recordCount": record.get("recordCount"),
+            "apiKeyUsed": False,
+            "ordersCreated": False,
+            "liveTrading": False,
+        },
+    )
+    return record
+
+
+def list_auto_execution_runs(limit: int = 20) -> list[dict[str, Any]]:
+    state = load_state()
+    records = state.get("autoExecutionRuns") if isinstance(state.get("autoExecutionRuns"), list) else []
+    safe_limit = max(1, min(int(limit or 20), 100))
+    return [row for row in records if isinstance(row, dict)][-safe_limit:][::-1]
+
+
+def save_auto_execution_records(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    state = load_state()
+    records = state.get("autoExecutionRecords")
+    if not isinstance(records, list):
+        records = []
+    created: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        item = {
+            **row,
+            "recordId": row.get("recordId") or f"auto_execution_record::{len(records) + len(created) + 1}",
+            "createdAt": row.get("createdAt") or now_iso(),
+            "source": row.get("source") or CONTROL_CONSOLE_STATE_SOURCE,
+            "environment": "local_auto_execution",
+            "executionMode": row.get("executionMode") or "local_auto_simulation",
+            "apiKeyUsed": False,
+            "ordersCreated": False,
+            "demoOrderCreated": False,
+            "liveTrading": False,
+            "withdrawEnabled": False,
+        }
+        created.append(item)
+    records.extend(created)
+    state["autoExecutionRecords"] = records[-500:]
+    save_state(state)
+    append_audit(
+        "auto_execution_records_saved",
+        {
+            "count": len(created),
+            "runIds": sorted({str(item.get("runId") or "") for item in created if item.get("runId")}),
+            "apiKeyUsed": False,
+            "ordersCreated": False,
+            "liveTrading": False,
+        },
+    )
+    return created
+
+
+def list_auto_execution_records(limit: int = 30) -> list[dict[str, Any]]:
+    state = load_state()
+    records = state.get("autoExecutionRecords") if isinstance(state.get("autoExecutionRecords"), list) else []
+    safe_limit = max(1, min(int(limit or 30), 500))
     return [row for row in records if isinstance(row, dict)][-safe_limit:][::-1]
