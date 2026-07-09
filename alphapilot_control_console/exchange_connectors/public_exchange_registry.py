@@ -68,6 +68,15 @@ PUBLIC_EXCHANGES = {
 }
 
 
+def _safe_float(value: Any) -> float | None:
+    try:
+        if value is None or value == "":
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def list_public_exchange_sources() -> dict[str, Any]:
     return {
         "version": "V13.7.0",
@@ -134,6 +143,8 @@ def _probe_single_exchange(exchange: str, symbol: str, timeframe: str, limit: in
     latency_ms = round((time.perf_counter() - started) * 1000, 2)
     ok = bool(checks) and any(item["ok"] for item in checks)
     missing = [item["name"] for item in checks if not item["ok"]]
+    ticker_check = next((item for item in checks if item.get("name") == "ticker"), {})
+    ticker_summary = ticker_check.get("summary") if isinstance(ticker_check.get("summary"), dict) else {}
     return {
         "exchange": exchange,
         "displayName": PUBLIC_EXCHANGES[exchange].display_name,
@@ -143,6 +154,7 @@ def _probe_single_exchange(exchange: str, symbol: str, timeframe: str, limit: in
         "symbol": symbol,
         "exchangeSymbol": normalized["okx"] if exchange == "okx" else normalized["compact"],
         "checks": checks,
+        "lastPrice": _safe_float(ticker_summary.get("lastPrice")),
         "missingPublicFields": missing,
         "privateEndpointsUsed": False,
         "apiKeyUsed": False,
@@ -227,11 +239,19 @@ def _summarize_payload(data: Any) -> dict[str, Any]:
         summary: dict[str, Any] = {"type": "object", "keys": sorted(data.keys())[:8]}
         if isinstance(data.get("data"), list):
             summary["dataCount"] = len(data["data"])
+            first = data["data"][0] if data["data"] else None
+            if isinstance(first, dict):
+                summary["lastPrice"] = _safe_float(first.get("last") or first.get("lastPrice"))
+        if data.get("lastPrice") is not None:
+            summary["lastPrice"] = _safe_float(data.get("lastPrice"))
         if isinstance(data.get("result"), dict):
             result = data["result"]
             summary["resultKeys"] = sorted(result.keys())[:8]
             if isinstance(result.get("list"), list):
                 summary["resultListCount"] = len(result["list"])
+                first = result["list"][0] if result["list"] else None
+                if isinstance(first, dict):
+                    summary["lastPrice"] = _safe_float(first.get("lastPrice") or first.get("last"))
         return summary
     return {"type": type(data).__name__}
 
@@ -266,3 +286,127 @@ def _binance_timeframe(timeframe: str) -> str:
 def _bybit_timeframe(timeframe: str) -> str:
     mapping = {"15m": "15", "1h": "60", "4h": "240", "1d": "D"}
     return mapping.get(timeframe, "60")
+
+
+def fetch_okx_public_market_snapshot(
+    symbol: str,
+    timeframe: str = "1h",
+    candle_limit: int = 100,
+) -> dict[str, Any]:
+    """Read an OKX public ticker and confirmed candles without credentials."""
+    normalized = _normalize_symbol(symbol)
+    inst_id = normalized["okx"]
+    bar = _okx_timeframe(timeframe)
+    safe_limit = max(20, min(int(candle_limit or 100), 300))
+    ticker, ticker_error, ticker_latency = _request_public_json(
+        "https://www.okx.com/api/v5/market/ticker",
+        {"instId": inst_id},
+    )
+    candles_payload, candle_error, candle_latency = _request_public_json(
+        "https://www.okx.com/api/v5/market/candles",
+        {"instId": inst_id, "bar": bar, "limit": str(safe_limit)},
+    )
+    ticker_rows = ticker.get("data") if isinstance(ticker, dict) and isinstance(ticker.get("data"), list) else []
+    ticker_row = ticker_rows[0] if ticker_rows and isinstance(ticker_rows[0], dict) else {}
+    price = _safe_float(ticker_row.get("last"))
+    raw_candles = (
+        candles_payload.get("data")
+        if isinstance(candles_payload, dict) and isinstance(candles_payload.get("data"), list)
+        else []
+    )
+    candles = _normalize_okx_candles(raw_candles)
+    confirmed = [row for row in candles if row.get("confirmed")]
+    atr_source = confirmed if len(confirmed) >= 15 else candles
+    atr14 = _calculate_atr14(atr_source)
+    errors = [text for text in [ticker_error, candle_error] if text]
+    missing: list[str] = []
+    if price is None or price <= 0:
+        missing.append("当前价格")
+    if atr14 is None or atr14 <= 0:
+        missing.append("ATR14")
+    return {
+        "version": "V13.10.5",
+        "source": "okx_public_market_v13_10_5",
+        "exchange": "okx",
+        "publicOnly": True,
+        "symbol": symbol,
+        "instId": inst_id,
+        "timeframe": timeframe,
+        "price": price,
+        "atr14": atr14,
+        "candleCount": len(candles),
+        "confirmedCandleCount": len(confirmed),
+        "latestCandleAt": candles[-1].get("timestamp") if candles else None,
+        "_confirmedCandles": confirmed,
+        "tickerLatencyMs": ticker_latency,
+        "candleLatencyMs": candle_latency,
+        "missingFields": missing,
+        "errors": errors,
+        "ok": not errors and not missing,
+        "generatedAt": now_iso(),
+        "apiKeyUsed": False,
+        "privateEndpointsUsed": False,
+        "ordersAllowed": False,
+    }
+
+
+def _request_public_json(url: str, params: dict[str, str]) -> tuple[dict[str, Any], str | None, float]:
+    full_url = f"{url}?{urlencode(params)}" if params else url
+    started = time.perf_counter()
+    try:
+        request = Request(full_url, headers={"User-Agent": "AlphaPilot-Control-Console/13.10.5"})
+        with urlopen(request, timeout=10) as response:
+            body = response.read(4_000_000)
+            data = json.loads(body.decode("utf-8"))
+        latency = round((time.perf_counter() - started) * 1000, 2)
+        if not isinstance(data, dict):
+            return {}, "公共行情返回格式无效", latency
+        if str(data.get("code") or "0") != "0":
+            return {}, str(data.get("msg") or "公共行情请求失败"), latency
+        return data, None, latency
+    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
+        latency = round((time.perf_counter() - started) * 1000, 2)
+        return {}, f"公共行情读取失败：{exc}", latency
+
+
+def _normalize_okx_candles(rows: list[Any]) -> list[dict[str, Any]]:
+    candles: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, list) or len(row) < 5:
+            continue
+        timestamp = None
+        try:
+            timestamp = int(row[0])
+        except (TypeError, ValueError):
+            pass
+        open_price = _safe_float(row[1])
+        high = _safe_float(row[2])
+        low = _safe_float(row[3])
+        close = _safe_float(row[4])
+        if timestamp is None or None in {open_price, high, low, close}:
+            continue
+        candles.append({
+            "timestamp": timestamp,
+            "open": open_price,
+            "high": high,
+            "low": low,
+            "close": close,
+            "confirmed": len(row) <= 8 or str(row[8]) == "1",
+        })
+    return sorted(candles, key=lambda item: int(item["timestamp"]))
+
+
+def _calculate_atr14(candles: list[dict[str, Any]]) -> float | None:
+    if len(candles) < 15:
+        return None
+    true_ranges: list[float] = []
+    for previous, current in zip(candles, candles[1:]):
+        high = _safe_float(current.get("high"))
+        low = _safe_float(current.get("low"))
+        previous_close = _safe_float(previous.get("close"))
+        if high is None or low is None or previous_close is None:
+            continue
+        true_ranges.append(max(high - low, abs(high - previous_close), abs(low - previous_close)))
+    if len(true_ranges) < 14:
+        return None
+    return round(sum(true_ranges[-14:]) / 14, 12)

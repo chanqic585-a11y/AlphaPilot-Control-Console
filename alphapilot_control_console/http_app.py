@@ -10,7 +10,9 @@ from urllib.parse import parse_qs, urlparse
 
 from .config import ALLOWED_STRATEGY_STATUSES, SAFETY_BOUNDARY, WEB_DIR
 from .auto_execution_engine import build_auto_execution_engine, run_auto_execution_engine
+from .auto_execution_learning import build_auto_execution_learning
 from .auto_execution_lifecycle import build_auto_execution_lifecycle_monitor
+from .auto_execution_lifecycle_advancer import advance_auto_execution_lifecycle
 from .auto_execution_review import build_auto_execution_review
 from .exchange_connectors.public_exchange_registry import list_public_exchange_sources, probe_public_exchanges
 from .exchange_demo_simulation import (
@@ -149,7 +151,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.10.3"
+    server_version = "AlphaPilotControlConsole/13.10.5"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -192,8 +194,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.10.4",
-                "source": "alphapilot_control_console_v13_10_4",
+                "version": "V13.10.5",
+                "source": "alphapilot_control_console_v13_10_5",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -480,6 +482,14 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 "auto-execution-review",
                 10,
                 build_auto_execution_review,
+                fresh=fresh,
+            ))
+            return
+        if path == "/api/auto-execution-learning":
+            self._send_json(_cached_payload(
+                "auto-execution-learning",
+                10,
+                build_auto_execution_learning,
                 fresh=fresh,
             ))
             return
@@ -888,6 +898,20 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/auto-execution-engine/run":
             payload = self._read_body_json()
             self._send_json(run_auto_execution_engine(payload))
+            return
+        if parsed.path == "/api/auto-execution-lifecycle/advance":
+            payload = self._read_body_json()
+            lifecycle_advance = advance_auto_execution_lifecycle(payload)
+            _RESPONSE_CACHE.clear()
+            self._send_json({
+                "ok": True,
+                "lifecycleAdvance": lifecycle_advance,
+                "autoExecutionEngine": build_auto_execution_engine(),
+                "autoExecutionLifecycle": build_auto_execution_lifecycle_monitor(),
+                "autoExecutionReview": build_auto_execution_review(),
+                "autoExecutionLearning": build_auto_execution_learning(),
+                "safetyBoundary": lifecycle_advance.get("safetyBoundary") or SAFETY_BOUNDARY,
+            })
             return
         if parsed.path == "/api/exchange-demo/order":
             payload = self._read_body_json()

@@ -616,6 +616,10 @@
                 <span id="autoReviewStatus">当前是执行链路观察阶段，不是策略晋级阶段。</span>
               </div>
               <div class="exchange-demo-warning"><strong>复核边界：</strong>这里整理本地生命周期、阻塞原因和样本门槛，只提供解释与人工复核依据，不自动晋级、淘汰或执行策略。</div>
+              <div class="auto-lifecycle-actions">
+                <button id="autoLifecycleAdvanceButton" type="button">推进本地生命周期</button>
+                <span id="autoLifecycleAdvanceStatus">读取 OKX 公共行情，更新本地观察结果；不创建 Demo 或实盘订单。</span>
+              </div>
               <div class="exchange-demo-pipeline-grid auto-review-summary">
                 <div><span>生命周期记录</span><strong id="autoReviewTotal">--</strong><small>全部本地记录</small></div>
                 <div><span>活跃持有</span><strong id="autoReviewActive">--</strong><small>本地模拟观察</small></div>
@@ -625,6 +629,18 @@
                 <div><span>原因标准化覆盖</span><strong id="autoReviewCoverage">--</strong><small>统计可信度辅助</small></div>
                 <div><span>Dry-run 批准</span><strong>否</strong><small>当前锁定</small></div>
                 <div><span>实盘批准</span><strong>否</strong><small>当前锁定</small></div>
+              </div>
+              <div class="auto-review-section auto-learning-section">
+                <div class="simple-section-title"><strong>闭合样本学习报告</strong><span id="autoLearningStatus">样本不足时只做描述性统计，不训练模型。</span></div>
+                <div class="exchange-demo-pipeline-grid auto-learning-summary">
+                  <div><span>闭合样本</span><strong id="autoLearningClosed">--</strong><small>2R / -1R / 过期</small></div>
+                  <div><span>达到 2R</span><strong id="autoLearningTp">--</strong><small>本地观察结果</small></div>
+                  <div><span>触发 -1R</span><strong id="autoLearningSl">--</strong><small>本地观察结果</small></div>
+                  <div><span>过期退出</span><strong id="autoLearningExpired">--</strong><small>按周期窗口退出</small></div>
+                  <div><span>平均 R</span><strong id="autoLearningAverageR">--</strong><small>闭合样本均值</small></div>
+                  <div><span>学习阶段</span><strong id="autoLearningStage">--</strong><small>不自动晋级策略</small></div>
+                </div>
+                <div id="autoLearningStrategyRows" class="auto-review-list"></div>
               </div>
               <div class="auto-review-section">
                 <div class="simple-section-title"><strong>系统建议</strong><span>只排序复核优先级，不自动执行。</span></div>

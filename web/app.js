@@ -227,6 +227,7 @@ let latestNoKeyPreLiveCandidate = null;
 let latestAutoExecutionEnginePayload = {};
 let latestAutoExecutionLifecyclePayload = {};
 let latestAutoExecutionReviewPayload = {};
+let latestAutoExecutionLearningPayload = {};
 let latestMobilePayload = {};
 let latestSandboxReviewPayload = {};
 let latestCoreConsolePayload = {};
@@ -2087,6 +2088,32 @@ function renderAutoExecutionReview(payload = {}) {
       </div>
     `;
   }
+}
+
+function renderAutoExecutionLearning(payload = {}) {
+  latestAutoExecutionLearningPayload = payload || {};
+  const summary = payload.summary || {};
+  const strategyRows = Array.isArray(payload.byStrategy) ? payload.byStrategy : [];
+  setText("autoLearningClosed", String(summary.closedSamples ?? 0));
+  setText("autoLearningTp", String(summary.takeProfitCount ?? 0));
+  setText("autoLearningSl", String(summary.stopLossCount ?? 0));
+  setText("autoLearningExpired", String(summary.expiredCount ?? 0));
+  setText("autoLearningAverageR", formatReviewR(summary.averageR));
+  setText("autoLearningStage", summary.sampleStage || "等待闭合样本");
+  setText("autoLearningStatus", summary.nextAction || "样本不足时只做描述性统计，不训练模型。");
+
+  const target = el("autoLearningStrategyRows");
+  if (!target) return;
+  target.innerHTML = strategyRows.slice(0, 12).map((row) => `
+    <div class="auto-review-row strategy-row">
+      <div><strong>${escapeHtml(row.label || row.key || "--")}</strong><small>${escapeHtml(row.sampleStage || "闭合样本不足")}</small></div>
+      <span>闭合 ${formatNumber(row.closedSamples, 0)}</span>
+      <span>胜率 ${row.winRatePct === null || row.winRatePct === undefined ? "--" : formatPercent(row.winRatePct)}</span>
+      <span>平均 ${formatReviewR(row.averageR)}</span>
+      <span>PF(R) ${row.profitFactorR === null || row.profitFactorR === undefined ? "--" : formatNumber(row.profitFactorR, 2)}</span>
+      <em>${escapeHtml(row.nextAction || "继续收集独立闭合样本")}</em>
+    </div>
+  `).join("") || '<div class="testnet-design-empty">暂无闭合样本。点击“推进本地生命周期”后开始积累。</div>';
 }
 
 function renderExchangeDemoSimulation(payload = {}) {
@@ -4946,6 +4973,7 @@ function renderConsoleFromPayloads() {
   const autoExecutionEngine = core.autoExecutionEngine || { summary: {}, records: [], recentRuns: [] };
   const autoExecutionLifecycle = core.autoExecutionLifecycle || { summary: {}, lanes: [], records: [] };
   const autoExecutionReview = core.autoExecutionReview || { summary: {}, blockedReasonBreakdown: [], activeHoldingQueue: [], closedResultsQueue: [], blockedReviewQueue: [], strategyLifecycleSummary: [] };
+  const autoExecutionLearning = core.autoExecutionLearning || { summary: {}, byStrategy: [], bySymbol: [], byDirection: [] };
   const exchangeDemo = core.exchangeDemo || { summary: {}, modeCards: [], recentEvents: [], credentialStatus: {} };
   const liveReadiness = core.liveReadiness || { rows: [], summary: {} };
   const forwardReview = core.forwardReview || { rows: [], summary: {} };
@@ -4959,6 +4987,7 @@ function renderConsoleFromPayloads() {
   renderAutoExecutionEngine(autoExecutionEngine);
   renderAutoExecutionLifecycle(autoExecutionLifecycle);
   renderAutoExecutionReview(autoExecutionReview);
+  renderAutoExecutionLearning(autoExecutionLearning);
   renderExchangeDemoSimulation(exchangeDemo);
   renderCommandCenter(strategyItems, reportItems, mobile);
   renderRuntimeMonitor(strategyItems, mobile);
@@ -5122,6 +5151,7 @@ async function refreshAll() {
     { key: "autoExecutionEngine", url: "/api/auto-execution-engine", fallback: { summary: {}, records: [], recentRuns: [] }, timeoutMs: 8000 },
     { key: "autoExecutionLifecycle", url: "/api/auto-execution-lifecycle", fallback: { summary: {}, lanes: [], records: [] }, timeoutMs: 8000 },
     { key: "autoExecutionReview", url: "/api/auto-execution-review", fallback: { summary: {}, blockedReasonBreakdown: [], activeHoldingQueue: [], closedResultsQueue: [], blockedReviewQueue: [], strategyLifecycleSummary: [] }, timeoutMs: 8000 },
+    { key: "autoExecutionLearning", url: "/api/auto-execution-learning", fallback: { summary: {}, byStrategy: [], bySymbol: [], byDirection: [] }, timeoutMs: 8000 },
     { key: "exchangeDemo", url: "/api/exchange-demo/simulation", fallback: { summary: {}, modeCards: [], recentEvents: [], credentialStatus: {} }, timeoutMs: 12000 },
     { key: "liveReadiness", url: "/api/live-readiness", fallback: { rows: [], summary: {} }, timeoutMs: 8000 },
     { key: "forwardReview", url: "/api/forward-review", fallback: { rows: [], summary: {} }, timeoutMs: 8000 },
@@ -5295,15 +5325,18 @@ async function scanNoKeyPreLiveCandidates() {
     const autoPayload = await getJsonSafe("/api/auto-execution-engine?fresh=1", { summary: {}, records: [], recentRuns: [] }, 8000);
     const lifecyclePayload = await getJsonSafe("/api/auto-execution-lifecycle?fresh=1", { summary: {}, lanes: [], records: [] }, 8000);
     const reviewPayload = await getJsonSafe("/api/auto-execution-review?fresh=1", { summary: {}, blockedReasonBreakdown: [], activeHoldingQueue: [], closedResultsQueue: [], blockedReviewQueue: [], strategyLifecycleSummary: [] }, 8000);
+    const learningPayload = await getJsonSafe("/api/auto-execution-learning?fresh=1", { summary: {}, byStrategy: [], bySymbol: [], byDirection: [] }, 8000);
     latestCoreConsolePayload = {
       ...latestCoreConsolePayload,
       autoExecutionEngine: autoPayload || {},
       autoExecutionLifecycle: lifecyclePayload || {},
       autoExecutionReview: reviewPayload || {},
+      autoExecutionLearning: learningPayload || {},
     };
     renderAutoExecutionEngine(autoPayload || {});
     renderAutoExecutionLifecycle(lifecyclePayload || {});
     renderAutoExecutionReview(reviewPayload || {});
+    renderAutoExecutionLearning(learningPayload || {});
     setText("noKeyActionStatus", response.ok
       ? "公共行情扫描完成。可以直接运行自动执行引擎生成本地生命周期记录。"
       : "公共行情扫描未完成，请查看候选状态。");
@@ -5351,22 +5384,55 @@ async function runAutoExecutionEngine() {
     });
     const lifecyclePayload = await getJsonSafe("/api/auto-execution-lifecycle?fresh=1", { summary: {}, lanes: [], records: [] }, 8000);
     const reviewPayload = await getJsonSafe("/api/auto-execution-review?fresh=1", { summary: {}, blockedReasonBreakdown: [], activeHoldingQueue: [], closedResultsQueue: [], blockedReviewQueue: [], strategyLifecycleSummary: [] }, 8000);
+    const learningPayload = await getJsonSafe("/api/auto-execution-learning?fresh=1", { summary: {}, byStrategy: [], bySymbol: [], byDirection: [] }, 8000);
     latestCoreConsolePayload = {
       ...latestCoreConsolePayload,
       noKeyPreLive: response.noKeyPreLive || latestCoreConsolePayload.noKeyPreLive,
       autoExecutionEngine: response.autoExecutionEngine || {},
       autoExecutionLifecycle: lifecyclePayload || {},
       autoExecutionReview: reviewPayload || {},
+      autoExecutionLearning: learningPayload || {},
     };
     if (response.noKeyPreLive) renderNoKeyPreLiveWorkbench(response.noKeyPreLive);
     renderAutoExecutionEngine(response.autoExecutionEngine || {});
     renderAutoExecutionLifecycle(lifecyclePayload || {});
     renderAutoExecutionReview(reviewPayload || {});
+    renderAutoExecutionLearning(learningPayload || {});
     const selected = response.run?.selectedCount ?? 0;
     const blocked = response.run?.blockedCount ?? 0;
     setText("autoExecutionStatus", `自动执行引擎完成：本地观察 ${selected} 条，阻塞 ${blocked} 条；实盘和 Demo 订单仍然锁定。`);
   } catch (error) {
     setText("autoExecutionStatus", `自动执行引擎失败：${error.message}`);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+async function advanceAutoExecutionLifecycle() {
+  const button = el("autoLifecycleAdvanceButton");
+  if (button) button.disabled = true;
+  setText("autoLifecycleAdvanceStatus", "正在读取 OKX 公共行情并推进本地观察；不会创建 Demo 或实盘订单。");
+  try {
+    const response = await postJson("/api/auto-execution-lifecycle/advance", { maxRecords: 20 });
+    const advance = response.lifecycleAdvance || {};
+    const summary = advance.summary || {};
+    latestCoreConsolePayload = {
+      ...latestCoreConsolePayload,
+      autoExecutionEngine: response.autoExecutionEngine || {},
+      autoExecutionLifecycle: response.autoExecutionLifecycle || {},
+      autoExecutionReview: response.autoExecutionReview || {},
+      autoExecutionLearning: response.autoExecutionLearning || {},
+    };
+    renderAutoExecutionEngine(response.autoExecutionEngine || {});
+    renderAutoExecutionLifecycle(response.autoExecutionLifecycle || {});
+    renderAutoExecutionReview(response.autoExecutionReview || {});
+    renderAutoExecutionLearning(response.autoExecutionLearning || {});
+    setText(
+      "autoLifecycleAdvanceStatus",
+      `推进完成：建立基准 ${summary.referencesInitialized ?? 0} 条，更新价格 ${summary.pricesMarked ?? 0} 条，闭合 ${summary.closedThisRun ?? 0} 条，失败 ${summary.failedRecords ?? 0} 条。`,
+    );
+  } catch (error) {
+    setText("autoLifecycleAdvanceStatus", `生命周期推进失败：${error.message}`);
   } finally {
     if (button) button.disabled = false;
   }
@@ -5463,6 +5529,7 @@ el("exchangeDemoScanButton")?.addEventListener("click", scanExchangeDemoCandidat
 el("exchangeDemoFillTicketButton")?.addEventListener("click", () => fillExchangeDemoTicketFromCandidate());
 el("noKeyScanButton")?.addEventListener("click", scanNoKeyPreLiveCandidates);
 el("autoExecutionRunButton")?.addEventListener("click", runAutoExecutionEngine);
+el("autoLifecycleAdvanceButton")?.addEventListener("click", advanceAutoExecutionLifecycle);
 el("noKeyCreateTicketButton")?.addEventListener("click", createNoKeyPreLiveTicket);
 el("exchangeDemoSubmitButton")?.addEventListener("click", submitExchangeDemoOrder);
 el("exchangeDemoEmergencyButton")?.addEventListener("click", runExchangeDemoEmergencyStop);

@@ -20,8 +20,8 @@ from .state_store import (
 from .usable_strategy_catalog import build_usable_strategy_catalog
 
 
-CONTROL_CONSOLE_VERSION = "V13.10.2"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_10_2"
+CONTROL_CONSOLE_VERSION = "V13.10.5"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_10_5"
 MAX_LOCAL_OBSERVATION_NOTIONAL_USDT = 1000
 
 
@@ -419,6 +419,9 @@ def scan_no_key_pre_live_candidates(payload: dict[str, Any] | None = None) -> di
             "marketLatencyMs": okx.get("latencyMs"),
             "missingPublicFields": okx.get("missingPublicFields") or [],
             "publicProbeGeneratedAt": okx.get("generatedAt") or probe.get("generatedAt"),
+            "publicPrice": okx.get("lastPrice"),
+            "publicPriceSource": "OKX 公共 ticker",
+            "publicPriceAt": okx.get("generatedAt") or probe.get("generatedAt"),
             "reason": (
                 "OKX 公共行情可用，可生成本地观察票据；仍不代表可下单。"
                 if ok else "OKX 公共行情探测不完整，暂不建议生成观察票据。"

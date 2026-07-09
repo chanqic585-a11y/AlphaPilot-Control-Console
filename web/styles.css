@@ -4422,6 +4422,30 @@ code {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.auto-lifecycle-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid rgba(38, 211, 154, 0.2);
+  border-radius: 8px;
+  background: rgba(38, 211, 154, 0.045);
+}
+
+.auto-lifecycle-actions span {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.auto-learning-section {
+  border-color: rgba(38, 211, 154, 0.16);
+}
+
+.auto-learning-summary {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .auto-review-section {
   margin-top: 12px;
   border: 1px solid rgba(255, 255, 255, 0.07);
@@ -4910,6 +4934,7 @@ body.show-advanced .hero-grid.advanced-section {
     .auto-lifecycle-summary,
     .auto-lifecycle-lanes,
     .auto-review-summary,
+    .auto-learning-summary,
     .auto-review-grid,
     .auto-review-advice-grid,
     .auto-review-card-grid,
@@ -4954,6 +4979,11 @@ body.show-advanced .hero-grid.advanced-section {
   .strategy-clarity-head,
   .strategy-clarity-evidence {
     display: grid;
+  }
+
+  .auto-lifecycle-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .strategy-detail-card.wide {

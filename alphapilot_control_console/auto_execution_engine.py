@@ -4,13 +4,13 @@ from collections import defaultdict
 from typing import Any
 
 from .config import SAFETY_BOUNDARY
+from .auto_execution_lifecycle_advancer import list_projected_auto_execution_records
 from .no_key_pre_live import (
     MAX_LOCAL_OBSERVATION_NOTIONAL_USDT,
     build_no_key_pre_live_workbench,
     scan_no_key_pre_live_candidates,
 )
 from .state_store import (
-    list_auto_execution_records,
     list_auto_execution_runs,
     now_iso,
     save_auto_execution_records,
@@ -18,8 +18,8 @@ from .state_store import (
 )
 
 
-CONTROL_CONSOLE_VERSION = "V13.10.2"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_10_2"
+CONTROL_CONSOLE_VERSION = "V13.10.5"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_10_5"
 DEFAULT_MAX_EXECUTIONS_PER_RUN = 5
 DEFAULT_COOLDOWN_MINUTES = 30
 MIN_TARGET_R = 2.0
@@ -181,6 +181,10 @@ def _build_record(candidate: dict[str, Any], run_id: str, notional_usdt: float, 
         "winRatePct": _safe_float(candidate.get("winRatePct")),
         "profitFactor": _safe_float(candidate.get("profitFactor")),
         "tradeCount": _safe_int(candidate.get("tradeCount")),
+        "entryReferencePrice": candidate.get("publicPrice"),
+        "entryReferenceAt": candidate.get("publicPriceAt") or candidate.get("publicProbeGeneratedAt"),
+        "entryReferenceLabel": "公共扫描时的本地观察参考价，不是交易所成交价",
+        "entryReferenceSource": candidate.get("publicPriceSource") or "OKX 公共 ticker",
         "notionalUsdt": notional_usdt,
         "routeStatus": route_status,
         "riskStatus": risk_status,
@@ -242,7 +246,7 @@ def _summarize(records: list[dict[str, Any]], runs: list[dict[str, Any]]) -> dic
 
 def build_auto_execution_engine() -> dict[str, Any]:
     runs = list_auto_execution_runs(limit=10)
-    records = list_auto_execution_records(limit=40)
+    records = list_projected_auto_execution_records(limit=40)
     workbench = build_no_key_pre_live_workbench()
     candidates = workbench.get("publicCandidates") if isinstance(workbench.get("publicCandidates"), list) else []
     ready_count = sum(1 for row in candidates if isinstance(row, dict) and row.get("screeningStatus") == "market_ready")
@@ -300,7 +304,7 @@ def run_auto_execution_engine(payload: dict[str, Any] | None = None) -> dict[str
         row for row in (workbench.get("publicCandidates") if isinstance(workbench.get("publicCandidates"), list) else [])
         if isinstance(row, dict)
     ]
-    recent_records = list_auto_execution_records(limit=120)
+    recent_records = list_projected_auto_execution_records(limit=120)
     selected, router_blocked = _select_candidates(candidates, max_executions, recent_records)
 
     run_id = f"auto_execution::{now_iso()}"

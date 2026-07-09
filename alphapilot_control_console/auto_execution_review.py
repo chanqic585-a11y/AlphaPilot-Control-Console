@@ -4,13 +4,14 @@ from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from typing import Any
 
+from .auto_execution_lifecycle_advancer import list_projected_auto_execution_records
 from .auto_execution_lifecycle import normalize_auto_execution_record
 from .config import SAFETY_BOUNDARY
-from .state_store import list_auto_execution_records, now_iso
+from .state_store import now_iso
 
 
-CONTROL_CONSOLE_VERSION = "V13.10.4"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_10_4"
+CONTROL_CONSOLE_VERSION = "V13.10.5"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_10_5"
 
 CLOSED_LANES = {"take_profit_2r", "stop_loss_1r", "expired_exit"}
 PRIORITY_ORDER = {"高": 3, "中": 2, "低": 1}
@@ -198,14 +199,14 @@ def _record_base(raw: dict[str, Any], normalized: dict[str, Any]) -> dict[str, A
 
 def _build_active_row(raw: dict[str, Any], normalized: dict[str, Any]) -> dict[str, Any]:
     base = _record_base(raw, normalized)
-    entry_time = _first_value(raw, "entryAt", "openedAt", "signalAt", "createdAt")
+    entry_time = _first_value(raw, "entryReferenceAt", "entryAt", "openedAt", "signalAt", "createdAt")
     updated_at = _first_value(raw, "updatedAt", "lastObservedAt", "createdAt")
-    entry_price = _optional_float(_first_value(raw, "entryPrice", "filledPrice", "openPrice", "signalPrice"))
+    entry_price = _optional_float(_first_value(raw, "entryReferencePrice", "entryPrice", "filledPrice", "openPrice", "signalPrice"))
     current_price = _optional_float(_first_value(raw, "currentPrice", "markPrice", "latestPrice"))
     current_r = _optional_float(_first_value(raw, "currentR", "unrealizedR", "markR"))
     target_r = _safe_float(raw.get("targetR"), 2.0)
     policy = raw.get("tpSlPolicy") if isinstance(raw.get("tpSlPolicy"), dict) else {}
-    stop_r = _safe_float(policy.get("stopLossR"), 1.0)
+    stop_r = _safe_float(raw.get("stopR") or policy.get("stopLossR"), 1.0)
     warnings: list[str] = []
     if entry_price is None:
         warnings.append("缺少入场价")
@@ -236,13 +237,13 @@ def _build_closed_row(raw: dict[str, Any], normalized: dict[str, Any]) -> dict[s
     lane_id = str(normalized.get("laneId") or "")
     target_r = _safe_float(raw.get("targetR"), 2.0)
     policy = raw.get("tpSlPolicy") if isinstance(raw.get("tpSlPolicy"), dict) else {}
-    stop_r = _safe_float(policy.get("stopLossR"), 1.0)
+    stop_r = _safe_float(raw.get("stopR") or policy.get("stopLossR"), 1.0)
     result_r = _optional_float(_first_value(raw, "resultR", "realizedR", "exitR"))
     if result_r is None and lane_id == "take_profit_2r":
         result_r = target_r
     elif result_r is None and lane_id == "stop_loss_1r":
         result_r = -stop_r
-    entry_time = _first_value(raw, "entryAt", "openedAt", "signalAt", "createdAt")
+    entry_time = _first_value(raw, "entryReferenceAt", "entryAt", "openedAt", "signalAt", "createdAt")
     exit_time = _first_value(raw, "exitAt", "closedAt", "updatedAt", "createdAt")
     return {
         **base,
@@ -481,7 +482,7 @@ def _system_recommendations(
 
 
 def build_auto_execution_review() -> dict[str, Any]:
-    raw_records = [row for row in list_auto_execution_records(limit=500) if isinstance(row, dict)]
+    raw_records = [row for row in list_projected_auto_execution_records(limit=500) if isinstance(row, dict)]
     normalized_records = [normalize_auto_execution_record(row) for row in raw_records]
     active_rows: list[dict[str, Any]] = []
     closed_rows: list[dict[str, Any]] = []

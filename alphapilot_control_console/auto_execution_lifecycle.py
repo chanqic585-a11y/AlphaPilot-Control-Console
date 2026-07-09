@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from typing import Any
 
+from .auto_execution_lifecycle_advancer import list_projected_auto_execution_records
 from .config import SAFETY_BOUNDARY
-from .state_store import list_auto_execution_records, list_auto_execution_runs, now_iso
+from .state_store import list_auto_execution_runs, now_iso
 
 
-CONTROL_CONSOLE_VERSION = "V13.10.4"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_10_4"
+CONTROL_CONSOLE_VERSION = "V13.10.5"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_10_5"
 
 LANE_ORDER = [
     "waiting_trigger",
@@ -182,7 +183,7 @@ def _build_lanes(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def build_auto_execution_lifecycle_monitor() -> dict[str, Any]:
-    records = list_auto_execution_records(limit=200)
+    records = list_projected_auto_execution_records(limit=200)
     runs = list_auto_execution_runs(limit=10)
     normalized_records = [_normalize_record(row) for row in records if isinstance(row, dict)]
     lanes = _build_lanes(records)

@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.10.4 - Local Auto Execution Review Queue
+AlphaPilot V13.10.5 - Local Lifecycle Outcome Advancer
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,6 +11,37 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It is not a trading execution system.
+
+## What V13.10.5 Adds
+
+V13.10.5 turns active local lifecycle records into traceable observation
+samples using OKX public ticker and confirmed OHLCV data.
+
+What changed:
+
+- Adds `POST /api/auto-execution-lifecycle/advance`.
+- Adds `GET /api/auto-execution-learning`.
+- Adds an append-only `autoExecutionLifecycleEvents` state collection. Original
+  `autoExecutionRecords` remain unchanged for audit compatibility.
+- Establishes a clearly labelled local reference price. It is a public market
+  observation reference, not a historical fill or exchange execution price.
+- Calculates ATR14 from confirmed public candles and uses the strategy ATR
+  multiplier as the 1R price unit. A missing multiplier falls back to 1.0 and
+  is explicitly recorded.
+- Advances long and short observations toward 2R, -1R, or a timeframe-based
+  expiry and records current R, MFE, MAE, and close reason.
+- Uses confirmed post-reference candles to detect barriers crossed between
+  manual advances. If one candle touches both barriers, the result is recorded
+  conservatively as a stop; candle details remain transient and are not saved.
+- Adds a Chinese `推进本地生命周期` action plus a closed-sample learning
+  summary on the Demo page.
+- Splits learning summaries by strategy, symbol, and direction.
+- Keeps learning descriptive below 30 closed samples. It does not train a
+  model or automatically promote or eliminate a strategy.
+
+The lifecycle advancer uses public market endpoints only. It requires no API
+key, does not read accounts or positions, does not create Demo or live orders,
+does not run exchange Dry-run, and does not enable automatic trading.
 
 ## What V13.10.4 Adds
 

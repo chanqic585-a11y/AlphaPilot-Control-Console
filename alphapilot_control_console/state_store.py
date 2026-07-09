@@ -4,6 +4,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from .config import ALLOWED_STRATEGY_STATUSES, DATA_DIR, ensure_data_dir
 
@@ -160,6 +161,8 @@ def load_state() -> dict[str, Any]:
         state["autoExecutionRuns"] = []
     if not isinstance(state.get("autoExecutionRecords"), list):
         state["autoExecutionRecords"] = []
+    if not isinstance(state.get("autoExecutionLifecycleEvents"), list):
+        state["autoExecutionLifecycleEvents"] = []
     if not isinstance(state.get("weaknessActionTasks"), dict):
         state["weaknessActionTasks"] = {}
     if not isinstance(state.get("researchActionExecutionRuns"), list):
@@ -1042,4 +1045,56 @@ def list_auto_execution_records(limit: int = 30) -> list[dict[str, Any]]:
     state = load_state()
     records = state.get("autoExecutionRecords") if isinstance(state.get("autoExecutionRecords"), list) else []
     safe_limit = max(1, min(int(limit or 30), 500))
+    return [row for row in records if isinstance(row, dict)][-safe_limit:][::-1]
+
+
+def save_auto_execution_lifecycle_events(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    state = load_state()
+    records = state.get("autoExecutionLifecycleEvents")
+    if not isinstance(records, list):
+        records = []
+    created: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict) or not str(row.get("recordId") or "").strip():
+            continue
+        projection = row.get("projection") if isinstance(row.get("projection"), dict) else {}
+        market_snapshot = row.get("marketSnapshot") if isinstance(row.get("marketSnapshot"), dict) else {}
+        item = {
+            **row,
+            "projection": projection,
+            "marketSnapshot": market_snapshot,
+            "eventId": row.get("eventId") or f"auto_execution_lifecycle_event::{uuid4().hex}",
+            "createdAt": row.get("createdAt") or now_iso(),
+            "source": row.get("source") or "alphapilot_control_console_v13_10_5",
+            "environment": "local_auto_execution",
+            "apiKeyUsed": False,
+            "ordersCreated": False,
+            "demoOrderCreated": False,
+            "liveTrading": False,
+            "withdrawEnabled": False,
+        }
+        created.append(item)
+    if not created:
+        return []
+    records.extend(created)
+    state["autoExecutionLifecycleEvents"] = records[-2000:]
+    save_state(state)
+    append_audit(
+        "auto_execution_lifecycle_events_saved",
+        {
+            "count": len(created),
+            "recordIds": sorted({str(item.get("recordId") or "") for item in created}),
+            "eventTypes": sorted({str(item.get("eventType") or "") for item in created}),
+            "apiKeyUsed": False,
+            "ordersCreated": False,
+            "liveTrading": False,
+        },
+    )
+    return created
+
+
+def list_auto_execution_lifecycle_events(limit: int = 200) -> list[dict[str, Any]]:
+    state = load_state()
+    records = state.get("autoExecutionLifecycleEvents") if isinstance(state.get("autoExecutionLifecycleEvents"), list) else []
+    safe_limit = max(1, min(int(limit or 200), 2000))
     return [row for row in records if isinstance(row, dict)][-safe_limit:][::-1]
