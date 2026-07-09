@@ -828,6 +828,7 @@ GET  /api/exchanges
 GET  /api/strategy-slots
 GET  /api/pre-live-preparation-pack
 GET  /api/testnet-drill
+GET  /api/testnet-audit-pack
 POST /api/import
 POST /api/strategy-status
 POST /api/exchanges/probe-public
@@ -1287,6 +1288,34 @@ What changed:
 Safety boundary:
 
 - The drill is local audit rehearsal only.
+- It does not add API key input or API key storage.
+- It does not connect private exchange endpoints.
+- It does not enable Trade API, Withdraw API, real account reads, real position
+  reads, order creation, exchange Dry-run, live trading, or automatic trading.
+
+## V13.8.10 Testnet Upgrade Audit Pack
+
+V13.8.10 adds a local Testnet Upgrade Audit layer after the Testnet Drill panel.
+
+What changed:
+
+- Adds `GET /api/testnet-audit-pack`.
+- Combines the Strategy Asset Gate, Testnet Drill, Pre-live Preparation Pack,
+  Testnet Readiness Pack, and Testnet Design Boundary into one audit result.
+- Shows whether the console can enter local design review, whether testnet
+  connection is still blocked, and which hard blockers remain.
+- Separates safety gates from product gates:
+  - local lifecycle rehearsal coverage
+  - strategy local review sample coverage
+  - API key and credential vault blocker
+  - manual unlock blocker
+  - public probe evidence
+  - order creation and exchange execution lock
+
+Safety boundary:
+
+- This audit pack is local review only.
+- It does not enable testnet connection.
 - It does not add API key input or API key storage.
 - It does not connect private exchange endpoints.
 - It does not enable Trade API, Withdraw API, real account reads, real position

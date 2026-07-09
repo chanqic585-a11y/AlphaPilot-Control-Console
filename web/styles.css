@@ -1050,6 +1050,11 @@ small {
   margin-top: 14px;
 }
 
+.testnet-audit-panel {
+  margin-top: 14px;
+  border-color: rgba(255, 216, 77, 0.28);
+}
+
 .testnet-drill-actions {
   display: flex;
   align-items: center;
@@ -1069,7 +1074,20 @@ small {
   margin-top: 12px;
 }
 
+.testnet-audit-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+
 .testnet-drill-columns h4 {
+  margin: 0 0 8px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.testnet-audit-columns h4 {
   margin: 0 0 8px;
   color: var(--text);
   font-size: 13px;
@@ -4013,6 +4031,7 @@ code {
     .pre-live-preview-path,
     .pre-live-preview-head,
     .testnet-drill-columns,
+    .testnet-audit-columns,
     .testnet-drill-row-head,
     .live-readiness-grid,
     .live-readiness-columns,

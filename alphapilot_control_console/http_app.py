@@ -42,6 +42,7 @@ from .strategy_promotion_gate import build_strategy_promotion_gate
 from .strategy_asset_playbook import build_strategy_asset_playbook
 from .strategy_slots import list_strategy_slots
 from .testnet_design_boundary import build_testnet_design_boundary
+from .testnet_audit import build_testnet_audit_pack
 from .testnet_drill import build_testnet_drill
 from .testnet_readiness_pack import build_testnet_readiness_pack
 from .usable_strategy_catalog import build_usable_strategy_catalog
@@ -108,7 +109,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.8.9"
+    server_version = "AlphaPilotControlConsole/13.8.10"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -149,8 +150,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.8.9",
-                "source": "alphapilot_control_console_v13_8_9",
+                "version": "V13.8.10",
+                "source": "alphapilot_control_console_v13_8_10",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -338,6 +339,9 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/testnet-drill":
             self._send_json(build_testnet_drill())
+            return
+        if path == "/api/testnet-audit-pack":
+            self._send_json(build_testnet_audit_pack())
             return
         if path == "/api/research-execution-pipeline":
             self._send_json(build_research_execution_pipeline(apply_updates=False))

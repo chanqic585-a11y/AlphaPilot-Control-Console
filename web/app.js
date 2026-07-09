@@ -207,6 +207,7 @@ let latestResearchPipelinePayload = {};
 let latestTestnetDesignBoundaryPayload = {};
 let latestPreLivePreparationPayload = {};
 let latestTestnetDrillPayload = {};
+let latestTestnetAuditPayload = {};
 const artifactFilters = {
   search: "",
   tier: "all",
@@ -1214,6 +1215,46 @@ async function runTestnetDrill() {
     setText("testnetDrillActionStatus", `演练保存失败：${error.message}`);
   } finally {
     button.disabled = false;
+  }
+}
+
+function renderTestnetAuditPack(payload) {
+  latestTestnetAuditPayload = payload || {};
+  if (!el("testnetAuditPanel")) return;
+  const summary = payload?.summary || {};
+  const items = Array.isArray(payload?.auditItems) ? payload.auditItems : [];
+  const blockers = Array.isArray(payload?.criticalBlockers) ? payload.criticalBlockers : [];
+
+  setText("testnetAuditMeta", summary.nextAction || "本地审计只用于判断下一步设计任务，不连接交易所。");
+  setText("testnetAuditStage", summary.auditStageLabel || "--");
+  setText("testnetAuditReviewCandidates", String(summary.reviewCandidateCount ?? 0));
+  setText("testnetAuditRehearsals", String(summary.rehearsalCount ?? 0));
+  setText("testnetAuditHardBlockers", String(summary.hardBlockerCount ?? blockers.length ?? 0));
+  setText("testnetAuditSafetyFailures", String(summary.safetyFailureCount ?? 0));
+  setText("testnetAuditConnection", summary.canConnectTestnet ? "异常开启" : "关闭");
+
+  const itemTarget = el("testnetAuditItemList");
+  if (itemTarget) {
+    itemTarget.innerHTML = items.map((item) => `
+      <div class="testnet-drill-row">
+        <div class="testnet-drill-row-head">
+          <div>
+            <strong>${escapeHtml(item.label || "--")}</strong>
+            <small>${escapeHtml(item.detail || "")}</small>
+          </div>
+          <span class="badge ${item.passed ? "ok" : item.severity === "safety" ? "danger" : "warn"}">${item.passed ? "通过" : "阻塞"}</span>
+        </div>
+      </div>
+    `).join("") || '<div class="testnet-design-empty">暂无审计门槛。</div>';
+  }
+
+  const blockerTarget = el("testnetAuditBlockerList");
+  if (blockerTarget) {
+    blockerTarget.innerHTML = blockers.slice(0, 10).map((item) => `
+      <div class="testnet-drill-row">
+        <small>${escapeHtml(item)}</small>
+      </div>
+    `).join("") || '<div class="testnet-design-empty">暂无关键阻塞，但仍不能连接交易所。</div>';
   }
 }
 
@@ -4049,6 +4090,7 @@ async function refreshAll() {
   renderTestnetDesignBoundary({ summary: {}, checklist: [], disabledActions: [] });
   renderPreLivePreparationPack({ summary: {}, rehearsalSummary: {}, preLiveClosureReport: [], recentRehearsals: [] });
   renderTestnetDrill({ summary: {}, strategies: [], orderLifecycle: [], riskTemplate: [] });
+  renderTestnetAuditPack({ summary: {}, auditItems: [], criticalBlockers: [] });
   renderStrategyPromotionGate({ candidates: [], summary: {} });
   renderResearchTaskBoard({ tasks: [], summary: {} });
   renderStrategyLearningLoop(emptyStrategyLearningLoop);
@@ -4077,6 +4119,7 @@ async function refreshAll() {
     { key: "testnetDesignBoundary", url: "/api/testnet-design-boundary", fallback: { summary: {}, checklist: [], disabledActions: [] } },
     { key: "preLivePreparation", url: "/api/pre-live-preparation-pack", fallback: { summary: {}, rehearsalSummary: {}, preLiveClosureReport: [], recentRehearsals: [] } },
     { key: "testnetDrill", url: "/api/testnet-drill", fallback: { summary: {}, strategies: [], orderLifecycle: [], riskTemplate: [] }, timeoutMs: 30000 },
+    { key: "testnetAudit", url: "/api/testnet-audit-pack", fallback: { summary: {}, auditItems: [], criticalBlockers: [] }, timeoutMs: 30000 },
     { key: "strategyPromotionGate", url: "/api/strategy-promotion-gate", fallback: { candidates: [], summary: {} }, timeoutMs: 12000 },
     { key: "researchTaskBoard", url: "/api/research-task-board", fallback: { tasks: [], summary: {} } },
     { key: "strategyLearningLoop", url: "/api/strategy-learning-loop", fallback: emptyStrategyLearningLoop, timeoutMs: 12000 },
@@ -4095,6 +4138,7 @@ async function refreshAll() {
   renderTestnetDesignBoundary(advanced.testnetDesignBoundary || { summary: {}, checklist: [], disabledActions: [] });
   renderPreLivePreparationPack(advanced.preLivePreparation || { summary: {}, rehearsalSummary: {}, preLiveClosureReport: [], recentRehearsals: [] });
   renderTestnetDrill(advanced.testnetDrill || { summary: {}, strategies: [], orderLifecycle: [], riskTemplate: [] });
+  renderTestnetAuditPack(advanced.testnetAudit || { summary: {}, auditItems: [], criticalBlockers: [] });
   renderStrategyPromotionGate(advanced.strategyPromotionGate || { candidates: [], summary: {} });
   renderResearchTaskBoard(advanced.researchTaskBoard || { tasks: [], summary: {} });
   renderStrategyLearningLoop(strategyLearningLoop);
