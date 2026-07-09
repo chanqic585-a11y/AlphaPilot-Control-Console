@@ -222,6 +222,28 @@ let latestTestnetPermissionPayload = {};
 let latestTestnetSmallOrderPayload = {};
 let latestExchangeDemoPayload = {};
 let latestExchangeDemoCandidate = null;
+let latestMobilePayload = {};
+let latestSandboxReviewPayload = {};
+let latestCoreConsolePayload = {};
+let sandboxReviewLoading = null;
+let localLabEnrichmentLoading = null;
+let advancedDataLoading = null;
+let mobileStatusLoading = null;
+let advancedDataLoaded = false;
+let mobileStatusLoaded = false;
+let latestAdvancedPayload = {};
+
+const emptyMobileStatus = {
+  commandSummary: {},
+  exchangeConnectivity: {},
+  runtimeStatus: {},
+  signalTape: {},
+  paperObservationLedger: {},
+  safetyBoundary: { orderCreationAllowed: false },
+};
+const emptySimulationBridge = { summary: {}, observationTasks: [] };
+const emptySimulationReview = { queue: [], summary: {} };
+const emptyStrategyLearningLoop = { summary: {}, refactorCandidates: [], experimentSpecs: [] };
 const artifactFilters = {
   search: "",
   tier: "all",
@@ -4486,59 +4508,19 @@ function renderAudit(events) {
   `).join("") || '<div class="item">暂无审计事件。</div>';
 }
 
-async function refreshAll() {
-  const emptySimulationBridge = { summary: {}, observationTasks: [] };
-  const emptySimulationReview = { queue: [], summary: {} };
-  const emptyStrategyLearningLoop = { summary: {}, refactorCandidates: [], experimentSpecs: [] };
-  const early = await loadJsonMap([
-    { key: "usableStrategyCatalog", url: "/api/usable-strategy-catalog", fallback: { strategies: [], summary: {} }, timeoutMs: 6000 },
-    { key: "sandboxDailyReport", url: "/api/local-sandbox/daily-report?limit=10", fallback: { reports: [], latestReport: { summary: {}, strategyHealthRows: [] } }, timeoutMs: 6000 },
-    { key: "sandboxAutoRunner", url: "/api/local-sandbox/auto-runner", fallback: { autoRunner: {}, events: [] }, timeoutMs: 6000 },
-    { key: "sandboxQualityCenter", url: "/api/local-sandbox/quality-center", fallback: { summary: {}, strategies: [], readonlyPreparation: {} }, timeoutMs: 12000 },
-    { key: "sandboxResultReview", url: "/api/local-sandbox/result-review", fallback: { summary: {}, strategies: [], familyReviews: [] }, timeoutMs: 12000 },
-    { key: "simulationBridge", url: "/api/simulation-bridge", fallback: emptySimulationBridge, timeoutMs: 6000 },
-    { key: "simulationReview", url: "/api/simulation-review", fallback: emptySimulationReview, timeoutMs: 6000 },
-    { key: "strategyLearningLoop", url: "/api/strategy-learning-loop", fallback: emptyStrategyLearningLoop, timeoutMs: 6000 },
-    { key: "exchangeDemo", url: "/api/exchange-demo/simulation", fallback: { summary: {}, modeCards: [], recentEvents: [], credentialStatus: {} }, timeoutMs: 12000 },
-  ], 4);
-  renderLocalLabPage(
-    early.usableStrategyCatalog || { strategies: [], summary: {} },
-    early.sandboxDailyReport || { reports: [], latestReport: { summary: {}, strategyHealthRows: [] } },
-    early.sandboxAutoRunner || { autoRunner: {}, events: [] },
-    early.sandboxQualityCenter || { summary: {}, strategies: [], readonlyPreparation: {} },
-    early.sandboxResultReview || { summary: {}, strategies: [], familyReviews: [] },
-    early.simulationBridge || emptySimulationBridge,
-    early.simulationReview || emptySimulationReview,
-    early.strategyLearningLoop || emptyStrategyLearningLoop,
-  );
-  renderExchangeDemoSimulation(early.exchangeDemo || { summary: {}, modeCards: [], recentEvents: [], credentialStatus: {} });
+function getCurrentMobileStatus() {
+  return latestMobilePayload && latestMobilePayload.safetyBoundary ? latestMobilePayload : emptyMobileStatus;
+}
 
-  const core = await loadJsonMap([
-    { key: "strategies", url: "/api/strategies", fallback: { strategies: [] } },
-    { key: "reports", url: "/api/reports", fallback: { reports: [] } },
-    { key: "mobile", url: "/api/mobile/status", fallback: {} },
-    { key: "connection", url: "/api/mobile/connection-info", fallback: { notes: [], mobileStatusUrls: [] } },
-    { key: "audit", url: "/api/audit", fallback: { events: [] } },
-    { key: "exchanges", url: "/api/exchanges", fallback: { sources: [] } },
-    { key: "slots", url: "/api/strategy-slots", fallback: { slots: [] } },
-    { key: "artifacts", url: "/api/strategy-artifacts", fallback: { artifacts: [], summary: {} } },
-    { key: "paperTasks", url: "/api/paper-observation-tasks", fallback: { tasks: [], summary: {} } },
-    { key: "usableStrategyCatalog", url: "/api/usable-strategy-catalog", fallback: { strategies: [], summary: {} } },
-    { key: "sandboxDailyReport", url: "/api/local-sandbox/daily-report?limit=10", fallback: { reports: [], latestReport: { summary: {}, strategyHealthRows: [] } } },
-    { key: "sandboxAutoRunner", url: "/api/local-sandbox/auto-runner", fallback: { autoRunner: {}, events: [] } },
-    { key: "sandboxQualityCenter", url: "/api/local-sandbox/quality-center", fallback: { summary: {}, strategies: [], readonlyPreparation: {} }, timeoutMs: 12000 },
-    { key: "sandboxConcentrationReview", url: "/api/local-sandbox/concentration-review", fallback: { summary: {}, strategies: [], variantGroups: [] }, timeoutMs: 12000 },
-    { key: "sandboxResultReview", url: "/api/local-sandbox/result-review", fallback: { summary: {}, strategies: [], familyReviews: [] }, timeoutMs: 12000 },
-    { key: "strategyAssetPlaybook", url: "/api/strategy-asset-playbook", fallback: { summary: {}, strategies: [], executionReadiness: {} }, timeoutMs: 30000 },
-    { key: "exchangeDemo", url: "/api/exchange-demo/simulation", fallback: { summary: {}, modeCards: [], recentEvents: [], credentialStatus: {} }, timeoutMs: 12000 },
-    { key: "liveReadiness", url: "/api/live-readiness", fallback: { rows: [], summary: {} } },
-    { key: "forwardReview", url: "/api/forward-review", fallback: { rows: [], summary: {} } },
-  ], 4);
+function renderConsoleFromPayloads() {
+  const core = latestCoreConsolePayload || {};
+  const review = latestSandboxReviewPayload || {};
   const strategies = core.strategies || { strategies: [] };
   const reports = core.reports || { reports: [] };
-  const mobile = core.mobile || {};
+  const strategyItems = strategies.strategies || [];
+  const reportItems = reports.reports || [];
+  const mobile = getCurrentMobileStatus();
   const connection = core.connection || { notes: [], mobileStatusUrls: [] };
-  const audit = core.audit || { events: [] };
   const exchanges = core.exchanges || { sources: [] };
   const slots = core.slots || { slots: [] };
   const artifacts = core.artifacts || { artifacts: [], summary: {} };
@@ -4546,41 +4528,28 @@ async function refreshAll() {
   const usableStrategyCatalog = core.usableStrategyCatalog || { strategies: [], summary: {} };
   const sandboxDailyReport = core.sandboxDailyReport || { reports: [], latestReport: { summary: {}, strategyHealthRows: [] } };
   const sandboxAutoRunner = core.sandboxAutoRunner || { autoRunner: {}, events: [] };
-  const sandboxQualityCenter = core.sandboxQualityCenter || { summary: {}, strategies: [], readonlyPreparation: {} };
-  const sandboxConcentrationReview = core.sandboxConcentrationReview || { summary: {}, strategies: [], variantGroups: [] };
-  const sandboxResultReview = core.sandboxResultReview || { summary: {}, strategies: [], familyReviews: [] };
-  const strategyAssetPlaybook = core.strategyAssetPlaybook || { summary: {}, strategies: [], executionReadiness: {} };
+  const sandboxQualityCenter = review.sandboxQualityCenter || { summary: {}, strategies: [], readonlyPreparation: {} };
+  const sandboxConcentrationReview = review.sandboxConcentrationReview || { summary: {}, strategies: [], variantGroups: [] };
+  const sandboxResultReview = review.sandboxResultReview || { summary: {}, strategies: [], familyReviews: [] };
+  const strategyAssetPlaybook = review.strategyAssetPlaybook || { summary: {}, strategies: [], executionReadiness: {} };
   const exchangeDemo = core.exchangeDemo || { summary: {}, modeCards: [], recentEvents: [], credentialStatus: {} };
   const liveReadiness = core.liveReadiness || { rows: [], summary: {} };
   const forwardReview = core.forwardReview || { rows: [], summary: {} };
-  const strategyItems = strategies.strategies || [];
-  const reportItems = reports.reports || [];
-  latestStrategyLearningLoopPayload = emptyStrategyLearningLoop;
-  renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, emptySimulationBridge, emptySimulationReview, sandboxQualityCenter, sandboxConcentrationReview, sandboxResultReview, strategyAssetPlaybook);
-  renderLocalLabPage(usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, sandboxQualityCenter, sandboxResultReview, emptySimulationBridge, emptySimulationReview, emptyStrategyLearningLoop);
+  const simulationBridge = core.simulationBridge || emptySimulationBridge;
+  const simulationReview = core.simulationReview || emptySimulationReview;
+  const strategyLearningLoop = latestStrategyLearningLoopPayload || emptyStrategyLearningLoop;
+
+  renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview, sandboxQualityCenter, sandboxConcentrationReview, sandboxResultReview, strategyAssetPlaybook);
+  renderLocalLabPage(usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, sandboxQualityCenter, sandboxResultReview, simulationBridge, simulationReview, strategyLearningLoop);
   renderExchangeDemoSimulation(exchangeDemo);
   renderCommandCenter(strategyItems, reportItems, mobile);
   renderRuntimeMonitor(strategyItems, mobile);
   renderStrategies(strategyItems);
   renderReports(reportItems);
-  renderAudit(audit.events || []);
   renderExchanges(exchanges.sources || [], mobile);
   renderStrategySlots(slots.slots || []);
   renderStrategyArtifacts(artifacts);
   renderUsableStrategyCatalog(usableStrategyCatalog);
-  renderSimulationReview(emptySimulationReview);
-  renderClosedSampleReplay({ samples: [], summary: {} });
-  renderWeaknessActionBoard({ actions: [], summary: {} });
-  renderResearchExecutionPipeline({ summary: {}, stages: [], actions: [] });
-  renderTestnetDesignBoundary({ summary: {}, checklist: [], disabledActions: [] });
-  renderPreLivePreparationPack({ summary: {}, rehearsalSummary: {}, preLiveClosureReport: [], recentRehearsals: [] });
-  renderTestnetDrill({ summary: {}, strategies: [], orderLifecycle: [], riskTemplate: [] });
-  renderTestnetAuditPack({ summary: {}, auditItems: [], criticalBlockers: [] });
-  renderTestnetPermissionCheck({ summary: {}, checks: [], referenceInputs: [] });
-  renderTestnetSmallOrderSimulation({ summary: {}, defaultTicket: {}, orderPath: [], recentSimulations: [] });
-  renderStrategyPromotionGate({ candidates: [], summary: {} });
-  renderResearchTaskBoard({ tasks: [], summary: {} });
-  renderStrategyLearningLoop(emptyStrategyLearningLoop);
   renderSandboxSimulationLane(
     buildUsableCatalogObservationTasks(usableStrategyCatalog),
     sandboxDailyReport?.latestReport?.strategyHealthRows || [],
@@ -4589,53 +4558,155 @@ async function refreshAll() {
   renderSandboxAutoRunner(sandboxAutoRunner);
   renderLiveReadiness(liveReadiness);
   renderForwardReview(forwardReview);
-  renderStrategyPlaybook(strategyItems, mobile, emptyStrategyLearningLoop);
+  renderStrategyPlaybook(strategyItems, mobile, strategyLearningLoop);
   renderForwardValidation(mobile.forwardValidation);
   renderPaperObservationTasks(paperTasks);
   renderMobileConnectionInfo(connection);
-  el("mobilePreview").textContent = JSON.stringify(mobile, null, 2);
+  el("mobilePreview").textContent = mobileStatusLoaded
+    ? JSON.stringify(mobile, null, 2)
+    : "完整手机状态按需加载：进入“手机控制台”页面后自动读取，避免拖慢首页。";
+}
 
-  const advanced = await loadJsonMap([
-    { key: "candidateQueue", url: "/api/candidate-queue", fallback: { strategies: [], summary: {} } },
-    { key: "shortCycleCandidates", url: "/api/short-cycle-candidates", fallback: { candidates: [], summary: {} } },
-    { key: "simulationBridge", url: "/api/simulation-bridge", fallback: { summary: {}, observationTasks: [] } },
-    { key: "simulationReview", url: "/api/simulation-review", fallback: { queue: [], summary: {} } },
-    { key: "closedSampleReplay", url: "/api/closed-sample-replay", fallback: { samples: [], summary: {} }, timeoutMs: 12000 },
-    { key: "weaknessActionBoard", url: "/api/weakness-action-board", fallback: { actions: [], summary: {} }, timeoutMs: 12000 },
-    { key: "researchPipeline", url: "/api/research-execution-pipeline", fallback: { summary: {}, stages: [], actions: [] }, timeoutMs: 12000 },
-    { key: "testnetDesignBoundary", url: "/api/testnet-design-boundary", fallback: { summary: {}, checklist: [], disabledActions: [] } },
-    { key: "preLivePreparation", url: "/api/pre-live-preparation-pack", fallback: { summary: {}, rehearsalSummary: {}, preLiveClosureReport: [], recentRehearsals: [] } },
-    { key: "testnetDrill", url: "/api/testnet-drill", fallback: { summary: {}, strategies: [], orderLifecycle: [], riskTemplate: [] }, timeoutMs: 30000 },
-    { key: "testnetAudit", url: "/api/testnet-audit-pack", fallback: { summary: {}, auditItems: [], criticalBlockers: [] }, timeoutMs: 60000 },
-    { key: "testnetPermission", url: "/api/testnet-permission-check", fallback: { summary: {}, checks: [], referenceInputs: [] }, timeoutMs: 30000 },
-    { key: "testnetSmallOrder", url: "/api/testnet-small-order-simulation", fallback: { summary: {}, defaultTicket: {}, orderPath: [], recentSimulations: [] }, timeoutMs: 30000 },
-    { key: "strategyPromotionGate", url: "/api/strategy-promotion-gate", fallback: { candidates: [], summary: {} }, timeoutMs: 12000 },
-    { key: "researchTaskBoard", url: "/api/research-task-board", fallback: { tasks: [], summary: {} } },
+async function loadSandboxReviewDataIfNeeded(force = false) {
+  if (sandboxReviewLoading) return sandboxReviewLoading;
+  if (!force && latestSandboxReviewPayload.sandboxQualityCenter && latestSandboxReviewPayload.sandboxResultReview) {
+    return latestSandboxReviewPayload;
+  }
+  sandboxReviewLoading = loadJsonMap([
+    { key: "sandboxQualityCenter", url: "/api/local-sandbox/quality-center", fallback: { summary: {}, strategies: [], readonlyPreparation: {} }, timeoutMs: 12000 },
+    { key: "sandboxConcentrationReview", url: "/api/local-sandbox/concentration-review", fallback: { summary: {}, strategies: [], variantGroups: [] }, timeoutMs: 12000 },
+    { key: "sandboxResultReview", url: "/api/local-sandbox/result-review", fallback: { summary: {}, strategies: [], familyReviews: [] }, timeoutMs: 12000 },
+    { key: "strategyAssetPlaybook", url: "/api/strategy-asset-playbook", fallback: { summary: {}, strategies: [], executionReadiness: {} }, timeoutMs: 30000 },
+  ], 2).then((payload) => {
+    latestSandboxReviewPayload = payload;
+    renderConsoleFromPayloads();
+    return payload;
+  }).finally(() => {
+    sandboxReviewLoading = null;
+  });
+  return sandboxReviewLoading;
+}
+
+async function loadLocalLabEnrichmentIfNeeded(force = false) {
+  if (localLabEnrichmentLoading) return localLabEnrichmentLoading;
+  if (!force && latestCoreConsolePayload.simulationBridge && latestCoreConsolePayload.simulationReview && latestStrategyLearningLoopPayload.strategyLearningLoop) {
+    return latestCoreConsolePayload;
+  }
+  localLabEnrichmentLoading = loadJsonMap([
+    { key: "simulationBridge", url: "/api/simulation-bridge", fallback: emptySimulationBridge, timeoutMs: 6000 },
+    { key: "simulationReview", url: "/api/simulation-review", fallback: emptySimulationReview, timeoutMs: 6000 },
     { key: "strategyLearningLoop", url: "/api/strategy-learning-loop", fallback: emptyStrategyLearningLoop, timeoutMs: 12000 },
-  ], 3);
-  const simulationBridge = advanced.simulationBridge || emptySimulationBridge;
-  const simulationReview = advanced.simulationReview || emptySimulationReview;
-  const strategyLearningLoop = advanced.strategyLearningLoop || emptyStrategyLearningLoop;
-  latestStrategyLearningLoopPayload = strategyLearningLoop;
-  renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview, sandboxQualityCenter, sandboxConcentrationReview, sandboxResultReview, strategyAssetPlaybook);
-  renderLocalLabPage(usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, sandboxQualityCenter, sandboxResultReview, simulationBridge, simulationReview, strategyLearningLoop);
-  renderExchangeDemoSimulation(latestExchangeDemoPayload);
-  renderCandidateQueue(advanced.candidateQueue || { strategies: [], summary: {} });
-  renderShortCycleCandidatePool(advanced.shortCycleCandidates || { candidates: [], summary: {} });
-  renderSimulationReview(simulationReview);
-  renderClosedSampleReplay(advanced.closedSampleReplay || { samples: [], summary: {} });
-  renderWeaknessActionBoard(advanced.weaknessActionBoard || { actions: [], summary: {} });
-  renderResearchExecutionPipeline(advanced.researchPipeline || { summary: {}, stages: [], actions: [] });
-  renderTestnetDesignBoundary(advanced.testnetDesignBoundary || { summary: {}, checklist: [], disabledActions: [] });
-  renderPreLivePreparationPack(advanced.preLivePreparation || { summary: {}, rehearsalSummary: {}, preLiveClosureReport: [], recentRehearsals: [] });
-  renderTestnetDrill(advanced.testnetDrill || { summary: {}, strategies: [], orderLifecycle: [], riskTemplate: [] });
-  renderTestnetAuditPack(advanced.testnetAudit || { summary: {}, auditItems: [], criticalBlockers: [] });
-  renderTestnetPermissionCheck(advanced.testnetPermission || { summary: {}, checks: [], referenceInputs: [] });
-  renderTestnetSmallOrderSimulation(advanced.testnetSmallOrder || { summary: {}, defaultTicket: {}, orderPath: [], recentSimulations: [] });
-  renderStrategyPromotionGate(advanced.strategyPromotionGate || { candidates: [], summary: {} });
-  renderResearchTaskBoard(advanced.researchTaskBoard || { tasks: [], summary: {} });
-  renderStrategyLearningLoop(strategyLearningLoop);
-  renderStrategyPlaybook(strategyItems, mobile, strategyLearningLoop);
+  ], 2).then((payload) => {
+    latestCoreConsolePayload = {
+      ...latestCoreConsolePayload,
+      simulationBridge: payload.simulationBridge || emptySimulationBridge,
+      simulationReview: payload.simulationReview || emptySimulationReview,
+    };
+    latestStrategyLearningLoopPayload = payload.strategyLearningLoop || emptyStrategyLearningLoop;
+    renderConsoleFromPayloads();
+    renderSimulationReview(latestCoreConsolePayload.simulationReview || emptySimulationReview);
+    renderStrategyLearningLoop(latestStrategyLearningLoopPayload);
+    return latestCoreConsolePayload;
+  }).finally(() => {
+    localLabEnrichmentLoading = null;
+  });
+  return localLabEnrichmentLoading;
+}
+
+async function loadMobileStatusIfNeeded(force = false) {
+  if (mobileStatusLoading) return mobileStatusLoading;
+  if (!force && mobileStatusLoaded) return latestMobilePayload;
+  setText("mobilePreview", "正在加载手机控制台完整状态...");
+  mobileStatusLoading = getJsonSafe("/api/mobile/status", emptyMobileStatus, 10000).then((payload) => {
+    latestMobilePayload = payload || emptyMobileStatus;
+    mobileStatusLoaded = true;
+    renderConsoleFromPayloads();
+    return latestMobilePayload;
+  }).finally(() => {
+    mobileStatusLoading = null;
+  });
+  return mobileStatusLoading;
+}
+
+async function loadAdvancedDataIfNeeded(force = false) {
+  if (advancedDataLoading) return advancedDataLoading;
+  if (!force && advancedDataLoaded) return latestAdvancedPayload;
+  advancedDataLoading = (async () => {
+    await loadLocalLabEnrichmentIfNeeded(force);
+    const advanced = await loadJsonMap([
+      { key: "audit", url: "/api/audit", fallback: { events: [] } },
+      { key: "candidateQueue", url: "/api/candidate-queue", fallback: { strategies: [], summary: {} } },
+      { key: "shortCycleCandidates", url: "/api/short-cycle-candidates", fallback: { candidates: [], summary: {} } },
+      { key: "closedSampleReplay", url: "/api/closed-sample-replay", fallback: { samples: [], summary: {} }, timeoutMs: 12000 },
+      { key: "weaknessActionBoard", url: "/api/weakness-action-board", fallback: { actions: [], summary: {} }, timeoutMs: 12000 },
+      { key: "researchPipeline", url: "/api/research-execution-pipeline", fallback: { summary: {}, stages: [], actions: [] }, timeoutMs: 12000 },
+      { key: "testnetDesignBoundary", url: "/api/testnet-design-boundary", fallback: { summary: {}, checklist: [], disabledActions: [] } },
+      { key: "preLivePreparation", url: "/api/pre-live-preparation-pack", fallback: { summary: {}, rehearsalSummary: {}, preLiveClosureReport: [], recentRehearsals: [] } },
+      { key: "testnetDrill", url: "/api/testnet-drill", fallback: { summary: {}, strategies: [], orderLifecycle: [], riskTemplate: [] }, timeoutMs: 30000 },
+      { key: "testnetAudit", url: "/api/testnet-audit-pack", fallback: { summary: {}, auditItems: [], criticalBlockers: [] }, timeoutMs: 60000 },
+      { key: "testnetPermission", url: "/api/testnet-permission-check", fallback: { summary: {}, checks: [], referenceInputs: [] }, timeoutMs: 30000 },
+      { key: "testnetSmallOrder", url: "/api/testnet-small-order-simulation", fallback: { summary: {}, defaultTicket: {}, orderPath: [], recentSimulations: [] }, timeoutMs: 30000 },
+      { key: "strategyPromotionGate", url: "/api/strategy-promotion-gate", fallback: { candidates: [], summary: {} }, timeoutMs: 12000 },
+      { key: "researchTaskBoard", url: "/api/research-task-board", fallback: { tasks: [], summary: {} } },
+    ], 3);
+    latestAdvancedPayload = advanced;
+    advancedDataLoaded = true;
+    renderAudit(advanced.audit?.events || []);
+    renderCandidateQueue(advanced.candidateQueue || { strategies: [], summary: {} });
+    renderShortCycleCandidatePool(advanced.shortCycleCandidates || { candidates: [], summary: {} });
+    renderSimulationReview(latestCoreConsolePayload.simulationReview || emptySimulationReview);
+    renderClosedSampleReplay(advanced.closedSampleReplay || { samples: [], summary: {} });
+    renderWeaknessActionBoard(advanced.weaknessActionBoard || { actions: [], summary: {} });
+    renderResearchExecutionPipeline(advanced.researchPipeline || { summary: {}, stages: [], actions: [] });
+    renderTestnetDesignBoundary(advanced.testnetDesignBoundary || { summary: {}, checklist: [], disabledActions: [] });
+    renderPreLivePreparationPack(advanced.preLivePreparation || { summary: {}, rehearsalSummary: {}, preLiveClosureReport: [], recentRehearsals: [] });
+    renderTestnetDrill(advanced.testnetDrill || { summary: {}, strategies: [], orderLifecycle: [], riskTemplate: [] });
+    renderTestnetAuditPack(advanced.testnetAudit || { summary: {}, auditItems: [], criticalBlockers: [] });
+    renderTestnetPermissionCheck(advanced.testnetPermission || { summary: {}, checks: [], referenceInputs: [] });
+    renderTestnetSmallOrderSimulation(advanced.testnetSmallOrder || { summary: {}, defaultTicket: {}, orderPath: [], recentSimulations: [] });
+    renderStrategyPromotionGate(advanced.strategyPromotionGate || { candidates: [], summary: {} });
+    renderResearchTaskBoard(advanced.researchTaskBoard || { tasks: [], summary: {} });
+    renderStrategyLearningLoop(latestStrategyLearningLoopPayload);
+    return advanced;
+  })().finally(() => {
+    advancedDataLoading = null;
+  });
+  return advancedDataLoading;
+}
+
+function loadDataForSection(sectionId) {
+  if (sectionId === "localLab") {
+    void loadSandboxReviewDataIfNeeded();
+    void loadLocalLabEnrichmentIfNeeded();
+  }
+  if (sectionId === "mobileConsole") {
+    void loadMobileStatusIfNeeded();
+  }
+  if (document.body.classList.contains("show-advanced")) {
+    void loadAdvancedDataIfNeeded();
+  }
+}
+
+async function refreshAll() {
+  latestStrategyLearningLoopPayload = emptyStrategyLearningLoop;
+  latestCoreConsolePayload = await loadJsonMap([
+    { key: "strategies", url: "/api/strategies", fallback: { strategies: [] }, timeoutMs: 6000 },
+    { key: "reports", url: "/api/reports", fallback: { reports: [] }, timeoutMs: 6000 },
+    { key: "connection", url: "/api/mobile/connection-info", fallback: { notes: [], mobileStatusUrls: [] }, timeoutMs: 4000 },
+    { key: "exchanges", url: "/api/exchanges", fallback: { sources: [] }, timeoutMs: 4000 },
+    { key: "slots", url: "/api/strategy-slots", fallback: { slots: [] }, timeoutMs: 4000 },
+    { key: "artifacts", url: "/api/strategy-artifacts", fallback: { artifacts: [], summary: {} }, timeoutMs: 8000 },
+    { key: "paperTasks", url: "/api/paper-observation-tasks", fallback: { tasks: [], summary: {} }, timeoutMs: 8000 },
+    { key: "usableStrategyCatalog", url: "/api/usable-strategy-catalog", fallback: { strategies: [], summary: {} }, timeoutMs: 6000 },
+    { key: "sandboxDailyReport", url: "/api/local-sandbox/daily-report?limit=10", fallback: { reports: [], latestReport: { summary: {}, strategyHealthRows: [] } }, timeoutMs: 6000 },
+    { key: "sandboxAutoRunner", url: "/api/local-sandbox/auto-runner", fallback: { autoRunner: {}, events: [] }, timeoutMs: 6000 },
+    { key: "exchangeDemo", url: "/api/exchange-demo/simulation", fallback: { summary: {}, modeCards: [], recentEvents: [], credentialStatus: {} }, timeoutMs: 12000 },
+    { key: "liveReadiness", url: "/api/live-readiness", fallback: { rows: [], summary: {} }, timeoutMs: 8000 },
+    { key: "forwardReview", url: "/api/forward-review", fallback: { rows: [], summary: {} }, timeoutMs: 8000 },
+  ], 4);
+  renderConsoleFromPayloads();
+  updateCurrentSection();
+  void loadSandboxReviewDataIfNeeded();
 }
 
 function renderMobileConnectionInfo(connection) {
@@ -4879,7 +4950,10 @@ el("exchangeDemoScanButton")?.addEventListener("click", scanExchangeDemoCandidat
 el("exchangeDemoFillTicketButton")?.addEventListener("click", () => fillExchangeDemoTicketFromCandidate());
 el("exchangeDemoSubmitButton")?.addEventListener("click", submitExchangeDemoOrder);
 el("exchangeDemoEmergencyButton")?.addEventListener("click", runExchangeDemoEmergencyStop);
-el("toggleAdvancedModeButton")?.addEventListener("click", toggleAdvancedMode);
+el("toggleAdvancedModeButton")?.addEventListener("click", () => {
+  toggleAdvancedMode();
+  if (document.body.classList.contains("show-advanced")) void loadAdvancedDataIfNeeded();
+});
 el("runResearchPipelineButton")?.addEventListener("click", runResearchPipeline);
 
 el("probeExchangesButton").addEventListener("click", async () => {
@@ -4963,8 +5037,17 @@ el("artifactSort").addEventListener("change", (event) => {
   artifactFilters.sort = event.target.value || "tier_score";
   renderStrategyArtifacts(latestArtifactIndex);
 });
+function loadCurrentSectionData() {
+  const hashId = (window.location.hash || "#simpleConsole").replace("#", "");
+  const requestedId = hashAliases[hashId] || (sectionLabels[hashId] ? hashId : "simpleConsole");
+  loadDataForSection(requestedId);
+}
+
 window.addEventListener("scroll", updateCurrentSection, { passive: true });
-window.addEventListener("hashchange", updateCurrentSection);
+window.addEventListener("hashchange", () => {
+  updateCurrentSection();
+  loadCurrentSectionData();
+});
 
 try {
   setAdvancedMode(window.localStorage.getItem("alphapilot.showAdvancedMode") === "1");
@@ -4976,3 +5059,4 @@ refreshAll().catch((error) => {
   el("strategyList").innerHTML = `<div class="item">加载失败：${error.message}</div>`;
 });
 updateCurrentSection();
+loadCurrentSectionData();

@@ -1513,3 +1513,24 @@ Updated in this patch:
 - No trading capability is added. Live trading, Withdraw API, raw API key
   storage, real account access, real position access, real order creation, and
   auto trading remain disabled.
+
+## V13.9.9 Control Console Performance Patch
+
+V13.9.9 improves the local desktop console loading path after diagnosing that
+the slow page load was caused by local report scanning and large JSON payloads,
+not by internet speed.
+
+Updated in this patch:
+
+- The first screen loads only the core five-page console summaries.
+- Local sandbox result review, quality review, simulation review, and learning
+  loop data are loaded after the first render or when the relevant page is
+  opened.
+- Full mobile status JSON is loaded only on the `鎵嬫満鎺у埗鍙癭 page.
+- Advanced research and debug panels are loaded only after `灞曞紑楂樼骇鐮旂┒`
+  is enabled.
+- Slow read-only GET endpoints use short in-process TTL caches. POST actions
+  still run live and are not cached.
+- No trading capability is added. Live trading, Withdraw API, raw API key
+  storage, real account access, real position access, real order creation, and
+  auto trading remain disabled.

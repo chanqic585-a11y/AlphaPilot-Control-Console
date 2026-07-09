@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import mimetypes
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -82,6 +83,25 @@ def _json_bytes(payload: object) -> bytes:
     return json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
 
 
+_RESPONSE_CACHE: dict[str, tuple[float, object]] = {}
+
+
+def _is_fresh_query(query: dict[str, list[str]]) -> bool:
+    value = (query.get("fresh") or [""])[0].lower()
+    return value in {"1", "true", "yes"}
+
+
+def _cached_payload(key: str, ttl_seconds: float, builder, *, fresh: bool = False) -> object:
+    now = time.monotonic()
+    if not fresh:
+        cached = _RESPONSE_CACHE.get(key)
+        if cached and now - cached[0] <= ttl_seconds:
+            return cached[1]
+    payload = builder()
+    _RESPONSE_CACHE[key] = (now, payload)
+    return payload
+
+
 def _safe_int(value: object, fallback: int) -> int:
     try:
         return int(value)
@@ -121,7 +141,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.9.6"
+    server_version = "AlphaPilotControlConsole/13.9.9"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -159,22 +179,39 @@ class ConsoleHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         path = parsed.path
+        query = parse_qs(parsed.query or "")
+        fresh = _is_fresh_query(query)
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.9.8",
-                "source": "alphapilot_control_console_v13_9_8",
+                "version": "V13.9.9",
+                "source": "alphapilot_control_console_v13_9_9",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
         if path == "/api/strategies":
-            self._send_json({"strategies": scan_quant_engine()["strategies"]})
+            self._send_json(_cached_payload(
+                "strategies",
+                20,
+                lambda: {"strategies": scan_quant_engine()["strategies"]},
+                fresh=fresh,
+            ))
             return
         if path == "/api/reports":
-            self._send_json({"reports": scan_quant_engine()["reports"]})
+            self._send_json(_cached_payload(
+                "reports",
+                20,
+                lambda: {"reports": scan_quant_engine()["reports"]},
+                fresh=fresh,
+            ))
             return
         if path == "/api/mobile/status":
-            self._send_json(build_mobile_status(scan_quant_engine()))
+            self._send_json(_cached_payload(
+                "mobile-status",
+                15,
+                lambda: build_mobile_status(scan_quant_engine()),
+                fresh=fresh,
+            ))
             return
         if path == "/api/runtime":
             payload = scan_quant_engine()
@@ -186,11 +223,15 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             })
             return
         if path == "/api/strategy-artifacts":
-            payload = scan_quant_engine()
-            self._send_json({
-                "strategyArtifactIndex": payload["strategyArtifactIndex"],
-                "safetyBoundary": SAFETY_BOUNDARY,
-            })
+            self._send_json(_cached_payload(
+                "strategy-artifacts",
+                30,
+                lambda: {
+                    "strategyArtifactIndex": scan_quant_engine()["strategyArtifactIndex"],
+                    "safetyBoundary": SAFETY_BOUNDARY,
+                },
+                fresh=fresh,
+            ))
             return
         if path == "/api/paper-observation-tasks":
             payload = scan_quant_engine()
@@ -229,24 +270,47 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             })
             return
         if path == "/api/candidate-queue":
-            payload = scan_quant_engine()
-            self._send_json({
-                "strategyCandidateQueue": payload.get("strategyCandidateQueue") or {},
-                "safetyBoundary": SAFETY_BOUNDARY,
-            })
+            self._send_json(_cached_payload(
+                "candidate-queue",
+                30,
+                lambda: {
+                    "strategyCandidateQueue": scan_quant_engine().get("strategyCandidateQueue") or {},
+                    "safetyBoundary": SAFETY_BOUNDARY,
+                },
+                fresh=fresh,
+            ))
             return
         if path == "/api/short-cycle-candidates":
-            payload = scan_quant_engine()
-            self._send_json(build_short_cycle_candidate_pool(payload))
+            self._send_json(_cached_payload(
+                "short-cycle-candidates",
+                30,
+                lambda: build_short_cycle_candidate_pool(scan_quant_engine()),
+                fresh=fresh,
+            ))
             return
         if path == "/api/usable-strategy-catalog":
-            self._send_json(build_usable_strategy_catalog())
+            self._send_json(_cached_payload(
+                "usable-strategy-catalog",
+                30,
+                build_usable_strategy_catalog,
+                fresh=fresh,
+            ))
             return
         if path == "/api/simulation-bridge":
-            self._send_json(build_simulation_bridge())
+            self._send_json(_cached_payload(
+                "simulation-bridge",
+                30,
+                build_simulation_bridge,
+                fresh=fresh,
+            ))
             return
         if path == "/api/simulation-review":
-            self._send_json(build_simulation_review())
+            self._send_json(_cached_payload(
+                "simulation-review",
+                30,
+                build_simulation_review,
+                fresh=fresh,
+            ))
             return
         if path == "/api/simulation-review/strategies":
             review = build_simulation_review()
@@ -280,7 +344,12 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             query = parse_qs(parsed.query or "")
             strategy_id = str((query.get("strategyId") or [""])[0]).strip() or None
             limit = _safe_int((query.get("limit") or [80])[0], 80)
-            self._send_json(build_closed_sample_replay(strategy_id=strategy_id, limit=limit))
+            self._send_json(_cached_payload(
+                f"closed-sample-replay:{strategy_id or 'all'}:{limit}",
+                30,
+                lambda: build_closed_sample_replay(strategy_id=strategy_id, limit=limit),
+                fresh=fresh,
+            ))
             return
         if path == "/api/closed-sample-replay/strategies":
             payload = build_closed_sample_replay()
@@ -308,7 +377,12 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/weakness-action-board":
             query = parse_qs(parsed.query or "")
             limit = _safe_int((query.get("limit") or [200])[0], 200)
-            self._send_json(build_weakness_action_board(limit=limit))
+            self._send_json(_cached_payload(
+                f"weakness-action-board:{limit}",
+                30,
+                lambda: build_weakness_action_board(limit=limit),
+                fresh=fresh,
+            ))
             return
         if path == "/api/weakness-action-board/actions":
             payload = build_weakness_action_board()
@@ -332,40 +406,60 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             })
             return
         if path == "/api/research-action-executor":
-            self._send_json(build_research_action_executor(apply_updates=False))
+            self._send_json(_cached_payload(
+                "research-action-executor",
+                30,
+                lambda: build_research_action_executor(apply_updates=False),
+                fresh=fresh,
+            ))
             return
         if path == "/api/candidate-promotion-gate":
-            self._send_json(build_candidate_promotion_gate_v2())
+            self._send_json(_cached_payload(
+                "candidate-promotion-gate",
+                30,
+                build_candidate_promotion_gate_v2,
+                fresh=fresh,
+            ))
             return
         if path == "/api/simulation-command-center":
-            self._send_json(build_simulation_command_center())
+            self._send_json(_cached_payload(
+                "simulation-command-center",
+                30,
+                build_simulation_command_center,
+                fresh=fresh,
+            ))
             return
         if path == "/api/testnet-readiness-pack":
-            self._send_json(build_testnet_readiness_pack())
+            self._send_json(_cached_payload("testnet-readiness-pack", 30, build_testnet_readiness_pack, fresh=fresh))
             return
         if path == "/api/testnet-design-boundary":
-            self._send_json(build_testnet_design_boundary())
+            self._send_json(_cached_payload("testnet-design-boundary", 60, build_testnet_design_boundary, fresh=fresh))
             return
         if path == "/api/pre-live-preparation-pack":
-            self._send_json(build_pre_live_preparation_pack())
+            self._send_json(_cached_payload("pre-live-preparation-pack", 30, build_pre_live_preparation_pack, fresh=fresh))
             return
         if path == "/api/testnet-drill":
-            self._send_json(build_testnet_drill())
+            self._send_json(_cached_payload("testnet-drill", 60, build_testnet_drill, fresh=fresh))
             return
         if path == "/api/testnet-audit-pack":
-            self._send_json(build_testnet_audit_pack())
+            self._send_json(_cached_payload("testnet-audit-pack", 60, build_testnet_audit_pack, fresh=fresh))
             return
         if path == "/api/testnet-permission-check":
-            self._send_json(build_testnet_permission_check())
+            self._send_json(_cached_payload("testnet-permission-check", 30, build_testnet_permission_check, fresh=fresh))
             return
         if path == "/api/testnet-small-order-simulation":
-            self._send_json(build_testnet_small_order_simulation())
+            self._send_json(_cached_payload("testnet-small-order-simulation", 30, build_testnet_small_order_simulation, fresh=fresh))
             return
         if path == "/api/exchange-demo/simulation":
-            self._send_json(build_exchange_demo_simulation())
+            self._send_json(_cached_payload("exchange-demo-simulation", 15, build_exchange_demo_simulation, fresh=fresh))
             return
         if path == "/api/research-execution-pipeline":
-            self._send_json(build_research_execution_pipeline(apply_updates=False))
+            self._send_json(_cached_payload(
+                "research-execution-pipeline",
+                30,
+                lambda: build_research_execution_pipeline(apply_updates=False),
+                fresh=fresh,
+            ))
             return
         if path.startswith("/api/closed-sample-replay/strategies/"):
             strategy_id = path.rsplit("/", 1)[-1]
@@ -376,25 +470,42 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             self._send_json(strategy)
             return
         if path == "/api/strategy-promotion-gate":
-            payload = scan_quant_engine()
-            self._send_json(build_strategy_promotion_gate(payload))
+            self._send_json(_cached_payload(
+                "strategy-promotion-gate",
+                30,
+                lambda: build_strategy_promotion_gate(scan_quant_engine()),
+                fresh=fresh,
+            ))
             return
         if path == "/api/strategy-asset-playbook":
-            self._send_json(build_strategy_asset_playbook())
+            self._send_json(_cached_payload(
+                "strategy-asset-playbook",
+                60,
+                build_strategy_asset_playbook,
+                fresh=fresh,
+            ))
             return
         if path == "/api/research-task-board":
-            payload = scan_quant_engine()
-            self._send_json({
-                "researchTaskBoard": payload.get("researchTaskBoard") or {},
-                "safetyBoundary": SAFETY_BOUNDARY,
-            })
+            self._send_json(_cached_payload(
+                "research-task-board",
+                30,
+                lambda: {
+                    "researchTaskBoard": scan_quant_engine().get("researchTaskBoard") or {},
+                    "safetyBoundary": SAFETY_BOUNDARY,
+                },
+                fresh=fresh,
+            ))
             return
         if path == "/api/strategy-learning-loop":
-            payload = scan_quant_engine()
-            self._send_json({
-                "strategyLearningLoop": payload.get("strategyLearningLoop") or {},
-                "safetyBoundary": SAFETY_BOUNDARY,
-            })
+            self._send_json(_cached_payload(
+                "strategy-learning-loop",
+                60,
+                lambda: {
+                    "strategyLearningLoop": scan_quant_engine().get("strategyLearningLoop") or {},
+                    "safetyBoundary": SAFETY_BOUNDARY,
+                },
+                fresh=fresh,
+            ))
             return
         if path == "/api/paper-observation-logs":
             query = parse_qs(parsed.query or "")
@@ -426,21 +537,44 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             self._send_json(get_local_sandbox_auto_runner_status())
             return
         if path == "/api/local-sandbox/quality-center":
-            self._send_json(build_local_sandbox_quality_center())
+            self._send_json(_cached_payload(
+                "local-sandbox-quality-center",
+                45,
+                build_local_sandbox_quality_center,
+                fresh=fresh,
+            ))
             return
         if path == "/api/local-sandbox/concentration-review":
-            self._send_json(build_local_sandbox_concentration_review())
+            self._send_json(_cached_payload(
+                "local-sandbox-concentration-review",
+                45,
+                build_local_sandbox_concentration_review,
+                fresh=fresh,
+            ))
             return
         if path == "/api/local-sandbox/result-review":
-            self._send_json(build_local_sandbox_result_review())
+            self._send_json(_cached_payload(
+                "local-sandbox-result-review",
+                45,
+                build_local_sandbox_result_review,
+                fresh=fresh,
+            ))
             return
         if path == "/api/live-readiness":
-            payload = scan_quant_engine()
-            self._send_json(build_live_readiness(payload))
+            self._send_json(_cached_payload(
+                "live-readiness",
+                30,
+                lambda: build_live_readiness(scan_quant_engine()),
+                fresh=fresh,
+            ))
             return
         if path == "/api/forward-review":
-            payload = scan_quant_engine()
-            self._send_json(build_forward_review(payload))
+            self._send_json(_cached_payload(
+                "forward-review",
+                30,
+                lambda: build_forward_review(scan_quant_engine()),
+                fresh=fresh,
+            ))
             return
         if path == "/api/manual-execution-tickets":
             query = parse_qs(parsed.query or "")

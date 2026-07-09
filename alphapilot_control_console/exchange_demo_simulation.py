@@ -18,8 +18,8 @@ from .state_store import list_exchange_demo_events, now_iso, save_exchange_demo_
 from .usable_strategy_catalog import build_usable_strategy_catalog
 
 
-CONTROL_CONSOLE_VERSION = "V13.9.8"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_9_8"
+CONTROL_CONSOLE_VERSION = "V13.9.9"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_9_9"
 DEFAULT_DEMO_BASE_URL = "https://www.okx.com"
 ALLOWED_DEMO_BASE_URLS = {"https://www.okx.com", "https://eea.okx.com"}
 MAX_DEMO_NOTIONAL_USDT = 1000.0
