@@ -410,7 +410,11 @@
               </div>
             </div>
             <div class="testnet-drill-actions">
-              <button id="runTestnetSmallOrderButton" type="button">保存 5 USDT 小额模拟票据</button>
+              <label class="testnet-small-order-input">
+                <span>模拟金额 USDT</span>
+                <input id="testnetSmallOrderNotionalInput" type="number" min="1" max="1000" step="1" value="1000" />
+              </label>
+              <button id="runTestnetSmallOrderButton" type="button">保存模拟票据</button>
               <span id="testnetSmallOrderActionStatus">不会连接交易所，不会创建真实或 testnet 订单。</span>
             </div>
             <div class="testnet-audit-columns">

@@ -1068,8 +1068,26 @@ small {
 .testnet-drill-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
   margin-top: 12px;
+}
+
+.testnet-small-order-input {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.testnet-small-order-input input {
+  width: 140px;
+  border: 1px solid rgba(255, 216, 77, 0.35);
+  border-radius: 8px;
+  background: rgba(6, 10, 14, 0.84);
+  color: var(--text);
+  padding: 9px 10px;
+  font: inherit;
 }
 
 .testnet-drill-actions span {

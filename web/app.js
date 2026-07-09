@@ -1316,9 +1316,16 @@ function renderTestnetSmallOrderSimulation(payload) {
   setText("testnetSmallOrderRecentCount", String(summary.recentSimulationCount ?? recent.length));
   setText("testnetSmallOrderExchangeOrder", summary.canCreateExchangeOrder ? "异常开启" : "关闭");
   setText("testnetSmallOrderPrivate", summary.canConnectPrivateTestnet ? "异常开启" : "关闭");
+  const notionalInput = el("testnetSmallOrderNotionalInput");
+  if (notionalInput) {
+    notionalInput.max = String(summary.maxNotionalUsdt || 1000);
+    if (!notionalInput.value) {
+      notionalInput.value = String(ticket.notionalUsdt || summary.defaultNotionalUsdt || 1000);
+    }
+  }
   setText(
     "testnetSmallOrderActionStatus",
-    `默认：${ticket.symbol || "--"} · ${formatNumber(ticket.notionalUsdt, 2)} USDT · 只保存本地模拟。`,
+    `默认：${ticket.symbol || "--"} · 可输入 1-${formatNumber(summary.maxNotionalUsdt || 1000, 0)} USDT · 只保存本地模拟。`,
   );
 
   const pathTarget = el("testnetSmallOrderPathList");
@@ -1351,14 +1358,23 @@ async function runTestnetSmallOrderSimulation() {
   const button = el("runTestnetSmallOrderButton");
   if (!button) return;
   const ticket = latestTestnetSmallOrderPayload?.defaultTicket || {};
+  const summary = latestTestnetSmallOrderPayload?.summary || {};
+  const notionalInput = el("testnetSmallOrderNotionalInput");
+  const maxNotional = Number(summary.maxNotionalUsdt || 1000);
+  const rawNotional = Number(notionalInput?.value || ticket.notionalUsdt || summary.defaultNotionalUsdt || 1000);
+  const notionalUsdt = Number.isFinite(rawNotional) ? rawNotional : Number(summary.defaultNotionalUsdt || 1000);
+  if (notionalUsdt <= 0 || notionalUsdt > maxNotional) {
+    setText("testnetSmallOrderActionStatus", `请输入 1-${formatNumber(maxNotional, 0)} USDT 之间的本地模拟金额。`);
+    return;
+  }
   button.disabled = true;
-  setText("testnetSmallOrderActionStatus", "正在保存 5 USDT 小额 Testnet 本地模拟票据...");
+  setText("testnetSmallOrderActionStatus", `正在保存 ${formatNumber(notionalUsdt, 2)} USDT Testnet 本地模拟票据...`);
   try {
     const response = await postJson("/api/testnet-small-order-simulation/rehearse", {
       strategyId: ticket.strategyId || "local_testnet_small_order_candidate",
       symbol: ticket.symbol || "BTC/USDT:USDT",
       side: ticket.side || "research_simulated_long",
-      notionalUsdt: 5,
+      notionalUsdt,
       riskR: 0.05,
       manualDecision: "approve_simulation",
     });

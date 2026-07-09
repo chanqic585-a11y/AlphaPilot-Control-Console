@@ -13,8 +13,8 @@ from .testnet_permission_check import build_testnet_permission_check
 CONTROL_CONSOLE_VERSION = "V13.9.1"
 CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_9_1"
 VIRTUAL_TESTNET_ACCOUNT_USDT = 1000
-DEFAULT_SMALL_ORDER_NOTIONAL_USDT = 5
-MAX_SMALL_ORDER_NOTIONAL_USDT = 5
+DEFAULT_SMALL_ORDER_NOTIONAL_USDT = 1000
+MAX_SMALL_ORDER_NOTIONAL_USDT = 1000
 MAX_SMALL_ORDER_RISK_R = 0.1
 
 
@@ -32,7 +32,7 @@ SIMULATED_ORDER_PATH = [
     {
         "stageId": "small_order_ticket",
         "label": "小额模拟票据",
-        "description": "生成 5 USDT 上限的本地 testnet 模拟票据，不是交易所订单。",
+        "description": "生成用户输入金额的本地 testnet 模拟票据，上限 1000 USDT，不是交易所订单。",
     },
     {
         "stageId": "local_risk_check",
@@ -142,7 +142,7 @@ def create_testnet_small_order_simulation(payload: dict[str, Any] | None = None)
     if notional <= 0:
         rejection_reasons.append("notional_must_be_positive")
     if notional > MAX_SMALL_ORDER_NOTIONAL_USDT:
-        rejection_reasons.append("notional_exceeds_5_usdt_local_cap")
+        rejection_reasons.append("notional_exceeds_1000_usdt_local_cap")
     if risk_r < 0:
         rejection_reasons.append("risk_r_must_not_be_negative")
     if risk_r > MAX_SMALL_ORDER_RISK_R:

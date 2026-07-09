@@ -1346,7 +1346,7 @@ What changed:
 
 - Adds `GET /api/testnet-small-order-simulation`.
 - Adds `POST /api/testnet-small-order-simulation/rehearse`.
-- Uses a 1000 USDT virtual account and a 5 USDT max notional local ticket.
+- Uses a 1000 USDT virtual account and a user-entered local ticket size capped at 1000 USDT.
 - Saves simulated ticket history to local console state and audit log.
 - Shows the simulated lifecycle from candidate selection to audit closeout.
 
