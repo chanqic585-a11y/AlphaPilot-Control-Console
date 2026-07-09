@@ -336,6 +336,94 @@
               </div>
             </div>
           </div>
+          <div class="simple-quality-center testnet-permission-panel" id="testnetPermissionPanel">
+            <div class="simple-section-title">
+              <strong>Testnet 只读/权限检查</strong>
+              <span id="testnetPermissionMeta">等待权限检查结果。</span>
+            </div>
+            <div class="simple-quality-grid">
+              <div>
+                <span>检查阶段</span>
+                <strong id="testnetPermissionStage">--</strong>
+              </div>
+              <div>
+                <span>Public Probe</span>
+                <strong id="testnetPermissionProbe">--</strong>
+              </div>
+              <div>
+                <span>权限通过</span>
+                <strong id="testnetPermissionPassed">--</strong>
+              </div>
+              <div>
+                <span>阻塞项</span>
+                <strong id="testnetPermissionBlocked">--</strong>
+              </div>
+              <div>
+                <span>API Key 输入</span>
+                <strong id="testnetPermissionApiKey">关闭</strong>
+              </div>
+              <div>
+                <span>私有连接</span>
+                <strong id="testnetPermissionPrivate">关闭</strong>
+              </div>
+            </div>
+            <div class="testnet-audit-columns">
+              <div>
+                <h4>权限检查</h4>
+                <div id="testnetPermissionCheckList" class="testnet-drill-list"></div>
+              </div>
+              <div>
+                <h4>参考资料吸收</h4>
+                <div id="testnetPermissionReferenceList" class="testnet-drill-list"></div>
+              </div>
+            </div>
+          </div>
+          <div class="simple-quality-center testnet-small-order-panel" id="testnetSmallOrderPanel">
+            <div class="simple-section-title">
+              <strong>Testnet 小额模拟下单</strong>
+              <span id="testnetSmallOrderMeta">本地模拟票据，不发交易所订单。</span>
+            </div>
+            <div class="simple-quality-grid">
+              <div>
+                <span>虚拟账户</span>
+                <strong id="testnetSmallOrderCapital">--</strong>
+              </div>
+              <div>
+                <span>默认金额</span>
+                <strong id="testnetSmallOrderDefaultNotional">--</strong>
+              </div>
+              <div>
+                <span>金额上限</span>
+                <strong id="testnetSmallOrderMaxNotional">--</strong>
+              </div>
+              <div>
+                <span>近期模拟</span>
+                <strong id="testnetSmallOrderRecentCount">--</strong>
+              </div>
+              <div>
+                <span>订单能力</span>
+                <strong id="testnetSmallOrderExchangeOrder">关闭</strong>
+              </div>
+              <div>
+                <span>私有连接</span>
+                <strong id="testnetSmallOrderPrivate">关闭</strong>
+              </div>
+            </div>
+            <div class="testnet-drill-actions">
+              <button id="runTestnetSmallOrderButton" type="button">保存 5 USDT 小额模拟票据</button>
+              <span id="testnetSmallOrderActionStatus">不会连接交易所，不会创建真实或 testnet 订单。</span>
+            </div>
+            <div class="testnet-audit-columns">
+              <div>
+                <h4>模拟生命周期</h4>
+                <div id="testnetSmallOrderPathList" class="testnet-drill-list"></div>
+              </div>
+              <div>
+                <h4>最近小额模拟</h4>
+                <div id="testnetSmallOrderRecentList" class="testnet-drill-list"></div>
+              </div>
+            </div>
+          </div>
           <div class="simple-columns">
             <div>
               <div class="simple-section-title">

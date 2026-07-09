@@ -829,9 +829,12 @@ GET  /api/strategy-slots
 GET  /api/pre-live-preparation-pack
 GET  /api/testnet-drill
 GET  /api/testnet-audit-pack
+GET  /api/testnet-permission-check
+GET  /api/testnet-small-order-simulation
 POST /api/import
 POST /api/strategy-status
 POST /api/exchanges/probe-public
+POST /api/testnet-small-order-simulation/rehearse
 POST /api/pre-live-order-lifecycle/simulate
 ```
 
@@ -1320,3 +1323,37 @@ Safety boundary:
 - It does not connect private exchange endpoints.
 - It does not enable Trade API, Withdraw API, real account reads, real position
   reads, order creation, exchange Dry-run, live trading, or automatic trading.
+
+## V13.9.0 Testnet Read-only Permission Check
+
+V13.9.0 adds a read-only Testnet permission check layer.
+
+What changed:
+
+- Adds `GET /api/testnet-permission-check`.
+- Displays public probe status, permission blockers, API key state, private
+  connection state, and reference-only design inputs.
+- Reuses the previously stored reference lessons from alpha101,
+  CryptoAgentPro.beta, TradingAgents, and QuantDigger as design metadata only.
+- Keeps API key input, credential storage, private testnet connection, Trade API,
+  Withdraw API, and order creation disabled.
+
+## V13.9.1 Testnet Small Order Simulation
+
+V13.9.1 adds a local-only small Testnet order simulation ticket.
+
+What changed:
+
+- Adds `GET /api/testnet-small-order-simulation`.
+- Adds `POST /api/testnet-small-order-simulation/rehearse`.
+- Uses a 1000 USDT virtual account and a 5 USDT max notional local ticket.
+- Saves simulated ticket history to local console state and audit log.
+- Shows the simulated lifecycle from candidate selection to audit closeout.
+
+Safety boundary:
+
+- The ticket is not an exchange order.
+- It does not connect private testnet endpoints.
+- It does not accept, store, or log raw API keys.
+- It does not enable Trade API, Withdraw API, real account reads, real position
+  reads, exchange orders, exchange Dry-run, live trading, or automatic trading.

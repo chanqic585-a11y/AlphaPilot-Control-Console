@@ -208,6 +208,8 @@ let latestTestnetDesignBoundaryPayload = {};
 let latestPreLivePreparationPayload = {};
 let latestTestnetDrillPayload = {};
 let latestTestnetAuditPayload = {};
+let latestTestnetPermissionPayload = {};
+let latestTestnetSmallOrderPayload = {};
 const artifactFilters = {
   search: "",
   tier: "all",
@@ -1255,6 +1257,117 @@ function renderTestnetAuditPack(payload) {
         <small>${escapeHtml(item)}</small>
       </div>
     `).join("") || '<div class="testnet-design-empty">暂无关键阻塞，但仍不能连接交易所。</div>';
+  }
+}
+
+function renderTestnetPermissionCheck(payload) {
+  latestTestnetPermissionPayload = payload || {};
+  if (!el("testnetPermissionPanel")) return;
+  const summary = payload?.summary || {};
+  const checks = Array.isArray(payload?.checks) ? payload.checks : [];
+  const references = Array.isArray(payload?.referenceInputs) ? payload.referenceInputs : [];
+
+  setText("testnetPermissionMeta", summary.nextAction || "只读权限检查不会连接私有 Testnet。");
+  setText("testnetPermissionStage", summary.stageLabel || "--");
+  setText("testnetPermissionProbe", summary.publicProbeReady ? "已完成" : "待探测");
+  setText("testnetPermissionPassed", String(summary.passedCheckCount ?? 0));
+  setText("testnetPermissionBlocked", String(summary.blockedCheckCount ?? 0));
+  setText("testnetPermissionApiKey", summary.canInputApiKey ? "异常开启" : "关闭");
+  setText("testnetPermissionPrivate", summary.canConnectPrivateTestnet ? "异常开启" : "关闭");
+
+  const checkTarget = el("testnetPermissionCheckList");
+  if (checkTarget) {
+    checkTarget.innerHTML = checks.map((item) => `
+      <div class="testnet-drill-row">
+        <div class="testnet-drill-row-head">
+          <div>
+            <strong>${escapeHtml(item.label || item.checkId || "--")}</strong>
+            <small>${escapeHtml(item.detail || item.description || "")}</small>
+          </div>
+          <span class="badge ${item.passed ? "ok" : "warn"}">${item.passed ? "通过" : "阻塞"}</span>
+        </div>
+      </div>
+    `).join("") || '<div class="testnet-design-empty">暂无权限检查。</div>';
+  }
+
+  const referenceTarget = el("testnetPermissionReferenceList");
+  if (referenceTarget) {
+    referenceTarget.innerHTML = references.map((item) => `
+      <div class="testnet-drill-row">
+        <strong>${escapeHtml(item.label || item.sourceId || "--")}</strong>
+        <small>${escapeHtml(item.usableIdea || item.storedUse || "")}</small>
+      </div>
+    `).join("") || '<div class="testnet-design-empty">暂无参考资料。</div>';
+  }
+}
+
+function renderTestnetSmallOrderSimulation(payload) {
+  latestTestnetSmallOrderPayload = payload || {};
+  if (!el("testnetSmallOrderPanel")) return;
+  const summary = payload?.summary || {};
+  const ticket = payload?.defaultTicket || {};
+  const path = Array.isArray(payload?.orderPath) ? payload.orderPath : [];
+  const recent = Array.isArray(payload?.recentSimulations) ? payload.recentSimulations : [];
+
+  setText("testnetSmallOrderMeta", summary.nextAction || "本地模拟票据，不发交易所订单。");
+  setText("testnetSmallOrderCapital", `${formatNumber(summary.virtualAccountUsdt, 0)} USDT`);
+  setText("testnetSmallOrderDefaultNotional", `${formatNumber(summary.defaultNotionalUsdt, 2)} USDT`);
+  setText("testnetSmallOrderMaxNotional", `${formatNumber(summary.maxNotionalUsdt, 2)} USDT`);
+  setText("testnetSmallOrderRecentCount", String(summary.recentSimulationCount ?? recent.length));
+  setText("testnetSmallOrderExchangeOrder", summary.canCreateExchangeOrder ? "异常开启" : "关闭");
+  setText("testnetSmallOrderPrivate", summary.canConnectPrivateTestnet ? "异常开启" : "关闭");
+  setText(
+    "testnetSmallOrderActionStatus",
+    `默认：${ticket.symbol || "--"} · ${formatNumber(ticket.notionalUsdt, 2)} USDT · 只保存本地模拟。`,
+  );
+
+  const pathTarget = el("testnetSmallOrderPathList");
+  if (pathTarget) {
+    pathTarget.innerHTML = path.map((item) => `
+      <div class="testnet-drill-row">
+        <strong>${escapeHtml(item.label || item.stageId || "--")}</strong>
+        <small>${escapeHtml(item.description || "")}</small>
+      </div>
+    `).join("") || '<div class="testnet-design-empty">暂无生命周期。</div>';
+  }
+
+  const recentTarget = el("testnetSmallOrderRecentList");
+  if (recentTarget) {
+    recentTarget.innerHTML = recent.slice(0, 8).map((item) => `
+      <div class="testnet-drill-row">
+        <div class="testnet-drill-row-head">
+          <div>
+            <strong>${escapeHtml(item.symbol || "--")}</strong>
+            <small>${escapeHtml(item.strategyId || "--")} · ${formatNumber(item.notionalUsdt, 2)} USDT</small>
+          </div>
+          <span class="badge ${item.riskPassed ? "ok" : "warn"}">${item.riskPassed ? "本地通过" : "本地拒绝"}</span>
+        </div>
+      </div>
+    `).join("") || '<div class="testnet-design-empty">暂无小额模拟票据。</div>';
+  }
+}
+
+async function runTestnetSmallOrderSimulation() {
+  const button = el("runTestnetSmallOrderButton");
+  if (!button) return;
+  const ticket = latestTestnetSmallOrderPayload?.defaultTicket || {};
+  button.disabled = true;
+  setText("testnetSmallOrderActionStatus", "正在保存 5 USDT 小额 Testnet 本地模拟票据...");
+  try {
+    const response = await postJson("/api/testnet-small-order-simulation/rehearse", {
+      strategyId: ticket.strategyId || "local_testnet_small_order_candidate",
+      symbol: ticket.symbol || "BTC/USDT:USDT",
+      side: ticket.side || "research_simulated_long",
+      notionalUsdt: 5,
+      riskR: 0.05,
+      manualDecision: "approve_simulation",
+    });
+    renderTestnetSmallOrderSimulation(response.testnetSmallOrderSimulation || {});
+    setText("testnetSmallOrderActionStatus", "已保存本地小额模拟票据：没有连接交易所，没有创建订单。");
+  } catch (error) {
+    setText("testnetSmallOrderActionStatus", `保存失败：${error.message}`);
+  } finally {
+    button.disabled = false;
   }
 }
 
@@ -4091,6 +4204,8 @@ async function refreshAll() {
   renderPreLivePreparationPack({ summary: {}, rehearsalSummary: {}, preLiveClosureReport: [], recentRehearsals: [] });
   renderTestnetDrill({ summary: {}, strategies: [], orderLifecycle: [], riskTemplate: [] });
   renderTestnetAuditPack({ summary: {}, auditItems: [], criticalBlockers: [] });
+  renderTestnetPermissionCheck({ summary: {}, checks: [], referenceInputs: [] });
+  renderTestnetSmallOrderSimulation({ summary: {}, defaultTicket: {}, orderPath: [], recentSimulations: [] });
   renderStrategyPromotionGate({ candidates: [], summary: {} });
   renderResearchTaskBoard({ tasks: [], summary: {} });
   renderStrategyLearningLoop(emptyStrategyLearningLoop);
@@ -4120,6 +4235,8 @@ async function refreshAll() {
     { key: "preLivePreparation", url: "/api/pre-live-preparation-pack", fallback: { summary: {}, rehearsalSummary: {}, preLiveClosureReport: [], recentRehearsals: [] } },
     { key: "testnetDrill", url: "/api/testnet-drill", fallback: { summary: {}, strategies: [], orderLifecycle: [], riskTemplate: [] }, timeoutMs: 30000 },
     { key: "testnetAudit", url: "/api/testnet-audit-pack", fallback: { summary: {}, auditItems: [], criticalBlockers: [] }, timeoutMs: 60000 },
+    { key: "testnetPermission", url: "/api/testnet-permission-check", fallback: { summary: {}, checks: [], referenceInputs: [] }, timeoutMs: 30000 },
+    { key: "testnetSmallOrder", url: "/api/testnet-small-order-simulation", fallback: { summary: {}, defaultTicket: {}, orderPath: [], recentSimulations: [] }, timeoutMs: 30000 },
     { key: "strategyPromotionGate", url: "/api/strategy-promotion-gate", fallback: { candidates: [], summary: {} }, timeoutMs: 12000 },
     { key: "researchTaskBoard", url: "/api/research-task-board", fallback: { tasks: [], summary: {} } },
     { key: "strategyLearningLoop", url: "/api/strategy-learning-loop", fallback: emptyStrategyLearningLoop, timeoutMs: 12000 },
@@ -4139,6 +4256,8 @@ async function refreshAll() {
   renderPreLivePreparationPack(advanced.preLivePreparation || { summary: {}, rehearsalSummary: {}, preLiveClosureReport: [], recentRehearsals: [] });
   renderTestnetDrill(advanced.testnetDrill || { summary: {}, strategies: [], orderLifecycle: [], riskTemplate: [] });
   renderTestnetAuditPack(advanced.testnetAudit || { summary: {}, auditItems: [], criticalBlockers: [] });
+  renderTestnetPermissionCheck(advanced.testnetPermission || { summary: {}, checks: [], referenceInputs: [] });
+  renderTestnetSmallOrderSimulation(advanced.testnetSmallOrder || { summary: {}, defaultTicket: {}, orderPath: [], recentSimulations: [] });
   renderStrategyPromotionGate(advanced.strategyPromotionGate || { candidates: [], summary: {} });
   renderResearchTaskBoard(advanced.researchTaskBoard || { tasks: [], summary: {} });
   renderStrategyLearningLoop(strategyLearningLoop);
@@ -4259,6 +4378,7 @@ el("runSandboxAutoOnceButton")?.addEventListener("click", runSandboxAutoRunnerOn
 el("refreshForwardReviewButton")?.addEventListener("click", refreshForwardReview);
 el("runPreLiveLifecyclePreviewButton")?.addEventListener("click", runPreLiveLifecyclePreview);
 el("runTestnetDrillButton")?.addEventListener("click", runTestnetDrill);
+el("runTestnetSmallOrderButton")?.addEventListener("click", runTestnetSmallOrderSimulation);
 el("strategyQuickLogType").addEventListener("change", () => {
   const logType = el("strategyQuickLogType").value || "no_signal";
   el("strategyQuickSignalObserved").checked = ["signal_seen", "rule_matched"].includes(logType);

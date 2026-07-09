@@ -1055,6 +1055,16 @@ small {
   border-color: rgba(255, 216, 77, 0.28);
 }
 
+.testnet-permission-panel {
+  margin-top: 14px;
+  border-color: rgba(32, 211, 176, 0.26);
+}
+
+.testnet-small-order-panel {
+  margin-top: 14px;
+  border-color: rgba(255, 216, 77, 0.35);
+}
+
 .testnet-drill-actions {
   display: flex;
   align-items: center;

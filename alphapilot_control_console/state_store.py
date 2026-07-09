@@ -148,6 +148,8 @@ def load_state() -> dict[str, Any]:
         state["manualExecutionTickets"] = []
     if not isinstance(state.get("preLiveRehearsals"), list):
         state["preLiveRehearsals"] = []
+    if not isinstance(state.get("testnetSimulatedOrders"), list):
+        state["testnetSimulatedOrders"] = []
     if not isinstance(state.get("weaknessActionTasks"), dict):
         state["weaknessActionTasks"] = {}
     if not isinstance(state.get("researchActionExecutionRuns"), list):
@@ -782,3 +784,42 @@ def list_pre_live_rehearsals(limit: int = 20) -> list[dict[str, Any]]:
     rehearsals = state.get("preLiveRehearsals") if isinstance(state.get("preLiveRehearsals"), list) else []
     safe_limit = max(1, min(int(limit or 20), 200))
     return [row for row in rehearsals if isinstance(row, dict)][-safe_limit:][::-1]
+
+
+def save_testnet_simulated_order(record: dict[str, Any]) -> dict[str, Any]:
+    state = load_state()
+    records = state.get("testnetSimulatedOrders")
+    if not isinstance(records, list):
+        records = []
+    record = {
+        **record,
+        "simulationId": record.get("simulationId") or f"testnet_simulated_order::{len(records) + 1}",
+        "createdAt": record.get("createdAt") or now_iso(),
+        "source": record.get("source") or CONTROL_CONSOLE_STATE_SOURCE,
+        "localRecordOnly": True,
+        "connectedExchange": False,
+        "createdExchangeOrder": False,
+        "storedApiKey": False,
+    }
+    records.append(record)
+    state["testnetSimulatedOrders"] = records[-200:]
+    save_state(state)
+    append_audit(
+        "testnet_simulated_order_saved",
+        {
+            "simulationId": record.get("simulationId"),
+            "strategyId": record.get("strategyId"),
+            "symbol": record.get("symbol"),
+            "status": record.get("status"),
+            "notionalUsdt": record.get("notionalUsdt"),
+            "localRecordOnly": True,
+        },
+    )
+    return record
+
+
+def list_testnet_simulated_orders(limit: int = 20) -> list[dict[str, Any]]:
+    state = load_state()
+    records = state.get("testnetSimulatedOrders") if isinstance(state.get("testnetSimulatedOrders"), list) else []
+    safe_limit = max(1, min(int(limit or 20), 200))
+    return [row for row in records if isinstance(row, dict)][-safe_limit:][::-1]

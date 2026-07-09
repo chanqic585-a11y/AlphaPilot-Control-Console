@@ -44,7 +44,12 @@ from .strategy_slots import list_strategy_slots
 from .testnet_design_boundary import build_testnet_design_boundary
 from .testnet_audit import build_testnet_audit_pack
 from .testnet_drill import build_testnet_drill
+from .testnet_permission_check import build_testnet_permission_check
 from .testnet_readiness_pack import build_testnet_readiness_pack
+from .testnet_small_order_simulation import (
+    build_testnet_small_order_simulation,
+    create_testnet_small_order_simulation,
+)
 from .usable_strategy_catalog import build_usable_strategy_catalog
 from .weakness_action_board import build_weakness_action_board
 from .state_store import (
@@ -109,7 +114,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.8.10"
+    server_version = "AlphaPilotControlConsole/13.9.1"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -150,8 +155,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.8.10",
-                "source": "alphapilot_control_console_v13_8_10",
+                "version": "V13.9.1",
+                "source": "alphapilot_control_console_v13_9_1",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -342,6 +347,12 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/testnet-audit-pack":
             self._send_json(build_testnet_audit_pack())
+            return
+        if path == "/api/testnet-permission-check":
+            self._send_json(build_testnet_permission_check())
+            return
+        if path == "/api/testnet-small-order-simulation":
+            self._send_json(build_testnet_small_order_simulation())
             return
         if path == "/api/research-execution-pipeline":
             self._send_json(build_research_execution_pipeline(apply_updates=False))
@@ -680,6 +691,10 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/pre-live-order-lifecycle/rehearse":
             payload = self._read_body_json()
             self._send_json(create_pre_live_rehearsal(payload))
+            return
+        if parsed.path == "/api/testnet-small-order-simulation/rehearse":
+            payload = self._read_body_json()
+            self._send_json(create_testnet_small_order_simulation(payload))
             return
         self._send_json({"error": "not_found"}, 404)
 
