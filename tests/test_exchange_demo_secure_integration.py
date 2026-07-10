@@ -95,10 +95,81 @@ class ExchangeDemoSecureIntegrationTests(unittest.TestCase):
         self.assertFalse(saved_events[0]["strategyEvidenceEligible"])
         self.assertFalse(saved_events[0]["createsDemoRelease"])
         self.assertFalse(saved_events[0]["createsLiveCandidate"])
+        self.assertEqual(saved_events[0]["orderId"], "demo-order-1")
         self.assertEqual(result["executionPurpose"], "connectivity_smoke_only")
         self.assertFalse(result["strategyEvidenceEligible"])
         self.assertFalse(result["createsDemoRelease"])
         self.assertFalse(result["createsLiveCandidate"])
+
+    def test_demo_order_status_query_is_scoped_to_connectivity_smoke(self) -> None:
+        saved_events: list[dict] = []
+
+        def save_event(event: dict) -> dict:
+            saved_events.append(dict(event))
+            return {**event, "eventId": "event-3", "createdAt": "2026-07-10T00:00:00Z"}
+
+        with patch.object(simulation, "_private_blockers", return_value=[]), patch.object(
+            simulation,
+            "_okx_request",
+            return_value={
+                "ok": True,
+                "status": 200,
+                "payload": {
+                    "code": "0",
+                    "msg": "",
+                    "data": [{"ordId": "demo-order-1", "clOrdId": "APD1", "state": "live"}],
+                },
+                "demoHeaderUsed": True,
+                "baseUrl": "https://openapi.okx.com",
+            },
+        ), patch.object(simulation, "save_exchange_demo_event", side_effect=save_event), patch.object(
+            simulation, "build_exchange_demo_simulation", return_value={"summary": {}}
+        ):
+            result = simulation.query_exchange_demo_order_status(
+                {"instId": "BTC-USDT", "ordId": "demo-order-1"}
+            )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["orderState"], "live")
+        self.assertEqual(saved_events[0]["orderId"], "demo-order-1")
+        self.assertEqual(saved_events[0]["executionPurpose"], "connectivity_smoke_only")
+        self.assertFalse(saved_events[0]["strategyEvidenceEligible"])
+
+    def test_demo_cancel_accepts_client_order_id_for_recovery(self) -> None:
+        saved_events: list[dict] = []
+
+        def save_event(event: dict) -> dict:
+            saved_events.append(dict(event))
+            return {**event, "eventId": "event-4", "createdAt": "2026-07-10T00:00:00Z"}
+
+        with patch.object(simulation, "_private_blockers", return_value=[]), patch.object(
+            simulation,
+            "_env_enabled",
+            side_effect=lambda name: name == "ALPHAPILOT_OKX_DEMO_CANCEL_ENABLED",
+        ), patch.object(
+            simulation,
+            "_okx_request",
+            return_value={
+                "ok": True,
+                "status": 200,
+                "payload": {"code": "0", "msg": "", "data": [{"sCode": "0"}]},
+                "demoHeaderUsed": True,
+                "baseUrl": "https://openapi.okx.com",
+            },
+        ), patch.object(simulation, "save_exchange_demo_event", side_effect=save_event), patch.object(
+            simulation, "build_exchange_demo_simulation", return_value={"summary": {}}
+        ):
+            result = simulation.run_exchange_demo_emergency_drill(
+                {
+                    "instId": "BTC-USDT",
+                    "clOrdId": "APD1",
+                    "manualConfirm": "OKX_DEMO_EMERGENCY_APPROVED",
+                }
+            )
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["exchangeCancelSent"])
+        self.assertEqual(saved_events[0]["clientOrderId"], "APD1")
 
 
 if __name__ == "__main__":

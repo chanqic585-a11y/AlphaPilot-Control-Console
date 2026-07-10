@@ -17,6 +17,7 @@ from .auto_execution_review import build_auto_execution_review
 from .exchange_connectors.public_exchange_registry import list_public_exchange_sources, probe_public_exchanges
 from .exchange_demo_simulation import (
     build_exchange_demo_simulation,
+    query_exchange_demo_order_status,
     run_exchange_demo_emergency_drill,
     run_exchange_demo_readonly_check,
     scan_exchange_demo_candidates,
@@ -941,6 +942,10 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/exchange-demo/order":
             payload = self._read_body_json()
             self._send_json(submit_exchange_demo_order(payload))
+            return
+        if parsed.path == "/api/exchange-demo/order-status":
+            payload = self._read_body_json()
+            self._send_json(query_exchange_demo_order_status(payload))
             return
         if parsed.path == "/api/exchange-demo/emergency-stop":
             payload = self._read_body_json()

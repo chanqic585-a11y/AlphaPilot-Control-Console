@@ -175,6 +175,12 @@ def _safe_int(value: Any, fallback: int = 0) -> int:
         return fallback
 
 
+def _first_okx_data(response: dict[str, Any]) -> dict[str, Any]:
+    payload = response.get("payload") if isinstance(response.get("payload"), dict) else {}
+    data = payload.get("data") if isinstance(payload.get("data"), list) else []
+    return data[0] if data and isinstance(data[0], dict) else {}
+
+
 def _okx_inst_id_from_pair(pair: str) -> str:
     value = (pair or "BTC/USDT:USDT").upper().replace(":USDT", "").strip()
     if "/" in value:
@@ -679,7 +685,15 @@ def submit_exchange_demo_order(payload: dict[str, Any] | None = None) -> dict[st
     if ticket["ordType"] == "limit":
         order_body["px"] = ticket["px"]
     response = _okx_request("POST", "/api/v5/trade/order", body=order_body)
-    ok = bool(response.get("ok") and isinstance(response.get("payload"), dict) and response["payload"].get("code") == "0")
+    response_data = _first_okx_data(response)
+    sub_code = str(response_data.get("sCode") or "0")
+    ok = bool(
+        response.get("ok")
+        and isinstance(response.get("payload"), dict)
+        and response["payload"].get("code") == "0"
+        and sub_code == "0"
+    )
+    order_id = str(response_data.get("ordId") or "").strip() or None
     event = save_exchange_demo_event({
         "eventType": "demo_order",
         "status": "submitted" if ok else "failed",
@@ -690,8 +704,10 @@ def submit_exchange_demo_order(payload: dict[str, Any] | None = None) -> dict[st
         "size": ticket["size"],
         "price": ticket["px"] or None,
         "notionalUsdt": ticket["notionalUsdt"],
+        "orderId": order_id,
         "clientOrderId": order_body["clOrdId"],
         "okxCode": (response.get("payload") or {}).get("code") if isinstance(response.get("payload"), dict) else None,
+        "okxSubCode": sub_code,
         "okxMessage": (response.get("payload") or {}).get("msg") if isinstance(response.get("payload"), dict) else None,
         "demoHeaderUsed": True,
         "liveTrading": False,
@@ -700,6 +716,78 @@ def submit_exchange_demo_order(payload: dict[str, Any] | None = None) -> dict[st
     return {
         "ok": ok,
         "event": event,
+        "orderId": order_id,
+        "clientOrderId": order_body["clOrdId"],
+        **_connectivity_smoke_metadata(),
+        "okxResponsePreview": _summarize_okx_payload(response),
+        "exchangeDemoSimulation": build_exchange_demo_simulation(),
+        "safetyBoundary": SAFETY_BOUNDARY,
+    }
+
+
+def query_exchange_demo_order_status(payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    payload = payload if isinstance(payload, dict) else {}
+    inst_id = str(payload.get("instId") or "BTC-USDT").strip().upper()
+    order_id = str(payload.get("ordId") or "").strip()
+    client_order_id = str(payload.get("clOrdId") or "").strip()
+    blockers = _private_blockers()
+    if not order_id and not client_order_id:
+        blockers.append("order_id_or_client_order_id_required")
+    if blockers:
+        event = save_exchange_demo_event({
+            "eventType": "demo_order_status",
+            "status": "blocked",
+            "instId": inst_id,
+            "orderId": order_id or None,
+            "clientOrderId": client_order_id or None,
+            "blockers": blockers,
+            "liveTrading": False,
+            **_connectivity_smoke_metadata(),
+        })
+        return {
+            "ok": False,
+            "event": event,
+            "rejectionReasons": blockers,
+            **_connectivity_smoke_metadata(),
+            "exchangeDemoSimulation": build_exchange_demo_simulation(),
+            "safetyBoundary": SAFETY_BOUNDARY,
+        }
+
+    response = _okx_request(
+        "GET",
+        "/api/v5/trade/order",
+        query={"instId": inst_id, "ordId": order_id or None, "clOrdId": client_order_id or None},
+    )
+    response_data = _first_okx_data(response)
+    sub_code = str(response_data.get("sCode") or "0")
+    ok = bool(
+        response.get("ok")
+        and isinstance(response.get("payload"), dict)
+        and response["payload"].get("code") == "0"
+        and sub_code == "0"
+    )
+    resolved_order_id = str(response_data.get("ordId") or order_id).strip() or None
+    resolved_client_order_id = str(response_data.get("clOrdId") or client_order_id).strip() or None
+    order_state = str(response_data.get("state") or "").strip() or None
+    event = save_exchange_demo_event({
+        "eventType": "demo_order_status",
+        "status": "queried" if ok else "failed",
+        "instId": inst_id,
+        "orderId": resolved_order_id,
+        "clientOrderId": resolved_client_order_id,
+        "orderState": order_state,
+        "okxCode": (response.get("payload") or {}).get("code") if isinstance(response.get("payload"), dict) else None,
+        "okxSubCode": sub_code,
+        "demoHeaderUsed": True,
+        "liveTrading": False,
+        **_connectivity_smoke_metadata(),
+    })
+    return {
+        "ok": ok,
+        "event": event,
+        "orderId": resolved_order_id,
+        "clientOrderId": resolved_client_order_id,
+        "orderState": order_state,
         **_connectivity_smoke_metadata(),
         "okxResponsePreview": _summarize_okx_payload(response),
         "exchangeDemoSimulation": build_exchange_demo_simulation(),
@@ -711,14 +799,15 @@ def run_exchange_demo_emergency_drill(payload: dict[str, Any] | None = None) -> 
     payload = payload if isinstance(payload, dict) else {}
     inst_id = str(payload.get("instId") or "BTC-USDT-SWAP").strip().upper()
     ord_id = str(payload.get("ordId") or "").strip()
+    client_order_id = str(payload.get("clOrdId") or "").strip()
     manual_confirm = str(payload.get("manualConfirm") or "").strip()
     blockers = _private_blockers()
     if not _env_enabled("ALPHAPILOT_OKX_DEMO_CANCEL_ENABLED"):
         blockers.append("okx_demo_cancel_gate_disabled")
     if manual_confirm != "OKX_DEMO_EMERGENCY_APPROVED":
         blockers.append("manual_emergency_confirm_required")
-    if not ord_id:
-        blockers.append("ord_id_required_for_real_demo_cancel")
+    if not ord_id and not client_order_id:
+        blockers.append("order_id_or_client_order_id_required_for_demo_cancel")
 
     if blockers:
         event = save_exchange_demo_event({
@@ -726,6 +815,7 @@ def run_exchange_demo_emergency_drill(payload: dict[str, Any] | None = None) -> 
             "status": "local_drill_saved",
             "instId": inst_id,
             "ordId": ord_id or None,
+            "clientOrderId": client_order_id or None,
             "blockers": blockers,
             "note": "Local emergency drill recorded. No exchange cancel request was sent.",
             "liveTrading": False,
@@ -738,20 +828,35 @@ def run_exchange_demo_emergency_drill(payload: dict[str, Any] | None = None) -> 
             "safetyBoundary": SAFETY_BOUNDARY,
         }
 
-    response = _okx_request("POST", "/api/v5/trade/cancel-order", body={"instId": inst_id, "ordId": ord_id})
-    ok = bool(response.get("ok") and isinstance(response.get("payload"), dict) and response["payload"].get("code") == "0")
+    cancel_body = {"instId": inst_id}
+    if ord_id:
+        cancel_body["ordId"] = ord_id
+    else:
+        cancel_body["clOrdId"] = client_order_id
+    response = _okx_request("POST", "/api/v5/trade/cancel-order", body=cancel_body)
+    response_data = _first_okx_data(response)
+    sub_code = str(response_data.get("sCode") or "0")
+    ok = bool(
+        response.get("ok")
+        and isinstance(response.get("payload"), dict)
+        and response["payload"].get("code") == "0"
+        and sub_code == "0"
+    )
     event = save_exchange_demo_event({
         "eventType": "emergency_cancel",
         "status": "submitted" if ok else "failed",
         "instId": inst_id,
         "ordId": ord_id,
+        "clientOrderId": client_order_id or None,
         "okxCode": (response.get("payload") or {}).get("code") if isinstance(response.get("payload"), dict) else None,
+        "okxSubCode": sub_code,
         "demoHeaderUsed": True,
         "liveTrading": False,
     })
     return {
         "ok": ok,
         "event": event,
+        "exchangeCancelSent": True,
         "okxResponsePreview": _summarize_okx_payload(response),
         "exchangeDemoSimulation": build_exchange_demo_simulation(),
         "safetyBoundary": SAFETY_BOUNDARY,

@@ -1804,6 +1804,9 @@ Updated in this patch:
   written to console state.
 - `-EnableOrder` opens a `connectivity_smoke_only` lane. A smoke order is not
   strategy evidence and cannot create a Demo Release or Live Candidate.
+- Connectivity smoke events retain the OKX `ordId`/`clOrdId`, expose a scoped
+  order-status check, and allow cancellation by either identifier so a pending
+  smoke order can always be traced and cleaned up.
 - Formal automated strategy execution remains locked until an immutable,
   eligible Demo Release passes every release and runtime gate.
 - Raw API key, secret, and passphrase values exist only in the launcher process
