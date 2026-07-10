@@ -87,6 +87,11 @@ from .simulation_review import build_simulation_review, build_simulation_review_
 from .strategy_promotion_gate import build_strategy_promotion_gate
 from .strategy_asset_playbook import build_strategy_asset_playbook
 from .strategy_lifecycle_projection import build_strategy_lifecycle_projection
+from .strategy_stage_service import (
+    build_strategy_stage_board,
+    promote_strategies_to_demo_trial,
+    return_strategies_to_local_sandbox,
+)
 from .strategy_slots import list_strategy_slots
 from .testnet_design_boundary import build_testnet_design_boundary
 from .testnet_audit import build_testnet_audit_pack
@@ -223,8 +228,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.26.0",
-                "source": "alphapilot_control_console_v13_26_0",
+                "version": "V13.26.1",
+                "source": "alphapilot_control_console_v13_26_1",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -636,6 +641,9 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/local-sandbox/auto-runner":
             self._send_json(get_local_sandbox_auto_runner_status())
             return
+        if path == "/api/strategy-stage-board":
+            self._send_json(build_strategy_stage_board())
+            return
         if path == "/api/local-sandbox/quality-center":
             self._send_json(_cached_payload(
                 "local-sandbox-quality-center",
@@ -896,6 +904,25 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/local-sandbox/auto-runner/run-now":
             self._read_body_json()
             self._send_json(run_local_sandbox_auto_runner_now())
+            return
+        if parsed.path == "/api/strategy-stage/promote-demo":
+            payload = self._read_body_json()
+            strategy_ids = payload.get("strategyIds")
+            self._send_json(promote_strategies_to_demo_trial(
+                strategy_ids if isinstance(strategy_ids, list) else None,
+                reason=str(payload.get("reason") or "manual_demo_trial_promotion"),
+            ))
+            return
+        if parsed.path == "/api/strategy-stage/return-sandbox":
+            payload = self._read_body_json()
+            strategy_ids = payload.get("strategyIds")
+            if not isinstance(strategy_ids, list) or not strategy_ids:
+                self._send_json({"error": "strategy_ids_required"}, 400)
+                return
+            self._send_json(return_strategies_to_local_sandbox(
+                strategy_ids,
+                reason=str(payload.get("reason") or "manual_return_to_sandbox"),
+            ))
             return
         if parsed.path == "/api/exchanges/probe-public":
             payload = self._read_body_json()

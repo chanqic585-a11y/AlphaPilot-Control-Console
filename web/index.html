@@ -745,14 +745,23 @@
           </div>
           <div class="exchange-demo-section exchange-demo-pipeline">
             <div class="simple-section-title">
-              <strong>Demo 自动筛选流水线</strong>
-              <span id="exchangeDemoPipelineMeta">加载策略、读取公共行情、筛选候选，再人工确认 Demo 票据。</span>
+              <strong>Demo 策略观察</strong>
+              <span id="exchangeDemoPipelineMeta">已晋级策略直接在这里观察历史样本和 OKX 公共行情。</span>
             </div>
             <div class="exchange-demo-pipeline-grid">
-              <div><span>可用策略</span><strong id="exchangeDemoLoadedStrategies">--</strong><small id="exchangeDemoLoadedStrategiesMeta">--</small></div>
+              <div><span>Demo 观察策略</span><strong id="exchangeDemoLoadedStrategies">--</strong><small id="exchangeDemoLoadedStrategiesMeta">--</small></div>
               <div><span>候选币种</span><strong id="exchangeDemoCandidateSymbols">--</strong><small id="exchangeDemoCandidateSymbolsMeta">--</small></div>
               <div><span>实时行情接入</span><strong id="exchangeDemoMarketState">--</strong><small id="exchangeDemoMarketMeta">--</small></div>
               <div><span>自动下单边界</span><strong id="exchangeDemoAutomationState">--</strong><small id="exchangeDemoAutomationMeta">--</small></div>
+            </div>
+            <div class="simple-section-title">
+              <strong>已晋级策略</strong>
+              <span>从本地沙盒移动到 Demo，原有样本不会删除。</span>
+            </div>
+            <div class="exchange-demo-candidates" id="exchangeDemoTrialStrategyList"></div>
+            <div class="simple-section-title">
+              <strong>实时行情候选</strong>
+              <span>每条 Demo 策略至少扫描一个候选币种。</span>
             </div>
             <div class="exchange-demo-candidates" id="exchangeDemoCandidateList"></div>
             <div class="exchange-ticket-actions">
@@ -1747,19 +1756,19 @@
               <label>
                 间隔
                 <select id="sandboxAutoIntervalInput">
-                  <option value="5">每 5 分钟</option>
+                  <option value="5" selected>每 5 分钟</option>
                   <option value="15">每 15 分钟</option>
                   <option value="30">每 30 分钟</option>
                   <option value="60">每 1 小时</option>
                   <option value="240">每 4 小时</option>
-                  <option value="360" selected>每 6 小时</option>
+                  <option value="360">每 6 小时</option>
                   <option value="720">每 12 小时</option>
                   <option value="1440">每天 1 次</option>
                 </select>
               </label>
               <label>
                 每日上限
-                <input id="sandboxAutoMaxRunsInput" type="number" min="1" max="288" value="4" />
+                <input id="sandboxAutoMaxRunsInput" type="number" min="1" max="288" value="288" />
               </label>
               <button id="saveSandboxAutoRunnerButton" class="secondary" type="button">保存自动设置</button>
               <button id="runSandboxAutoOnceButton" class="secondary" type="button">立即自动跑一轮</button>

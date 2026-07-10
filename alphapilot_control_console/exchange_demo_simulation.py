@@ -15,6 +15,7 @@ from .exchange_connectors.okx_demo_client import (
 from .exchange_connectors.public_exchange_registry import probe_public_exchanges
 from .evolution_demo_service import build_evolution_demo_status
 from .state_store import list_exchange_demo_events, now_iso, save_exchange_demo_event
+from .strategy_stage_service import build_strategy_stage_board
 from .usable_strategy_catalog import build_usable_strategy_catalog
 
 
@@ -196,23 +197,67 @@ def _demo_side_from_direction(direction: str) -> str:
     return "sell" if str(direction or "").lower() == "short" else "buy"
 
 
-def _build_strategy_candidates(limit: int = 12) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    catalog = build_usable_strategy_catalog()
-    strategies = catalog.get("strategies") if isinstance(catalog.get("strategies"), list) else []
+def _build_demo_trial_pool() -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    board = build_strategy_stage_board()
+    strategies = [
+        item
+        for item in board.get("strategies", [])
+        if isinstance(item, dict) and item.get("stage") == "demo_trial"
+    ]
+    rows = []
+    for strategy in strategies:
+        local_samples = strategy.get("localSampleSummary") if isinstance(strategy.get("localSampleSummary"), dict) else {}
+        rows.append({
+            "strategyId": strategy.get("strategyId"),
+            "strategyName": strategy.get("name") or strategy.get("shortName") or strategy.get("strategyId"),
+            "stage": "demo_trial",
+            "stageLabel": "Demo 观察中",
+            "direction": strategy.get("direction"),
+            "timeframe": strategy.get("timeframe"),
+            "frequencyLabel": strategy.get("frequencyLabel") or strategy.get("timeframe"),
+            "score": _safe_float(strategy.get("score")),
+            "targetR": _safe_float(strategy.get("targetR"), 2.0),
+            "historicalTradeCount": _safe_int(strategy.get("historicalTradeCount")),
+            "historicalWinRatePct": _safe_float(strategy.get("historicalWinRatePct")),
+            "historicalProfitFactor": _safe_float(strategy.get("historicalProfitFactor")),
+            "historicalTotalR": _safe_float(strategy.get("historicalTotalR")),
+            "localClosedSampleCount": _safe_int(local_samples.get("closedSampleCount")),
+            "localTotalR": _safe_float(local_samples.get("totalR")),
+            "selectedPairCount": _safe_int(strategy.get("selectedPairCount")),
+            "promotedAt": strategy.get("promotedAt"),
+            "sampleDataPreserved": bool(strategy.get("sampleDataPreserved", True)),
+            "formalDemoRelease": False,
+            "nextAction": "使用 OKX 公共行情观察策略；正式自动下单仍需独立 Demo Release。",
+        })
+    rows.sort(key=lambda item: (-_safe_float(item.get("score")), str(item.get("strategyId"))))
+    summary = board.get("summary") if isinstance(board.get("summary"), dict) else {}
+    return rows, summary
+
+
+def _build_strategy_candidates(limit: int = 20) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    board = build_strategy_stage_board()
+    strategies = [
+        item
+        for item in board.get("strategies", [])
+        if isinstance(item, dict) and item.get("stage") == "demo_trial"
+    ]
+    strategies.sort(key=lambda item: _safe_float(item.get("score")), reverse=True)
     rows: list[dict[str, Any]] = []
     seen: set[tuple[str, str]] = set()
-    for strategy in sorted(strategies, key=lambda item: _safe_float(item.get("score")), reverse=True):
-        pairs = strategy.get("selectedPairs") if isinstance(strategy.get("selectedPairs"), list) else []
-        if not pairs:
-            pairs = ["BTC/USDT:USDT"]
-        direction = str(strategy.get("direction") or "long")
-        for pair in pairs[:3]:
+    for pair_index in range(3):
+        for strategy in strategies:
+            pairs = strategy.get("selectedPairs") if isinstance(strategy.get("selectedPairs"), list) else []
+            if not pairs:
+                pairs = ["BTC/USDT:USDT"]
+            if pair_index >= len(pairs):
+                continue
+            pair = pairs[pair_index]
+            direction = str(strategy.get("direction") or "long")
             inst_id = _okx_inst_id_from_pair(str(pair))
             key = (str(strategy.get("strategyId") or strategy.get("taskId") or ""), inst_id)
             if key in seen:
                 continue
             seen.add(key)
-            metrics = strategy.get("testMetrics") if isinstance(strategy.get("testMetrics"), dict) else strategy.get("metrics") or {}
             rows.append({
                 "candidateId": f"demo::{strategy.get('strategyId') or strategy.get('taskId') or len(rows)}::{inst_id}",
                 "strategyId": strategy.get("strategyId") or strategy.get("taskId"),
@@ -226,29 +271,34 @@ def _build_strategy_candidates(limit: int = 12) -> tuple[list[dict[str, Any]], d
                 "timeframe": strategy.get("timeframe") or "--",
                 "score": _safe_float(strategy.get("score")),
                 "targetR": _safe_float(strategy.get("targetR"), 2.0),
-                "winRatePct": _safe_float(metrics.get("winRatePct")),
-                "profitFactor": _safe_float(metrics.get("profitFactor")),
-                "tradeCount": _safe_int(metrics.get("tradeCount")),
+                "winRatePct": _safe_float(strategy.get("historicalWinRatePct")),
+                "profitFactor": _safe_float(strategy.get("historicalProfitFactor")),
+                "tradeCount": _safe_int(strategy.get("historicalTradeCount")),
                 "marketDataStatus": "not_scanned",
                 "screeningStatus": "strategy_loaded",
-                "reason": "来自本地可用策略库；需公共行情扫描后再考虑 Demo 票据。",
+                "reason": "策略已从本地沙盒晋级到 Demo 观察；等待 OKX 公共行情扫描。",
                 "manualOrderRequired": True,
             })
             if len(rows) >= limit:
                 break
         if len(rows) >= limit:
             break
-    summary = catalog.get("summary") if isinstance(catalog.get("summary"), dict) else {}
+    summary = board.get("summary") if isinstance(board.get("summary"), dict) else {}
     return rows, {
-        "strategyCount": _safe_int(summary.get("totalUsableStrategies"), len(strategies)),
-        "sandboxReadyCount": _safe_int(summary.get("sandboxReadyCount")),
+        "strategyCount": len(strategies),
+        "sandboxReadyCount": _safe_int(summary.get("localSandboxCount")),
+        "demoTrialCount": _safe_int(summary.get("demoTrialCount"), len(strategies)),
+        "historicalTradeCount": _safe_int(summary.get("historicalTradeCount")),
+        "localClosedSampleCount": _safe_int(summary.get("localClosedSampleCount")),
+        "historicalSandboxAggregateClosedSampleCount": _safe_int(summary.get("historicalSandboxAggregateClosedSampleCount")),
         "candidateCount": len(rows),
-        "catalogSource": summary.get("sourceReports") or [],
+        "catalogSource": "strategy_stage_board",
     }
 
 
 def _build_automation_pipeline(scan_payload: dict[str, Any] | None = None) -> dict[str, Any]:
     candidates, catalog_summary = _build_strategy_candidates()
+    trial_pool, _ = _build_demo_trial_pool()
     market_probe_count = 0
     ok_market_count = 0
     probe_by_inst: dict[str, dict[str, Any]] = {}
@@ -292,9 +342,10 @@ def _build_automation_pipeline(scan_payload: dict[str, Any] | None = None) -> di
             ),
         },
         "candidates": candidates,
+        "trialPool": trial_pool,
         "preferredCandidate": preferred,
         "flow": [
-            {"stepId": "load_strategies", "label": "加载可用策略", "status": "ready", "count": catalog_summary.get("strategyCount")},
+            {"stepId": "load_strategies", "label": "加载 Demo 观察策略", "status": "ready", "count": catalog_summary.get("strategyCount")},
             {"stepId": "public_market_scan", "label": "接入公共实时行情", "status": "ready" if scan_payload else "waiting"},
             {"stepId": "auto_screen_symbols", "label": "自动筛选候选币种", "status": "ready" if candidates else "blocked", "count": len(candidates)},
             {"stepId": "manual_demo_ticket", "label": "填入 Demo 票据", "status": "manual_required"},
@@ -432,6 +483,7 @@ def build_exchange_demo_simulation() -> dict[str, Any]:
             "connectivitySmokeReady": not order_blockers,
             "strategyAutomationReady": bool(evolution_summary.get("ready")),
             "eligibleDemoReleaseCount": int(evolution_summary.get("eligibleReleaseCount") or 0),
+            "demoTrialStrategyCount": int((automation_pipeline.get("summary") or {}).get("demoTrialCount") or 0),
             "maxNotionalUsdt": MAX_DEMO_NOTIONAL_USDT,
             "recentEventCount": len(recent_events),
             "nextAction": (
@@ -509,8 +561,8 @@ def build_exchange_demo_simulation() -> dict[str, Any]:
 
 def scan_exchange_demo_candidates(payload: dict[str, Any] | None = None) -> dict[str, Any]:
     payload = payload if isinstance(payload, dict) else {}
-    raw_limit = _safe_int(payload.get("limit"), 5)
-    limit = max(1, min(raw_limit, 8))
+    raw_limit = _safe_int(payload.get("limit"), 10)
+    limit = max(1, min(raw_limit, 20))
     candidates, _ = _build_strategy_candidates(limit=limit)
     scans: list[dict[str, Any]] = []
     for candidate in candidates:

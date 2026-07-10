@@ -66,6 +66,9 @@ class LocalSandboxAutoRunner:
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
             return
+        current = get_local_sandbox_auto_runner_state()
+        if current.get("enabled"):
+            update_local_sandbox_auto_runner_state({"status": "waiting", "nextRunAt": now_iso()})
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._loop, name="alphapilot-local-sandbox-auto-runner", daemon=True)
         self._thread.start()
@@ -91,16 +94,16 @@ class LocalSandboxAutoRunner:
     def update_settings(self, payload: dict[str, Any]) -> dict[str, Any]:
         current = get_local_sandbox_auto_runner_state()
         enabled = bool(payload.get("enabled")) if "enabled" in payload else bool(current.get("enabled"))
-        interval = payload.get("intervalMinutes", current.get("intervalMinutes") or 360)
-        max_runs = payload.get("maxRunsPerDay", current.get("maxRunsPerDay") or 4)
+        interval = payload.get("intervalMinutes", current.get("intervalMinutes") or 5)
+        max_runs = payload.get("maxRunsPerDay", current.get("maxRunsPerDay") or 288)
         try:
             interval_minutes = int(interval)
         except (TypeError, ValueError):
-            interval_minutes = 360
+            interval_minutes = 5
         try:
             max_runs_per_day = int(max_runs)
         except (TypeError, ValueError):
-            max_runs_per_day = 4
+            max_runs_per_day = 288
         interval_minutes = max(1, min(interval_minutes, 1440))
         max_runs_per_day = max(1, min(max_runs_per_day, 288))
         now = datetime.now(timezone.utc)
@@ -109,7 +112,12 @@ class LocalSandboxAutoRunner:
         if current.get("todayKey") != today_key:
             today_run_count = 0
         next_run_at = current.get("nextRunAt")
-        if enabled and not current.get("enabled"):
+        settings_changed = (
+            interval_minutes != int(current.get("intervalMinutes") or 5)
+            or max_runs_per_day != int(current.get("maxRunsPerDay") or 288)
+        )
+        can_resume_today = today_run_count < max_runs_per_day
+        if enabled and (not current.get("enabled") or settings_changed or (current.get("status") == "daily_limit_reached" and can_resume_today)):
             next_run_at = now.isoformat()
         if not enabled:
             next_run_at = None
@@ -148,6 +156,38 @@ class LocalSandboxAutoRunner:
                     "replayCursor": replay_cursor,
                     "replayMode": current.get("replayMode") or "rolling_window",
                 })
+                if not int(run.get("taskCount") or 0):
+                    now = datetime.now(timezone.utc)
+                    today_key = _beijing_date_key(now)
+                    today_run_count = int(current.get("todayRunCount") or 0)
+                    if current.get("todayKey") != today_key:
+                        today_run_count = 0
+                    today_run_count += 1
+                    interval = int(current.get("intervalMinutes") or 5)
+                    runner = update_local_sandbox_auto_runner_state(
+                        {
+                            "enabled": bool(current.get("enabled")),
+                            "status": "waiting_for_candidates" if current.get("enabled") else "disabled",
+                            "todayKey": today_key,
+                            "todayRunCount": today_run_count,
+                            "lastRunAt": now.isoformat(),
+                            "nextRunAt": _iso_in_minutes(interval) if current.get("enabled") else None,
+                            "lastError": None,
+                            "consecutiveFailures": 0,
+                        },
+                        {
+                            "eventType": "run_skipped_no_sandbox_candidates",
+                            "reason": reason,
+                            "promotedTaskCount": run.get("promotedTaskCount"),
+                        },
+                    )
+                    return {
+                        "autoRunner": runner,
+                        "localSandboxRun": run,
+                        "localSandboxDailyReport": None,
+                        "learningSnapshot": None,
+                        "safetyBoundary": SAFETY_BOUNDARY,
+                    }
                 latest = scan_quant_engine()
                 report = build_local_sandbox_daily_report(latest.get("strategyLearningLoop") or {})
                 learning = build_learning_snapshot(run, report)
@@ -157,7 +197,7 @@ class LocalSandboxAutoRunner:
                 if current.get("todayKey") != today_key:
                     today_run_count = 0
                 today_run_count += 1
-                interval = int(current.get("intervalMinutes") or 360)
+                interval = int(current.get("intervalMinutes") or 5)
                 runner = update_local_sandbox_auto_runner_state(
                     {
                         "enabled": bool(current.get("enabled")),
@@ -203,7 +243,7 @@ class LocalSandboxAutoRunner:
                         "status": "error",
                         "lastError": str(exc),
                         "consecutiveFailures": failures,
-                        "nextRunAt": _iso_in_minutes(int(current.get("intervalMinutes") or 360)),
+                        "nextRunAt": _iso_in_minutes(int(current.get("intervalMinutes") or 5)),
                     },
                     {
                         "eventType": "run_failed",
@@ -239,7 +279,7 @@ class LocalSandboxAutoRunner:
                 update_local_sandbox_auto_runner_state({"status": "disabled", "nextRunAt": None})
             return
         today_run_count = int(current.get("todayRunCount") or 0)
-        max_runs = int(current.get("maxRunsPerDay") or 4)
+        max_runs = int(current.get("maxRunsPerDay") or 288)
         if today_run_count >= max_runs:
             update_local_sandbox_auto_runner_state({"status": "daily_limit_reached", "nextRunAt": _next_beijing_midnight_iso()})
             return
@@ -249,7 +289,7 @@ class LocalSandboxAutoRunner:
             return
         if now >= next_run_at.astimezone(timezone.utc):
             self.run_once("scheduled")
-        elif current.get("status") not in {"waiting", "running"}:
+        elif current.get("status") not in {"waiting", "running", "waiting_for_candidates"}:
             update_local_sandbox_auto_runner_state({"status": "waiting"})
 
 

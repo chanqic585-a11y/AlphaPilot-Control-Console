@@ -9,3 +9,5 @@ data/exchange_probe_results.json
 data/*.sqlite
 data/formal_outcome_exports/*.json
 data/v13_14_preview.*.log
+data/console_runtime.*.log
+data/backups/

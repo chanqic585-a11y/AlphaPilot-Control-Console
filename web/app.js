@@ -1597,8 +1597,15 @@ function renderSimpleConsole(strategies, reports, mobile, usableStrategyCatalog,
   const runnerState = getSimpleRunnerState(sandboxAutoRunner);
   const dailyReport = sandboxDailyReport?.latestReport || {};
   const dailySummary = dailyReport.summary || {};
+  const allObservationTasks = buildUsableCatalogObservationTasks(usableStrategyCatalog);
+  const activeSandboxIds = Array.isArray(simulationBridge?.activeSandboxStrategyIds)
+    ? new Set(simulationBridge.activeSandboxStrategyIds)
+    : null;
+  const sandboxTasks = activeSandboxIds
+    ? allObservationTasks.filter((row) => activeSandboxIds.has(row.strategyId))
+    : allObservationTasks;
   const sandboxRows = buildSandboxSimulationRows(
-    buildUsableCatalogObservationTasks(usableStrategyCatalog),
+    sandboxTasks,
     Array.isArray(dailyReport.strategyHealthRows) ? dailyReport.strategyHealthRows : [],
   );
   const totalCapital = sandboxRows.reduce((sum, row) => sum + Number(row.capital || 0), 0);
@@ -1653,8 +1660,18 @@ function renderLocalLabPage(usableStrategyCatalog, sandboxDailyReport, sandboxAu
   const runnerState = getSimpleRunnerState(sandboxAutoRunner);
   const report = sandboxDailyReport?.latestReport || {};
   const dailySummary = report.summary || {};
-  const qualityRows = Array.isArray(report.strategyHealthRows) ? report.strategyHealthRows : [];
-  const observationTasks = buildUsableCatalogObservationTasks(usableStrategyCatalog);
+  const allQualityRows = Array.isArray(report.strategyHealthRows) ? report.strategyHealthRows : [];
+  const allObservationTasks = buildUsableCatalogObservationTasks(usableStrategyCatalog);
+  const activeSandboxIds = Array.isArray(simulationBridge?.activeSandboxStrategyIds)
+    ? new Set(simulationBridge.activeSandboxStrategyIds)
+    : null;
+  const observationTasks = activeSandboxIds
+    ? allObservationTasks.filter((row) => activeSandboxIds.has(row.strategyId))
+    : allObservationTasks;
+  const activeTaskIds = new Set(observationTasks.map((row) => row.taskId));
+  const qualityRows = activeSandboxIds
+    ? allQualityRows.filter((row) => activeTaskIds.has(row.taskId))
+    : allQualityRows;
   const sandboxRows = buildSandboxSimulationRows(observationTasks, qualityRows);
   const totalCapital = sandboxRows.reduce((sum, row) => sum + Number(row.capital || 0), 0);
   const totalEquity = sandboxRows.reduce((sum, row) => sum + Number(row.equity || 0), 0);
@@ -1663,12 +1680,16 @@ function renderLocalLabPage(usableStrategyCatalog, sandboxDailyReport, sandboxAu
   const bridgeSummary = simulationBridge?.summary || {};
   const reviewSummary = simulationReview?.summary || {};
   const reviewQueue = Array.isArray(simulationReview?.queue) ? simulationReview.queue : [];
-  const reviewRows = reviewQueue.length ? reviewQueue : (Array.isArray(qualityCenter?.strategies) ? qualityCenter.strategies : []);
+  const rawReviewRows = reviewQueue.length ? reviewQueue : (Array.isArray(qualityCenter?.strategies) ? qualityCenter.strategies : []);
+  const reviewRows = activeSandboxIds
+    ? rawReviewRows.filter((row) => activeSandboxIds.has(row.strategyId) || activeTaskIds.has(row.taskId))
+    : rawReviewRows;
   const resultSummary = resultReview?.summary || {};
   const learningRoot = strategyLearningLoop?.strategyLearningLoop || strategyLearningLoop || {};
   const learningSummary = learningRoot?.learningLoop?.summary || learningRoot?.summary || {};
 
-  setText("localLabRunnerState", runnerState.enabled ? "运行中" : "未开启");
+  const hasActiveSandboxStrategies = Number(bridgeSummary.strategyCount ?? sandboxRows.length) > 0;
+  setText("localLabRunnerState", runnerState.enabled ? (hasActiveSandboxStrategies ? "运行中" : "等待新策略") : "未开启");
   setText("localLabRunnerMeta", `每 ${runnerState.intervalMinutes} 分钟 · 今日 ${runnerState.todayRunCount}/${runnerState.maxRunsPerDay} · 最近 ${formatDate(runnerState.lastRunAt)}`);
   const bridgeEquity = Number(bridgeSummary.totalVirtualEquity || totalEquity || 0);
   const bridgeCapital = Number(bridgeSummary.totalVirtualCapital || totalCapital || 0);
@@ -1685,10 +1706,12 @@ function renderLocalLabPage(usableStrategyCatalog, sandboxDailyReport, sandboxAu
   setText("localLabLearningMeta", `观察 ${learningSummary.researchWatchlistCount ?? 0} · 暂拒 ${learningSummary.graveyardCount ?? 0} · 因子 ${learningSummary.factorMemoryCount ?? 0}`);
   setText("localLabQueueState", String(reviewSummary.totalStrategies ?? reviewRows.length ?? 0));
   setText("localLabQueueMeta", `晋级 ${reviewSummary.promotedCandidates ?? 0} · 样本门槛 ${reviewSummary.reviewMinimumClosedSamples ?? 30}`);
-  setText("localLabStrategyMeta", `${sandboxRows.length} 条策略在本地观察 · 总闭合 ${bridgeClosedSamples} 个样本`);
+  setText("localLabStrategyMeta", `${sandboxRows.length} 条策略在本地观察 · 已晋级 Demo ${bridgeSummary.demoTrialStrategyCount ?? 0} 条`);
   setText("localLabReviewMeta", `复核候选 ${reviewSummary.promotedCandidates ?? qualitySummary.testnetPrepCandidateCount ?? 0} · 风险复盘 ${qualitySummary.riskReviewCount ?? 0}`);
   setText("localLabActionStatus", runnerState.enabled
-    ? `已开启持续观察：每 ${runnerState.intervalMinutes} 分钟检查一次。`
+    ? hasActiveSandboxStrategies
+      ? `已开启持续观察：每 ${runnerState.intervalMinutes} 分钟检查一次。`
+      : `每 ${runnerState.intervalMinutes} 分钟检查一次新候选；当前 10 条已移入 Demo。`
     : "点击运行后，本地沙盒会持续生成本地观察样本。");
   updateLocalSandboxRunButton(runnerState.enabled, runnerState.status);
 
@@ -1720,7 +1743,7 @@ function renderLocalLabPage(usableStrategyCatalog, sandboxDailyReport, sandboxAu
           <div class="sandbox-lane-next">${escapeHtml(row.nextAction)}</div>
         </div>
       `;
-    }).join("") || '<div class="sandbox-lane-empty">暂无本地实验室策略。请先导入策略报告或运行本地沙盒。</div>';
+    }).join("") || `<div class="sandbox-lane-empty">当前没有待跑策略。已有 ${bridgeSummary.demoTrialStrategyCount ?? 0} 条策略晋级 Demo，原有样本仍保留。</div>`;
   }
 
   const reviewTarget = el("localLabReviewList");
@@ -1746,7 +1769,7 @@ function renderLocalLabPage(usableStrategyCatalog, sandboxDailyReport, sandboxAu
           <div class="sandbox-lane-next">${escapeHtml(row.recommendedAction || row.nextAction || "继续补充本地闭合样本和失败样本。")}</div>
         </div>
       `;
-    }).join("") || '<div class="sandbox-lane-empty">暂无达到复核门槛的策略。本地沙盒继续跑即可。</div>';
+    }).join("") || '<div class="sandbox-lane-empty">暂无本地复核队列；已晋级策略请到 Demo 模拟页面查看。</div>';
   }
 }
 
@@ -1802,11 +1825,12 @@ function translateExchangeDemoStatus(value) {
 function renderExchangeDemoPipeline(pipeline = {}) {
   const summary = pipeline.summary || {};
   const candidates = Array.isArray(pipeline.candidates) ? pipeline.candidates : [];
+  const trialPool = Array.isArray(pipeline.trialPool) ? pipeline.trialPool : [];
   const preferredCandidate = pipeline.preferredCandidate || candidates[0] || null;
   latestExchangeDemoCandidate = preferredCandidate;
 
   setText("exchangeDemoLoadedStrategies", String(summary.strategyCount ?? 0));
-  setText("exchangeDemoLoadedStrategiesMeta", `沙盒可用 ${summary.sandboxReadyCount ?? 0} · 候选 ${summary.candidateCount ?? candidates.length}`);
+  setText("exchangeDemoLoadedStrategiesMeta", `已晋级 ${summary.demoTrialCount ?? trialPool.length} · 回测 ${summary.historicalTradeCount ?? 0} · 旧沙盒汇总 ${summary.historicalSandboxAggregateClosedSampleCount ?? 0}`);
   setText("exchangeDemoCandidateSymbols", String(summary.candidateCount ?? candidates.length));
   setText("exchangeDemoCandidateSymbolsMeta", preferredCandidate ? `首选 ${preferredCandidate.instId || preferredCandidate.symbol || "--"}` : "等待策略候选");
   setText("exchangeDemoMarketState", summary.publicProbeCount ? `${summary.publicOkCount ?? 0}/${summary.publicProbeCount}` : "未扫描");
@@ -1814,6 +1838,32 @@ function renderExchangeDemoPipeline(pipeline = {}) {
   setText("exchangeDemoAutomationState", summary.autoOrderAllowed ? "允许" : "手动确认");
   setText("exchangeDemoAutomationMeta", summary.manualOrderRequired ? "只自动筛选和填票据，不自动提交订单" : "订单仍受 Demo 闸门控制");
   setText("exchangeDemoPipelineMeta", summary.nextAction || "加载策略、读取公共行情、筛选候选，再人工确认 Demo 票据。");
+
+  const trialTarget = el("exchangeDemoTrialStrategyList");
+  if (trialTarget) {
+    trialTarget.innerHTML = trialPool.map((strategy) => `
+      <div class="exchange-demo-candidate-row is-selected">
+        <div>
+          <div class="exchange-demo-candidate-row-head">
+            <div>
+              <strong>${escapeHtml(strategy.strategyName || strategy.strategyId || "--")}</strong>
+              <small>${escapeHtml(strategy.timeframe || "--")} · ${escapeHtml(strategy.direction === "short" ? "空头" : "多头")} · ${escapeHtml(strategy.strategyId || "--")}</small>
+            </div>
+            <span class="badge ok">Demo 观察中</span>
+          </div>
+          <div class="artifact-metrics">
+            <span>历史样本 ${strategy.historicalTradeCount ?? 0}</span>
+            <span>历史胜率 ${formatPercent(strategy.historicalWinRatePct)}</span>
+            <span>历史 PF ${formatNumber(strategy.historicalProfitFactor)}</span>
+            <span>目标 ${formatNumber(strategy.targetR, 1)}R</span>
+            <span>本地闭合 ${strategy.localClosedSampleCount ?? 0}</span>
+            <span>评分 ${formatNumber(strategy.score, 1)}</span>
+          </div>
+          <div class="sandbox-lane-next">${escapeHtml(strategy.nextAction || "等待 Demo 行情观察。")}</div>
+        </div>
+      </div>
+    `).join("") || '<div class="testnet-design-empty">暂无已晋级 Demo 的策略。</div>';
+  }
 
   const target = el("exchangeDemoCandidateList");
   if (!target) return;
@@ -2634,6 +2684,8 @@ function renderSandboxAutoRunner(payload) {
   const statusText = enabled
     ? runner.status === "running"
       ? "运行中"
+      : runner.status === "waiting_for_candidates"
+        ? "等待新策略"
       : runner.status === "daily_limit_reached"
         ? "今日上限"
         : "已开启"
@@ -2657,8 +2709,8 @@ function renderSandboxAutoRunner(payload) {
     ? "可做基线模型"
     : "继续收集";
   el("sandboxAutoEnabledInput").checked = enabled;
-  el("sandboxAutoIntervalInput").value = String(runner.intervalMinutes || 360);
-  el("sandboxAutoMaxRunsInput").value = String(runner.maxRunsPerDay || 4);
+  el("sandboxAutoIntervalInput").value = String(runner.intervalMinutes || 5);
+  el("sandboxAutoMaxRunsInput").value = String(runner.maxRunsPerDay || 288);
   const learningText = latestLearning.closedSampleCount !== undefined
     ? `学习样本：${latestLearning.closedSampleCount}/${latestLearning.minimumBaselineModelSamples || 100} 个闭合样本；${latestLearning.nextAction || "继续收集本地观察数据。"}`
     : "学习样本：等待自动沙盒生成。";
@@ -3287,8 +3339,8 @@ async function saveSandboxAutoRunnerSettings() {
   try {
     await postJson("/api/local-sandbox/auto-runner", {
       enabled: Boolean(el("sandboxAutoEnabledInput")?.checked),
-      intervalMinutes: Number(el("sandboxAutoIntervalInput")?.value || 360),
-      maxRunsPerDay: Number(el("sandboxAutoMaxRunsInput")?.value || 4),
+      intervalMinutes: Number(el("sandboxAutoIntervalInput")?.value || 5),
+      maxRunsPerDay: Number(el("sandboxAutoMaxRunsInput")?.value || 288),
     });
     await refreshAll();
   } finally {
@@ -5919,7 +5971,7 @@ async function scanExchangeDemoCandidates() {
   if (button) button.disabled = true;
   setText("exchangeDemoPipelineStatus", "正在用 OKX 公共行情扫描 Demo 候选；不会使用 API Key 或下单。");
   try {
-    const response = await postJson("/api/exchange-demo/scan-candidates", { limit: 5 });
+    const response = await postJson("/api/exchange-demo/scan-candidates", { limit: 10 });
     renderExchangeDemoSimulation(response.exchangeDemoSimulation || {});
     setText("exchangeDemoPipelineStatus", response.ok
       ? "候选扫描完成。可以填入首选票据，再人工决定是否做 Demo 演练。"

@@ -81,10 +81,24 @@ WEAKNESS_ACTION_STATUS_LABELS = {
 }
 
 CONTROL_CONSOLE_STATE_SOURCE = "alphapilot_control_console_v13_10_2"
+ALLOWED_STRATEGY_PIPELINE_STAGES = {
+    "local_sandbox",
+    "demo_trial",
+    "demo_validated",
+    "live_candidate",
+    "archived",
+}
+STRATEGY_PIPELINE_STAGE_LABELS = {
+    "local_sandbox": "本地沙盒",
+    "demo_trial": "Demo 观察",
+    "demo_validated": "Demo 已验证",
+    "live_candidate": "实盘候选",
+    "archived": "已归档",
+}
 DEFAULT_LOCAL_SANDBOX_AUTO_RUNNER = {
     "enabled": False,
-    "intervalMinutes": 360,
-    "maxRunsPerDay": 4,
+    "intervalMinutes": 5,
+    "maxRunsPerDay": 288,
     "status": "disabled",
     "replayMode": "rolling_window",
     "replayCursor": 0,
@@ -145,6 +159,8 @@ def load_state() -> dict[str, Any]:
         state["localSandboxAutoRunEvents"] = []
     if not isinstance(state.get("localSandboxLearningSnapshots"), list):
         state["localSandboxLearningSnapshots"] = []
+    if not isinstance(state.get("strategyStageAssignments"), dict):
+        state["strategyStageAssignments"] = {}
     if not isinstance(state.get("manualExecutionTickets"), list):
         state["manualExecutionTickets"] = []
     if not isinstance(state.get("preLiveRehearsals"), list):
@@ -368,6 +384,70 @@ def list_paper_observation_tasks() -> dict[str, Any]:
     return state.get("paperObservationTasks", {})
 
 
+def list_strategy_stage_assignments(stage: str | None = None) -> dict[str, dict[str, Any]]:
+    state = load_state()
+    raw = state.get("strategyStageAssignments")
+    assignments = raw if isinstance(raw, dict) else {}
+    result = {
+        str(strategy_id): dict(item)
+        for strategy_id, item in assignments.items()
+        if isinstance(item, dict)
+    }
+    if stage is None:
+        return result
+    return {
+        strategy_id: item
+        for strategy_id, item in result.items()
+        if item.get("stage") == stage
+    }
+
+
+def set_strategy_stage_assignment(
+    strategy_id: str,
+    stage: str,
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    normalized_id = str(strategy_id or "").strip()
+    normalized_stage = str(stage or "").strip()
+    if not normalized_id:
+        raise ValueError("strategy_id_required")
+    if normalized_stage not in ALLOWED_STRATEGY_PIPELINE_STAGES:
+        raise ValueError(f"unsupported_strategy_pipeline_stage:{normalized_stage}")
+    state = load_state()
+    assignments = state.get("strategyStageAssignments")
+    if not isinstance(assignments, dict):
+        assignments = {}
+    current = assignments.get(normalized_id) if isinstance(assignments.get(normalized_id), dict) else {}
+    now = now_iso()
+    extra = metadata if isinstance(metadata, dict) else {}
+    assignment = {
+        **current,
+        **extra,
+        "strategyId": normalized_id,
+        "stage": normalized_stage,
+        "stageLabel": STRATEGY_PIPELINE_STAGE_LABELS[normalized_stage],
+        "sampleDataPreserved": True,
+        "updatedAt": now,
+        "source": CONTROL_CONSOLE_STATE_SOURCE,
+    }
+    assignment.setdefault("createdAt", now)
+    if normalized_stage == "demo_trial":
+        assignment.setdefault("promotedAt", now)
+    assignments[normalized_id] = assignment
+    state["strategyStageAssignments"] = assignments
+    save_state(state)
+    append_audit(
+        "strategy_pipeline_stage_updated",
+        {
+            "strategyId": normalized_id,
+            "fromStage": current.get("stage") or "local_sandbox",
+            "toStage": normalized_stage,
+            "sampleDataPreserved": True,
+        },
+    )
+    return assignment
+
+
 def get_paper_observation_task(artifact_id: str) -> dict[str, Any] | None:
     task = list_paper_observation_tasks().get(artifact_id)
     return task if isinstance(task, dict) else None
@@ -545,8 +625,8 @@ def get_local_sandbox_auto_runner_state() -> dict[str, Any]:
     raw = state.get("localSandboxAutoRunner") if isinstance(state.get("localSandboxAutoRunner"), dict) else {}
     runner = {**DEFAULT_LOCAL_SANDBOX_AUTO_RUNNER, **raw}
     runner["enabled"] = bool(runner.get("enabled"))
-    runner["intervalMinutes"] = max(1, min(int(runner.get("intervalMinutes") or 360), 1440))
-    runner["maxRunsPerDay"] = max(1, min(int(runner.get("maxRunsPerDay") or 4), 288))
+    runner["intervalMinutes"] = max(1, min(int(runner.get("intervalMinutes") or 5), 1440))
+    runner["maxRunsPerDay"] = max(1, min(int(runner.get("maxRunsPerDay") or 288), 288))
     runner["todayRunCount"] = max(0, int(runner.get("todayRunCount") or 0))
     runner["replayMode"] = str(runner.get("replayMode") or "rolling_window")
     runner["replayCursor"] = max(0, int(runner.get("replayCursor") or 0))
@@ -561,8 +641,8 @@ def update_local_sandbox_auto_runner_state(fields: dict[str, Any], event: dict[s
     updates = fields if isinstance(fields, dict) else {}
     runner = {**current, **updates, "source": CONTROL_CONSOLE_STATE_SOURCE}
     runner["enabled"] = bool(runner.get("enabled"))
-    runner["intervalMinutes"] = max(1, min(int(runner.get("intervalMinutes") or 360), 1440))
-    runner["maxRunsPerDay"] = max(1, min(int(runner.get("maxRunsPerDay") or 4), 288))
+    runner["intervalMinutes"] = max(1, min(int(runner.get("intervalMinutes") or 5), 1440))
+    runner["maxRunsPerDay"] = max(1, min(int(runner.get("maxRunsPerDay") or 288), 288))
     runner["todayRunCount"] = max(0, int(runner.get("todayRunCount") or 0))
     runner["replayMode"] = str(runner.get("replayMode") or "rolling_window")
     runner["replayCursor"] = max(0, int(runner.get("replayCursor") or 0))

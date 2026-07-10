@@ -9,6 +9,7 @@ from .state_store import (
     list_local_sandbox_daily_reports,
     list_local_sandbox_learning_snapshots,
     list_paper_observation_logs,
+    list_strategy_stage_assignments,
 )
 from .usable_strategy_catalog import build_usable_strategy_catalog
 
@@ -89,10 +90,15 @@ def _row_stage(health: dict[str, Any], counts: dict[str, int]) -> tuple[str, str
 
 def _build_strategy_rows(catalog: dict[str, Any], report: dict[str, Any]) -> list[dict[str, Any]]:
     strategies = catalog.get("strategies") if isinstance(catalog.get("strategies"), list) else []
+    assignments = list_strategy_stage_assignments()
     health_map = _health_rows_by_task(report)
     rows: list[dict[str, Any]] = []
     for item in strategies:
         if not isinstance(item, dict):
+            continue
+        strategy_id = str(item.get("strategyId") or item.get("candidateId") or "").strip()
+        stage = assignments.get(strategy_id, {}).get("stage") or "local_sandbox"
+        if stage != "local_sandbox":
             continue
         task_id = str(item.get("taskId") or item.get("catalogId") or item.get("candidateId") or item.get("strategyId") or "").strip()
         if not task_id:
@@ -177,6 +183,21 @@ def _learning_status(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 def build_simulation_bridge() -> dict[str, Any]:
     catalog = build_usable_strategy_catalog()
+    catalog_rows = catalog.get("strategies") if isinstance(catalog.get("strategies"), list) else []
+    assignments = list_strategy_stage_assignments()
+    active_sandbox_ids: list[str] = []
+    demo_trial_ids: list[str] = []
+    for item in catalog_rows:
+        if not isinstance(item, dict):
+            continue
+        strategy_id = str(item.get("strategyId") or item.get("candidateId") or "").strip()
+        if not strategy_id:
+            continue
+        stage = assignments.get(strategy_id, {}).get("stage") or "local_sandbox"
+        if stage == "local_sandbox":
+            active_sandbox_ids.append(strategy_id)
+        elif stage == "demo_trial":
+            demo_trial_ids.append(strategy_id)
     report = _latest_daily_report()
     rows = _build_strategy_rows(catalog, report)
     runner_payload = get_local_sandbox_auto_runner_status()
@@ -187,25 +208,40 @@ def build_simulation_bridge() -> dict[str, Any]:
     total_capital = round(sum(_safe_float(row.get("virtualCapital")) for row in rows), 2)
     local_ready = len(rows) > 0
     runner_enabled = bool(runner.get("enabled"))
-    bridge_stage = "local_simulation_running" if runner_enabled else "local_simulation_ready" if local_ready else "waiting_for_strategy_catalog"
+    all_promoted = bool(demo_trial_ids) and not local_ready
+    bridge_stage = (
+        "all_strategies_promoted_to_demo"
+        if all_promoted
+        else "local_simulation_running"
+        if runner_enabled
+        else "local_simulation_ready"
+        if local_ready
+        else "waiting_for_strategy_catalog"
+    )
     summary = {
         "strategyCount": len(rows),
+        "demoTrialStrategyCount": len(demo_trial_ids),
         "localSimulationReady": local_ready,
-        "localSimulationRunning": runner_enabled,
+        "localSimulationRunning": runner_enabled and local_ready,
+        "schedulerEnabled": runner_enabled,
         "simulationReviewCandidateCount": candidate_count,
         "totalClosedSampleCount": total_closed,
         "totalVirtualCapital": total_capital,
         "totalVirtualEquity": total_equity,
         "stage": bridge_stage,
         "stageLabel": (
-            "本地模拟盘运行中"
+            "现有策略已全部晋级 Demo"
+            if all_promoted
+            else "本地模拟盘运行中"
             if runner_enabled
             else "本地模拟盘可启动"
             if local_ready
             else "等待策略目录"
         ),
         "nextAction": (
-            "保持控制台运行，继续累计闭合样本；达到门槛后再讨论 testnet。"
+            "历史样本继续保留；本地沙盒等待新的候选策略。"
+            if all_promoted
+            else "保持控制台运行，继续累计闭合样本；达到门槛后再讨论 testnet。"
             if runner_enabled
             else "点击启动本地沙盒，让候选策略进入持续模拟观察。"
             if local_ready
@@ -218,6 +254,8 @@ def build_simulation_bridge() -> dict[str, Any]:
         "summary": summary,
         "autoRunner": runner,
         "strategyRows": rows,
+        "activeSandboxStrategyIds": active_sandbox_ids,
+        "demoTrialStrategyIds": demo_trial_ids,
         "learningStatus": _learning_status(rows),
         "simulationContract": {
             "localSandboxAvailable": local_ready,

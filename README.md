@@ -3,12 +3,25 @@
 Current version:
 
 ```text
-AlphaPilot V13.26.0 - Formal Execution Outcome Feedback
+AlphaPilot V13.26.1 - Five-Minute Sandbox and Demo Trial Promotion
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
 AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
+
+## What V13.26.1 Adds
+
+- Restores the local sandbox scheduler to a 5-minute default with a 288-run
+  daily ceiling.
+- Adds explicit strategy-stage assignments so promotion moves a strategy from
+  the local sandbox list into the Demo observation pool without deleting its
+  historical reports or local samples.
+- Promotes the current ten reviewed strategies into Demo Trial observation and
+  shows historical sample count, win rate, profit factor, 2R target, score, and
+  preserved local sample count on the Demo page.
+- Keeps immutable formal Demo Release and Live gates unchanged. Demo Trial is
+  an observation stage and does not by itself authorize an exchange order.
 
 It can mechanically execute immutable eligible releases in OKX Demo Trading.
 It also contains a default-off, checksum-gated OKX Live Canary adapter.

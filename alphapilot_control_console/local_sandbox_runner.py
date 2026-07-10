@@ -10,7 +10,13 @@ from typing import Any
 
 from .config import DEFAULT_QUANT_ENGINE_PATH, SAFETY_BOUNDARY, get_quant_engine_path
 from .sample_path_instrumentation import build_estimated_path_fields
-from .state_store import add_paper_observation_log, list_paper_observation_logs, now_iso, save_local_sandbox_run
+from .state_store import (
+    add_paper_observation_log,
+    list_paper_observation_logs,
+    list_strategy_stage_assignments,
+    now_iso,
+    save_local_sandbox_run,
+)
 from .usable_strategy_catalog import (
     USABLE_STRATEGY_CATALOG_REPORT,
     build_usable_sandbox_task_pack,
@@ -369,7 +375,36 @@ def run_local_sandbox(payload: dict[str, Any] | None = None) -> dict[str, Any]:
     payload = payload if isinstance(payload, dict) else {}
     quant_path = Path(str(payload.get("quantEnginePath") or get_quant_engine_path() or DEFAULT_QUANT_ENGINE_PATH)).expanduser().resolve()
     task_pack = build_usable_sandbox_task_pack(quant_path)
-    tasks = task_pack.get("paperObservationTasks") if isinstance(task_pack.get("paperObservationTasks"), list) else []
+    all_tasks = task_pack.get("paperObservationTasks") if isinstance(task_pack.get("paperObservationTasks"), list) else []
+    assignments = list_strategy_stage_assignments()
+    tasks = [
+        task
+        for task in all_tasks
+        if isinstance(task, dict)
+        and (assignments.get(str(task.get("strategyId") or ""), {}).get("stage") or "local_sandbox") == "local_sandbox"
+    ]
+    promoted_task_count = len(all_tasks) - len(tasks)
+    if not tasks:
+        return {
+            "runId": _build_run_id(),
+            "version": CONTROL_CONSOLE_VERSION,
+            "source": CONTROL_CONSOLE_SOURCE,
+            "createdAt": now_iso(),
+            "status": "waiting_for_sandbox_candidates",
+            "taskCount": 0,
+            "promotedTaskCount": promoted_task_count,
+            "generatedLogCount": 0,
+            "closedSampleCount": 0,
+            "dataGapCount": 0,
+            "skippedDuplicateCount": 0,
+            "replayCursor": max(1, _safe_int(payload.get("replayCursor"), 1)),
+            "replayWindowCount": 0,
+            "rows": [],
+            "quantEnginePath": str(quant_path),
+            "taskPackSummary": task_pack.get("summary") if isinstance(task_pack.get("summary"), dict) else {},
+            "safetyBoundary": SAFETY_BOUNDARY,
+            "safetyNote": "No local-sandbox strategy is active; promoted sample history is preserved in its original records.",
+        }
     default_max_tasks = min(len(tasks) or 1, 20)
     max_tasks = max(1, min(_safe_int(payload.get("maxTasks"), default_max_tasks), 20))
     replay_cursor = max(1, _safe_int(payload.get("replayCursor"), 1))
@@ -558,6 +593,7 @@ def run_local_sandbox(payload: dict[str, Any] | None = None) -> dict[str, Any]:
         "source": CONTROL_CONSOLE_SOURCE,
         "createdAt": now_iso(),
         "taskCount": len(rows),
+        "promotedTaskCount": promoted_task_count,
         "generatedLogCount": generated,
         "closedSampleCount": closed_samples,
         "dataGapCount": data_gap_count,
