@@ -12,8 +12,8 @@ from .state_store import (
 from .usable_strategy_catalog import build_usable_strategy_catalog
 
 
-CONTROL_CONSOLE_VERSION = "V13.26.1"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_26_1"
+CONTROL_CONSOLE_VERSION = "V13.26.2"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_26_2"
 
 
 def _safe_float(value: Any, fallback: float = 0.0) -> float:

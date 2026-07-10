@@ -12,19 +12,20 @@ from .evolution_demo_service import build_evolution_demo_status
 from .importer import scan_quant_engine
 from .live_candidate_service import build_live_candidate_status
 from .simulation_review import build_simulation_review
-from .state_store import now_iso
+from .state_store import list_strategy_stage_assignments, now_iso
 from .strategy_promotion_gate import build_strategy_promotion_gate
 from .usable_strategy_catalog import build_usable_strategy_catalog
 
 
-CONTROL_CONSOLE_VERSION = "V13.15.1"
-CONTROL_CONSOLE_SOURCE = "strategy_lifecycle_projection_v1"
+CONTROL_CONSOLE_VERSION = "V13.26.2"
+CONTROL_CONSOLE_SOURCE = "strategy_lifecycle_projection_v2"
 
 STAGE_ORDER = {
     "research_candidate": 10,
     "backtest_passed": 20,
     "local_simulation_running": 30,
     "local_simulation_passed": 40,
+    "demo_trial": 45,
     "demo_validation_running": 50,
     "demo_validated": 60,
     "live_candidate": 70,
@@ -36,6 +37,7 @@ STAGE_LABELS = {
     "backtest_passed": "回测通过",
     "local_simulation_running": "本地模拟中",
     "local_simulation_passed": "本地模拟通过",
+    "demo_trial": "Demo 观察中",
     "demo_validation_running": "Demo 验证中",
     "demo_validated": "Demo 通过",
     "live_candidate": "实盘候选",
@@ -47,6 +49,7 @@ STAGE_PAGES = {
     "backtest_passed": "strategy",
     "local_simulation_running": "local_simulation",
     "local_simulation_passed": "local_simulation",
+    "demo_trial": "demo",
     "demo_validation_running": "demo",
     "demo_validated": "demo",
     "live_candidate": "live",
@@ -58,6 +61,7 @@ NEXT_GATES = {
     "backtest_passed": "建立本地模拟观察任务。",
     "local_simulation_running": "完成样本、稳定性、集中度、成本和风险复核，再形成正式本地通过决定。",
     "local_simulation_passed": "生成不可变 Demo Release。",
+    "demo_trial": "继续 Demo 行情观察；达到正式门槛后再生成不可变 Demo Release。",
     "demo_validation_running": "完成 Demo 闭合验证和异常复核。",
     "demo_validated": "生成不可变 Live Candidate Package。",
     "live_candidate": "等待人工发布复核；批准不会启用实盘执行。",
@@ -243,6 +247,8 @@ def _evidence_summary(record: dict[str, Any], stage: str) -> str:
         return f"正在本地模拟观察；已闭合 {closed_samples} 个样本。"
     if stage == "local_simulation_passed":
         return "已有正式本地模拟通过决定；等待生成 Demo Release。"
+    if stage == "demo_trial":
+        return "已从本地模拟移入 Demo 观察；历史样本保留，但尚未生成正式 Demo Release。"
     if stage == "demo_validation_running":
         return "已有不可变 Demo Release；正在进行 Demo 验证。"
     if stage == "demo_validated":
@@ -295,6 +301,7 @@ def build_strategy_lifecycle_projection(
     live_candidates: dict[str, Any] | None = None,
     artifact_index: dict[str, Any] | None = None,
     promotion_decisions: list[dict[str, Any]] | None = None,
+    strategy_stage_assignments: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     source_warnings: list[dict[str, str]] = []
     scan_payload: dict[str, Any] | None = None
@@ -329,21 +336,50 @@ def build_strategy_lifecycle_projection(
     if promotion_decisions is None:
         raw_decisions = scan().get("promotionDecisions")
         promotion_decisions = _as_rows(raw_decisions)
+    if strategy_stage_assignments is None:
+        try:
+            strategy_stage_assignments = list_strategy_stage_assignments()
+        except Exception as error:  # Keep the read-only projection available if local state cannot be read.
+            source_warnings.append({"source": "strategy_stage_assignments", "reason": type(error).__name__})
+            strategy_stage_assignments = {}
+    assignment_by_id = {
+        str(strategy_id).casefold(): assignment
+        for strategy_id, assignment in strategy_stage_assignments.items()
+        if isinstance(assignment, dict)
+    }
 
     records: dict[str, dict[str, Any]] = {}
     release_strategy_ids: dict[str, str] = {}
     archive_ids: set[str] = set()
 
     for row in _as_rows(catalog.get("strategies")):
-        _add_evidence(
+        strategy_id = _strategy_id(row)
+        assignment = assignment_by_id.get(strategy_id.casefold(), {})
+        assigned_stage = str(assignment.get("stage") or "local_sandbox")
+        projection_stage = {
+            "local_sandbox": "local_simulation_running",
+            "demo_trial": "demo_trial",
+            "demo_validated": "demo_validated",
+            "live_candidate": "live_candidate",
+            "archived": "archived",
+        }.get(assigned_stage, "local_simulation_running")
+        record = _add_evidence(
             records,
-            row,
-            "local_simulation_running",
-            "legacy_sandbox_catalog",
-            source_label="本地沙盒可观察目录",
-            details={"sandboxReady": bool(row.get("sandboxReady", True))},
+            {**row, **assignment, "strategyId": strategy_id},
+            projection_stage,
+            "strategy_stage_assignment",
+            source_label="当前策略阶段分配",
+            details={
+                "assignedStage": assigned_stage,
+                "sandboxReady": bool(row.get("sandboxReady", True)),
+                "sampleDataPreserved": bool(assignment.get("sampleDataPreserved", True)),
+                "formalDemoRelease": False,
+            },
             blockers=list(row.get("riskNotes") or []),
         )
+        if projection_stage == "archived":
+            record["terminalArchived"] = True
+            archive_ids.add(strategy_id)
 
     for row in _as_rows(simulation_review.get("queue")):
         metrics = row.get("metrics") if isinstance(row.get("metrics"), dict) else {}
@@ -454,6 +490,7 @@ def build_strategy_lifecycle_projection(
         "backtestPassedCount": stage_counts["backtest_passed"],
         "localSimulationRunningCount": stage_counts["local_simulation_running"],
         "localSimulationPassedCount": stage_counts["local_simulation_passed"],
+        "demoTrialCount": stage_counts["demo_trial"],
         "demoValidationRunningCount": stage_counts["demo_validation_running"],
         "demoValidatedCount": stage_counts["demo_validated"],
         "liveCandidateCount": stage_counts["live_candidate"],

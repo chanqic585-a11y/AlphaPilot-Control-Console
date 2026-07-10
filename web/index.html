@@ -516,7 +516,7 @@
             <div>
               <p class="panel-eyebrow">LOCAL SIMULATION LAB</p>
               <h2>本地模拟</h2>
-              <p>本地沙盒和本地模拟放在同一页：跑策略样本、看虚拟权益、看闭合样本、看可复核策略和学习状态。这里不连接交易所，不创建交易所订单。</p>
+              <p>这里只显示当前仍在本地阶段的策略。策略晋级后会移出本页，历史样本继续保留；这里不连接交易所，不创建交易所订单。</p>
             </div>
             <span class="status-pill ok">&#26412;&#22320;&#36816;&#34892;</span>
           </div>
@@ -528,7 +528,7 @@
           </div>
           <div class="lifecycle-stage-panel">
             <div class="lifecycle-panel-head">
-              <div><h3>正在本地模拟的策略</h3><span id="localLifecycleMeta" aria-live="polite">只显示当前处于本地模拟阶段的策略。</span></div>
+              <div><h3>当前本地模拟策略</h3><span id="localLifecycleMeta" aria-live="polite">只显示尚未晋级 Demo 的策略。</span></div>
               <span class="lifecycle-page-badge">本地模拟</span>
             </div>
             <div id="localLifecycleSummary" class="lifecycle-summary-grid"></div>
@@ -576,15 +576,15 @@
             <div>
               <p class="panel-eyebrow">OKX DEMO TRADING</p>
               <h2>&#20132;&#26131;&#25152; Demo &#27169;&#25311;</h2>
-              <p>只有通过硬门槛并冻结校验和的 Demo Release 才能进入 OKX 模拟账户。凭据只在本机进程内使用，实盘始终锁定。</p>
+              <p>这里只显示已从本地模拟晋级的策略。Demo 观察用于行情与流程验证；只有通过硬门槛并冻结校验和的正式 Demo Release 才能进入 OKX 模拟账户。</p>
             </div>
             <span id="exchangeDemoModeBadge" class="status-pill danger">Demo &#38145;&#23450;</span>
           </div>
           <div class="exchange-demo-warning"><strong>安全边界：</strong>Demo 自动执行只作用于 OKX 模拟账户和固定 1000 USDT 风险包。Withdraw、实盘自动晋级和实盘执行全部关闭。</div>
           <div class="lifecycle-stage-panel">
             <div class="lifecycle-panel-head">
-              <div><h3>正式 Demo Release</h3><span id="demoLifecycleMeta" aria-live="polite">只有本地模拟正式通过并生成 Release 后才会出现。</span></div>
-              <span class="lifecycle-page-badge">Demo 验证</span>
+              <div><h3>Demo 观察与正式验证</h3><span id="demoLifecycleMeta" aria-live="polite">显示已晋级的 Demo 观察策略，并单独标记正式 Release。</span></div>
+              <span class="lifecycle-page-badge">Demo 模拟</span>
             </div>
             <div id="demoLifecycleSummary" class="lifecycle-summary-grid"></div>
             <div id="demoLifecycleList" class="lifecycle-card-list" aria-live="polite"></div>
@@ -2581,6 +2581,6 @@
         <button class="back-home-button" id="backHomeButton" type="button" aria-label="回到策略页">回到策略</button>
       </main>
     </div>
-    <script src="/app.js?v=20260711-v13-26-1-demo-promotion"></script>
+    <script src="/app.js?v=20260711-v13-26-2-stage-consistency"></script>
   </body>
 </html>

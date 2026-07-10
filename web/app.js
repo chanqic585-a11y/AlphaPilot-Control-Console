@@ -815,6 +815,7 @@ const lifecycleStageTones = {
   backtest_passed: "ok",
   local_simulation_running: "warn",
   local_simulation_passed: "ok",
+  demo_trial: "warn",
   demo_validation_running: "warn",
   demo_validated: "ok",
   live_candidate: "danger",
@@ -841,28 +842,33 @@ function lifecycleStageCount(summary, stageGroup) {
 function renderLifecycleSummary(targetId, summary = {}) {
   const target = el(targetId);
   if (!target) return;
-  const cards = [
-    {
-      label: "策略阶段",
-      value: lifecycleStageCount(summary, ["strategyCandidateCount", "backtestPassedCount"]),
-      meta: `待测 ${summary.strategyCandidateCount ?? 0} · 回测通过 ${summary.backtestPassedCount ?? 0}`,
-    },
-    {
-      label: "本地模拟",
-      value: lifecycleStageCount(summary, ["localSimulationRunningCount", "localSimulationPassedCount"]),
-      meta: `运行中 ${summary.localSimulationRunningCount ?? 0} · 正式通过 ${summary.localSimulationPassedCount ?? 0}`,
-    },
-    {
-      label: "Demo 验证",
-      value: lifecycleStageCount(summary, ["demoValidationRunningCount", "demoValidatedCount"]),
-      meta: `验证中 ${summary.demoValidationRunningCount ?? 0} · 已通过 ${summary.demoValidatedCount ?? 0}`,
-    },
-    {
-      label: "实盘候选",
-      value: Number(summary.liveCandidateCount || 0),
-      meta: "只认不可变候选包",
-    },
-  ];
+  const localCount = lifecycleStageCount(summary, ["localSimulationRunningCount", "localSimulationPassedCount"]);
+  const demoCount = lifecycleStageCount(summary, ["demoTrialCount", "demoValidationRunningCount", "demoValidatedCount"]);
+  const cardsByTarget = {
+    strategyLifecycleSummary: [
+      { label: "研究待测", value: Number(summary.strategyCandidateCount || 0), meta: "尚未形成回测通过决定" },
+      { label: "回测通过", value: Number(summary.backtestPassedCount || 0), meta: "等待进入本地模拟" },
+      { label: "已在本地", value: localCount, meta: "只在本地模拟页显示" },
+      { label: "已在 Demo", value: demoCount, meta: "只在 Demo 模拟页显示" },
+    ],
+    localLifecycleSummary: [
+      { label: "当前本地模拟", value: Number(summary.localSimulationRunningCount || 0), meta: "本页当前策略" },
+      { label: "本地正式通过", value: Number(summary.localSimulationPassedCount || 0), meta: "等待生成正式 Release" },
+      { label: "已移入 Demo", value: Number(summary.demoTrialCount || 0), meta: "不在本页重复显示" },
+    ],
+    demoLifecycleSummary: [
+      { label: "Demo 观察", value: Number(summary.demoTrialCount || 0), meta: "已晋级，尚非正式 Release" },
+      { label: "正式验证", value: Number(summary.demoValidationRunningCount || 0), meta: "已有不可变 Demo Release" },
+      { label: "Demo 通过", value: Number(summary.demoValidatedCount || 0), meta: "等待生成实盘候选包" },
+      { label: "实盘候选", value: Number(summary.liveCandidateCount || 0), meta: "只认不可变候选包" },
+    ],
+    liveLifecycleSummary: [
+      { label: "实盘候选", value: Number(summary.liveCandidateCount || 0), meta: "只认不可变候选包" },
+      { label: "Demo 通过", value: Number(summary.demoValidatedCount || 0), meta: "尚未生成实盘候选包" },
+      { label: "待对账", value: Number(summary.reconciliationRequiredCount || 0), meta: "一致性问题必须先处理" },
+    ],
+  };
+  const cards = cardsByTarget[targetId] || [];
   target.innerHTML = cards.map((card) => `
     <div class="lifecycle-summary-card">
       <span>${escapeHtml(card.label)}</span>
@@ -935,8 +941,8 @@ function renderStrategyLifecycle(payload = emptyStrategyLifecycle) {
   renderLifecycleCards(
     "demoLifecycleList",
     items,
-    ["demo_validation_running", "demo_validated"],
-    loadFailed ? "Demo 生命周期读取失败，请刷新控制台。" : "暂无进入 Demo 验证的策略。本地模拟正式通过并生成 Demo Release 后会显示在这里。",
+    ["demo_trial", "demo_validation_running", "demo_validated"],
+    loadFailed ? "Demo 生命周期读取失败，请刷新控制台。" : "暂无进入 Demo 的策略。策略从本地模拟晋级后会移动到这里。",
   );
   renderLifecycleCards(
     "liveLifecycleList",
@@ -947,10 +953,14 @@ function renderStrategyLifecycle(payload = emptyStrategyLifecycle) {
 
   const strategyCount = lifecycleStageCount(summary, ["strategyCandidateCount", "backtestPassedCount"]);
   const localCount = lifecycleStageCount(summary, ["localSimulationRunningCount", "localSimulationPassedCount"]);
-  const demoCount = lifecycleStageCount(summary, ["demoValidationRunningCount", "demoValidatedCount"]);
+  const demoCount = lifecycleStageCount(summary, ["demoTrialCount", "demoValidationRunningCount", "demoValidatedCount"]);
   setText("strategyLifecycleMeta", loadFailed ? "状态读取失败。" : `${strategyCount} 条策略仍在研究或回测阶段。`);
-  setText("localLifecycleMeta", loadFailed ? "状态读取失败。" : `${localCount} 条策略只显示在本地模拟页；正式通过 ${summary.localSimulationPassedCount ?? 0} 条。`);
-  setText("demoLifecycleMeta", loadFailed ? "状态读取失败。" : demoCount ? `${demoCount} 条策略处于 Demo 阶段。` : "0 条：当前没有正式 Demo Release。");
+  setText("localLifecycleMeta", loadFailed ? "状态读取失败。" : localCount
+    ? `${localCount} 条策略当前处于本地模拟；正式通过 ${summary.localSimulationPassedCount ?? 0} 条。`
+    : `当前本地模拟为 0；已有 ${summary.demoTrialCount ?? 0} 条移入 Demo，历史样本仍保留。`);
+  setText("demoLifecycleMeta", loadFailed ? "状态读取失败。" : demoCount
+    ? `${demoCount} 条策略处于 Demo：观察中 ${summary.demoTrialCount ?? 0} · 正式验证 ${summary.demoValidationRunningCount ?? 0} · 已通过 ${summary.demoValidatedCount ?? 0}。`
+    : "当前没有进入 Demo 的策略。");
   setText("liveLifecycleMeta", loadFailed ? "状态读取失败。" : `${summary.liveCandidateCount ?? 0} 条：只认不可变 Live Candidate Package。`);
   setText("strategyArchiveMeta", `默认隐藏 · 研究/失败/重复资产 ${summary.archivedCount ?? 0} 项`);
   setText("simpleConsoleOneLine", `当前：策略阶段 ${strategyCount} · 本地模拟 ${localCount} · Demo ${demoCount} · 实盘候选 ${summary.liveCandidateCount ?? 0}。`);

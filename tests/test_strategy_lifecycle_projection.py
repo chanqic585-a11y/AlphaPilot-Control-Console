@@ -14,6 +14,7 @@ def empty_sources() -> dict:
         "live_candidates": {"packages": [], "summary": {}},
         "artifact_index": {"artifacts": [], "summary": {}},
         "promotion_decisions": [],
+        "strategy_stage_assignments": {},
     }
 
 
@@ -115,6 +116,62 @@ class StrategyLifecycleProjectionTests(unittest.TestCase):
         self.assertEqual(result["items"][0]["currentStage"], "demo_validation_running")
         self.assertEqual(result["summary"]["localSimulationRunningCount"], 0)
         self.assertEqual(result["summary"]["demoValidationRunningCount"], 1)
+
+    def test_demo_trial_assignment_moves_strategy_out_of_local_page(self) -> None:
+        result = self.build(
+            catalog={
+                "strategies": [
+                    {"strategyId": "strategy-1", "name": "趋势策略"},
+                    {"strategyId": "strategy-2", "name": "反转策略"},
+                ],
+                "summary": {},
+            },
+            strategy_stage_assignments={
+                "strategy-1": {
+                    "strategyId": "strategy-1",
+                    "stage": "demo_trial",
+                    "stageLabel": "Demo 观察",
+                    "sampleDataPreserved": True,
+                },
+                "strategy-2": {
+                    "strategyId": "strategy-2",
+                    "stage": "demo_trial",
+                    "stageLabel": "Demo 观察",
+                    "sampleDataPreserved": True,
+                },
+            },
+        )
+
+        self.assertEqual(result["summary"]["localSimulationRunningCount"], 0)
+        self.assertEqual(result["summary"]["demoTrialCount"], 2)
+        self.assertEqual({item["currentStage"] for item in result["items"]}, {"demo_trial"})
+        self.assertTrue(all(item["page"] == "demo" for item in result["items"]))
+        self.assertTrue(all("历史样本保留" in item["evidenceSummary"] for item in result["items"]))
+
+    def test_formal_demo_release_supersedes_demo_trial_assignment(self) -> None:
+        result = self.build(
+            catalog={
+                "strategies": [{"strategyId": "strategy-1", "name": "趋势策略"}],
+                "summary": {},
+            },
+            strategy_stage_assignments={
+                "strategy-1": {"strategyId": "strategy-1", "stage": "demo_trial"},
+            },
+            evolution_demo={
+                "contracts": [
+                    {
+                        "demoReleaseId": "release-1",
+                        "strategyCandidateId": "strategy-1",
+                        "status": "demo_eligible",
+                    }
+                ],
+                "summary": {"eligibleReleaseCount": 1},
+            },
+        )
+
+        self.assertEqual(result["summary"]["demoTrialCount"], 0)
+        self.assertEqual(result["summary"]["demoValidationRunningCount"], 1)
+        self.assertEqual(result["items"][0]["currentStage"], "demo_validation_running")
 
     def test_formal_local_promotion_decision_moves_strategy_to_passed_stage(self) -> None:
         result = self.build(

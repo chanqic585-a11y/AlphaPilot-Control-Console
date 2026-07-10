@@ -3,12 +3,24 @@
 Current version:
 
 ```text
-AlphaPilot V13.26.1 - Five-Minute Sandbox and Demo Trial Promotion
+AlphaPilot V13.26.2 - Strategy Stage Display Consistency
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
 AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
+
+## What V13.26.2 Fixes
+
+- Uses persisted strategy-stage assignments as the lifecycle display source of
+  truth, so a promoted strategy no longer reappears on the local simulation
+  page because of retained historical evidence.
+- Separates Demo Trial observation from formal Demo Release validation while
+  counting both under the Demo page.
+- Gives the strategy, local simulation, Demo, and Live pages distinct summary
+  cards and stage-specific lists.
+- Preserves all historical backtest and local sample data; this patch only
+  corrects stage visibility and labels.
 
 ## What V13.26.1 Adds
 
