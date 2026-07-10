@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.15.2 - Secure OKX Demo Integration
+AlphaPilot V13.20.0 - Immutable-Release-Gated OKX Demo
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -12,6 +12,28 @@ status bridge.
 
 It can mechanically execute immutable eligible releases in OKX Demo Trading.
 It is not a live trading system.
+
+## What V13.20.0 Adds
+
+V13.20 closes the remaining trust gaps around automatic OKX Demo execution.
+
+- Automatic Demo cycles ignore externally supplied `signals` and `portfolio`.
+- Signals come only from a checksum-verified immutable release, confirmed OKX
+  public candles, frozen factor thresholds, spread checks, and public SWAP
+  sizing metadata.
+- Contract validation enforces the exact 1000 USDT / 250 USDT order-notional /
+  0.25% risk / three-position envelope.
+- A private Demo-only read reconciles balance and positions before new entries.
+- Runtime guard pauses on unresolved order state, reconciliation mismatch,
+  daily loss, drawdown, rolling profit-factor, consecutive-loss, checksum, or
+  slippage drift.
+- Existing idempotent order IDs, attached `>=2R` protective exits, restart
+  recovery, partial-fill reconciliation, pause, and kill switch are reused.
+
+The real Quant registry currently exports no eligible DemoRelease. With no
+release, the console stops before public scanning, private credentials, or
+orders. Runtime credentials remain process-only; Live and Withdraw remain
+locked.
 
 ## What V13.15.1 Adds
 

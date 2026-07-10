@@ -14,6 +14,8 @@ from .credential_runtime import load_okx_demo_credentials, runtime_credential_st
 from .demo_arbitrator import arbitrate_demo_signals
 from .demo_execution_engine import DemoExecutionEngine
 from .demo_execution_store import DemoExecutionStore
+from .demo_release_scanner import scan_immutable_demo_release
+from .demo_runtime_guard import evaluate_demo_runtime_guard
 from .exchange_connectors.okx_demo_client import OkxDemoClient
 
 
@@ -46,8 +48,63 @@ def validate_demo_contract(contract: dict[str, Any]) -> None:
     boundary = contract.get("executionBoundary") if isinstance(contract.get("executionBoundary"), dict) else {}
     if boundary.get("environment") != "okx_demo_only":
         raise PermissionError("Demo release environment is invalid")
+    if boundary.get("automaticDemoExecutionAllowed") is not True:
+        raise PermissionError("Demo release does not allow automatic Demo execution")
     if boundary.get("liveExecutionAllowed") is not False or boundary.get("withdrawAllowed") is not False:
         raise PermissionError("Live or withdraw capability is forbidden")
+    if boundary.get("rawCredentialFieldsAllowed") is not False:
+        raise PermissionError("Raw credential fields must be forbidden")
+    if not contract.get("demoReleaseId") or not contract.get("strategyCandidateId"):
+        raise ValueError("Demo release identity is incomplete")
+    if not contract.get("releaseContentHash"):
+        raise ValueError("Demo release content hash is missing")
+    limits = contract.get("riskEnvelope") if isinstance(contract.get("riskEnvelope"), dict) else {}
+    required_limits = {
+        "initialEquityUsdt": 1000.0,
+        "riskPerTradePercent": 0.25,
+        "maxOpenRiskPercent": 1.0,
+        "maxOrderNotionalUsdt": 250.0,
+        "maxConcurrentPositions": 3,
+    }
+    for key, expected_value in required_limits.items():
+        if float(limits.get(key) or 0) != expected_value:
+            raise ValueError(f"Demo risk envelope mismatch: {key}")
+
+
+def _portfolio_from_demo_account(client: OkxDemoClient, store: DemoExecutionStore) -> dict[str, Any]:
+    balance = client.get_balance("USDT")
+    positions = client.get_positions(instrumentType="SWAP")
+    if str(balance.get("code")) != "0" or str(positions.get("code")) != "0":
+        raise RuntimeError("OKX Demo private read failed before execution")
+    balance_rows = balance.get("data") if isinstance(balance.get("data"), list) else []
+    balance_row = balance_rows[0] if balance_rows and isinstance(balance_rows[0], dict) else {}
+    details = balance_row.get("details") if isinstance(balance_row.get("details"), list) else []
+    usdt = next(
+        (item for item in details if isinstance(item, dict) and str(item.get("ccy")) == "USDT"),
+        {},
+    )
+    available = float(usdt.get("availEq") or usdt.get("availBal") or balance_row.get("availEq") or 0)
+    position_rows = positions.get("data") if isinstance(positions.get("data"), list) else []
+    open_positions = [
+        item
+        for item in position_rows
+        if isinstance(item, dict) and abs(float(item.get("pos") or 0)) > 0
+    ]
+    risk_per_trade = 0.25
+    return {
+        "availableEquityUsdt": available,
+        "openPositionCount": len(open_positions),
+        "openRiskPercent": len(open_positions) * risk_per_trade,
+        "dailyLossPercent": float(store.get_runtime_flag("dailyLossPercent", 0.0) or 0.0),
+        "drawdownPercent": float(store.get_runtime_flag("drawdownPercent", 0.0) or 0.0),
+        "closedOutcomeCount": int(store.get_runtime_flag("closedOutcomeCount", 0) or 0),
+        "rollingProfitFactor": float(store.get_runtime_flag("rollingProfitFactor", 0.0) or 0.0),
+        "consecutiveLosses": int(store.get_runtime_flag("consecutiveLosses", 0) or 0),
+        "observedSlippageBps": float(store.get_runtime_flag("observedSlippageBps", 0.0) or 0.0),
+        "assumedSlippageBps": float(store.get_runtime_flag("assumedSlippageBps", 2.0) or 2.0),
+        "reconciliationMatched": True,
+        "privateReadOnlyBeforeOrder": True,
+    }
 
 
 def _contract_paths() -> list[Path]:
@@ -113,8 +170,8 @@ def build_evolution_demo_status() -> dict[str, Any]:
     if kill_switch:
         blockers.append("demo_kill_switch_active")
     return {
-        "version": "V13.14.0",
-        "source": "factor_evolution_demo_bridge_v1",
+        "version": "V13.20.0",
+        "source": "immutable_release_demo_bridge_v13_20",
         "summary": {
             "eligibleReleaseCount": len(contracts),
             "rejectedContractCount": len(rejected),
@@ -170,30 +227,80 @@ def run_evolution_demo_cycle(payload: dict[str, Any]) -> dict[str, Any]:
     contract = next((item for item in contracts if item.get("demoReleaseId") == release_id), None)
     if contract is None:
         return {"ok": False, "blockers": ["demo_release_not_found"], "status": status}
-    signals = payload.get("signals") if isinstance(payload.get("signals"), list) else []
-    portfolio = payload.get("portfolio") if isinstance(payload.get("portfolio"), dict) else {}
-    limits = contract.get("riskEnvelope") if isinstance(contract.get("riskEnvelope"), dict) else {}
-    max_positions = int(limits.get("maxConcurrentPositions") or 3)
-    current_positions = int(portfolio.get("openPositionCount") or 0)
-    available_slots = max_positions - current_positions
-    if available_slots <= 0:
+    externally_supplied_signal_count = len(payload.get("signals", [])) if isinstance(payload.get("signals"), list) else 0
+    scan = scan_immutable_demo_release(contract)
+    if scan.get("blockers"):
         return {
             "ok": False,
-            "blockers": ["max_concurrent_positions"],
-            "rejectedSignals": [{**item, "reason": "portfolio_position_limit"} for item in signals if isinstance(item, dict)],
+            "blockers": list(scan["blockers"]),
+            "externalSignalsIgnored": externally_supplied_signal_count,
+            "scan": scan,
             "status": status,
         }
-    arbitration = arbitrate_demo_signals(
-        [item for item in signals if isinstance(item, dict)],
-        maxPositions=available_slots,
-    )
+    signals = scan.get("signals") if isinstance(scan.get("signals"), list) else []
     store = DemoExecutionStore(STORE_PATH)
     try:
-        engine = DemoExecutionEngine(
-            client=OkxDemoClient(load_okx_demo_credentials()),
-            store=store,
-        )
+        client = OkxDemoClient(load_okx_demo_credentials())
+        engine = DemoExecutionEngine(client=client, store=store)
         recovered = engine.recover_open_records()
+        try:
+            portfolio = _portfolio_from_demo_account(client, store)
+        except RuntimeError as error:
+            engine.pause("demo_private_read_failed")
+            return {
+                "ok": False,
+                "blockers": [str(error)],
+                "externalSignalsIgnored": externally_supplied_signal_count,
+                "scan": scan,
+                "status": build_evolution_demo_status(),
+            }
+        portfolio["dataFresh"] = all(bool(item.get("dataFresh")) for item in signals)
+        portfolio["liquidityPassed"] = all(bool(item.get("liquidityPassed")) for item in signals)
+        guard = evaluate_demo_runtime_guard(
+            portfolio,
+            recovered_statuses=[record.status for record in recovered],
+            checksums_match=True,
+        )
+        if guard.pauseRequired:
+            engine.pause(";".join(guard.reasonCodes))
+            return {
+                "ok": False,
+                "blockers": list(guard.reasonCodes),
+                "externalSignalsIgnored": externally_supplied_signal_count,
+                "scan": scan,
+                "status": build_evolution_demo_status(),
+            }
+        if not signals:
+            return {
+                "ok": True,
+                "created": [],
+                "recovered": [_record_payload(record) for record in recovered],
+                "rejectedSignals": list(scan.get("rejections") or []),
+                "externalSignalsIgnored": externally_supplied_signal_count,
+                "scan": scan,
+                "status": build_evolution_demo_status(),
+            }
+        limits = contract.get("riskEnvelope") if isinstance(contract.get("riskEnvelope"), dict) else {}
+        max_positions = int(limits.get("maxConcurrentPositions") or 3)
+        current_positions = int(portfolio.get("openPositionCount") or 0)
+        available_slots = max_positions - current_positions
+        if available_slots <= 0:
+            return {
+                "ok": False,
+                "blockers": ["max_concurrent_positions"],
+                "rejectedSignals": [
+                    {**item, "reason": "portfolio_position_limit"}
+                    for item in signals
+                    if isinstance(item, dict)
+                ],
+                "externalSignalsIgnored": externally_supplied_signal_count,
+                "scan": scan,
+                "status": status,
+            }
+        arbitration = arbitrate_demo_signals(
+            [item for item in signals if isinstance(item, dict)],
+            maxPositions=available_slots,
+        )
         created = []
         execution_rejections = []
         rolling_portfolio = dict(portfolio)
@@ -216,6 +323,8 @@ def run_evolution_demo_cycle(payload: dict[str, Any]) -> dict[str, Any]:
             "created": [_record_payload(record) for record in created],
             "recovered": [_record_payload(record) for record in recovered],
             "rejectedSignals": [*arbitration.rejected, *execution_rejections],
+            "externalSignalsIgnored": externally_supplied_signal_count,
+            "scan": scan,
             "status": build_evolution_demo_status(),
         }
     finally:

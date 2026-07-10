@@ -309,6 +309,11 @@ def fetch_okx_public_market_snapshot(
     ticker_rows = ticker.get("data") if isinstance(ticker, dict) and isinstance(ticker.get("data"), list) else []
     ticker_row = ticker_rows[0] if ticker_rows and isinstance(ticker_rows[0], dict) else {}
     price = _safe_float(ticker_row.get("last"))
+    bid_price = _safe_float(ticker_row.get("bidPx"))
+    ask_price = _safe_float(ticker_row.get("askPx"))
+    spread_pct = None
+    if bid_price and ask_price and bid_price > 0 and ask_price >= bid_price:
+        spread_pct = (ask_price - bid_price) / ((ask_price + bid_price) / 2)
     raw_candles = (
         candles_payload.get("data")
         if isinstance(candles_payload, dict) and isinstance(candles_payload.get("data"), list)
@@ -333,6 +338,9 @@ def fetch_okx_public_market_snapshot(
         "instId": inst_id,
         "timeframe": timeframe,
         "price": price,
+        "bidPrice": bid_price,
+        "askPrice": ask_price,
+        "spreadPct": spread_pct,
         "atr14": atr14,
         "candleCount": len(candles),
         "confirmedCandleCount": len(confirmed),
@@ -383,6 +391,7 @@ def _normalize_okx_candles(rows: list[Any]) -> list[dict[str, Any]]:
         high = _safe_float(row[2])
         low = _safe_float(row[3])
         close = _safe_float(row[4])
+        volume = _safe_float(row[7]) if len(row) > 7 else None
         if timestamp is None or None in {open_price, high, low, close}:
             continue
         candles.append({
@@ -391,6 +400,7 @@ def _normalize_okx_candles(rows: list[Any]) -> list[dict[str, Any]]:
             "high": high,
             "low": low,
             "close": close,
+            "volume": volume,
             "confirmed": len(row) <= 8 or str(row[8]) == "1",
         })
     return sorted(candles, key=lambda item: int(item["timestamp"]))
@@ -410,3 +420,47 @@ def _calculate_atr14(candles: list[dict[str, Any]]) -> float | None:
     if len(true_ranges) < 14:
         return None
     return round(sum(true_ranges[-14:]) / 14, 12)
+
+
+def fetch_okx_public_instrument_metadata(symbol: str) -> dict[str, Any]:
+    """Read public SWAP sizing metadata required before any Demo order sizing."""
+
+    normalized = _normalize_symbol(symbol)
+    inst_id = normalized["okx"]
+    payload, error, latency = _request_public_json(
+        "https://www.okx.com/api/v5/public/instruments",
+        {"instType": "SWAP", "instId": inst_id},
+    )
+    rows = payload.get("data") if isinstance(payload.get("data"), list) else []
+    row = rows[0] if rows and isinstance(rows[0], dict) else {}
+    state = str(row.get("state") or "")
+    ct_val = _safe_float(row.get("ctVal"))
+    lot_size = _safe_float(row.get("lotSz"))
+    min_size = _safe_float(row.get("minSz"))
+    tick_size = _safe_float(row.get("tickSz"))
+    missing = [
+        label
+        for label, value in (
+            ("ctVal", ct_val),
+            ("lotSz", lot_size),
+            ("minSz", min_size),
+            ("tickSz", tick_size),
+        )
+        if value is None or value <= 0
+    ]
+    return {
+        "source": "okx_public_instrument_metadata_v13_20",
+        "publicOnly": True,
+        "instId": inst_id,
+        "state": state,
+        "ctVal": ct_val,
+        "lotSz": lot_size,
+        "minSz": min_size,
+        "tickSz": tick_size,
+        "latencyMs": latency,
+        "missingFields": missing,
+        "error": error,
+        "ok": error is None and state == "live" and not missing,
+        "apiKeyUsed": False,
+        "privateEndpointsUsed": False,
+    }

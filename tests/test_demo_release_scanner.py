@@ -1,0 +1,107 @@
+from __future__ import annotations
+
+import time
+import unittest
+
+from alphapilot_control_console.demo_release_scanner import scan_immutable_demo_release
+
+
+def contract() -> dict:
+    return {
+        "demoReleaseId": "release-1",
+        "strategyCandidateId": "candidate-1",
+        "riskEnvelope": {
+            "initialEquityUsdt": 1000.0,
+            "riskPerTradePercent": 0.25,
+            "maxOrderNotionalUsdt": 250.0,
+            "defaultMaxLeverage": 2,
+        },
+        "strategy": {
+            "familyKey": "trend",
+            "marketDefinition": {
+                "timeframe": "1h",
+                "eligibleInstruments": ["BTC-USDT-SWAP"],
+            },
+            "forwardSignalPolicy": {
+                "direction": "long",
+                "rules": [{"factorId": "rsi_14", "operator": "gte", "threshold": 0}],
+            },
+        },
+    }
+
+
+def snapshot(_symbol: str, _timeframe: str, _limit: int) -> dict:
+    now = int(time.time() * 1000)
+    candles = [
+        {
+            "timestamp": now - (59 - index) * 3_600_000,
+            "open": 100.0,
+            "high": 101.0,
+            "low": 99.0,
+            "close": 100.0,
+            "volume": 1000.0,
+            "confirmed": True,
+        }
+        for index in range(60)
+    ]
+    return {
+        "ok": True,
+        "price": 100.0,
+        "bidPrice": 99.99,
+        "askPrice": 100.01,
+        "spreadPct": 0.0002,
+        "atr14": 2.0,
+        "latestCandleAt": now,
+        "_confirmedCandles": candles,
+    }
+
+
+def metadata(_symbol: str) -> dict:
+    return {
+        "ok": True,
+        "instId": "BTC-USDT-SWAP",
+        "state": "live",
+        "ctVal": 0.01,
+        "lotSz": 1.0,
+        "minSz": 1.0,
+        "tickSz": 0.1,
+    }
+
+
+class DemoReleaseScannerTests(unittest.TestCase):
+    def test_scanner_binds_signal_to_release_and_sizes_from_public_metadata(self) -> None:
+        result = scan_immutable_demo_release(
+            contract(), snapshot_loader=snapshot, metadata_loader=metadata
+        )
+
+        self.assertEqual(result["blockers"], [])
+        self.assertEqual(len(result["signals"]), 1)
+        signal = result["signals"][0]
+        self.assertEqual(signal["demoReleaseId"], "release-1")
+        self.assertEqual(signal["strategyCandidateId"], "candidate-1")
+        self.assertEqual(signal["source"], "immutable_release_scanner_v13_20")
+        self.assertEqual(signal["takeProfitPrice"] - signal["entryPrice"], 4.0)
+        self.assertEqual(signal["entryPrice"] - signal["stopLossPrice"], 2.0)
+        self.assertLessEqual(signal["notionalUsdt"], 250.0)
+        self.assertFalse(result["createsOrder"])
+
+    def test_incomplete_release_policy_fails_closed_before_market_call(self) -> None:
+        calls = 0
+
+        def forbidden_loader(_symbol: str, _timeframe: str, _limit: int) -> dict:
+            nonlocal calls
+            calls += 1
+            return {}
+
+        result = scan_immutable_demo_release(
+            {"strategy": {}},
+            snapshot_loader=forbidden_loader,
+            metadata_loader=metadata,
+        )
+
+        self.assertEqual(calls, 0)
+        self.assertIn("release_market_definition_incomplete", result["blockers"])
+
+
+if __name__ == "__main__":
+    unittest.main()

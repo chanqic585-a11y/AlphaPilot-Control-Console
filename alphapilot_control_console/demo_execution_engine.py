@@ -67,6 +67,11 @@ class DemoExecutionEngine:
             dataFresh=bool(portfolio.get("dataFresh", True)),
             liquidityPassed=bool(portfolio.get("liquidityPassed", True)),
             envelope=contract.get("riskEnvelope") if isinstance(contract.get("riskEnvelope"), dict) else None,
+            availableEquityUsdt=float(
+                portfolio.get("availableEquityUsdt")
+                or (contract.get("riskEnvelope") or {}).get("initialEquityUsdt")
+                or 0
+            ),
         )
         if not risk.passed:
             raise RuntimeError("OKX Demo risk gate blocked: " + ",".join(risk.reasonCodes))

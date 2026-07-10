@@ -39,14 +39,29 @@ def evaluate_demo_order_risk(
     dataFresh: bool,
     liquidityPassed: bool,
     envelope: dict | None = None,
+    availableEquityUsdt: float | None = None,
 ) -> DemoRiskDecision:
     limits = {**DEFAULT_DEMO_RISK_ENVELOPE, **(envelope or {})}
-    numbers = (notionalUsdt, riskPercent, openRiskPercent, dailyLossPercent, drawdownPercent)
+    available_equity = (
+        float(limits["initialEquityUsdt"])
+        if availableEquityUsdt is None
+        else float(availableEquityUsdt)
+    )
+    numbers = (
+        notionalUsdt,
+        riskPercent,
+        openRiskPercent,
+        dailyLossPercent,
+        drawdownPercent,
+        available_equity,
+    )
     if not all(math.isfinite(float(value)) for value in numbers):
         raise ValueError("Demo risk input contains non-finite values")
     reasons: list[str] = []
     if notionalUsdt <= 0 or notionalUsdt > float(limits["maxOrderNotionalUsdt"]):
         reasons.append("max_order_notional")
+    if available_equity <= 0 or notionalUsdt > available_equity:
+        reasons.append("insufficient_demo_equity")
     if leverage < 1 or leverage > int(limits["defaultMaxLeverage"]):
         reasons.append("max_leverage")
     if riskPercent <= 0 or riskPercent > float(limits["riskPerTradePercent"]):
