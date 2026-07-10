@@ -4190,6 +4190,189 @@ body:not(.show-advanced) .legacy-demo-ticket {
   gap: 14px;
 }
 
+.workflow-stage-panel {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.workflow-toolbar {
+  display: flex !important;
+  grid-auto-flow: column;
+  gap: 8px !important;
+}
+
+.workflow-toolbar button {
+  white-space: nowrap;
+}
+
+.workflow-action-status {
+  margin-top: 12px;
+  padding: 9px 11px;
+  border-left: 3px solid var(--gold);
+  background: var(--gold-soft);
+  color: #dfe5eb;
+  line-height: 1.5;
+}
+
+.workflow-stage-panel .lifecycle-summary-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.workflow-lanes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px 18px;
+  margin-top: 20px;
+}
+
+.workflow-lane {
+  min-width: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-strong);
+}
+
+.workflow-lane-head,
+.workflow-card-head,
+.workflow-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.workflow-lane-head h4,
+.workflow-card-head h5 {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.workflow-lane-head span {
+  display: grid;
+  place-items: center;
+  min-width: 28px;
+  height: 28px;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+
+.workflow-card-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.workflow-card {
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #0b1117;
+}
+
+.workflow-card-head > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.workflow-card-head h5 {
+  overflow-wrap: anywhere;
+}
+
+.workflow-card-head small,
+.workflow-progress,
+.workflow-details,
+.workflow-empty {
+  color: var(--muted);
+}
+
+.workflow-progress {
+  margin: 11px 0 0;
+}
+
+.workflow-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.workflow-metrics span {
+  padding: 4px 7px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: #cbd4dd;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.workflow-failure {
+  display: grid;
+  gap: 5px;
+  margin-top: 11px;
+  padding: 9px 10px;
+  border-left: 3px solid var(--red);
+  background: var(--red-soft);
+}
+
+.workflow-failure strong {
+  color: #ffd4df;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.workflow-failure small {
+  color: #d9aebb;
+  line-height: 1.5;
+}
+
+.workflow-actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.workflow-actions button {
+  min-height: 32px;
+}
+
+.workflow-details,
+.workflow-archive {
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 9px;
+}
+
+.workflow-details summary,
+.workflow-archive summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.workflow-details > div {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 6px 10px;
+  margin-top: 9px;
+}
+
+.workflow-details code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #cbd4dd;
+}
+
+.workflow-empty {
+  padding: 18px 8px;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  text-align: center;
+}
+
 .lifecycle-panel-head > div {
   display: grid;
   gap: 5px;
@@ -4445,6 +4628,24 @@ body:not(.show-advanced) .legacy-demo-ticket {
   .lifecycle-summary-grid,
   .lifecycle-card-list {
     grid-template-columns: 1fr;
+  }
+
+  .workflow-stage-panel .lifecycle-summary-grid,
+  .workflow-lanes {
+    grid-template-columns: 1fr;
+  }
+
+  .workflow-toolbar,
+  .workflow-actions {
+    display: grid !important;
+    grid-auto-flow: row;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .workflow-toolbar button,
+  .workflow-actions button {
+    width: 100%;
   }
 
   .lifecycle-summary-card {

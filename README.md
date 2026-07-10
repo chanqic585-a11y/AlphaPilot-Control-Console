@@ -1970,3 +1970,24 @@ POST /api/execution-outcomes/export
 
 The export contains no raw credentials or account balances and does not place
 orders. It is consumed only by the Quant Engine offline feedback importer.
+
+## V13.27.1 Workflow Strategy Page
+
+V13.27.1 gives the Strategy page one clear Quant Engine workflow projection.
+
+- Each immutable strategy version appears in exactly one current lane:
+  `待回测`, `回测中`, `回测通过`, or `未通过 / 阻塞`.
+- The page can request a real local backtest worker, pause/cancel/retry work,
+  archive a version, or advance a passed version. The UI cannot write a pass or
+  fail decision itself.
+- Progress and final gate results come from the Quant Engine registry through
+  `GET /api/workflow`.
+- Legacy research summaries remain collapsed and do not count as active
+  workflow strategies.
+- Mobile layout uses one-column, full-width controls with no horizontal
+  overflow.
+
+The current Alpha191 observer remains visibly waiting for formal data lineage;
+the console does not fabricate a successful backtest. This release adds no
+credential persistence, exchange order creation, automatic promotion, or Live
+activation. See `docs/V13.27.1-workflow-strategy-page.md`.

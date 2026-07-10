@@ -243,6 +243,8 @@ let mobileStatusLoading = null;
 let advancedDataLoaded = false;
 let mobileStatusLoaded = false;
 let latestAdvancedPayload = {};
+let latestWorkflowPayload = {};
+let workflowPollTimer = null;
 
 const emptyMobileStatus = {
   commandSummary: {},
@@ -261,6 +263,13 @@ const emptyStrategyLifecycle = {
   byStage: {},
   archiveSummary: {},
   sourceWarnings: [],
+};
+const emptyWorkflow = {
+  version: "V13.27.1",
+  summary: {},
+  items: [],
+  archivedItems: [],
+  safetyBoundary: { createsOrders: false, usesApiKey: false },
 };
 const artifactFilters = {
   search: "",
@@ -810,6 +819,180 @@ function setText(id, value) {
   if (node) node.textContent = value;
 }
 
+const workflowPhaseLabels = {
+  manifest_validated: "清单已校验",
+  adapter_lock_waiting: "等待同类回测资源",
+  adapter_running: "正在执行回测",
+  adapter_process_started: "回测进程已启动",
+  adapter_report_loaded: "正在核对报告",
+  result_persisted: "结果已保存",
+};
+
+const workflowFailureLabels = {
+  data_snapshot_id_missing: "缺少已注册的数据快照",
+  purged_walk_forward_manifest_missing: "缺少防泄漏 Walk-forward 清单",
+  locked_oos_manifest_missing: "缺少锁定样本外证据",
+  cost_model_missing: "缺少手续费与滑点模型",
+  gate_profile_missing: "缺少回测门槛配置",
+  target_r_below_2: "目标盈亏比低于 2R",
+};
+
+function workflowReadableText(value) {
+  const text = String(value || "").trim();
+  if (!text) return "--";
+  return text.split("; ").map((part) => {
+    const exact = workflowFailureLabels[part];
+    if (exact) return exact;
+    if (part.startsWith("data_snapshot_not_registered:")) return "数据快照尚未注册";
+    if (part.startsWith("data_snapshot_not_point_in_time_validated:")) return "数据快照未通过时点校验";
+    if (part.startsWith("data_snapshot_not_formal_research_eligible:")) return "数据快照不满足正式研究条件";
+    return part;
+  }).join("；");
+}
+
+function workflowProgressText(item) {
+  const progress = item?.progress || {};
+  const phase = workflowPhaseLabels[progress.phase] || item?.statusLabel || "等待运行";
+  const completed = Number(progress.completedUnits ?? progress.completedShards ?? 0);
+  const total = Number(progress.totalUnits ?? progress.totalShards ?? 0);
+  return total > 0 ? `${phase} · ${completed}/${total}` : phase;
+}
+
+function workflowMetricText(item) {
+  const metrics = item?.result?.metrics || {};
+  const rows = [];
+  if (metrics.tradeCount !== undefined) rows.push(`交易 ${Number(metrics.tradeCount)}`);
+  if (metrics.filledSignalCount !== undefined && metrics.tradeCount === undefined) rows.push(`样本 ${Number(metrics.filledSignalCount)}`);
+  if (metrics.profitFactor !== undefined) rows.push(`PF ${formatNumber(metrics.profitFactor)}`);
+  if (metrics.averageNetR !== undefined) rows.push(`平均 ${formatNumber(metrics.averageNetR)}R`);
+  const drawdown = metrics.maximumDrawdownR ?? metrics.maxDrawdownR;
+  if (drawdown !== undefined) rows.push(`回撤 ${formatNumber(drawdown)}R`);
+  return rows;
+}
+
+function workflowCardActions(item) {
+  const actions = [];
+  if (item.status === "awaiting") actions.push({ action: "run-selected", label: "运行回测", primary: true });
+  if (item.status === "queued") actions.push({ action: "cancel", label: "取消排队" });
+  if (item.status === "running") {
+    actions.push({ action: "pause", label: "暂停" });
+    actions.push({ action: "cancel", label: "取消" });
+  }
+  if (item.status === "paused") actions.push({ action: "run-selected", label: "继续回测", primary: true });
+  if (["failed", "blocked"].includes(item.status) && item.failure?.retryDisposition === "same_version_retry") {
+    actions.push({ action: "retry", label: "按检查点重试", primary: true });
+  }
+  if (item.status === "passed") actions.push({ action: "advance", label: "进入本地前向", primary: true });
+  if (!["running", "queued"].includes(item.status)) actions.push({ action: "archive", label: "归档" });
+  return actions;
+}
+
+function renderWorkflowCard(item, archived = false) {
+  const metrics = workflowMetricText(item);
+  const failure = item.failure || null;
+  const failureText = failure ? workflowReadableText(failure.summary) : "";
+  const disposition = failure?.retryDisposition === "new_version_required"
+    ? "策略表现未通过，必须修改参数或逻辑并创建新版本。"
+    : failure?.retryDisposition === "manual_review"
+      ? "需要先补齐数据或证据，再创建可回测版本。"
+      : failure?.retryDisposition === "same_version_retry"
+        ? "运行故障，可用同一版本从检查点重试。"
+        : "";
+  const actions = archived ? [] : workflowCardActions(item);
+  return `
+    <article class="workflow-card" data-workflow-run-id="${escapeHtml(item.workflowRunId || "")}">
+      <div class="workflow-card-head">
+        <div><h5>${escapeHtml(item.displayName || "未命名策略")}</h5><small>第 ${Number(item.attemptNumber || 1)} 次尝试</small></div>
+        <span class="badge ${item.status === "passed" ? "ok" : ["failed", "blocked"].includes(item.status) ? "danger" : item.status === "running" ? "warn" : "neutral"}">${escapeHtml(archived ? "已归档" : item.statusLabel || item.status || "--")}</span>
+      </div>
+      <p class="workflow-progress">${escapeHtml(workflowProgressText(item))}</p>
+      ${metrics.length ? `<div class="workflow-metrics">${metrics.map((row) => `<span>${escapeHtml(row)}</span>`).join("")}</div>` : ""}
+      ${failureText ? `<div class="workflow-failure"><strong>${escapeHtml(failureText)}</strong><small>${escapeHtml(disposition)}</small></div>` : ""}
+      ${actions.length ? `<div class="workflow-actions">${actions.map((action) => `<button type="button" class="${action.primary ? "" : "secondary"}" data-workflow-action="${escapeHtml(action.action)}" data-workflow-run-id="${escapeHtml(item.workflowRunId || "")}" data-strategy-version-id="${escapeHtml(item.strategyVersionId || "")}">${escapeHtml(action.label)}</button>`).join("")}</div>` : ""}
+      <details class="workflow-details"><summary>高级详情</summary><div><span>版本 ID</span><code>${escapeHtml(item.strategyVersionId || "--")}</code><span>运行 ID</span><code>${escapeHtml(item.workflowRunId || "--")}</code><span>内容校验</span><code>${escapeHtml(item.contentHash || "--")}</code></div></details>
+    </article>
+  `;
+}
+
+function renderWorkflowLane(targetId, countId, rows, emptyText) {
+  const target = el(targetId);
+  if (!target) return;
+  setText(countId, String(rows.length));
+  target.innerHTML = rows.length
+    ? rows.map((item) => renderWorkflowCard(item)).join("")
+    : `<div class="workflow-empty">${escapeHtml(emptyText)}</div>`;
+}
+
+function scheduleWorkflowPoll(items) {
+  if (workflowPollTimer) window.clearTimeout(workflowPollTimer);
+  const active = (items || []).some((item) => ["queued", "running"].includes(item.status));
+  if (!active) return;
+  workflowPollTimer = window.setTimeout(() => {
+    void refreshWorkflow();
+  }, 5000);
+}
+
+function renderWorkflowBacktest(payload = emptyWorkflow) {
+  latestWorkflowPayload = payload || emptyWorkflow;
+  const items = Array.isArray(payload?.items) ? payload.items.filter((item) => item.stage === "backtest") : [];
+  const archived = Array.isArray(payload?.archivedItems) ? payload.archivedItems.filter((item) => item.stage === "backtest") : [];
+  const awaiting = items.filter((item) => item.status === "awaiting");
+  const running = items.filter((item) => ["queued", "running", "paused"].includes(item.status));
+  const passed = items.filter((item) => item.status === "passed");
+  const failed = items.filter((item) => ["failed", "blocked", "cancelled"].includes(item.status));
+  const summary = payload?.summary || {};
+  const summaryTarget = el("workflowBacktestSummary");
+  if (summaryTarget) {
+    const cards = [
+      { label: "待回测", value: awaiting.length, meta: "可一键启动真实本地回测" },
+      { label: "回测中", value: running.length, meta: "排队、运行或暂停" },
+      { label: "已通过", value: passed.length, meta: "等待进入本地前向" },
+      { label: "未通过", value: failed.length, meta: "保留原因与改进路径" },
+      { label: "已归档", value: archived.length || Number(summary.archivedCount || 0), meta: "默认折叠，不删除证据" },
+    ];
+    summaryTarget.innerHTML = cards.map((card) => `<div class="lifecycle-summary-card"><span>${escapeHtml(card.label)}</span><strong>${card.value}</strong><small>${escapeHtml(card.meta)}</small></div>`).join("");
+  }
+  renderWorkflowLane("workflowAwaitingList", "workflowAwaitingCount", awaiting, "没有待回测策略。");
+  renderWorkflowLane("workflowRunningList", "workflowRunningCount", running, "当前没有回测任务运行。");
+  renderWorkflowLane("workflowPassedList", "workflowPassedCount", passed, "还没有策略通过正式回测门槛。");
+  renderWorkflowLane("workflowFailedList", "workflowFailedCount", failed, "当前没有未通过或阻塞记录。");
+  setText("workflowArchivedCount", String(archived.length));
+  const archiveTarget = el("workflowArchivedList");
+  if (archiveTarget) archiveTarget.innerHTML = archived.length ? archived.map((item) => renderWorkflowCard(item, true)).join("") : '<div class="workflow-empty">暂无归档策略。</div>';
+  const loadError = payload?.loadError;
+  setText("workflowStrategyMeta", loadError
+    ? `工作流读取失败：${loadError}`
+    : `${items.length} 条策略位于回测阶段；每个版本只显示一次。`);
+  setText("simpleConsoleOneLine", loadError
+    ? "Quant Engine 工作流暂时不可用，请检查本地服务。"
+    : `当前策略工作流：待回测 ${awaiting.length} · 回测中 ${running.length} · 已通过 ${passed.length} · 未通过 ${failed.length}。`);
+  scheduleWorkflowPoll(items);
+}
+
+async function refreshWorkflow() {
+  const payload = await getJsonSafe("/api/workflow?fresh=1", { ...emptyWorkflow, loadError: "无法读取工作流" }, 10000);
+  renderWorkflowBacktest(payload);
+  return payload;
+}
+
+async function runWorkflowAction(action, item = {}) {
+  const status = el("workflowActionStatus");
+  if (status) status.textContent = "正在提交工作流动作...";
+  try {
+    const response = await postJson("/api/workflow/action", {
+      action,
+      workflowRunId: item.workflowRunId,
+      strategyVersionId: item.strategyVersionId,
+    });
+    renderWorkflowBacktest(response.workflow || emptyWorkflow);
+    if (status) status.textContent = action === "run-all-awaiting"
+      ? `已请求 ${Number(response.result?.requestedCount || 0)} 条待回测策略。`
+      : "动作已提交，状态会自动刷新。";
+  } catch (error) {
+    if (status) status.textContent = `操作失败：${error.message}`;
+  }
+}
+
 const lifecycleStageTones = {
   research_candidate: "neutral",
   backtest_passed: "ok",
@@ -963,7 +1146,6 @@ function renderStrategyLifecycle(payload = emptyStrategyLifecycle) {
     : "当前没有进入 Demo 的策略。");
   setText("liveLifecycleMeta", loadFailed ? "状态读取失败。" : `${summary.liveCandidateCount ?? 0} 条：只认不可变 Live Candidate Package。`);
   setText("strategyArchiveMeta", `默认隐藏 · 研究/失败/重复资产 ${summary.archivedCount ?? 0} 项`);
-  setText("simpleConsoleOneLine", `当前：策略阶段 ${strategyCount} · 本地模拟 ${localCount} · Demo ${demoCount} · 实盘候选 ${summary.liveCandidateCount ?? 0}。`);
   const badge = el("simpleConsoleBadge");
   if (badge) {
     badge.className = "status-pill ok";
@@ -1625,15 +1807,6 @@ function renderSimpleConsole(strategies, reports, mobile, usableStrategyCatalog,
   const shortCount = catalogSummary.shortCycleCount ?? rows.filter((row) => row.frequencyBucket === "short_cycle").length;
   const readinessSummary = liveReadiness?.summary || {};
   const executionLocked = !mobile?.safetyBoundary?.orderCreationAllowed;
-
-  setText("simpleConsoleOneLine", rows.length
-    ? `当前整理出 ${rows.length} 条本地可观察策略：低频 ${lowCount} 条，短周期 ${shortCount} 条。先用沙盒累计样本，再决定是否升级。`
-    : "还没有可观察策略目录。请先导入最新量化报告。");
-  const badge = el("simpleConsoleBadge");
-  if (badge) {
-    badge.className = `status-pill ${runnerState.enabled ? "ok" : "warn"}`;
-    badge.textContent = runnerState.enabled ? "沙盒运行中" : "沙盒未开启";
-  }
 
   setText("simpleCurrentState", executionLocked ? "安全研究模式" : "异常：执行权限开启");
   setText("simpleCurrentMeta", executionLocked ? "实盘关闭 · 只做本地观察" : "请立刻复核权限边界");
@@ -5810,8 +5983,12 @@ function loadDataForSection(sectionId) {
 
 async function refreshAll() {
   latestStrategyLearningLoopPayload = emptyStrategyLearningLoop;
-  const strategyLifecycle = await getJsonSafe("/api/strategy-lifecycle", emptyStrategyLifecycle, 30000);
-  latestCoreConsolePayload = { ...latestCoreConsolePayload, strategyLifecycle };
+  const [workflow, strategyLifecycle] = await Promise.all([
+    getJsonSafe("/api/workflow", emptyWorkflow, 10000),
+    getJsonSafe("/api/strategy-lifecycle", emptyStrategyLifecycle, 30000),
+  ]);
+  latestCoreConsolePayload = { ...latestCoreConsolePayload, workflow, strategyLifecycle };
+  renderWorkflowBacktest(workflow);
   renderStrategyLifecycle(strategyLifecycle);
   const corePayload = await loadJsonMap([
     { key: "strategies", url: "/api/strategies", fallback: { strategies: [] }, timeoutMs: 6000 },
@@ -5837,7 +6014,7 @@ async function refreshAll() {
     { key: "liveReadiness", url: "/api/live-readiness", fallback: { rows: [], summary: {} }, timeoutMs: 8000 },
     { key: "forwardReview", url: "/api/forward-review", fallback: { rows: [], summary: {} }, timeoutMs: 8000 },
   ], 4);
-  latestCoreConsolePayload = { ...corePayload, strategyLifecycle };
+  latestCoreConsolePayload = { ...corePayload, workflow, strategyLifecycle };
   renderConsoleFromPayloads();
   updateCurrentSection();
   void loadSandboxReviewDataIfNeeded();
@@ -5882,6 +6059,8 @@ function updateCurrentSection() {
   document.querySelectorAll(".rail-item").forEach((item) => {
     item.classList.toggle("active", item.getAttribute("href") === `#${requestedId}`);
   });
+  const backHomeButton = el("backHomeButton");
+  if (backHomeButton) backHomeButton.hidden = requestedId === "simpleConsole";
   const current = el("currentSectionLabel");
   if (current) current.textContent = `当前：${sectionLabels[requestedId] || requestedId}`;
 }
@@ -6242,6 +6421,19 @@ function toggleAdvancedMode() {
 
 el("refreshButton").addEventListener("click", refreshAll);
 el("simpleRefreshButton")?.addEventListener("click", refreshAll);
+el("workflowRefreshButton")?.addEventListener("click", refreshWorkflow);
+el("workflowRunAllButton")?.addEventListener("click", () => runWorkflowAction("run-all-awaiting"));
+el("simpleConsole")?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-workflow-action]");
+  if (!button) return;
+  const action = button.dataset.workflowAction;
+  const workflowRunId = button.dataset.workflowRunId || "";
+  const strategyVersionId = button.dataset.strategyVersionId || "";
+  button.disabled = true;
+  void runWorkflowAction(action, { workflowRunId, strategyVersionId }).finally(() => {
+    button.disabled = false;
+  });
+});
 el("weaknessActionStatusFilter")?.addEventListener("change", (event) => {
   weaknessActionFilters.status = event.target.value || "active";
   renderWeaknessActionBoard(latestWeaknessActionBoardPayload);

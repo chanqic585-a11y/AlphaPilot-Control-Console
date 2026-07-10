@@ -104,6 +104,10 @@ from .testnet_small_order_simulation import (
 )
 from .usable_strategy_catalog import build_usable_strategy_catalog
 from .weakness_action_board import build_weakness_action_board
+from .workflow_client import (
+    build_workflow_projection as build_quant_workflow_projection,
+    request_workflow_action,
+)
 from .state_store import (
     ALLOWED_ARTIFACT_REVIEW_STATUSES,
     ALLOWED_PAPER_OBSERVATION_LOG_TYPES,
@@ -185,7 +189,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.26.0"
+    server_version = "AlphaPilotControlConsole/13.27.1"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -228,10 +232,34 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.26.2",
-                "source": "alphapilot_control_console_v13_26_2",
+                "version": "V13.27.1",
+                "source": "alphapilot_control_console_v13_27_1",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
+            return
+        if path == "/api/workflow":
+            try:
+                workflow = _cached_payload(
+                    "quant-workflow",
+                    2,
+                    build_quant_workflow_projection,
+                    fresh=fresh,
+                )
+            except (FileNotFoundError, RuntimeError, ValueError) as error:
+                self._send_json(
+                    {
+                        "version": "V13.27.1",
+                        "source": "quant_workflow_unavailable",
+                        "loadError": str(error),
+                        "summary": {},
+                        "items": [],
+                        "archivedItems": [],
+                        "safetyBoundary": SAFETY_BOUNDARY,
+                    },
+                    503,
+                )
+                return
+            self._send_json(workflow)
             return
         if path == "/api/strategies":
             self._send_json(_cached_payload(
@@ -715,6 +743,34 @@ class ConsoleHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
+        if parsed.path == "/api/workflow/action":
+            payload = self._read_body_json()
+            action = str(payload.get("action") or "")
+            try:
+                result = request_workflow_action(action, payload)
+                _RESPONSE_CACHE.pop("quant-workflow", None)
+                workflow = build_quant_workflow_projection()
+            except (FileNotFoundError, RuntimeError, ValueError) as error:
+                self._send_json(
+                    {
+                        "ok": False,
+                        "error": type(error).__name__,
+                        "message": str(error),
+                        "safetyBoundary": SAFETY_BOUNDARY,
+                    },
+                    409,
+                )
+                return
+            self._send_json(
+                {
+                    "ok": True,
+                    "action": action,
+                    "result": result,
+                    "workflow": workflow,
+                    "safetyBoundary": SAFETY_BOUNDARY,
+                }
+            )
+            return
         if parsed.path == "/api/import":
             self._send_json(import_now())
             return

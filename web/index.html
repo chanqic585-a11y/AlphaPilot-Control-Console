@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#080c0f" />
     <title>AlphaPilot 控制台</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css?v=20260711-v13-27-1-workflow" />
   </head>
   <body>
     <a class="skip-link" href="#mainContent">跳到主要内容</a>
@@ -73,17 +73,53 @@
             </div>
             <span id="simpleConsoleBadge" class="status-pill ok">单一阶段</span>
           </div>
-          <div class="lifecycle-stage-panel">
+          <div class="workflow-stage-panel">
             <div class="lifecycle-panel-head">
-              <div><h3>策略候选与回测通过</h3><span id="strategyLifecycleMeta" aria-live="polite">正在统一策略状态。</span></div>
-              <span class="lifecycle-page-badge">策略阶段</span>
+              <div>
+                <h3>策略回测工作流</h3>
+                <span id="workflowStrategyMeta" aria-live="polite">正在读取 Quant Engine 工作流。</span>
+              </div>
+              <div class="workflow-toolbar">
+                <button id="workflowRunAllButton" type="button">运行全部待回测</button>
+                <button id="workflowRefreshButton" class="secondary" type="button">刷新</button>
+              </div>
             </div>
-            <div id="strategyLifecycleSummary" class="lifecycle-summary-grid"></div>
-            <div id="strategyLifecycleList" class="lifecycle-card-list" aria-live="polite"></div>
+            <div id="workflowActionStatus" class="workflow-action-status">策略参数或逻辑一旦变化，必须创建新版本并重新回测。</div>
+            <div id="workflowBacktestSummary" class="lifecycle-summary-grid"></div>
+            <div class="workflow-lanes">
+              <section class="workflow-lane" aria-labelledby="workflowAwaitingTitle">
+                <div class="workflow-lane-head"><h4 id="workflowAwaitingTitle">待回测</h4><span id="workflowAwaitingCount">0</span></div>
+                <div id="workflowAwaitingList" class="workflow-card-list" aria-live="polite"></div>
+              </section>
+              <section class="workflow-lane" aria-labelledby="workflowRunningTitle">
+                <div class="workflow-lane-head"><h4 id="workflowRunningTitle">回测中</h4><span id="workflowRunningCount">0</span></div>
+                <div id="workflowRunningList" class="workflow-card-list" aria-live="polite"></div>
+              </section>
+              <section class="workflow-lane" aria-labelledby="workflowPassedTitle">
+                <div class="workflow-lane-head"><h4 id="workflowPassedTitle">回测通过</h4><span id="workflowPassedCount">0</span></div>
+                <div id="workflowPassedList" class="workflow-card-list" aria-live="polite"></div>
+              </section>
+              <section class="workflow-lane" aria-labelledby="workflowFailedTitle">
+                <div class="workflow-lane-head"><h4 id="workflowFailedTitle">未通过 / 阻塞</h4><span id="workflowFailedCount">0</span></div>
+                <div id="workflowFailedList" class="workflow-card-list" aria-live="polite"></div>
+              </section>
+            </div>
+            <details class="workflow-archive">
+              <summary>已归档策略 <span id="workflowArchivedCount">0</span></summary>
+              <div id="workflowArchivedList" class="workflow-card-list"></div>
+            </details>
           </div>
           <details class="lifecycle-archive">
             <summary><span>研究档案与旧实验</span><small id="strategyArchiveMeta">默认隐藏，不参与策略阶段计数</small></summary>
             <div class="lifecycle-archive-body">
+          <div class="lifecycle-stage-panel">
+            <div class="lifecycle-panel-head">
+              <div><h3>旧版生命周期投影</h3><span id="strategyLifecycleMeta" aria-live="polite">仅用于兼容核对。</span></div>
+              <span class="lifecycle-page-badge">高级详情</span>
+            </div>
+            <div id="strategyLifecycleSummary" class="lifecycle-summary-grid"></div>
+            <div id="strategyLifecycleList" class="lifecycle-card-list" aria-live="polite"></div>
+          </div>
           <div class="simple-summary-grid">
             <div class="simple-summary-card primary">
               <span>当前状态</span>
@@ -2578,9 +2614,9 @@
             <pre id="debugPreview" class="preview">高级调试已折叠；手机状态 JSON 在“手机控制台”页面查看。</pre>
           </details>
         </section>
-        <button class="back-home-button" id="backHomeButton" type="button" aria-label="回到策略页">回到策略</button>
+        <button class="back-home-button" id="backHomeButton" type="button" aria-label="回到策略页" hidden>回到策略</button>
       </main>
     </div>
-    <script src="/app.js?v=20260711-v13-26-2-stage-consistency"></script>
+    <script src="/app.js?v=20260711-v13-27-1-workflow"></script>
   </body>
 </html>
