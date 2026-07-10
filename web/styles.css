@@ -4103,6 +4103,18 @@ code {
   border-color: rgba(24, 211, 166, 0.13);
 }
 
+body:not(.show-advanced) .legacy-demo-ticket {
+  display: none;
+}
+
+.evolution-demo-panel {
+  border-color: rgba(45, 212, 191, 0.32);
+}
+
+.evolution-demo-summary {
+  margin-top: 12px;
+}
+
 .local-lab-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

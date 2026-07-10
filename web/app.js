@@ -1592,6 +1592,7 @@ function translateExchangeDemoBlocker(value) {
     okx_demo_private_gate_disabled: "OKX Demo 私有接口开关未开启",
     okx_demo_private_connection_disabled: "OKX Demo 私有连接开关未开启",
     okx_demo_order_gate_disabled: "OKX Demo 下单开关未开启",
+    okx_demo_automation_gate_disabled: "Demo Release 自动执行开关未开启",
     okx_demo_cancel_gate_disabled: "OKX Demo 撤单演练开关未开启",
     okx_demo_credentials_missing: "OKX Demo 环境变量凭据不完整",
     manual_confirm_required: "缺少人工订单确认口令",
@@ -1601,6 +1602,10 @@ function translateExchangeDemoBlocker(value) {
     ord_id_required_for_real_demo_cancel: "真实 Demo 撤单必须填写 ordId",
     notional_out_of_demo_cap: "名义金额超过 Demo 上限",
     invalid_demo_base_url: "Demo Base URL 不在允许列表",
+    no_eligible_demo_release: "暂无通过全部硬门槛的不可变 Demo Release",
+    demo_release_not_found: "指定 Demo Release 不存在",
+    demo_runtime_paused: "Demo 新开仓已自动暂停",
+    demo_kill_switch_active: "Demo kill switch 已启用",
   };
   return labels[value] || value || "--";
 }
@@ -2116,6 +2121,49 @@ function renderAutoExecutionLearning(payload = {}) {
   `).join("") || '<div class="testnet-design-empty">暂无闭合样本。点击“推进本地生命周期”后开始积累。</div>';
 }
 
+function renderEvolutionDemoStatus(payload = {}) {
+  const summary = payload.summary || {};
+  const stages = Array.isArray(payload.stages) ? payload.stages : [];
+  const blockers = Array.isArray(payload.blockers) ? payload.blockers : [];
+  const records = Array.isArray(payload.recentRecords) ? payload.recentRecords : [];
+  setText("evolutionDemoStatusText", summary.ready
+    ? "不可变 release、运行时凭据和自动执行闸门均已就绪。"
+    : "当前保持阻塞；补齐下方条件后才会自动运行 OKX Demo。",
+  );
+  setText("evolutionDemoReleaseCount", String(summary.eligibleReleaseCount ?? 0));
+  setText("evolutionDemoRecordCount", String(summary.executionRecordCount ?? 0));
+  setText("evolutionDemoEquity", `${formatNumber(summary.initialEquityUsdt, 0)} USDT`);
+  setText("evolutionDemoNotional", `${formatNumber(summary.maxOrderNotionalUsdt, 0)} USDT`);
+  setText("evolutionDemoRuntime", summary.killSwitch ? "Kill Switch" : summary.paused ? "已暂停" : summary.ready ? "已就绪" : "锁定");
+
+  const stageTarget = el("evolutionDemoStages");
+  if (stageTarget) {
+    stageTarget.innerHTML = stages.map((stage, index) => `
+      <div class="mode-flow-card ${stage.status === "available" || stage.status === "ready" ? "active" : stage.status === "locked" ? "locked" : "disabled"}">
+        <span>${index + 1}</span>
+        <strong>${escapeHtml(stage.label || stage.stageId || "--")}</strong>
+        <small>${escapeHtml(stage.description || "--")}</small>
+      </div>
+    `).join("");
+  }
+  const blockerTarget = el("evolutionDemoBlockers");
+  if (blockerTarget) {
+    blockerTarget.innerHTML = blockers.map((item) => `<span>${escapeHtml(translateExchangeDemoBlocker(item))}</span>`).join("")
+      || '<span class="ok">全部 Demo Release 闸门已满足；Live 仍锁定。</span>';
+  }
+  const recordTarget = el("evolutionDemoRecords");
+  if (recordTarget) {
+    recordTarget.innerHTML = records.map((record) => `
+      <div class="testnet-drill-row">
+        <div class="testnet-drill-row-head">
+          <div><strong>${escapeHtml(record.signal?.candidateId || record.recordId || "--")}</strong><small>${escapeHtml(record.signal?.instId || "--")} · ${formatDate(record.updatedAt)}</small></div>
+          <span class="badge ${record.status === "filled" ? "ok" : record.status === "unknown" || record.status === "rejected" ? "danger" : "warn"}">${escapeHtml(translateExchangeDemoStatus(record.status))}</span>
+        </div>
+      </div>
+    `).join("") || '<div class="testnet-design-empty">暂无 OKX Demo 生命周期。只有合格 release 才会生成记录。</div>';
+  }
+}
+
 function renderExchangeDemoSimulation(payload = {}) {
   if (!el("exchangeDemo")) return;
   latestExchangeDemoPayload = payload || {};
@@ -2129,12 +2177,14 @@ function renderExchangeDemoSimulation(payload = {}) {
   const launcher = payload.launcher || {};
   const runbook = Array.isArray(payload.runbook) ? payload.runbook : [];
   const pipeline = payload.automationPipeline || {};
+  const evolutionDemo = payload.evolutionDemo || {};
+  renderEvolutionDemoStatus(evolutionDemo);
 
   const modeBadge = el("exchangeDemoModeBadge");
   if (modeBadge) {
-    const demoEnabled = Boolean(summary.demoPrivateEnabled);
+    const demoEnabled = Boolean(evolutionDemo?.summary?.ready);
     modeBadge.className = `status-pill ${demoEnabled ? "warn" : "danger"}`;
-    modeBadge.textContent = demoEnabled ? "Demo 已启用" : "Demo 锁定";
+    modeBadge.textContent = demoEnabled ? "Release 已就绪" : "等待 Release";
   }
   const orderGate = el("exchangeDemoOrderGate");
   if (orderGate) {
@@ -2204,7 +2254,7 @@ function renderExchangeDemoSimulation(payload = {}) {
   if (tdInput && defaultTicket.tdMode) tdInput.value = defaultTicket.tdMode;
   if (ordInput && defaultTicket.ordType) ordInput.value = defaultTicket.ordType;
   if (sizeInput && !sizeInput.placeholder) sizeInput.placeholder = "必须手动填写 OKX sz";
-  if (notionalInput && !notionalInput.value) notionalInput.value = String(defaultTicket.notionalUsdt || summary.maxNotionalUsdt || 1000);
+  if (notionalInput && !notionalInput.value) notionalInput.value = String(defaultTicket.notionalUsdt || summary.maxNotionalUsdt || 250);
 
   const eventsTarget = el("exchangeDemoRecentEvents");
   if (eventsTarget) {
@@ -5268,7 +5318,7 @@ function getExchangeDemoTicketPayload() {
     ordType: el("exchangeDemoOrdTypeInput")?.value || "market",
     size: el("exchangeDemoSizeInput")?.value || "",
     px: el("exchangeDemoPriceInput")?.value || "",
-    notionalUsdt: Number(el("exchangeDemoNotionalInput")?.value || 1000),
+    notionalUsdt: Number(el("exchangeDemoNotionalInput")?.value || 250),
     ordId: el("exchangeDemoOrdIdInput")?.value || "",
     manualConfirm: el("exchangeDemoConfirmInput")?.value || "",
   };
@@ -5288,7 +5338,7 @@ function fillExchangeDemoTicketFromCandidate(candidate = null) {
   if (instInput) instInput.value = row.instId;
   if (sideInput) sideInput.value = row.side || "buy";
   if (ordInput) ordInput.value = "market";
-  if (notionalInput) notionalInput.value = String(Math.min(Number(notionalInput.value || 1000), 1000));
+  if (notionalInput) notionalInput.value = String(Math.min(Number(notionalInput.value || 250), 250));
   if (sizeInput && !sizeInput.value) sizeInput.placeholder = "仍需手动填写 OKX sz";
   latestExchangeDemoCandidate = row;
   setText("exchangeDemoPipelineStatus", `已填入 ${row.instId} · ${row.side === "sell" ? "做空方向" : "做多方向"}。仍需手动填写 sz 和确认口令，不会自动提交订单。`);

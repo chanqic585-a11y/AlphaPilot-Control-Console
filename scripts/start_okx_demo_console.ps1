@@ -3,6 +3,7 @@ param(
   [int]$Port = 8766,
   [switch]$Mobile,
   [switch]$EnableOrder,
+  [switch]$EnableAutomation,
   [switch]$EnableCancel,
   [switch]$Smoke
 )
@@ -66,6 +67,7 @@ $env:ALPHAPILOT_OKX_DEMO_API_KEY = $apiKey
 $env:ALPHAPILOT_OKX_DEMO_SECRET_KEY = $secretKey
 $env:ALPHAPILOT_OKX_DEMO_PASSPHRASE = $passphrase
 $env:ALPHAPILOT_OKX_DEMO_ORDER_ENABLED = if ($EnableOrder) { "1" } else { "0" }
+$env:ALPHAPILOT_OKX_DEMO_AUTOMATION_ENABLED = if ($EnableAutomation) { "1" } else { "0" }
 $env:ALPHAPILOT_OKX_DEMO_CANCEL_ENABLED = if ($EnableCancel) { "1" } else { "0" }
 
 try {
@@ -81,6 +83,12 @@ try {
   if (-not $EnableCancel) {
     Write-Host "Demo cancel gate is OFF. Add -EnableCancel only for manual emergency cancel rehearsal." -ForegroundColor Yellow
   }
+  if ($EnableAutomation -and -not $EnableOrder) {
+    throw "-EnableAutomation requires -EnableOrder. Automatic Demo execution never bypasses the order gate."
+  }
+  if ($EnableAutomation) {
+    Write-Host "Automatic Demo release execution is enabled. Only immutable eligible releases can run." -ForegroundColor Yellow
+  }
   & $python -m alphapilot_control_console.http_app --host $HostName --port $Port
   exit $LASTEXITCODE
 } finally {
@@ -89,5 +97,6 @@ try {
   Remove-Item Env:\ALPHAPILOT_OKX_DEMO_SECRET_KEY -ErrorAction SilentlyContinue
   Remove-Item Env:\ALPHAPILOT_OKX_DEMO_PASSPHRASE -ErrorAction SilentlyContinue
   Remove-Item Env:\ALPHAPILOT_OKX_DEMO_ORDER_ENABLED -ErrorAction SilentlyContinue
+  Remove-Item Env:\ALPHAPILOT_OKX_DEMO_AUTOMATION_ENABLED -ErrorAction SilentlyContinue
   Remove-Item Env:\ALPHAPILOT_OKX_DEMO_CANCEL_ENABLED -ErrorAction SilentlyContinue
 }

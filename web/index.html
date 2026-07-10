@@ -37,7 +37,7 @@
           <div class="rail-status-dot"></div>
           <div>
             <strong>系统运行中</strong>
-            <span>本地只读 · 实盘关闭</span>
+            <span>研究 + Demo 执行 · 实盘关闭</span>
           </div>
         </div>
       </aside>
@@ -58,8 +58,8 @@
         </header>
 
         <section class="safety">
-          <strong>控制台只负责观察和研究。</strong>
-          不保存 API Key，不接 Trade API，不接 Withdraw API，不读取真实账户，不读取真实持仓，不创建订单，不自动交易。
+          <strong>控制台负责研究和受限 OKX Demo 执行。</strong>
+          不保存 raw API Key，不接实盘 Trade API，不接 Withdraw API，不读取真实账户或真实持仓，不创建实盘订单，不自动晋级实盘。
         </section>
 
         <section id="simpleConsole" class="panel simple-console-panel page-section active-page">
@@ -543,11 +543,27 @@
             <div>
               <p class="panel-eyebrow">OKX DEMO TRADING</p>
               <h2>&#20132;&#26131;&#25152; Demo &#27169;&#25311;</h2>
-              <p>&#36825;&#26159; OKX Demo Trading &#30340;&#29420;&#31435;&#39029;&#38754;&#65292;&#25353;&#20132;&#26131;&#25152;&#19979;&#21333;&#21644;&#35266;&#23519;&#20064;&#24815;&#35774;&#35745;&#12290;&#40664;&#35748;&#19981;&#20445;&#23384; API Key&#12289;&#19981;&#36830;&#25509;&#31169;&#26377;&#25509;&#21475;&#12289;&#19981;&#19979;&#21333;&#65307;&#21482;&#26377;&#29615;&#22659;&#21464;&#37327;&#12289;Demo &#24320;&#20851;&#21644;&#20154;&#24037;&#30830;&#35748;&#37117;&#28385;&#36275;&#26102;&#25165;&#20250;&#35831;&#27714; OKX Demo&#12290;</p>
+              <p>只有通过硬门槛并冻结校验和的 Demo Release 才能进入 OKX 模拟账户。凭据只在本机进程内使用，实盘始终锁定。</p>
             </div>
             <span id="exchangeDemoModeBadge" class="status-pill danger">Demo &#38145;&#23450;</span>
           </div>
-          <div class="exchange-demo-warning"><strong>&#23433;&#20840;&#36793;&#30028;&#65306;</strong>OKX Demo &#21644;&#26412;&#22320;&#27801;&#30418;&#12289;&#26410;&#26469;&#23454;&#30424;&#23436;&#20840;&#20998;&#24320;&#12290;Demo &#21482;&#20801;&#35768;&#27169;&#25311;&#36134;&#25143;&#65307;&#23454;&#30424;&#12289;&#25552;&#29616;&#12289;&#33258;&#21160;&#20132;&#26131;&#24403;&#21069;&#20840;&#37096;&#20851;&#38381;&#12290;</div>
+          <div class="exchange-demo-warning"><strong>安全边界：</strong>Demo 自动执行只作用于 OKX 模拟账户和固定 1000 USDT 风险包。Withdraw、实盘自动晋级和实盘执行全部关闭。</div>
+          <div class="exchange-demo-section evolution-demo-panel">
+            <div class="simple-section-title">
+              <strong>因子进化 Demo Release</strong>
+              <span id="evolutionDemoStatusText">正在读取不可变 release 和本地执行账本。</span>
+            </div>
+            <div id="evolutionDemoStages" class="mode-flow-grid"></div>
+            <div class="exchange-demo-pipeline-grid evolution-demo-summary">
+              <div><span>可执行 Release</span><strong id="evolutionDemoReleaseCount">--</strong><small>必须通过全部硬门槛</small></div>
+              <div><span>Demo 生命周期</span><strong id="evolutionDemoRecordCount">--</strong><small>幂等本地账本</small></div>
+              <div><span>初始模拟权益</span><strong id="evolutionDemoEquity">--</strong><small>每个测试账户</small></div>
+              <div><span>单笔名义上限</span><strong id="evolutionDemoNotional">--</strong><small>固定风险包</small></div>
+              <div><span>运行状态</span><strong id="evolutionDemoRuntime">--</strong><small>自动暂停 / kill switch</small></div>
+            </div>
+            <div id="evolutionDemoBlockers" class="exchange-demo-blockers"></div>
+            <div id="evolutionDemoRecords" class="testnet-drill-list"></div>
+          </div>
           <div id="noKeyPreLivePanel" class="exchange-demo-section no-key-pre-live-panel">
             <div class="simple-section-title">
               <strong>&#26080;&#31169;&#38053;&#39044;&#23454;&#30424;&#24037;&#20316;&#21488;</strong>
@@ -704,8 +720,8 @@
           <div class="mode-flow-grid" id="exchangeDemoModeCards"></div>
           <div class="exchange-demo-layout">
             <div class="exchange-demo-main">
-              <div class="exchange-ticket-card">
-                <div class="exchange-ticket-head"><div><p class="panel-eyebrow">ORDER TICKET</p><h3>OKX Demo &#27169;&#25311;&#19979;&#21333;&#31080;&#25454;</h3></div><span id="exchangeDemoOrderGate" class="badge warn">&#35746;&#21333;&#20851;&#38381;</span></div>
+              <div class="exchange-ticket-card legacy-demo-ticket">
+                <div class="exchange-ticket-head"><div><p class="panel-eyebrow">LEGACY MANUAL REHEARSAL</p><h3>旧版 OKX Demo 人工演练</h3></div><span id="exchangeDemoOrderGate" class="badge warn">订单关闭</span></div>
                 <div class="exchange-ticket-grid">
                   <label>&#21512;&#32422; <input id="exchangeDemoInstIdInput" value="BTC-USDT-SWAP" autocomplete="off" /></label>
                   <label>&#26041;&#21521; <select id="exchangeDemoSideInput"><option value="buy">&#20080;&#20837; / &#24320;&#22810;&#26041;&#21521;</option><option value="sell">&#21334;&#20986; / &#24320;&#31354;&#26041;&#21521;</option></select></label>
@@ -713,7 +729,7 @@
                   <label>&#35746;&#21333;&#31867;&#22411; <select id="exchangeDemoOrdTypeInput"><option value="market">&#24066;&#20215; market</option><option value="limit">&#38480;&#20215; limit</option></select></label>
                   <label>&#25968;&#37327; sz <input id="exchangeDemoSizeInput" placeholder="&#24517;&#39035;&#25163;&#21160;&#36755;&#20837; OKX sz" autocomplete="off" /></label>
                   <label>&#38480;&#20215; px <input id="exchangeDemoPriceInput" placeholder="&#38480;&#20215;&#21333;&#22635;&#20889;" autocomplete="off" /></label>
-                  <label>&#21517;&#20041;&#37329;&#39069;&#19978;&#38480; USDT <input id="exchangeDemoNotionalInput" type="number" min="1" max="1000" step="1" value="1000" /></label>
+                  <label>&#21517;&#20041;&#37329;&#39069;&#19978;&#38480; USDT <input id="exchangeDemoNotionalInput" type="number" min="1" max="250" step="1" value="250" /></label>
                   <label>ordId <input id="exchangeDemoOrdIdInput" placeholder="Demo &#25764;&#21333;&#28436;&#32451;&#21487;&#22635;" autocomplete="off" /></label>
                   <label>&#20154;&#24037;&#30830;&#35748; <input id="exchangeDemoConfirmInput" placeholder="&#36755;&#20837; OKX_DEMO_ORDER_APPROVED" autocomplete="off" /></label>
                 </div>

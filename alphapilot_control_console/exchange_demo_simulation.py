@@ -16,13 +16,14 @@ from .config import SAFETY_BOUNDARY
 from .exchange_connectors.public_exchange_registry import probe_public_exchanges
 from .state_store import list_exchange_demo_events, now_iso, save_exchange_demo_event
 from .usable_strategy_catalog import build_usable_strategy_catalog
+from .evolution_demo_service import build_evolution_demo_status
 
 
 CONTROL_CONSOLE_VERSION = "V13.10.0"
 CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_10_0"
-DEFAULT_DEMO_BASE_URL = "https://www.okx.com"
-ALLOWED_DEMO_BASE_URLS = {"https://www.okx.com", "https://eea.okx.com"}
-MAX_DEMO_NOTIONAL_USDT = 1000.0
+DEFAULT_DEMO_BASE_URL = "https://openapi.okx.com"
+ALLOWED_DEMO_BASE_URLS = {"https://openapi.okx.com"}
+MAX_DEMO_NOTIONAL_USDT = 250.0
 READ_TIMEOUT_SECONDS = 12
 
 
@@ -490,6 +491,7 @@ def build_exchange_demo_simulation() -> dict[str, Any]:
             "notionalUsdt": MAX_DEMO_NOTIONAL_USDT,
         },
         "automationPipeline": automation_pipeline,
+        "evolutionDemo": build_evolution_demo_status(),
         "recentEvents": recent_events,
         "safetyBoundary": {
             **SAFETY_BOUNDARY,

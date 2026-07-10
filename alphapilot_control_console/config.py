@@ -17,6 +17,8 @@ ALLOWED_STRATEGY_STATUSES = {
     "forward_testing",
     "dry_run_candidate",
     "disabled",
+    "demo_eligible",
+    "demo_active",
 }
 
 SAFETY_BOUNDARY = {
@@ -29,6 +31,12 @@ SAFETY_BOUNDARY = {
     "exchangeDryRunAllowed": False,
     "liveTradingAllowed": False,
     "automaticTradingAllowed": False,
+    "demoRuntimeCredentialsAllowed": True,
+    "demoTradeApiAllowed": True,
+    "demoOrderCreationAllowed": True,
+    "automaticDemoExecutionAllowed": True,
+    "demoOnly": True,
+    "rawCredentialStorageAllowed": False,
 }
 
 DEFAULT_EXCHANGE_PROBE_SYMBOL = "BTC/USDT:USDT"

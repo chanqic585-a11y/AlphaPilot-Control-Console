@@ -22,6 +22,11 @@ from .exchange_demo_simulation import (
     scan_exchange_demo_candidates,
     submit_exchange_demo_order,
 )
+from .evolution_demo_service import (
+    activate_evolution_demo_kill_switch,
+    build_evolution_demo_status,
+    run_evolution_demo_cycle,
+)
 from .forward_review import build_forward_review, refresh_forward_review
 from .importer import build_mobile_status, import_now, scan_quant_engine
 from .live_readiness import build_live_readiness, create_manual_execution_ticket
@@ -151,7 +156,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.10.5"
+    server_version = "AlphaPilotControlConsole/13.14.0"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -194,8 +199,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.10.5",
-                "source": "alphapilot_control_console_v13_10_5",
+                "version": "V13.14.0",
+                "source": "alphapilot_control_console_v13_14_0",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -462,6 +467,9 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/exchange-demo/simulation":
             self._send_json(_cached_payload("exchange-demo-simulation", 15, build_exchange_demo_simulation, fresh=fresh))
+            return
+        if path == "/api/evolution-demo":
+            self._send_json(_cached_payload("evolution-demo", 5, build_evolution_demo_status, fresh=fresh))
             return
         if path == "/api/no-key-pre-live":
             self._send_json(_cached_payload("no-key-pre-live", 15, build_no_key_pre_live_workbench, fresh=fresh))
@@ -921,6 +929,16 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             payload = self._read_body_json()
             self._send_json(run_exchange_demo_emergency_drill(payload))
             return
+        if parsed.path == "/api/evolution-demo/run":
+            payload = self._read_body_json()
+            _RESPONSE_CACHE.clear()
+            self._send_json(run_evolution_demo_cycle(payload))
+            return
+        if parsed.path == "/api/evolution-demo/kill-switch":
+            payload = self._read_body_json()
+            _RESPONSE_CACHE.clear()
+            self._send_json(activate_evolution_demo_kill_switch(str(payload.get("reason") or "console_request")))
+            return
         self._send_json({"error": "not_found"}, 404)
 
     def log_message(self, format: str, *args: object) -> None:
@@ -931,7 +949,7 @@ def run_server(host: str, port: int) -> None:
     server = ThreadingHTTPServer((host, port), ConsoleHandler)
     start_local_sandbox_auto_runner()
     print(f"AlphaPilot Control Console running at http://{host}:{port}")
-    print("Research control only. No Trade API, no API keys, no orders, no auto trading.")
+    print("Research and OKX Demo control. Runtime credentials are process-only; live and withdraw remain locked.")
     try:
         server.serve_forever()
     finally:

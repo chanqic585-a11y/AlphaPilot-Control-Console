@@ -3,14 +3,57 @@
 Current version:
 
 ```text
-AlphaPilot V13.10.5 - Local Lifecycle Outcome Advancer
+AlphaPilot V13.14.0 - Automatic OKX Demo Release Execution
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
 AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
-It is not a trading execution system.
+It can mechanically execute immutable eligible releases in OKX Demo Trading.
+It is not a live trading system.
+
+## What V13.14.0 Adds
+
+V13.14.0 adds the isolated execution half of the Factor Evolution Research
+Kernel. It discovers checksum-verified `DemoRelease` contracts from Quant
+Engine, arbitrates conflicting signals, applies a fixed 1000 USDT Demo risk
+envelope, and records every intent and lifecycle transition in a restart-safe
+local SQLite ledger before contacting OKX Demo.
+
+Key controls:
+
+- Official Demo REST endpoint and mandatory `x-simulated-trading: 1` header.
+- Process-only credentials with redacted representations and responses.
+- Exact private endpoint allowlist; Withdraw and transfer paths are rejected
+  before network access.
+- 250 USDT maximum order notional, 0.25% risk per trade, 1% total open risk,
+  maximum three positions, default maximum 2x leverage.
+- Local idempotency keys and OKX `clOrdId`, partial-fill reconciliation,
+  attached TP/SL fields, restart recovery, pause and kill switch.
+- Automatic Demo execution requires all three startup gates: Demo private,
+  Demo order, and Demo automation. It does not require a per-order ticket.
+- The normal page clearly separates Research, Shadow, OKX Demo and Live Locked;
+  the legacy manual ticket is only shown in advanced mode.
+
+Start read-only Demo mode:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\start_okx_demo_console.ps1
+```
+
+Enable an already eligible immutable release for automatic Demo execution:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\start_okx_demo_console.ps1 -EnableOrder -EnableAutomation
+```
+
+The current registry has no eligible formal Demo release, so automatic orders
+remain blocked even when runtime credentials are present. Live execution,
+automatic Live promotion, Withdraw API, and raw key storage remain disabled.
+
+Official API assumptions and endpoint limits are recorded in
+`docs/V13.14.0-okx-demo-api-contract.md`.
 
 ## What V13.10.5 Adds
 
