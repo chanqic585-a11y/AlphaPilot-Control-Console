@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.15.0 - Manual Live Candidate Review Boundary
+AlphaPilot V13.15.1 - Strategy Lifecycle Console Redesign
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -12,6 +12,32 @@ status bridge.
 
 It can mechanically execute immutable eligible releases in OKX Demo Trading.
 It is not a live trading system.
+
+## What V13.15.1 Adds
+
+V13.15.1 gives the desktop console one consistent strategy lifecycle:
+
+```text
+候选待测 -> 回测通过 -> 本地模拟中 -> 本地模拟通过
+-> Demo 验证中 -> Demo 通过 -> 实盘候选
+```
+
+- Adds read-only `GET /api/strategy-lifecycle`.
+- Every strategy has one current stage and appears on only one main page.
+- The Strategy page only shows research candidates and backtest-passed rows.
+- The Local Simulation page only shows local simulation stages.
+- The Demo page only shows strategies backed by immutable `DemoRelease`
+  contracts.
+- The Live page only shows immutable `LiveCandidatePackage` rows.
+- Reaching 30 closed local samples is a review starting point, not a promotion.
+- Reports, benchmarks, failed rows, and duplicate research assets are kept in a
+  collapsed archive and do not count as active strategies.
+- Legacy research and rehearsal tools remain available in collapsed advanced
+  sections instead of crowding the main workflow.
+- No database migration is added and no old data is deleted.
+
+This patch does not add API key storage, Trade API, Withdraw API, account or
+position access, order creation, automatic Live promotion, or live execution.
 
 ## What V13.15.0 Adds
 

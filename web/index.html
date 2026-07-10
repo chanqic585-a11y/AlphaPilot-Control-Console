@@ -3,10 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#080c0f" />
     <title>AlphaPilot 控制台</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
+    <a class="skip-link" href="#mainContent">跳到主要内容</a>
     <div class="app-shell">
       <aside class="side-rail" aria-label="主导航">
         <div class="brand-block">
@@ -42,7 +44,7 @@
         </div>
       </aside>
 
-      <main class="workspace">
+      <main class="workspace" id="mainContent" tabindex="-1">
         <header class="topbar">
           <div>
             <p class="kicker">QUANT CONTROL TERMINAL</p>
@@ -66,11 +68,22 @@
           <div class="simple-hero">
             <div>
               <p class="panel-eyebrow">SIMPLE CONTROL MODE</p>
-              <h2>今天只看这几件事</h2>
-              <p id="simpleConsoleOneLine">正在读取本地策略和沙盒状态。</p>
+              <h2>策略生命周期</h2>
+              <p id="simpleConsoleOneLine">每条策略只显示在当前阶段，晋级后会从上一页移走。</p>
             </div>
-            <span id="simpleConsoleBadge" class="status-pill ok">本地观察</span>
+            <span id="simpleConsoleBadge" class="status-pill ok">单一阶段</span>
           </div>
+          <div class="lifecycle-stage-panel">
+            <div class="lifecycle-panel-head">
+              <div><h3>策略候选与回测通过</h3><span id="strategyLifecycleMeta" aria-live="polite">正在统一策略状态。</span></div>
+              <span class="lifecycle-page-badge">策略阶段</span>
+            </div>
+            <div id="strategyLifecycleSummary" class="lifecycle-summary-grid"></div>
+            <div id="strategyLifecycleList" class="lifecycle-card-list" aria-live="polite"></div>
+          </div>
+          <details class="lifecycle-archive">
+            <summary><span>研究档案与旧实验</span><small id="strategyArchiveMeta">默认隐藏，不参与策略阶段计数</small></summary>
+            <div class="lifecycle-archive-body">
           <div class="simple-summary-grid">
             <div class="simple-summary-card primary">
               <span>当前状态</span>
@@ -426,6 +439,8 @@
               <div id="simpleActionChecklist" class="simple-action-list"></div>
             </div>
           </div>
+            </div>
+          </details>
         </section>
 
         <section id="overview" class="hero-grid advanced-section">
@@ -505,6 +520,23 @@
             </div>
             <span class="status-pill ok">&#26412;&#22320;&#36816;&#34892;</span>
           </div>
+          <div class="local-lab-actions lifecycle-primary-actions">
+            <button id="localLabRunSandboxButton" type="button">&#36816;&#34892;&#26412;&#22320;&#27801;&#30418;</button>
+            <button id="localLabDailyReportButton" class="secondary" type="button">&#29983;&#25104;&#27801;&#30418;&#26085;&#25253;</button>
+            <button id="localLabRefreshButton" class="secondary" type="button">&#21047;&#26032;&#26412;&#39029;</button>
+            <span id="localLabActionStatus">&#26412;&#22320;&#23454;&#39564;&#23460;&#21482;&#20889;&#20837;&#26412;&#22320;&#35266;&#23519;&#25968;&#25454;&#12290;</span>
+          </div>
+          <div class="lifecycle-stage-panel">
+            <div class="lifecycle-panel-head">
+              <div><h3>正在本地模拟的策略</h3><span id="localLifecycleMeta" aria-live="polite">只显示当前处于本地模拟阶段的策略。</span></div>
+              <span class="lifecycle-page-badge">本地模拟</span>
+            </div>
+            <div id="localLifecycleSummary" class="lifecycle-summary-grid"></div>
+            <div id="localLifecycleList" class="lifecycle-card-list" aria-live="polite"></div>
+          </div>
+          <details class="lifecycle-archive">
+            <summary><span>查看沙盒运行统计</span><small>虚拟权益、样本质量和旧复核口径</small></summary>
+            <div class="lifecycle-archive-body">
           <div class="mode-flow-grid">
             <div class="mode-flow-card active"><span>1</span><strong>&#26412;&#22320;&#27801;&#30418;</strong><small>&#25345;&#32493;&#29983;&#25104;&#34394;&#25311;&#35266;&#23519;&#26679;&#26412;</small></div>
             <div class="mode-flow-card active"><span>2</span><strong>&#26412;&#22320;&#27169;&#25311;</strong><small>&#20445;&#23384;&#26412;&#22320;&#31080;&#25454;&#21644;&#38381;&#21512;&#32467;&#26524;</small></div>
@@ -520,12 +552,11 @@
             <div class="local-lab-card"><span>学习状态</span><strong id="localLabLearningState">--</strong><small id="localLabLearningMeta">--</small></div>
             <div class="local-lab-card"><span>策略复核队列</span><strong id="localLabQueueState">--</strong><small id="localLabQueueMeta">--</small></div>
           </div>
-          <div class="local-lab-actions">
-            <button id="localLabRunSandboxButton" type="button">&#36816;&#34892;&#26412;&#22320;&#27801;&#30418;</button>
-            <button id="localLabDailyReportButton" class="secondary" type="button">&#29983;&#25104;&#27801;&#30418;&#26085;&#25253;</button>
-            <button id="localLabRefreshButton" class="secondary" type="button">&#21047;&#26032;&#26412;&#39029;</button>
-            <span id="localLabActionStatus">&#26412;&#22320;&#23454;&#39564;&#23460;&#21482;&#20889;&#20837;&#26412;&#22320;&#35266;&#23519;&#25968;&#25454;&#12290;</span>
-          </div>
+            </div>
+          </details>
+          <details class="lifecycle-archive">
+            <summary><span>查看旧沙盒复核明细</span><small>保留历史功能，不作为正式晋级依据</small></summary>
+            <div class="lifecycle-archive-body">
           <div class="local-lab-columns">
             <div>
               <div class="simple-section-title"><strong>&#27491;&#22312;&#35266;&#23519;&#30340;&#31574;&#30053;</strong><span id="localLabStrategyMeta">&#31561;&#24453;&#27801;&#30418;&#25968;&#25454;&#12290;</span></div>
@@ -536,6 +567,8 @@
               <div id="localLabReviewList" class="sandbox-lane-list"></div>
             </div>
           </div>
+            </div>
+          </details>
         </section>
 
         <section id="exchangeDemo" class="panel exchange-demo-panel page-section">
@@ -548,6 +581,17 @@
             <span id="exchangeDemoModeBadge" class="status-pill danger">Demo &#38145;&#23450;</span>
           </div>
           <div class="exchange-demo-warning"><strong>安全边界：</strong>Demo 自动执行只作用于 OKX 模拟账户和固定 1000 USDT 风险包。Withdraw、实盘自动晋级和实盘执行全部关闭。</div>
+          <div class="lifecycle-stage-panel">
+            <div class="lifecycle-panel-head">
+              <div><h3>正式 Demo Release</h3><span id="demoLifecycleMeta" aria-live="polite">只有本地模拟正式通过并生成 Release 后才会出现。</span></div>
+              <span class="lifecycle-page-badge">Demo 验证</span>
+            </div>
+            <div id="demoLifecycleSummary" class="lifecycle-summary-grid"></div>
+            <div id="demoLifecycleList" class="lifecycle-card-list" aria-live="polite"></div>
+          </div>
+          <details class="lifecycle-archive">
+            <summary><span>Demo 连接与旧演练工具</span><small>高级功能，默认隐藏</small></summary>
+            <div class="lifecycle-archive-body">
           <div class="exchange-demo-section evolution-demo-panel">
             <div class="simple-section-title">
               <strong>因子进化 Demo Release</strong>
@@ -746,6 +790,8 @@
               <div class="exchange-demo-side-card"><span>&#38459;&#22622;&#39033;</span><div id="exchangeDemoBlockers" class="exchange-demo-blockers"></div></div>
             </aside>
           </div>
+            </div>
+          </details>
         </section>
 
         <section id="liveTradingPage" class="panel exchange-demo-panel live-trading-panel page-section">
@@ -758,6 +804,17 @@
             <span class="status-pill danger">实盘关闭</span>
           </div>
           <div class="exchange-demo-warning"><strong>当前状态：</strong>实盘执行适配器不存在。人工批准只表示接受该固定版本进入未来发布复核，实盘仍锁定。</div>
+          <div class="lifecycle-stage-panel">
+            <div class="lifecycle-panel-head">
+              <div><h3>实盘候选</h3><span id="liveLifecycleMeta" aria-live="polite">只显示具有不可变 Live Candidate Package 的策略。</span></div>
+              <span class="lifecycle-page-badge danger">实盘锁定</span>
+            </div>
+            <div id="liveLifecycleSummary" class="lifecycle-summary-grid"></div>
+            <div id="liveLifecycleList" class="lifecycle-card-list" aria-live="polite"></div>
+          </div>
+          <details class="lifecycle-archive">
+            <summary><span>人工批准与安全证据</span><small>批准不启用实盘执行</small></summary>
+            <div class="lifecycle-archive-body">
           <div class="exchange-demo-section live-candidate-review-panel">
             <div class="simple-section-title"><strong>Live Candidate 人工批准边界</strong><span id="liveCandidateStatusText">正在读取候选包。</span></div>
             <div class="exchange-demo-pipeline-grid live-candidate-summary">
@@ -810,6 +867,8 @@
               <div class="exchange-demo-side-card"><span>下一步</span><strong>先跑 Demo</strong><small>先让可用策略在 Demo 模拟页完成候选筛选和小额模拟演练。</small></div>
             </aside>
           </div>
+            </div>
+          </details>
         </section>
 
         <section id="command" class="panel command-panel advanced-section">
@@ -2333,7 +2392,7 @@
           <div id="exchangeList" class="exchange-grid"></div>
         </section>
 
-        <section class="content-grid">
+        <section class="content-grid advanced-section">
           <section class="panel">
             <div class="section-header">
               <div>
@@ -2403,6 +2462,7 @@
               </div>
               <pre id="mobilePreview" class="preview mobile-preview">加载中…</pre>
             </div>
+          </div>
         </section>
 
         <section id="audit" class="panel advanced-section">

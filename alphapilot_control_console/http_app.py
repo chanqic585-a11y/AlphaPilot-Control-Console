@@ -68,6 +68,7 @@ from .simulation_replay import build_closed_sample_replay, build_closed_sample_s
 from .simulation_review import build_simulation_review, build_simulation_review_strategy
 from .strategy_promotion_gate import build_strategy_promotion_gate
 from .strategy_asset_playbook import build_strategy_asset_playbook
+from .strategy_lifecycle_projection import build_strategy_lifecycle_projection
 from .strategy_slots import list_strategy_slots
 from .testnet_design_boundary import build_testnet_design_boundary
 from .testnet_audit import build_testnet_audit_pack
@@ -161,7 +162,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.14.0"
+    server_version = "AlphaPilotControlConsole/13.15.1"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -204,8 +205,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.14.0",
-                "source": "alphapilot_control_console_v13_14_0",
+                "version": "V13.15.1",
+                "source": "alphapilot_control_console_v13_15_1",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -313,6 +314,14 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 "usable-strategy-catalog",
                 30,
                 build_usable_strategy_catalog,
+                fresh=fresh,
+            ))
+            return
+        if path == "/api/strategy-lifecycle":
+            self._send_json(_cached_payload(
+                "strategy-lifecycle",
+                15,
+                build_strategy_lifecycle_projection,
                 fresh=fresh,
             ))
             return

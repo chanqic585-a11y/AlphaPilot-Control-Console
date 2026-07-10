@@ -252,6 +252,13 @@ const emptyMobileStatus = {
 const emptySimulationBridge = { summary: {}, observationTasks: [] };
 const emptySimulationReview = { queue: [], summary: {} };
 const emptyStrategyLearningLoop = { summary: {}, refactorCandidates: [], experimentSpecs: [] };
+const emptyStrategyLifecycle = {
+  summary: {},
+  items: [],
+  byStage: {},
+  archiveSummary: {},
+  sourceWarnings: [],
+};
 const artifactFilters = {
   search: "",
   tier: "all",
@@ -798,6 +805,157 @@ function buildSandboxSimulationRows(observationTasks, qualityRows) {
 function setText(id, value) {
   const node = el(id);
   if (node) node.textContent = value;
+}
+
+const lifecycleStageTones = {
+  research_candidate: "neutral",
+  backtest_passed: "ok",
+  local_simulation_running: "warn",
+  local_simulation_passed: "ok",
+  demo_validation_running: "warn",
+  demo_validated: "ok",
+  live_candidate: "danger",
+};
+
+const lifecycleBlockerLabels = {
+  sample_size_below_review_threshold: "样本少于复核起点",
+  loss_streak_warning: "连续亏损需要复核",
+  concentration_risk: "样本集中度偏高",
+  inactive_warning: "近期缺少新样本",
+  invalidated_samples_need_review: "存在失效样本待复核",
+  risk_warning_needs_review: "存在风险警告待复核",
+  live_candidate_missing_demo_release: "缺少可追溯 Demo Release",
+};
+
+function lifecycleBlockerLabel(value) {
+  return lifecycleBlockerLabels[value] || value || "--";
+}
+
+function lifecycleStageCount(summary, stageGroup) {
+  return stageGroup.reduce((total, key) => total + Number(summary[key] || 0), 0);
+}
+
+function renderLifecycleSummary(targetId, summary = {}) {
+  const target = el(targetId);
+  if (!target) return;
+  const cards = [
+    {
+      label: "策略阶段",
+      value: lifecycleStageCount(summary, ["strategyCandidateCount", "backtestPassedCount"]),
+      meta: `待测 ${summary.strategyCandidateCount ?? 0} · 回测通过 ${summary.backtestPassedCount ?? 0}`,
+    },
+    {
+      label: "本地模拟",
+      value: lifecycleStageCount(summary, ["localSimulationRunningCount", "localSimulationPassedCount"]),
+      meta: `运行中 ${summary.localSimulationRunningCount ?? 0} · 正式通过 ${summary.localSimulationPassedCount ?? 0}`,
+    },
+    {
+      label: "Demo 验证",
+      value: lifecycleStageCount(summary, ["demoValidationRunningCount", "demoValidatedCount"]),
+      meta: `验证中 ${summary.demoValidationRunningCount ?? 0} · 已通过 ${summary.demoValidatedCount ?? 0}`,
+    },
+    {
+      label: "实盘候选",
+      value: Number(summary.liveCandidateCount || 0),
+      meta: "只认不可变候选包",
+    },
+  ];
+  target.innerHTML = cards.map((card) => `
+    <div class="lifecycle-summary-card">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${card.value}</strong>
+      <small>${escapeHtml(card.meta)}</small>
+    </div>
+  `).join("");
+}
+
+function renderLifecycleCards(targetId, items, allowedStages, emptyText) {
+  const target = el(targetId);
+  if (!target) return;
+  const rows = (Array.isArray(items) ? items : []).filter((item) => allowedStages.includes(item.currentStage));
+  target.innerHTML = rows.map((item) => {
+    const metrics = item.metrics || {};
+    const blockers = Array.isArray(item.blockers) ? item.blockers.slice(0, 3) : [];
+    const history = Array.isArray(item.history) ? item.history : [];
+    const stageTone = lifecycleStageTones[item.currentStage] || "neutral";
+    const reviewFlag = item.consistencyStatus === "reconciliation_required"
+      ? '<span class="badge danger">状态待对账</span>'
+      : "";
+    const closedSamples = metrics.closedSamples;
+    const metricRows = [
+      closedSamples !== undefined && closedSamples !== null ? `闭合样本 ${closedSamples}` : "",
+      metrics.profitFactor !== undefined && metrics.profitFactor !== null ? `PF ${formatNumber(metrics.profitFactor)}` : "",
+      metrics.healthScore !== undefined && metrics.healthScore !== null ? `质量 ${formatNumber(metrics.healthScore, 0)}` : "",
+      item.timeframe ? `周期 ${item.timeframe}` : "",
+    ].filter(Boolean);
+    return `
+      <article class="lifecycle-card">
+        <div class="lifecycle-card-head">
+          <div>
+            <h4>${escapeHtml(item.displayName || item.strategyId || "--")}</h4>
+            <small>${escapeHtml(item.strategyId || "--")}</small>
+          </div>
+          <div class="lifecycle-card-badges">
+            <span class="badge ${stageTone}">${escapeHtml(item.stageLabel || item.currentStage || "--")}</span>
+            ${reviewFlag}
+          </div>
+        </div>
+        <div class="lifecycle-card-metrics">${metricRows.map((row) => `<span>${escapeHtml(row)}</span>`).join("") || "<span>等待阶段指标</span>"}</div>
+        <p>${escapeHtml(item.evidenceSummary || "等待生命周期证据。")}</p>
+        ${blockers.length ? `<div class="lifecycle-blockers">${blockers.map((row) => `<span>${escapeHtml(lifecycleBlockerLabel(row))}</span>`).join("")}</div>` : ""}
+        <div class="lifecycle-next"><span>下一道门槛</span><strong>${escapeHtml(item.nextGate || "等待正式阶段决定。")}</strong></div>
+        <small class="lifecycle-history">已保留 ${history.length} 条阶段证据 · 最近 ${formatDate(item.stageEnteredAt)}</small>
+      </article>
+    `;
+  }).join("") || `<div class="lifecycle-empty">${escapeHtml(emptyText)}</div>`;
+}
+
+function renderStrategyLifecycle(payload = emptyStrategyLifecycle) {
+  const summary = payload?.summary || {};
+  const items = Array.isArray(payload?.items) ? payload.items : [];
+  const loadFailed = Boolean(payload?.loadError);
+  ["strategyLifecycleSummary", "localLifecycleSummary", "demoLifecycleSummary", "liveLifecycleSummary"]
+    .forEach((targetId) => renderLifecycleSummary(targetId, summary));
+
+  renderLifecycleCards(
+    "strategyLifecycleList",
+    items,
+    ["research_candidate", "backtest_passed"],
+    loadFailed ? "策略生命周期读取失败，请刷新控制台。" : "当前没有停留在候选或回测阶段的策略。",
+  );
+  renderLifecycleCards(
+    "localLifecycleList",
+    items,
+    ["local_simulation_running", "local_simulation_passed"],
+    loadFailed ? "本地模拟状态读取失败，请刷新控制台。" : "当前没有处于本地模拟阶段的策略。",
+  );
+  renderLifecycleCards(
+    "demoLifecycleList",
+    items,
+    ["demo_validation_running", "demo_validated"],
+    loadFailed ? "Demo 生命周期读取失败，请刷新控制台。" : "暂无进入 Demo 验证的策略。本地模拟正式通过并生成 Demo Release 后会显示在这里。",
+  );
+  renderLifecycleCards(
+    "liveLifecycleList",
+    items,
+    ["live_candidate"],
+    loadFailed ? "实盘候选状态读取失败，请刷新控制台。" : "暂无实盘候选。只有完成 Demo 验证并生成 Live Candidate Package 后才会显示。",
+  );
+
+  const strategyCount = lifecycleStageCount(summary, ["strategyCandidateCount", "backtestPassedCount"]);
+  const localCount = lifecycleStageCount(summary, ["localSimulationRunningCount", "localSimulationPassedCount"]);
+  const demoCount = lifecycleStageCount(summary, ["demoValidationRunningCount", "demoValidatedCount"]);
+  setText("strategyLifecycleMeta", loadFailed ? "状态读取失败。" : `${strategyCount} 条策略仍在研究或回测阶段。`);
+  setText("localLifecycleMeta", loadFailed ? "状态读取失败。" : `${localCount} 条策略只显示在本地模拟页；正式通过 ${summary.localSimulationPassedCount ?? 0} 条。`);
+  setText("demoLifecycleMeta", loadFailed ? "状态读取失败。" : demoCount ? `${demoCount} 条策略处于 Demo 阶段。` : "0 条：当前没有正式 Demo Release。");
+  setText("liveLifecycleMeta", loadFailed ? "状态读取失败。" : `${summary.liveCandidateCount ?? 0} 条：只认不可变 Live Candidate Package。`);
+  setText("strategyArchiveMeta", `默认隐藏 · 研究/失败/重复资产 ${summary.archivedCount ?? 0} 项`);
+  setText("simpleConsoleOneLine", `当前：策略阶段 ${strategyCount} · 本地模拟 ${localCount} · Demo ${demoCount} · 实盘候选 ${summary.liveCandidateCount ?? 0}。`);
+  const badge = el("simpleConsoleBadge");
+  if (badge) {
+    badge.className = "status-pill ok";
+    badge.textContent = "单一阶段";
+  }
 }
 
 function getSimpleRunnerState(payload) {
@@ -5103,6 +5261,7 @@ function renderConsoleFromPayloads() {
   const simulationBridge = core.simulationBridge || emptySimulationBridge;
   const simulationReview = core.simulationReview || emptySimulationReview;
   const strategyLearningLoop = latestStrategyLearningLoopPayload || emptyStrategyLearningLoop;
+  const strategyLifecycle = core.strategyLifecycle || emptyStrategyLifecycle;
 
   renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview, sandboxQualityCenter, sandboxConcentrationReview, sandboxResultReview, strategyAssetPlaybook);
   renderLocalLabPage(usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, sandboxQualityCenter, sandboxResultReview, simulationBridge, simulationReview, strategyLearningLoop);
@@ -5129,6 +5288,7 @@ function renderConsoleFromPayloads() {
   renderSandboxAutoRunner(sandboxAutoRunner);
   renderLiveReadiness(liveReadiness);
   renderForwardReview(forwardReview);
+  renderStrategyLifecycle(strategyLifecycle);
   renderStrategyPlaybook(strategyItems, mobile, strategyLearningLoop);
   renderForwardValidation(mobile.forwardValidation);
   renderPaperObservationTasks(paperTasks);
@@ -5260,7 +5420,10 @@ function loadDataForSection(sectionId) {
 
 async function refreshAll() {
   latestStrategyLearningLoopPayload = emptyStrategyLearningLoop;
-  latestCoreConsolePayload = await loadJsonMap([
+  const strategyLifecycle = await getJsonSafe("/api/strategy-lifecycle", emptyStrategyLifecycle, 30000);
+  latestCoreConsolePayload = { ...latestCoreConsolePayload, strategyLifecycle };
+  renderStrategyLifecycle(strategyLifecycle);
+  const corePayload = await loadJsonMap([
     { key: "strategies", url: "/api/strategies", fallback: { strategies: [] }, timeoutMs: 6000 },
     { key: "reports", url: "/api/reports", fallback: { reports: [] }, timeoutMs: 6000 },
     { key: "connection", url: "/api/mobile/connection-info", fallback: { notes: [], mobileStatusUrls: [] }, timeoutMs: 4000 },
@@ -5281,6 +5444,7 @@ async function refreshAll() {
     { key: "liveReadiness", url: "/api/live-readiness", fallback: { rows: [], summary: {} }, timeoutMs: 8000 },
     { key: "forwardReview", url: "/api/forward-review", fallback: { rows: [], summary: {} }, timeoutMs: 8000 },
   ], 4);
+  latestCoreConsolePayload = { ...corePayload, strategyLifecycle };
   renderConsoleFromPayloads();
   updateCurrentSection();
   void loadSandboxReviewDataIfNeeded();
@@ -5810,7 +5974,15 @@ window.addEventListener("hashchange", () => {
 });
 
 try {
-  setAdvancedMode(window.localStorage.getItem("alphapilot.showAdvancedMode") === "1");
+  const lifecycleLayoutVersion = "v13.15.1";
+  const storedLayoutVersion = window.localStorage.getItem("alphapilot.lifecycleLayoutVersion");
+  if (storedLayoutVersion !== lifecycleLayoutVersion) {
+    window.localStorage.setItem("alphapilot.lifecycleLayoutVersion", lifecycleLayoutVersion);
+    window.localStorage.setItem("alphapilot.showAdvancedMode", "0");
+    setAdvancedMode(false);
+  } else {
+    setAdvancedMode(window.localStorage.getItem("alphapilot.showAdvancedMode") === "1");
+  }
 } catch {
   setAdvancedMode(false);
 }
