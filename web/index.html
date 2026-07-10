@@ -806,6 +806,48 @@
             <span class="status-pill danger">实盘关闭</span>
           </div>
           <div class="exchange-demo-warning"><strong>当前状态：</strong>实盘执行适配器不存在。人工批准只表示接受该固定版本进入未来发布复核，实盘仍锁定。</div>
+          <div class="exchange-demo-section risk-profile-panel">
+            <div class="simple-section-title">
+              <div><strong>风险配置版本</strong><span id="riskProfileMeta">参数可调整，但不会直接开启交易。</span></div>
+              <span id="riskProfileVersionBadge" class="badge neutral">V13.24</span>
+            </div>
+            <div class="risk-profile-toolbar">
+              <label>运行环境
+                <select id="riskProfileEnvironment">
+                  <option value="live_canary">实盘 Canary</option>
+                  <option value="live_standard">实盘标准</option>
+                  <option value="okx_demo">OKX Demo</option>
+                  <option value="local_forward">本地前向</option>
+                </select>
+              </label>
+              <label>配置版本
+                <select id="riskProfileSelector"></select>
+              </label>
+              <label>配置名称 <input id="riskProfileName" autocomplete="off" /></label>
+            </div>
+            <div class="risk-profile-grid">
+              <label>资金使用上限 USDT <input id="riskCapitalLimit" type="number" min="1" step="1" /></label>
+              <label>最大运行策略 <input id="riskMaxStrategies" type="number" min="1" step="1" /></label>
+              <label>最大总持仓 <input id="riskMaxPositions" type="number" min="1" step="1" /></label>
+              <label>单策略最大持仓 <input id="riskMaxPositionsPerStrategy" type="number" min="1" step="1" /></label>
+              <label>单币种最大持仓 <input id="riskMaxPositionsPerSymbol" type="number" min="1" step="1" /></label>
+              <label>单笔名义上限 USDT <input id="riskMaxNotional" type="number" min="1" step="1" /></label>
+              <label>最大杠杆 <input id="riskMaxLeverage" type="number" min="1" max="5" step="1" /></label>
+              <label>单笔风险 % <input id="riskPerTrade" type="number" min="0.01" step="0.01" /></label>
+              <label>总开放风险 % <input id="riskMaxOpen" type="number" min="0.01" step="0.01" /></label>
+              <label>每日停损 % <input id="riskDailyStop" type="number" min="0.01" step="0.01" /></label>
+              <label>最大回撤停机 % <input id="riskDrawdownStop" type="number" min="0.01" step="0.01" /></label>
+              <label>Canary 累计停损 USDT <input id="riskCanaryStop" type="number" min="1" step="1" /></label>
+            </div>
+            <label class="risk-entry-toggle"><input id="riskAllowEntries" type="checkbox" /> 允许该配置接受新开仓请求</label>
+            <div class="risk-profile-actions">
+              <label>人工确认 <input id="riskProfileConfirmation" autocomplete="off" placeholder="Live 使用 ACTIVATE_LIVE_RISK_PROFILE" /></label>
+              <button id="saveRiskProfileButton" type="button">保存为新版本</button>
+              <button id="activateRiskProfileButton" type="button">启用所选版本</button>
+              <button id="rollbackRiskProfileButton" class="secondary" type="button">回滚上一版本</button>
+              <span id="riskProfileActionStatus">修改会生成新版本；已有持仓继续使用开仓时配置。</span>
+            </div>
+          </div>
           <div class="lifecycle-stage-panel">
             <div class="lifecycle-panel-head">
               <div><h3>实盘候选</h3><span id="liveLifecycleMeta" aria-live="polite">只显示具有不可变 Live Candidate Package 的策略。</span></div>

@@ -230,6 +230,8 @@ let latestAutoExecutionReviewPayload = {};
 let latestAutoExecutionLearningPayload = {};
 let latestLiveCandidatePayload = {};
 let selectedLiveCandidatePackageId = null;
+let latestRiskProfilePayload = {};
+let selectedRiskProfileId = null;
 let latestMobilePayload = {};
 let latestSandboxReviewPayload = {};
 let latestCoreConsolePayload = {};
@@ -2860,6 +2862,159 @@ function renderLiveCandidateStatus(payload) {
   });
 }
 
+function selectedRiskProfile() {
+  const profiles = Array.isArray(latestRiskProfilePayload?.profiles) ? latestRiskProfilePayload.profiles : [];
+  return profiles.find((item) => item.riskProfileId === selectedRiskProfileId) || null;
+}
+
+function fillRiskProfileForm(record) {
+  const profile = record?.profile || {};
+  const values = {
+    riskProfileName: profile.name || record?.name || "",
+    riskCapitalLimit: profile.capitalLimitUsdt,
+    riskMaxStrategies: profile.maxActiveStrategies,
+    riskMaxPositions: profile.maxConcurrentPositions,
+    riskMaxPositionsPerStrategy: profile.maxPositionsPerStrategy,
+    riskMaxPositionsPerSymbol: profile.maxPositionsPerSymbol,
+    riskMaxNotional: profile.maxOrderNotionalUsdt,
+    riskMaxLeverage: profile.maxLeverage,
+    riskPerTrade: profile.riskPerTradePercent,
+    riskMaxOpen: profile.maxOpenRiskPercent,
+    riskDailyStop: profile.dailyLossStopPercent,
+    riskDrawdownStop: profile.maxDrawdownStopPercent,
+    riskCanaryStop: profile.canaryLossStopUsdt,
+  };
+  Object.entries(values).forEach(([id, value]) => {
+    if (el(id)) el(id).value = value ?? "";
+  });
+  if (el("riskAllowEntries")) el("riskAllowEntries").checked = profile.allowNewEntries === true;
+}
+
+function renderRiskProfiles(payload = {}) {
+  if (!el("riskProfileSelector")) return;
+  latestRiskProfilePayload = payload || {};
+  const environment = el("riskProfileEnvironment")?.value || "live_canary";
+  const profiles = (Array.isArray(payload.profiles) ? payload.profiles : [])
+    .filter((item) => item.environment === environment);
+  const active = payload.activeProfiles?.[environment] || null;
+  if (!profiles.some((item) => item.riskProfileId === selectedRiskProfileId)) {
+    selectedRiskProfileId = active?.riskProfileId || profiles[profiles.length - 1]?.riskProfileId || null;
+  }
+  el("riskProfileSelector").innerHTML = profiles.map((item) => `
+    <option value="${escapeHtml(item.riskProfileId)}" ${item.riskProfileId === selectedRiskProfileId ? "selected" : ""}>
+      ${escapeHtml(item.name)} · v${item.version}${item.riskProfileId === active?.riskProfileId ? " · 当前" : ""}
+    </option>
+  `).join("");
+  const selected = selectedRiskProfile();
+  fillRiskProfileForm(selected);
+  const isActive = Boolean(selected && selected.riskProfileId === active?.riskProfileId);
+  setText(
+    "riskProfileMeta",
+    active
+      ? `当前 ${active.name} v${active.version} · hash ${String(active.contentHash || "").slice(0, 12)} · 修改不直接开启交易。`
+      : "当前环境没有已启用配置，运行保持失败关闭。",
+  );
+  setText("riskProfileVersionBadge", selected ? `v${selected.version}${isActive ? " · 当前" : " · 草稿"}` : "无配置");
+  el("riskProfileVersionBadge").className = `badge ${isActive ? "ok" : "neutral"}`;
+  el("activateRiskProfileButton").disabled = !selected || isActive;
+  el("saveRiskProfileButton").disabled = !selected;
+}
+
+function riskProfileFormPayload() {
+  const selected = selectedRiskProfile();
+  if (!selected) throw new Error("请先选择一个风险配置版本");
+  const base = selected.profile || {};
+  const number = (id) => Number(el(id)?.value);
+  const maxOpenRisk = number("riskMaxOpen");
+  return {
+    baseRiskProfileId: selected.riskProfileId,
+    profile: {
+      ...base,
+      profileKey: base.profileKey || selected.profileKey,
+      name: el("riskProfileName")?.value?.trim() || selected.name,
+      environment: el("riskProfileEnvironment")?.value || selected.environment,
+      capitalLimitUsdt: number("riskCapitalLimit"),
+      maxActiveStrategies: number("riskMaxStrategies"),
+      maxConcurrentPositions: number("riskMaxPositions"),
+      maxPositionsPerStrategy: number("riskMaxPositionsPerStrategy"),
+      maxPositionsPerSymbol: number("riskMaxPositionsPerSymbol"),
+      maxOrderNotionalUsdt: number("riskMaxNotional"),
+      maxLeverage: number("riskMaxLeverage"),
+      riskPerTradePercent: number("riskPerTrade"),
+      maxOpenRiskPercent: maxOpenRisk,
+      maxStrategyOpenRiskPercent: Math.min(Number(base.maxStrategyOpenRiskPercent || maxOpenRisk), maxOpenRisk),
+      maxSymbolOpenRiskPercent: Math.min(Number(base.maxSymbolOpenRiskPercent || maxOpenRisk), maxOpenRisk),
+      maxDirectionOpenRiskPercent: Math.min(Number(base.maxDirectionOpenRiskPercent || maxOpenRisk), maxOpenRisk),
+      maxCorrelatedOpenRiskPercent: Math.min(Number(base.maxCorrelatedOpenRiskPercent || maxOpenRisk), maxOpenRisk),
+      dailyLossStopPercent: number("riskDailyStop"),
+      maxDrawdownStopPercent: number("riskDrawdownStop"),
+      canaryLossStopUsdt: number("riskCanaryStop"),
+      allowNewEntries: Boolean(el("riskAllowEntries")?.checked),
+    },
+  };
+}
+
+async function saveRiskProfileVersion() {
+  const button = el("saveRiskProfileButton");
+  button.disabled = true;
+  setText("riskProfileActionStatus", "正在校验并保存不可变新版本；不会开启交易。");
+  try {
+    const response = await postJson("/api/risk-profiles/create", riskProfileFormPayload());
+    selectedRiskProfileId = response.createdProfile?.riskProfileId || null;
+    renderRiskProfiles(response.riskProfiles || {});
+    setText("riskProfileActionStatus", "新版本已保存。启用前仍不会影响运行配置。");
+  } catch (error) {
+    setText("riskProfileActionStatus", `保存失败：${error.message}`);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function activateRiskProfileVersion() {
+  const selected = selectedRiskProfile();
+  if (!selected) return;
+  const button = el("activateRiskProfileButton");
+  button.disabled = true;
+  setText("riskProfileActionStatus", "正在追加配置启用记录；Live release hash 不匹配时仍会阻止下单。");
+  try {
+    const response = await postJson("/api/risk-profiles/activate", {
+      riskProfileId: selected.riskProfileId,
+      actor: "user_manual",
+      confirmation: el("riskProfileConfirmation")?.value || "",
+      reason: "console_manual_activation",
+    });
+    if (el("riskProfileConfirmation")) el("riskProfileConfirmation").value = "";
+    renderRiskProfiles(response.riskProfiles || {});
+    setText("riskProfileActionStatus", "配置版本已启用；修改本身不授予交易权限。");
+  } catch (error) {
+    setText("riskProfileActionStatus", `启用失败：${error.message}`);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function rollbackRiskProfileVersion() {
+  const environment = el("riskProfileEnvironment")?.value || "live_canary";
+  const button = el("rollbackRiskProfileButton");
+  button.disabled = true;
+  setText("riskProfileActionStatus", "正在回滚到上一份不同的不可变配置。");
+  try {
+    const response = await postJson("/api/risk-profiles/rollback", {
+      environment,
+      actor: "user_manual",
+      confirmation: el("riskProfileConfirmation")?.value || "",
+    });
+    selectedRiskProfileId = response.activeProfile?.riskProfileId || null;
+    if (el("riskProfileConfirmation")) el("riskProfileConfirmation").value = "";
+    renderRiskProfiles(response.riskProfiles || {});
+    setText("riskProfileActionStatus", "已回滚上一版本；已有持仓仍使用开仓时版本。");
+  } catch (error) {
+    setText("riskProfileActionStatus", `回滚失败：${error.message}`);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function forwardReviewBadge(row) {
   const tone = row?.tone || "warn";
   return `<span class="badge ${tone}">${escapeHtml(row?.reviewLabel || "--")} · ${formatNumber(row?.readinessScore, 0)}分</span>`;
@@ -5266,6 +5421,7 @@ function renderConsoleFromPayloads() {
   const autoExecutionLearning = core.autoExecutionLearning || { summary: {}, byStrategy: [], bySymbol: [], byDirection: [] };
   const exchangeDemo = core.exchangeDemo || { summary: {}, modeCards: [], recentEvents: [], credentialStatus: {} };
   const liveCandidates = core.liveCandidates || { summary: {}, packages: [], recentApprovalActions: [] };
+  const riskProfiles = core.riskProfiles || { summary: {}, profiles: [], activeProfiles: {} };
   const liveReadiness = core.liveReadiness || { rows: [], summary: {} };
   const forwardReview = core.forwardReview || { rows: [], summary: {} };
   const simulationBridge = core.simulationBridge || emptySimulationBridge;
@@ -5282,6 +5438,7 @@ function renderConsoleFromPayloads() {
   renderAutoExecutionLearning(autoExecutionLearning);
   renderExchangeDemoSimulation(exchangeDemo);
   renderLiveCandidateStatus(liveCandidates);
+  renderRiskProfiles(riskProfiles);
   renderCommandCenter(strategyItems, reportItems, mobile);
   renderRuntimeMonitor(strategyItems, mobile);
   renderStrategies(strategyItems);
@@ -5451,6 +5608,7 @@ async function refreshAll() {
     { key: "autoExecutionLearning", url: "/api/auto-execution-learning", fallback: { summary: {}, byStrategy: [], bySymbol: [], byDirection: [] }, timeoutMs: 8000 },
     { key: "exchangeDemo", url: "/api/exchange-demo/simulation", fallback: { summary: {}, modeCards: [], recentEvents: [], credentialStatus: {} }, timeoutMs: 12000 },
     { key: "liveCandidates", url: "/api/live-candidates", fallback: { summary: {}, packages: [], recentApprovalActions: [] }, timeoutMs: 6000 },
+    { key: "riskProfiles", url: "/api/risk-profiles", fallback: { summary: {}, profiles: [], activeProfiles: {} }, timeoutMs: 6000 },
     { key: "liveReadiness", url: "/api/live-readiness", fallback: { rows: [], summary: {} }, timeoutMs: 8000 },
     { key: "forwardReview", url: "/api/forward-review", fallback: { rows: [], summary: {} }, timeoutMs: 8000 },
   ], 4);
@@ -5884,6 +6042,17 @@ el("exchangeDemoSubmitButton")?.addEventListener("click", submitExchangeDemoOrde
 el("exchangeDemoEmergencyButton")?.addEventListener("click", runExchangeDemoEmergencyStop);
 el("approveLiveCandidateButton")?.addEventListener("click", approveSelectedLiveCandidate);
 el("revokeLiveCandidateButton")?.addEventListener("click", revokeSelectedLiveCandidate);
+el("riskProfileEnvironment")?.addEventListener("change", () => {
+  selectedRiskProfileId = null;
+  renderRiskProfiles(latestRiskProfilePayload || {});
+});
+el("riskProfileSelector")?.addEventListener("change", (event) => {
+  selectedRiskProfileId = event.target.value || null;
+  renderRiskProfiles(latestRiskProfilePayload || {});
+});
+el("saveRiskProfileButton")?.addEventListener("click", saveRiskProfileVersion);
+el("activateRiskProfileButton")?.addEventListener("click", activateRiskProfileVersion);
+el("rollbackRiskProfileButton")?.addEventListener("click", rollbackRiskProfileVersion);
 el("toggleAdvancedModeButton")?.addEventListener("click", () => {
   toggleAdvancedMode();
   if (document.body.classList.contains("show-advanced")) void loadAdvancedDataIfNeeded();

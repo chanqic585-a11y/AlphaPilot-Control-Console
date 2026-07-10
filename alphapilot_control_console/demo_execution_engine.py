@@ -72,6 +72,19 @@ class DemoExecutionEngine:
                 or (contract.get("riskEnvelope") or {}).get("initialEquityUsdt")
                 or 0
             ),
+            strategyId=str(signal.get("candidateId") or ""),
+            instrumentId=str(signal.get("instId") or ""),
+            side=str(signal.get("side") or ""),
+            correlationGroup=str(signal.get("correlationGroup") or ""),
+            positionsByStrategy=dict(portfolio.get("positionsByStrategy") or {}),
+            positionsBySymbol=dict(portfolio.get("positionsBySymbol") or {}),
+            openRiskByStrategy=dict(portfolio.get("openRiskByStrategy") or {}),
+            openRiskBySymbol=dict(portfolio.get("openRiskBySymbol") or {}),
+            openRiskByDirection=dict(portfolio.get("openRiskByDirection") or {}),
+            openRiskByCorrelationGroup=dict(portfolio.get("openRiskByCorrelationGroup") or {}),
+            activeStrategyIds=list(portfolio.get("activeStrategyIds") or []),
+            canaryLossUsdt=float(portfolio.get("canaryLossUsdt") or 0),
+            cooldownActive=bool(portfolio.get("cooldownActive", False)),
         )
         if not risk.passed:
             raise RuntimeError("OKX Demo risk gate blocked: " + ",".join(risk.reasonCodes))

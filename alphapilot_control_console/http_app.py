@@ -52,6 +52,12 @@ from .pre_live_preparation_pack import (
     create_pre_live_rehearsal,
     simulate_pre_live_order_lifecycle,
 )
+from .risk_profile_service import (
+    activate_risk_profile_version,
+    create_risk_profile_version,
+    rollback_risk_profile_version,
+)
+from .risk_profile_store import build_risk_profile_status
 from .sandbox_auto_runner import (
     get_local_sandbox_auto_runner_status,
     run_local_sandbox_auto_runner_now,
@@ -207,8 +213,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.21.0",
-                "source": "alphapilot_control_console_v13_21_0",
+                "version": "V13.24.0",
+                "source": "alphapilot_control_console_v13_24_0",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -492,6 +498,9 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/live-safety":
             self._send_json(_cached_payload("live-safety", 5, build_live_safety_status, fresh=fresh))
+            return
+        if path == "/api/risk-profiles":
+            self._send_json(_cached_payload("risk-profiles", 5, build_risk_profile_status, fresh=fresh))
             return
         if path == "/api/no-key-pre-live":
             self._send_json(_cached_payload("no-key-pre-live", 15, build_no_key_pre_live_workbench, fresh=fresh))
@@ -989,6 +998,25 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             payload = self._read_body_json()
             _RESPONSE_CACHE.clear()
             self._send_json(activate_live_kill_switch(str(payload.get("reason") or "operator_request")))
+            return
+        if parsed.path in {
+            "/api/risk-profiles/create",
+            "/api/risk-profiles/activate",
+            "/api/risk-profiles/rollback",
+        }:
+            payload = self._read_body_json()
+            try:
+                if parsed.path.endswith("/create"):
+                    result = create_risk_profile_version(payload)
+                elif parsed.path.endswith("/activate"):
+                    result = activate_risk_profile_version(payload)
+                else:
+                    result = rollback_risk_profile_version(payload)
+            except (KeyError, ValueError, PermissionError) as error:
+                self._send_json({"ok": False, "error": type(error).__name__, "message": str(error)}, 409)
+                return
+            _RESPONSE_CACHE.clear()
+            self._send_json(result)
             return
         self._send_json({"error": "not_found"}, 404)
 

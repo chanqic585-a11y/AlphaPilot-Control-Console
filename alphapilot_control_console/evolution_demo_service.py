@@ -17,6 +17,8 @@ from .demo_execution_store import DemoExecutionStore
 from .demo_release_scanner import scan_immutable_demo_release
 from .demo_runtime_guard import evaluate_demo_runtime_guard
 from .exchange_connectors.okx_demo_client import OkxDemoClient
+from .portfolio_risk import normalize_risk_profile
+from .risk_profile_store import RISK_PROFILE_STORE_PATH, RiskProfileStore
 
 
 STORE_PATH = DATA_DIR / "evolution_demo_execution.sqlite"
@@ -59,19 +61,31 @@ def validate_demo_contract(contract: dict[str, Any]) -> None:
     if not contract.get("releaseContentHash"):
         raise ValueError("Demo release content hash is missing")
     limits = contract.get("riskEnvelope") if isinstance(contract.get("riskEnvelope"), dict) else {}
-    required_limits = {
-        "initialEquityUsdt": 1000.0,
-        "riskPerTradePercent": 0.25,
-        "maxOpenRiskPercent": 1.0,
-        "maxOrderNotionalUsdt": 250.0,
-        "maxConcurrentPositions": 3,
-    }
-    for key, expected_value in required_limits.items():
-        if float(limits.get(key) or 0) != expected_value:
-            raise ValueError(f"Demo risk envelope mismatch: {key}")
+    normalized = normalize_risk_profile(limits)
+    if float(normalized["rewardRiskRatio"]) < 2.0:
+        raise ValueError("Demo RiskProfile reward/risk is below 2R")
+    profile_id = str(limits.get("riskProfileId") or "")
+    profile_hash = str(limits.get("riskProfileHash") or "")
+    if bool(profile_id) != bool(profile_hash):
+        raise ValueError("Demo RiskProfile identity is incomplete")
+    if not profile_id:
+        legacy_required = {
+            "initialEquityUsdt": 1000.0,
+            "riskPerTradePercent": 0.25,
+            "maxOpenRiskPercent": 1.0,
+            "maxOrderNotionalUsdt": 250.0,
+            "maxConcurrentPositions": 3,
+        }
+        for key, expected_value in legacy_required.items():
+            if float(limits.get(key) or 0) != expected_value:
+                raise ValueError(f"Legacy Demo risk envelope mismatch: {key}")
 
 
-def _portfolio_from_demo_account(client: OkxDemoClient, store: DemoExecutionStore) -> dict[str, Any]:
+def _portfolio_from_demo_account(
+    client: OkxDemoClient,
+    store: DemoExecutionStore,
+    risk_profile: dict[str, Any],
+) -> dict[str, Any]:
     balance = client.get_balance("USDT")
     positions = client.get_positions(instrumentType="SWAP")
     if str(balance.get("code")) != "0" or str(positions.get("code")) != "0":
@@ -90,11 +104,42 @@ def _portfolio_from_demo_account(client: OkxDemoClient, store: DemoExecutionStor
         for item in position_rows
         if isinstance(item, dict) and abs(float(item.get("pos") or 0)) > 0
     ]
-    risk_per_trade = 0.25
+    limits = normalize_risk_profile(risk_profile)
+    attributed_records = store.list_records(
+        {"prepared", "submitted", "live", "partially_filled", "filled", "unknown"}
+    )
+    positions_by_strategy: dict[str, int] = {}
+    positions_by_symbol: dict[str, int] = {}
+    risk_by_strategy: dict[str, float] = {}
+    risk_by_symbol: dict[str, float] = {}
+    risk_by_direction: dict[str, float] = {}
+    risk_by_correlation: dict[str, float] = {}
+    for record in attributed_records:
+        signal = record.signal
+        strategy = str(signal.get("candidateId") or "unknown")
+        symbol = str(signal.get("instId") or "unknown")
+        direction = "long" if str(signal.get("side") or "").lower() == "buy" else "short"
+        correlation = str(signal.get("correlationGroup") or "")
+        risk = float(signal.get("riskPercent") or 0)
+        positions_by_strategy[strategy] = positions_by_strategy.get(strategy, 0) + 1
+        positions_by_symbol[symbol] = positions_by_symbol.get(symbol, 0) + 1
+        risk_by_strategy[strategy] = risk_by_strategy.get(strategy, 0.0) + risk
+        risk_by_symbol[symbol] = risk_by_symbol.get(symbol, 0.0) + risk
+        risk_by_direction[direction] = risk_by_direction.get(direction, 0.0) + risk
+        if correlation:
+            risk_by_correlation[correlation] = risk_by_correlation.get(correlation, 0.0) + risk
+    risk_per_trade = float(limits["riskPerTradePercent"])
     return {
         "availableEquityUsdt": available,
-        "openPositionCount": len(open_positions),
-        "openRiskPercent": len(open_positions) * risk_per_trade,
+        "openPositionCount": max(len(open_positions), len(attributed_records)),
+        "openRiskPercent": sum(risk_by_strategy.values()) or len(open_positions) * risk_per_trade,
+        "activeStrategyIds": sorted(positions_by_strategy),
+        "positionsByStrategy": positions_by_strategy,
+        "positionsBySymbol": positions_by_symbol,
+        "openRiskByStrategy": risk_by_strategy,
+        "openRiskBySymbol": risk_by_symbol,
+        "openRiskByDirection": risk_by_direction,
+        "openRiskByCorrelationGroup": risk_by_correlation,
         "dailyLossPercent": float(store.get_runtime_flag("dailyLossPercent", 0.0) or 0.0),
         "drawdownPercent": float(store.get_runtime_flag("drawdownPercent", 0.0) or 0.0),
         "closedOutcomeCount": int(store.get_runtime_flag("closedOutcomeCount", 0) or 0),
@@ -151,6 +196,11 @@ def build_evolution_demo_status() -> dict[str, Any]:
     finally:
         store.close()
     credential_status = runtime_credential_status()
+    risk_store = RiskProfileStore(RISK_PROFILE_STORE_PATH)
+    try:
+        active_risk_profile = risk_store.get_active_profile("okx_demo")
+    finally:
+        risk_store.close()
     private_enabled = _enabled("ALPHAPILOT_OKX_DEMO_ENABLED")
     order_enabled = _enabled("ALPHAPILOT_OKX_DEMO_ORDER_ENABLED")
     automation_enabled = _enabled("ALPHAPILOT_OKX_DEMO_AUTOMATION_ENABLED")
@@ -169,6 +219,18 @@ def build_evolution_demo_status() -> dict[str, Any]:
         blockers.append("demo_runtime_paused")
     if kill_switch:
         blockers.append("demo_kill_switch_active")
+    contract_profile_hashes = {
+        str((contract.get("riskEnvelope") or {}).get("riskProfileHash") or "")
+        for contract in contracts
+        if isinstance(contract.get("riskEnvelope"), dict)
+    }
+    if contracts and active_risk_profile and contract_profile_hashes != {""} and (
+        active_risk_profile["contentHash"] not in contract_profile_hashes
+    ):
+        blockers.append("active_demo_risk_profile_release_mismatch")
+    active_limits = normalize_risk_profile(
+        active_risk_profile["profile"] if active_risk_profile else None
+    )
     return {
         "version": "V13.20.0",
         "source": "immutable_release_demo_bridge_v13_20",
@@ -180,8 +242,8 @@ def build_evolution_demo_status() -> dict[str, Any]:
             "paused": paused,
             "killSwitch": kill_switch,
             "ready": not blockers,
-            "initialEquityUsdt": 1000.0,
-            "maxOrderNotionalUsdt": 250.0,
+            "initialEquityUsdt": active_limits["capitalLimitUsdt"],
+            "maxOrderNotionalUsdt": active_limits["maxOrderNotionalUsdt"],
         },
         "stages": [
             {"stageId": "research", "label": "Research", "status": "available", "description": "离线因子、OOS 和成本检验"},
@@ -198,6 +260,7 @@ def build_evolution_demo_status() -> dict[str, Any]:
             }
             for contract in contracts
         ],
+        "activeRiskProfile": active_risk_profile,
         "recentRecords": [_record_payload(record) for record in records[-10:]],
         "rejectedContracts": rejected,
         "credentialStatus": credential_status,
@@ -244,7 +307,11 @@ def run_evolution_demo_cycle(payload: dict[str, Any]) -> dict[str, Any]:
         engine = DemoExecutionEngine(client=client, store=store)
         recovered = engine.recover_open_records()
         try:
-            portfolio = _portfolio_from_demo_account(client, store)
+            portfolio = _portfolio_from_demo_account(
+                client,
+                store,
+                contract.get("riskEnvelope") if isinstance(contract.get("riskEnvelope"), dict) else {},
+            )
         except RuntimeError as error:
             engine.pause("demo_private_read_failed")
             return {

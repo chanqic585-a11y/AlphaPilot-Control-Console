@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.21.0 - Disabled Live Safety Plane
+AlphaPilot V13.24.0 - Versioned Risk Profile Console
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -12,6 +12,12 @@ status bridge.
 
 It can mechanically execute immutable eligible releases in OKX Demo Trading.
 It is not a live trading system.
+
+## What V13.24.0 Adds
+
+V13.24 introduces immutable, checksummed, bounded RiskProfile versions. See
+the detailed V13.24 section below for configuration, activation, rollback, and
+portfolio concentration controls.
 
 ## What V13.21.0 Adds
 
@@ -1875,3 +1881,24 @@ Safety boundary:
 - Connectivity smoke results do not promote strategies.
 - A missing Demo Release always blocks formal strategy automation.
 - Live trading and Withdraw API remain disabled.
+
+## V13.24.0 Versioned Risk Profile Console
+
+V13.24.0 makes the conservative account assumptions configurable without
+turning them into mutable runtime globals.
+
+Updated in this version:
+
+- Adds immutable Local Forward, OKX Demo, Live Canary, and Live Standard risk
+  profiles with checksums and append-only activation history.
+- Adds a Chinese Live-page panel to save a new version, activate it with an
+  exact confirmation phrase, or roll back to a previous version.
+- Adds portfolio-wide strategy, position, symbol, direction, and correlation
+  exposure checks, plus daily-loss, drawdown, Canary-loss, cooldown, data, and
+  liquidity gates.
+- Binds the active profile id/hash to release checks; a mismatch fails closed.
+- Keeps the reviewed `SafetyEnvelope` outside routine UI control.
+
+Saving or activating a profile does not grant order permission. V13.24.0 adds
+no Live exchange adapter, stores no raw API credentials, exposes no Withdraw
+capability, and keeps Live execution disabled.

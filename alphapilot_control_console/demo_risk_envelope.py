@@ -1,20 +1,18 @@
-"""Fixed 1000 USDT OKX Demo risk envelope."""
+"""Versioned OKX Demo risk evaluation with compatibility defaults."""
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
+
+from .portfolio_risk import evaluate_portfolio_risk, normalize_risk_profile
+from .risk_profile_store import default_profile
 
 
 DEFAULT_DEMO_RISK_ENVELOPE = {
+    **default_profile("okx_demo"),
     "initialEquityUsdt": 1000.0,
-    "riskPerTradePercent": 0.25,
-    "maxOpenRiskPercent": 1.0,
-    "maxOrderNotionalUsdt": 250.0,
-    "maxConcurrentPositions": 3,
     "defaultMaxLeverage": 2,
     "hardMaxLeverage": 5,
-    "dailyLossStopPercent": 2.0,
     "demoDrawdownPausePercent": 5.0,
 }
 
@@ -40,47 +38,64 @@ def evaluate_demo_order_risk(
     liquidityPassed: bool,
     envelope: dict | None = None,
     availableEquityUsdt: float | None = None,
+    strategyId: str = "legacy_demo_strategy",
+    instrumentId: str = "LEGACY-DEMO",
+    side: str = "buy",
+    correlationGroup: str = "",
+    positionsByStrategy: dict | None = None,
+    positionsBySymbol: dict | None = None,
+    openRiskByStrategy: dict | None = None,
+    openRiskBySymbol: dict | None = None,
+    openRiskByDirection: dict | None = None,
+    openRiskByCorrelationGroup: dict | None = None,
+    activeStrategyIds: list[str] | None = None,
+    canaryLossUsdt: float = 0.0,
+    cooldownActive: bool = False,
 ) -> DemoRiskDecision:
-    limits = {**DEFAULT_DEMO_RISK_ENVELOPE, **(envelope or {})}
+    limits = normalize_risk_profile({**DEFAULT_DEMO_RISK_ENVELOPE, **(envelope or {})})
     available_equity = (
-        float(limits["initialEquityUsdt"])
+        float(limits["capitalLimitUsdt"])
         if availableEquityUsdt is None
         else float(availableEquityUsdt)
     )
-    numbers = (
-        notionalUsdt,
-        riskPercent,
-        openRiskPercent,
-        dailyLossPercent,
-        drawdownPercent,
-        available_equity,
+    decision = evaluate_portfolio_risk(
+        profile=limits,
+        intent={
+            "strategyId": strategyId,
+            "instId": instrumentId,
+            "side": side,
+            "correlationGroup": correlationGroup,
+            "notionalUsdt": notionalUsdt,
+            "leverage": leverage,
+            "riskPercent": riskPercent,
+        },
+        portfolio={
+            "availableEquityUsdt": available_equity,
+            "activeStrategyIds": activeStrategyIds or ([strategyId] if openPositionCount else []),
+            "openPositionCount": openPositionCount,
+            "positionsByStrategy": positionsByStrategy or {},
+            "positionsBySymbol": positionsBySymbol or {},
+            "openRiskPercent": openRiskPercent,
+            "openRiskByStrategy": openRiskByStrategy or {},
+            "openRiskBySymbol": openRiskBySymbol or {},
+            "openRiskByDirection": openRiskByDirection or {},
+            "openRiskByCorrelationGroup": openRiskByCorrelationGroup or {},
+            "dailyLossPercent": dailyLossPercent,
+            "drawdownPercent": drawdownPercent,
+            "canaryLossUsdt": canaryLossUsdt,
+            "cooldownActive": cooldownActive,
+            "dataFresh": dataFresh,
+            "liquidityPassed": liquidityPassed,
+        },
     )
-    if not all(math.isfinite(float(value)) for value in numbers):
-        raise ValueError("Demo risk input contains non-finite values")
-    reasons: list[str] = []
-    if notionalUsdt <= 0 or notionalUsdt > float(limits["maxOrderNotionalUsdt"]):
-        reasons.append("max_order_notional")
-    if available_equity <= 0 or notionalUsdt > available_equity:
-        reasons.append("insufficient_demo_equity")
-    if leverage < 1 or leverage > int(limits["defaultMaxLeverage"]):
-        reasons.append("max_leverage")
-    if riskPercent <= 0 or riskPercent > float(limits["riskPerTradePercent"]):
-        reasons.append("risk_per_trade")
-    if openRiskPercent + max(riskPercent, 0) > float(limits["maxOpenRiskPercent"]):
-        reasons.append("max_open_risk")
-    if openPositionCount >= int(limits["maxConcurrentPositions"]):
-        reasons.append("max_concurrent_positions")
-    if dailyLossPercent >= float(limits["dailyLossStopPercent"]):
-        reasons.append("daily_loss_stop")
-    if drawdownPercent >= float(limits["demoDrawdownPausePercent"]):
-        reasons.append("demo_drawdown_stop")
-    if not dataFresh:
-        reasons.append("market_data_stale")
-    if not liquidityPassed:
-        reasons.append("liquidity_gate_failed")
+    compatibility_reasons = tuple(
+        "demo_drawdown_stop" if reason == "drawdown_stop" else
+        "insufficient_demo_equity" if reason == "insufficient_equity" else reason
+        for reason in decision.reasonCodes
+    )
     return DemoRiskDecision(
-        passed=not reasons,
-        reasonCodes=tuple(reasons),
-        equityUsdt=float(limits["initialEquityUsdt"]),
+        passed=decision.passed,
+        reasonCodes=compatibility_reasons,
+        equityUsdt=float(limits["capitalLimitUsdt"]),
         maxOrderNotionalUsdt=float(limits["maxOrderNotionalUsdt"]),
     )

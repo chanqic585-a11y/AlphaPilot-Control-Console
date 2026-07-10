@@ -5360,3 +5360,79 @@ body.show-advanced .hero-grid.advanced-section {
     grid-column: auto;
   }
 }
+/* V13.24 versioned risk profile controls */
+.risk-profile-panel {
+  border-color: rgba(72, 211, 162, 0.28);
+}
+
+.risk-profile-toolbar,
+.risk-profile-grid,
+.risk-profile-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.risk-profile-toolbar {
+  grid-template-columns: minmax(150px, 0.8fr) minmax(220px, 1.2fr) minmax(220px, 1.2fr);
+  margin-top: 14px;
+}
+
+.risk-profile-grid {
+  grid-template-columns: repeat(4, minmax(145px, 1fr));
+  margin-top: 12px;
+}
+
+.risk-profile-toolbar label,
+.risk-profile-grid label,
+.risk-profile-actions label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.risk-profile-toolbar input,
+.risk-profile-toolbar select,
+.risk-profile-grid input,
+.risk-profile-actions input {
+  width: 100%;
+  min-width: 0;
+}
+
+.risk-entry-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  color: var(--text);
+}
+
+.risk-entry-toggle input {
+  width: 18px;
+  height: 18px;
+}
+
+.risk-profile-actions {
+  grid-template-columns: minmax(240px, 1fr) auto auto auto minmax(240px, 1fr);
+  align-items: end;
+  margin-top: 12px;
+}
+
+@media (max-width: 1120px) {
+  .risk-profile-grid {
+    grid-template-columns: repeat(3, minmax(145px, 1fr));
+  }
+
+  .risk-profile-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .risk-profile-toolbar,
+  .risk-profile-grid,
+  .risk-profile-actions {
+    grid-template-columns: 1fr;
+  }
+}
