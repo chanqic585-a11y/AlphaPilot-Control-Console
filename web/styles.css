@@ -4115,6 +4115,64 @@ body:not(.show-advanced) .legacy-demo-ticket {
   margin-top: 12px;
 }
 
+.live-candidate-review-panel {
+  border-color: rgba(255, 209, 61, 0.34);
+}
+
+.live-candidate-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.live-candidate-row {
+  appearance: none;
+  background: rgba(7, 11, 15, 0.72);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  text-align: left;
+  width: 100%;
+}
+
+.live-candidate-row.is-selected {
+  border-color: rgba(255, 209, 61, 0.65);
+}
+
+.live-approval-actions {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(260px, 1fr) auto auto;
+  margin-top: 12px;
+}
+
+.live-approval-actions label {
+  color: var(--muted);
+  display: grid;
+  font-size: 12px;
+  gap: 6px;
+}
+
+.live-approval-actions span {
+  color: var(--muted);
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 760px) {
+  .live-approval-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .live-approval-actions span {
+    grid-column: auto;
+  }
+}
+
 .local-lab-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

@@ -30,6 +30,11 @@ from .evolution_demo_service import (
 from .forward_review import build_forward_review, refresh_forward_review
 from .importer import build_mobile_status, import_now, scan_quant_engine
 from .live_readiness import build_live_readiness, create_manual_execution_ticket
+from .live_candidate_service import (
+    approve_live_candidate,
+    build_live_candidate_status,
+    revoke_live_candidate,
+)
 from .local_sandbox_concentration_review import build_local_sandbox_concentration_review
 from .local_sandbox_quality_center import build_local_sandbox_quality_center
 from .local_sandbox_result_review import build_local_sandbox_result_review
@@ -470,6 +475,9 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/evolution-demo":
             self._send_json(_cached_payload("evolution-demo", 5, build_evolution_demo_status, fresh=fresh))
+            return
+        if path == "/api/live-candidates":
+            self._send_json(_cached_payload("live-candidates", 5, build_live_candidate_status, fresh=fresh))
             return
         if path == "/api/no-key-pre-live":
             self._send_json(_cached_payload("no-key-pre-live", 15, build_no_key_pre_live_workbench, fresh=fresh))
@@ -938,6 +946,26 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             payload = self._read_body_json()
             _RESPONSE_CACHE.clear()
             self._send_json(activate_evolution_demo_kill_switch(str(payload.get("reason") or "console_request")))
+            return
+        if parsed.path == "/api/live-candidates/approve":
+            payload = self._read_body_json()
+            try:
+                result = approve_live_candidate(payload)
+            except (ValueError, PermissionError) as error:
+                self._send_json({"ok": False, "error": type(error).__name__, "message": str(error)}, 409)
+                return
+            _RESPONSE_CACHE.clear()
+            self._send_json(result)
+            return
+        if parsed.path == "/api/live-candidates/revoke":
+            payload = self._read_body_json()
+            try:
+                result = revoke_live_candidate(payload)
+            except (ValueError, PermissionError) as error:
+                self._send_json({"ok": False, "error": type(error).__name__, "message": str(error)}, 409)
+                return
+            _RESPONSE_CACHE.clear()
+            self._send_json(result)
             return
         self._send_json({"error": "not_found"}, 404)
 

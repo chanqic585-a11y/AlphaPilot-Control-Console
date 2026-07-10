@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.14.0 - Automatic OKX Demo Release Execution
+AlphaPilot V13.15.0 - Manual Live Candidate Review Boundary
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -12,6 +12,29 @@ status bridge.
 
 It can mechanically execute immutable eligible releases in OKX Demo Trading.
 It is not a live trading system.
+
+## What V13.15.0 Adds
+
+V13.15.0 adds a local, append-only manual approval state machine for immutable
+`LiveCandidatePackage` exports from Quant Engine.
+
+- The console verifies package schema and SHA-256 checksum before display.
+- Approval requires the exact `APPROVE_LIVE_CANDIDATE_REVIEW` phrase and the
+  fixed `user_manual` actor.
+- Approval binds the package checksum and proposed risk budget.
+- Revocation appends a new audit action; it does not delete history.
+- A changed checksum invalidates the prior approval.
+- AI, Bandit, ML, and automation actors cannot write approval.
+- Approval only means `approved_for_future_release_review`; execution remains
+  false.
+
+The Live page shows Demo evidence, risk limits, checksum, approval state, and
+revoke controls. The current registry has no qualifying package, so the page
+correctly shows zero candidates and remains blocked.
+
+There is no live execution adapter, no live key input, no live account access,
+no live order endpoint, and no Withdraw path. OKX Demo remains isolated from
+this future-release review boundary.
 
 ## What V13.14.0 Adds
 

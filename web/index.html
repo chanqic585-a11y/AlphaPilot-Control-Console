@@ -753,16 +753,32 @@
             <div>
               <p class="panel-eyebrow">LIVE TRADING GATE</p>
               <h2>实盘交易</h2>
-              <p>这是未来实盘交易的独立页面。当前只展示安全边界、前置条件和关闭状态，不接实盘 API Key，不读取真实账户，不创建真实订单，不自动交易。</p>
+              <p>这里只复核不可变 Live Candidate 的 Demo 证据和风险预算。人工批准会绑定 checksum，但不会开启实盘连接或创建订单。</p>
             </div>
             <span class="status-pill danger">实盘关闭</span>
           </div>
-          <div class="exchange-demo-warning"><strong>当前状态：</strong>实盘交易入口被锁定。必须先完成本地模拟、交易所 Demo 模拟、只读权限检查、风控复核和人工确认设计，才允许进入后续版本。</div>
+          <div class="exchange-demo-warning"><strong>当前状态：</strong>实盘执行适配器不存在。人工批准只表示接受该固定版本进入未来发布复核，实盘仍锁定。</div>
+          <div class="exchange-demo-section live-candidate-review-panel">
+            <div class="simple-section-title"><strong>Live Candidate 人工批准边界</strong><span id="liveCandidateStatusText">正在读取候选包。</span></div>
+            <div class="exchange-demo-pipeline-grid live-candidate-summary">
+              <div><span>候选包</span><strong id="liveCandidatePackageCount">--</strong><small>来自已完成 Demo 的固定版本</small></div>
+              <div><span>待人工批准</span><strong id="liveCandidateAwaitingCount">--</strong><small>不能由 AI / ML 写入</small></div>
+              <div><span>已批准复核</span><strong id="liveCandidateApprovedCount">--</strong><small>不代表实盘已启用</small></div>
+              <div><span>实盘适配器</span><strong>0</strong><small>当前不存在</small></div>
+            </div>
+            <div id="liveCandidateList" class="live-candidate-list"></div>
+            <div class="live-approval-actions">
+              <label>人工确认口令 <input id="liveApprovalConfirmation" autocomplete="off" placeholder="APPROVE_LIVE_CANDIDATE_REVIEW" /></label>
+              <button id="approveLiveCandidateButton" type="button">批准进入未来发布复核</button>
+              <button id="revokeLiveCandidateButton" class="danger-action" type="button">撤销当前批准</button>
+              <span id="liveApprovalActionStatus">批准不会开启实盘执行。</span>
+            </div>
+          </div>
           <div class="mode-flow-grid">
             <div class="mode-flow-card active"><span>1</span><strong>策略库</strong><small>只读取已验收策略和候选策略，不直接生成实盘指令。</small></div>
             <div class="mode-flow-card active"><span>2</span><strong>本地模拟</strong><small>先用虚拟样本观察胜率、2R 目标、连续亏损和集中度。</small></div>
-            <div class="mode-flow-card locked"><span>3</span><strong>交易所 Demo</strong><small>只允许模拟账户，订单能力需要单独开关和人工确认。</small></div>
-            <div class="mode-flow-card disabled"><span>4</span><strong>实盘闸门</strong><small>当前关闭；未来必须独立验收 Trade API、风控和紧急停止。</small></div>
+            <div class="mode-flow-card active"><span>3</span><strong>交易所 Demo</strong><small>只有不可变 release 可自动运行，结果必须完整审计。</small></div>
+            <div class="mode-flow-card disabled"><span>4</span><strong>Live Candidate</strong><small>人工批准固定 checksum；批准不启用执行。</small></div>
           </div>
           <div class="exchange-demo-layout">
             <div class="exchange-demo-main">

@@ -228,6 +228,8 @@ let latestAutoExecutionEnginePayload = {};
 let latestAutoExecutionLifecyclePayload = {};
 let latestAutoExecutionReviewPayload = {};
 let latestAutoExecutionLearningPayload = {};
+let latestLiveCandidatePayload = {};
+let selectedLiveCandidatePackageId = null;
 let latestMobilePayload = {};
 let latestSandboxReviewPayload = {};
 let latestCoreConsolePayload = {};
@@ -2616,6 +2618,76 @@ function renderLiveReadiness(payload) {
       } finally {
         button.disabled = false;
       }
+    });
+  });
+}
+
+function liveCandidateApprovalLabel(status) {
+  const labels = {
+    awaiting_manual_approval: "等待人工批准",
+    approved_for_future_release_review: "已批准未来发布复核",
+    revoked: "已撤销",
+    checksum_changed_approval_invalid: "checksum 已变化，原批准失效",
+  };
+  return labels[status] || status || "等待人工批准";
+}
+
+function getSelectedLiveCandidate(payload = latestLiveCandidatePayload) {
+  const packages = Array.isArray(payload?.packages) ? payload.packages : [];
+  return packages.find((item) => item.liveCandidatePackageId === selectedLiveCandidatePackageId) || packages[0] || null;
+}
+
+function renderLiveCandidateStatus(payload) {
+  if (!el("liveCandidateList")) return;
+  latestLiveCandidatePayload = payload || {};
+  const summary = latestLiveCandidatePayload.summary || {};
+  const packages = Array.isArray(latestLiveCandidatePayload.packages) ? latestLiveCandidatePayload.packages : [];
+  if (!packages.some((item) => item.liveCandidatePackageId === selectedLiveCandidatePackageId)) {
+    selectedLiveCandidatePackageId = packages[0]?.liveCandidatePackageId || null;
+  }
+  const selected = getSelectedLiveCandidate(latestLiveCandidatePayload);
+  setText("liveCandidatePackageCount", String(summary.packageCount ?? packages.length));
+  setText("liveCandidateAwaitingCount", String(summary.awaitingApprovalCount ?? 0));
+  setText("liveCandidateApprovedCount", String(summary.approvedForFutureReviewCount ?? 0));
+  setText(
+    "liveCandidateStatusText",
+    packages.length
+      ? `已读取 ${packages.length} 个不可变候选包；批准不会开启执行。`
+      : "暂无通过 Demo 硬门槛的 Live Candidate，实盘保持锁定。",
+  );
+  el("liveCandidateList").innerHTML = packages.map((item) => {
+    const packageData = item.package || {};
+    const evidence = packageData.demoEvidence || {};
+    const risk = packageData.proposedRiskBudget || {};
+    const approval = item.approval || {};
+    const selectedClass = item.liveCandidatePackageId === selectedLiveCandidatePackageId ? " is-selected" : "";
+    return `
+      <button class="live-candidate-row${selectedClass}" type="button" data-live-package="${escapeHtml(item.liveCandidatePackageId)}">
+        <div class="live-readiness-row-head">
+          <div>
+            <strong>${escapeHtml(packageData.strategy?.name || packageData.strategyCandidateId || item.liveCandidatePackageId)}</strong>
+            <small>${escapeHtml(item.demoReleaseId || "--")} · checksum ${escapeHtml(String(item.packageHash || "").slice(0, 12))}</small>
+          </div>
+          <span class="badge ${approval.status === "approved_for_future_release_review" ? "ok" : approval.status === "revoked" ? "danger" : "warn"}">${escapeHtml(liveCandidateApprovalLabel(approval.status))}</span>
+        </div>
+        <div class="artifact-metrics">
+          <span>Demo 平仓 ${evidence.demoClosedTrades ?? "--"}</span>
+          <span>观察 ${evidence.demoCalendarDays ?? "--"} 天</span>
+          <span>PF ${formatNumber(evidence.netProfitFactor)}</span>
+          <span>回撤 ${formatPercent(evidence.maxDrawdownPercent)}</span>
+          <span>资金上限 ${formatUsd(risk.capitalLimitUsdt)}</span>
+          <span>单笔风险 ${formatPercent(risk.riskPerTradePercent)}</span>
+        </div>
+        <small>最多 ${risk.maxConcurrentPositions ?? "--"} 个持仓 · 最大 ${risk.maxLeverage ?? "--"}x · 单笔名义 ${formatUsd(risk.maxOrderNotionalUsdt)} · 执行仍为关闭</small>
+      </button>
+    `;
+  }).join("") || '<div class="sandbox-lane-empty">暂无候选包。需要先完成真实 Demo 样本、漂移复核、账本与 checksum 硬门槛，不能人工绕过。</div>';
+  el("approveLiveCandidateButton").disabled = !selected || selected.approval?.status === "approved_for_future_release_review";
+  el("revokeLiveCandidateButton").disabled = !selected || selected.approval?.status !== "approved_for_future_release_review";
+  document.querySelectorAll("[data-live-package]").forEach((button) => {
+    button.addEventListener("click", () => {
+      selectedLiveCandidatePackageId = button.getAttribute("data-live-package");
+      renderLiveCandidateStatus(latestLiveCandidatePayload);
     });
   });
 }
@@ -5025,6 +5097,7 @@ function renderConsoleFromPayloads() {
   const autoExecutionReview = core.autoExecutionReview || { summary: {}, blockedReasonBreakdown: [], activeHoldingQueue: [], closedResultsQueue: [], blockedReviewQueue: [], strategyLifecycleSummary: [] };
   const autoExecutionLearning = core.autoExecutionLearning || { summary: {}, byStrategy: [], bySymbol: [], byDirection: [] };
   const exchangeDemo = core.exchangeDemo || { summary: {}, modeCards: [], recentEvents: [], credentialStatus: {} };
+  const liveCandidates = core.liveCandidates || { summary: {}, packages: [], recentApprovalActions: [] };
   const liveReadiness = core.liveReadiness || { rows: [], summary: {} };
   const forwardReview = core.forwardReview || { rows: [], summary: {} };
   const simulationBridge = core.simulationBridge || emptySimulationBridge;
@@ -5039,6 +5112,7 @@ function renderConsoleFromPayloads() {
   renderAutoExecutionReview(autoExecutionReview);
   renderAutoExecutionLearning(autoExecutionLearning);
   renderExchangeDemoSimulation(exchangeDemo);
+  renderLiveCandidateStatus(liveCandidates);
   renderCommandCenter(strategyItems, reportItems, mobile);
   renderRuntimeMonitor(strategyItems, mobile);
   renderStrategies(strategyItems);
@@ -5203,6 +5277,7 @@ async function refreshAll() {
     { key: "autoExecutionReview", url: "/api/auto-execution-review", fallback: { summary: {}, blockedReasonBreakdown: [], activeHoldingQueue: [], closedResultsQueue: [], blockedReviewQueue: [], strategyLifecycleSummary: [] }, timeoutMs: 8000 },
     { key: "autoExecutionLearning", url: "/api/auto-execution-learning", fallback: { summary: {}, byStrategy: [], bySymbol: [], byDirection: [] }, timeoutMs: 8000 },
     { key: "exchangeDemo", url: "/api/exchange-demo/simulation", fallback: { summary: {}, modeCards: [], recentEvents: [], credentialStatus: {} }, timeoutMs: 12000 },
+    { key: "liveCandidates", url: "/api/live-candidates", fallback: { summary: {}, packages: [], recentApprovalActions: [] }, timeoutMs: 6000 },
     { key: "liveReadiness", url: "/api/live-readiness", fallback: { rows: [], summary: {} }, timeoutMs: 8000 },
     { key: "forwardReview", url: "/api/forward-review", fallback: { rows: [], summary: {} }, timeoutMs: 8000 },
   ], 4);
@@ -5539,6 +5614,56 @@ async function runExchangeDemoEmergencyStop() {
   }
 }
 
+async function approveSelectedLiveCandidate() {
+  const button = el("approveLiveCandidateButton");
+  const selected = getSelectedLiveCandidate();
+  if (!selected) {
+    setText("liveApprovalActionStatus", "没有可批准的 Live Candidate。实盘保持锁定。");
+    return;
+  }
+  button.disabled = true;
+  setText("liveApprovalActionStatus", "正在写入 checksum 绑定的人工批准记录；不会启动实盘。 ");
+  try {
+    const response = await postJson("/api/live-candidates/approve", {
+      liveCandidatePackageId: selected.liveCandidatePackageId,
+      packageHash: selected.packageHash,
+      confirmation: el("liveApprovalConfirmation").value,
+      actor: "user_manual",
+    });
+    el("liveApprovalConfirmation").value = "";
+    renderLiveCandidateStatus(response.liveCandidates || {});
+    setText("liveApprovalActionStatus", "已批准进入未来发布复核。实盘适配器仍不存在，执行仍为关闭。");
+  } catch (error) {
+    setText("liveApprovalActionStatus", `批准失败：${error.message}`);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function revokeSelectedLiveCandidate() {
+  const button = el("revokeLiveCandidateButton");
+  const selected = getSelectedLiveCandidate();
+  if (!selected) {
+    setText("liveApprovalActionStatus", "没有可撤销的 Live Candidate 批准记录。");
+    return;
+  }
+  button.disabled = true;
+  setText("liveApprovalActionStatus", "正在追加撤销记录；历史审批不会被删除。");
+  try {
+    const response = await postJson("/api/live-candidates/revoke", {
+      liveCandidatePackageId: selected.liveCandidatePackageId,
+      packageHash: selected.packageHash,
+      actor: "user_manual",
+    });
+    renderLiveCandidateStatus(response.liveCandidates || {});
+    setText("liveApprovalActionStatus", "已撤销当前 checksum 的批准。实盘继续锁定。");
+  } catch (error) {
+    setText("liveApprovalActionStatus", `撤销失败：${error.message}`);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function setAdvancedMode(enabled) {
   document.body.classList.toggle("show-advanced", Boolean(enabled));
   const button = el("toggleAdvancedModeButton");
@@ -5583,6 +5708,8 @@ el("autoLifecycleAdvanceButton")?.addEventListener("click", advanceAutoExecution
 el("noKeyCreateTicketButton")?.addEventListener("click", createNoKeyPreLiveTicket);
 el("exchangeDemoSubmitButton")?.addEventListener("click", submitExchangeDemoOrder);
 el("exchangeDemoEmergencyButton")?.addEventListener("click", runExchangeDemoEmergencyStop);
+el("approveLiveCandidateButton")?.addEventListener("click", approveSelectedLiveCandidate);
+el("revokeLiveCandidateButton")?.addEventListener("click", revokeSelectedLiveCandidate);
 el("toggleAdvancedModeButton")?.addEventListener("click", () => {
   toggleAdvancedMode();
   if (document.body.classList.contains("show-advanced")) void loadAdvancedDataIfNeeded();
