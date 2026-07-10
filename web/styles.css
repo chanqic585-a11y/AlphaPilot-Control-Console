@@ -4294,6 +4294,33 @@ body:not(.show-advanced) .legacy-demo-ticket {
   margin: 11px 0 0;
 }
 
+.workflow-evidence-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 9px;
+  padding: 8px 10px;
+  border: 1px solid rgba(55, 208, 173, 0.22);
+  border-radius: 5px;
+  background: rgba(55, 208, 173, 0.06);
+  color: #b9e8dc;
+  font-size: 12px;
+}
+
+.workflow-evidence-row small {
+  flex: 0 0 auto;
+  color: var(--yellow);
+  font-variant-numeric: tabular-nums;
+}
+
+.workflow-next-step {
+  margin: 11px 0 0;
+  color: #cbd4dd;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
 .workflow-metrics {
   display: flex;
   flex-wrap: wrap;

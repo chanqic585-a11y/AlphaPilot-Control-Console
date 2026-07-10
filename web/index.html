@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#080c0f" />
     <title>AlphaPilot 控制台</title>
-    <link rel="stylesheet" href="/styles.css?v=20260711-v13-27-1-workflow" />
+    <link rel="stylesheet" href="/styles.css?v=20260711-v13-27-1-1-dual-data" />
   </head>
   <body>
     <a class="skip-link" href="#mainContent">跳到主要内容</a>
@@ -76,15 +76,15 @@
           <div class="workflow-stage-panel">
             <div class="lifecycle-panel-head">
               <div>
-                <h3>策略回测工作流</h3>
+                <h3>一键双层回测</h3>
                 <span id="workflowStrategyMeta" aria-live="polite">正在读取 Quant Engine 工作流。</span>
               </div>
               <div class="workflow-toolbar">
-                <button id="workflowRunAllButton" type="button">运行全部待回测</button>
+                <button id="workflowRunAllButton" type="button">一键运行全部待回测</button>
                 <button id="workflowRefreshButton" class="secondary" type="button">刷新</button>
               </div>
             </div>
-            <div id="workflowActionStatus" class="workflow-action-status">策略参数或逻辑一旦变化，必须创建新版本并重新回测。</div>
+            <div id="workflowActionStatus" class="workflow-action-status">先用本地数据做研究烟测，再自动补齐 OKX 官方公共数据并执行正式回测；只有正式通过才进入本地前向。</div>
             <div id="workflowBacktestSummary" class="lifecycle-summary-grid"></div>
             <div class="workflow-lanes">
               <section class="workflow-lane" aria-labelledby="workflowAwaitingTitle">
@@ -96,7 +96,7 @@
                 <div id="workflowRunningList" class="workflow-card-list" aria-live="polite"></div>
               </section>
               <section class="workflow-lane" aria-labelledby="workflowPassedTitle">
-                <div class="workflow-lane-head"><h4 id="workflowPassedTitle">回测通过</h4><span id="workflowPassedCount">0</span></div>
+                <div class="workflow-lane-head"><h4 id="workflowPassedTitle">正式回测通过</h4><span id="workflowPassedCount">0</span></div>
                 <div id="workflowPassedList" class="workflow-card-list" aria-live="polite"></div>
               </section>
               <section class="workflow-lane" aria-labelledby="workflowFailedTitle">
@@ -2617,6 +2617,6 @@
         <button class="back-home-button" id="backHomeButton" type="button" aria-label="回到策略页" hidden>回到策略</button>
       </main>
     </div>
-    <script src="/app.js?v=20260711-v13-27-1-workflow"></script>
+    <script src="/app.js?v=20260711-v13-27-1-1-dual-data"></script>
   </body>
 </html>

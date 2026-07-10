@@ -30,6 +30,11 @@ class WorkflowClientTests(unittest.TestCase):
             ["-m", "alphapilot.evolution.workflow.cli"],
         )
         self.assertIn(str(self.quant_root / "data" / "evolution_registry.sqlite"), command)
+        warehouse_index = command.index("--warehouse-root")
+        self.assertEqual(
+            command[warehouse_index + 1],
+            r"D:\Codex-Workspace\回测数据",
+        )
         self.assertEqual(command[-1], "projection")
 
     def test_request_run_queues_then_starts_one_background_worker(self) -> None:
@@ -42,16 +47,30 @@ class WorkflowClientTests(unittest.TestCase):
             }
             spawn.return_value = {"started": True, "workflowRunId": "run-1"}
 
-            result = client.request_backtest_run(
+            result = client.request_dual_layer_backtest(
                 "run-1", quant_root=self.quant_root
             )
 
-        run_cli.assert_called_once_with(
-            ["queue", "--run-id", "run-1"],
-            quant_root=self.quant_root,
-        )
+        run_cli.assert_not_called()
         spawn.assert_called_once_with("run-1", quant_root=self.quant_root)
         self.assertTrue(result["worker"]["started"])
+
+    def test_dual_layer_action_ignores_endpoint_module_and_credentials_payload(self) -> None:
+        with patch.object(client, "request_dual_layer_backtest") as request:
+            request.return_value = {"workflowRunId": "run-1"}
+            result = client.request_workflow_action(
+                "run-dual-layer",
+                {
+                    "workflowRunId": "run-1",
+                    "endpoint": "https://evil.invalid",
+                    "pythonModule": "evil.module",
+                    "apiKey": "must-not-flow",
+                },
+                quant_root=self.quant_root,
+            )
+
+        request.assert_called_once_with("run-1", quant_root=self.quant_root)
+        self.assertEqual(result["workflowRunId"], "run-1")
 
     def test_run_all_only_starts_awaiting_backtests(self) -> None:
         projection = {
@@ -63,7 +82,7 @@ class WorkflowClientTests(unittest.TestCase):
         }
         with patch.object(
             client, "build_workflow_projection", return_value=projection
-        ), patch.object(client, "request_backtest_run") as request:
+        ), patch.object(client, "request_dual_layer_backtest") as request:
             request.return_value = {"workflowRunId": "run-1"}
             result = client.request_all_awaiting_backtests(
                 quant_root=self.quant_root

@@ -11,8 +11,9 @@ from typing import Any, Sequence
 from .config import DATA_DIR, get_quant_engine_path
 
 
-CONTROL_CONSOLE_VERSION = "V13.27.1"
+CONTROL_CONSOLE_VERSION = "V13.27.1.1"
 WORKFLOW_MODULE = "alphapilot.evolution.workflow.cli"
+APPROVED_WAREHOUSE_ROOT = Path(r"D:\Codex-Workspace\回测数据")
 ALLOWED_COMMANDS = {
     "advance",
     "archive",
@@ -25,6 +26,8 @@ ALLOWED_COMMANDS = {
     "recover",
     "retry",
     "run",
+    "one-click-backtest",
+    "research-smoke",
 }
 _BACKGROUND_PROCESSES: dict[str, subprocess.Popen] = {}
 
@@ -63,6 +66,8 @@ def build_workflow_command(
         str(root / "data" / "evolution_registry.sqlite"),
         "--output-root",
         str(root / "data" / "workflow" / "backtests"),
+        "--warehouse-root",
+        str(APPROVED_WAREHOUSE_ROOT),
         *[str(value) for value in arguments],
     ]
 
@@ -124,7 +129,7 @@ def spawn_workflow_run(
     with log_path.open("a", encoding="utf-8") as log_handle:
         process = subprocess.Popen(
             build_workflow_command(
-                ["run", "--run-id", run_id],
+                ["one-click-backtest", "--run-id", run_id],
                 quant_root=root,
             ),
             cwd=root,
@@ -157,6 +162,16 @@ def request_backtest_run(
     return {"workflowRunId": run_id, "queued": queued, "worker": worker}
 
 
+def request_dual_layer_backtest(
+    workflow_run_id: str,
+    *,
+    quant_root: Path | None = None,
+) -> dict[str, Any]:
+    run_id = _safe_run_id(workflow_run_id)
+    worker = spawn_workflow_run(run_id, quant_root=quant_root)
+    return {"workflowRunId": run_id, "worker": worker}
+
+
 def request_all_awaiting_backtests(
     *,
     quant_root: Path | None = None,
@@ -169,7 +184,7 @@ def request_all_awaiting_backtests(
         if item.get("stage") != "backtest" or item.get("status") != "awaiting":
             continue
         requested.append(
-            request_backtest_run(
+            request_dual_layer_backtest(
                 str(item.get("workflowRunId") or ""),
                 quant_root=quant_root,
             )
@@ -184,8 +199,8 @@ def request_workflow_action(
     quant_root: Path | None = None,
 ) -> dict[str, Any]:
     normalized = str(action or "").strip().lower()
-    if normalized == "run-selected":
-        return request_backtest_run(
+    if normalized in {"run-selected", "run-dual-layer"}:
+        return request_dual_layer_backtest(
             str(payload.get("workflowRunId") or ""),
             quant_root=quant_root,
         )

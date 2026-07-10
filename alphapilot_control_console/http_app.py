@@ -189,7 +189,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.27.1"
+    server_version = "AlphaPilotControlConsole/13.27.1.1"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -232,7 +232,7 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.27.1",
+                "version": "V13.27.1.1",
                 "source": "alphapilot_control_console_v13_27_1",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
@@ -248,7 +248,7 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             except (FileNotFoundError, RuntimeError, ValueError) as error:
                 self._send_json(
                     {
-                        "version": "V13.27.1",
+                        "version": "V13.27.1.1",
                         "source": "quant_workflow_unavailable",
                         "loadError": str(error),
                         "summary": {},

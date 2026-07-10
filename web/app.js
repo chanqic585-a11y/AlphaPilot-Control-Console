@@ -265,7 +265,7 @@ const emptyStrategyLifecycle = {
   sourceWarnings: [],
 };
 const emptyWorkflow = {
-  version: "V13.27.1",
+  version: "V13.27.1.1",
   summary: {},
   items: [],
   archivedItems: [],
@@ -971,7 +971,7 @@ function renderWorkflowBacktest(payload = emptyWorkflow) {
 
 async function refreshWorkflow() {
   const payload = await getJsonSafe("/api/workflow?fresh=1", { ...emptyWorkflow, loadError: "无法读取工作流" }, 10000);
-  renderWorkflowBacktest(payload);
+  renderDualLayerWorkflow(payload);
   return payload;
 }
 
@@ -984,10 +984,209 @@ async function runWorkflowAction(action, item = {}) {
       workflowRunId: item.workflowRunId,
       strategyVersionId: item.strategyVersionId,
     });
-    renderWorkflowBacktest(response.workflow || emptyWorkflow);
+    renderDualLayerWorkflow(response.workflow || emptyWorkflow);
     if (status) status.textContent = action === "run-all-awaiting"
       ? `已请求 ${Number(response.result?.requestedCount || 0)} 条待回测策略。`
       : "动作已提交，状态会自动刷新。";
+  } catch (error) {
+    if (status) status.textContent = `操作失败：${error.message}`;
+  }
+}
+
+const dualLayerPhaseLabels = {
+  checking_local_data: "检查本地数据",
+  research_smoke_running: "本地研究烟测",
+  preparing_official_data: "准备 OKX 官方数据",
+  validating_official_data: "校验正式数据",
+  freezing_data_snapshot: "冻结正式快照",
+  building_validation_manifests: "构建正式验证集",
+  formal_backtest_running: "正式回测中",
+  evaluating_gate: "评估回测门槛",
+  public_forward_observation: "本地前向运行中",
+};
+
+const dualLayerStatusLabels = {
+  awaiting: "待回测",
+  queued: "排队中",
+  running: "运行中",
+  paused: "已暂停",
+  passed: "已通过",
+  failed: "未通过",
+  blocked: "已阻塞",
+  cancelled: "已取消",
+  retired: "已归档",
+};
+
+const dualLayerFailureLabels = {
+  evaluation_binding_missing: "缺少不可变正式评估绑定",
+  data_snapshot_id_missing: "缺少正式数据快照",
+  purged_walk_forward_manifest_missing: "缺少防泄漏 Walk-forward 验证集",
+  locked_oos_manifest_missing: "缺少锁定样本外验证集",
+  cost_model_missing: "缺少手续费、滑点与延迟模型",
+  gate_profile_missing: "缺少正式回测门槛",
+  target_r_below_2: "目标盈亏比低于 2R",
+};
+
+function dualLayerReadableFailure(item) {
+  const failure = item?.failure || {};
+  const raw = String(failure.summary || item?.result?.blocker || "").trim();
+  if (!raw) return "--";
+  return raw.split("; ").map((part) => {
+    if (dualLayerFailureLabels[part]) return dualLayerFailureLabels[part];
+    if (part.startsWith("official_collection_not_complete:")) return "OKX 官方数据尚未准备完成，可从断点继续";
+    if (part.startsWith("official_collection_partition_failures:")) return "部分官方数据分区校验失败，可补齐后重试";
+    if (part.startsWith("dual_layer_worker_error:")) return "本次运行遇到工程故障，可从检查点重试";
+    if (part.startsWith("data_snapshot_not_")) return "正式数据快照未满足校验要求";
+    return part;
+  }).join("；");
+}
+
+function dualLayerProgressText(item) {
+  const phase = item?.phase || item?.progress?.phase;
+  const label = dualLayerPhaseLabels[phase] || item?.phaseLabel || dualLayerStatusLabels[item?.status] || "等待运行";
+  const download = item?.downloadProgress || {};
+  const completed = Number(download.completed || 0);
+  const required = Number(download.required || 0);
+  return required > 0 ? `${label} · 数据分区 ${completed}/${required}` : label;
+}
+
+function dualLayerEvidenceText(item) {
+  if (item?.evidenceClass === "formal_backtest") return "正式证据：OKX 官方公共数据";
+  if (item?.evidenceClass === "research_smoke") return "研究烟测：本地旧数据，不参与晋级";
+  return "证据尚未生成";
+}
+
+function dualLayerMetricRows(item) {
+  const metrics = item?.result?.metrics || {};
+  const rows = [];
+  if (metrics.tradeCount !== undefined) rows.push(`样本 ${Number(metrics.tradeCount)}`);
+  if (metrics.profitFactor !== undefined) rows.push(`PF ${formatNumber(metrics.profitFactor)}`);
+  if (metrics.averageNetR !== undefined) rows.push(`平均 ${formatNumber(metrics.averageNetR)}R`);
+  const drawdown = metrics.maximumDrawdownR ?? metrics.maxDrawdownR;
+  if (drawdown !== undefined) rows.push(`最大回撤 ${formatNumber(drawdown)}R`);
+  if (metrics.holdoutTradeCount !== undefined) rows.push(`未见币种 ${Number(metrics.holdoutTradeCount)}`);
+  if (metrics.lockedTradeCount !== undefined) rows.push(`锁定样本 ${Number(metrics.lockedTradeCount)}`);
+  return rows;
+}
+
+function dualLayerCardActions(item) {
+  if (item.status === "awaiting") return [{ action: "run-dual-layer", label: "一键双层回测", primary: true }];
+  if (item.status === "queued") return [{ action: "cancel", label: "取消排队" }];
+  if (item.status === "running") return [
+    { action: "pause", label: "暂停" },
+    { action: "cancel", label: "取消" },
+  ];
+  if (item.status === "paused") return [{ action: "run-dual-layer", label: "继续运行", primary: true }];
+  if (["failed", "blocked"].includes(item.status) && item.failure?.retryDisposition === "same_version_retry") {
+    return [{ action: "retry", label: "补齐数据并重试", primary: true }, { action: "archive", label: "归档" }];
+  }
+  if (!["running", "queued"].includes(item.status)) return [{ action: "archive", label: "归档" }];
+  return [];
+}
+
+function dualLayerNextStep(item) {
+  if (item.status === "passed") return "正式门槛已通过，系统将自动进入本地前向。";
+  if (item.status === "failed") return "策略表现未通过。调整参数或逻辑后创建新版本，再重新回测。";
+  if (item.status === "blocked") return item.failure?.retryDisposition === "same_version_retry"
+    ? "这是数据或工程阻塞，不改策略版本即可从检查点重试。"
+    : "先补齐缺失证据，再继续。";
+  if (["queued", "running", "paused"].includes(item.status)) return "完成官方数据校验和正式回测后，系统会自动判断下一阶段。";
+  return "点击一键双层回测：本地烟测只做实现检查，正式晋级只认 OKX 官方公共数据。";
+}
+
+function renderDualLayerCard(item, archived = false) {
+  const metrics = dualLayerMetricRows(item);
+  const failure = ["failed", "blocked", "cancelled"].includes(item.status) ? dualLayerReadableFailure(item) : "";
+  const actions = archived ? [] : dualLayerCardActions(item);
+  const dataCoverage = item?.dataCoverage || {};
+  const statusLabel = archived ? "已归档" : dualLayerStatusLabels[item.status] || item.status || "--";
+  const tone = item.status === "passed" ? "ok" : ["failed", "blocked"].includes(item.status) ? "danger" : item.status === "running" ? "warn" : "neutral";
+  return `
+    <article class="workflow-card" data-workflow-run-id="${escapeHtml(item.workflowRunId || "")}">
+      <div class="workflow-card-head">
+        <div><h5>${escapeHtml(item.displayName || "未命名策略")}</h5><small>第 ${Number(item.attemptNumber || 1)} 次尝试</small></div>
+        <span class="badge ${tone}">${escapeHtml(statusLabel)}</span>
+      </div>
+      <p class="workflow-progress">${escapeHtml(dualLayerProgressText(item))}</p>
+      <div class="workflow-evidence-row"><span>${escapeHtml(dualLayerEvidenceText(item))}</span><small>目标 ≥ 2R</small></div>
+      ${metrics.length ? `<div class="workflow-metrics">${metrics.map((row) => `<span>${escapeHtml(row)}</span>`).join("")}</div>` : ""}
+      ${failure && failure !== "--" ? `<div class="workflow-failure"><strong>${escapeHtml(failure)}</strong></div>` : ""}
+      <p class="workflow-next-step">${escapeHtml(dualLayerNextStep(item))}</p>
+      ${actions.length ? `<div class="workflow-actions">${actions.map((action) => `<button type="button" class="${action.primary ? "" : "secondary"}" data-workflow-action="${escapeHtml(action.action)}" data-workflow-run-id="${escapeHtml(item.workflowRunId || "")}" data-strategy-version-id="${escapeHtml(item.strategyVersionId || "")}">${escapeHtml(action.label)}</button>`).join("")}</div>` : ""}
+      <details class="workflow-details"><summary>高级详情</summary><div>
+        <span>策略版本 ID</span><code>${escapeHtml(item.strategyVersionId || "--")}</code>
+        <span>运行 ID</span><code>${escapeHtml(item.workflowRunId || "--")}</code>
+        <span>数据合约</span><code>${escapeHtml(item.strategyDataContractId || dataCoverage.strategyDataContractId || "--")}</code>
+        <span>正式快照</span><code>${escapeHtml(dataCoverage.dataSnapshotId || "--")}</code>
+        <span>评估绑定</span><code>${escapeHtml(item.evaluationBindingId || "--")}</code>
+        <span>内容校验</span><code>${escapeHtml(item.contentHash || "--")}</code>
+      </div></details>
+    </article>
+  `;
+}
+
+function renderDualLayerLane(targetId, countId, rows, emptyText) {
+  const target = el(targetId);
+  if (!target) return;
+  setText(countId, String(rows.length));
+  target.innerHTML = rows.length
+    ? rows.map((item) => renderDualLayerCard(item)).join("")
+    : `<div class="workflow-empty">${escapeHtml(emptyText)}</div>`;
+}
+
+function renderDualLayerWorkflow(payload = emptyWorkflow) {
+  latestWorkflowPayload = payload || emptyWorkflow;
+  const items = Array.isArray(payload?.items) ? payload.items.filter((item) => item.stage === "backtest") : [];
+  const archived = Array.isArray(payload?.archivedItems) ? payload.archivedItems.filter((item) => item.stage === "backtest") : [];
+  const awaiting = items.filter((item) => item.status === "awaiting");
+  const running = items.filter((item) => ["queued", "running", "paused"].includes(item.status));
+  const passed = items.filter((item) => item.status === "passed");
+  const failed = items.filter((item) => ["failed", "blocked", "cancelled"].includes(item.status));
+  const summaryTarget = el("workflowBacktestSummary");
+  if (summaryTarget) {
+    const cards = [
+      { label: "待回测", value: awaiting.length, meta: "可启动双层数据回测" },
+      { label: "运行中", value: running.length, meta: "下载、校验或正式回测" },
+      { label: "正式通过", value: passed.length, meta: "自动进入本地前向" },
+      { label: "未通过 / 阻塞", value: failed.length, meta: "显示原因与可操作下一步" },
+      { label: "已归档", value: archived.length, meta: "历史证据仍保留" },
+    ];
+    summaryTarget.innerHTML = cards.map((card) => `<div class="lifecycle-summary-card"><span>${escapeHtml(card.label)}</span><strong>${card.value}</strong><small>${escapeHtml(card.meta)}</small></div>`).join("");
+  }
+  renderDualLayerLane("workflowAwaitingList", "workflowAwaitingCount", awaiting, "没有待回测策略。");
+  renderDualLayerLane("workflowRunningList", "workflowRunningCount", running, "当前没有双层回测任务运行。");
+  renderDualLayerLane("workflowPassedList", "workflowPassedCount", passed, "还没有策略通过正式回测门槛。");
+  renderDualLayerLane("workflowFailedList", "workflowFailedCount", failed, "当前没有未通过或阻塞记录。");
+  setText("workflowArchivedCount", String(archived.length));
+  const archiveTarget = el("workflowArchivedList");
+  if (archiveTarget) archiveTarget.innerHTML = archived.length
+    ? archived.map((item) => renderDualLayerCard(item, true)).join("")
+    : '<div class="workflow-empty">暂无归档策略。</div>';
+  const loadError = payload?.loadError;
+  setText("workflowStrategyMeta", loadError
+    ? `工作流读取失败：${loadError}`
+    : `${items.length} 条策略位于正式回测阶段；每个不可变版本只显示一次。`);
+  setText("simpleConsoleOneLine", loadError
+    ? "Quant Engine 工作流暂不可用，请检查本地服务。"
+    : `待回测 ${awaiting.length} · 运行中 ${running.length} · 正式通过 ${passed.length} · 未通过或阻塞 ${failed.length}`);
+  scheduleWorkflowPoll(items);
+}
+
+async function runDualLayerWorkflowAction(action, item = {}) {
+  const status = el("workflowActionStatus");
+  if (status) status.textContent = action === "run-all-awaiting"
+    ? "正在启动全部待回测策略..."
+    : "正在提交工作流动作...";
+  try {
+    const response = await postJson("/api/workflow/action", {
+      action,
+      workflowRunId: item.workflowRunId,
+      strategyVersionId: item.strategyVersionId,
+    });
+    renderDualLayerWorkflow(response.workflow || emptyWorkflow);
+    if (status) status.textContent = action === "run-all-awaiting"
+      ? `已请求 ${Number(response.result?.requestedCount || 0)} 条待回测策略。`
+      : "动作已提交，阶段状态会自动刷新。";
   } catch (error) {
     if (status) status.textContent = `操作失败：${error.message}`;
   }
@@ -5988,7 +6187,7 @@ async function refreshAll() {
     getJsonSafe("/api/strategy-lifecycle", emptyStrategyLifecycle, 30000),
   ]);
   latestCoreConsolePayload = { ...latestCoreConsolePayload, workflow, strategyLifecycle };
-  renderWorkflowBacktest(workflow);
+  renderDualLayerWorkflow(workflow);
   renderStrategyLifecycle(strategyLifecycle);
   const corePayload = await loadJsonMap([
     { key: "strategies", url: "/api/strategies", fallback: { strategies: [] }, timeoutMs: 6000 },
@@ -6422,7 +6621,7 @@ function toggleAdvancedMode() {
 el("refreshButton").addEventListener("click", refreshAll);
 el("simpleRefreshButton")?.addEventListener("click", refreshAll);
 el("workflowRefreshButton")?.addEventListener("click", refreshWorkflow);
-el("workflowRunAllButton")?.addEventListener("click", () => runWorkflowAction("run-all-awaiting"));
+el("workflowRunAllButton")?.addEventListener("click", () => runDualLayerWorkflowAction("run-all-awaiting"));
 el("simpleConsole")?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-workflow-action]");
   if (!button) return;
@@ -6430,7 +6629,7 @@ el("simpleConsole")?.addEventListener("click", (event) => {
   const workflowRunId = button.dataset.workflowRunId || "";
   const strategyVersionId = button.dataset.strategyVersionId || "";
   button.disabled = true;
-  void runWorkflowAction(action, { workflowRunId, strategyVersionId }).finally(() => {
+  void runDualLayerWorkflowAction(action, { workflowRunId, strategyVersionId }).finally(() => {
     button.disabled = false;
   });
 });
