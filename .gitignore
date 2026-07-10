@@ -7,4 +7,5 @@ data/audit_log.jsonl
 data/mobile_control_status.json
 data/exchange_probe_results.json
 data/*.sqlite
+data/formal_outcome_exports/*.json
 data/v13_14_preview.*.log

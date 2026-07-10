@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.25.0 - Fail-Closed OKX Live Canary
+AlphaPilot V13.26.0 - Formal Execution Outcome Feedback
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -12,6 +12,20 @@ status bridge.
 
 It can mechanically execute immutable eligible releases in OKX Demo Trading.
 It also contains a default-off, checksum-gated OKX Live Canary adapter.
+
+## What V13.26.0 Adds
+
+- An immutable local ledger for fully closed and reconciled Demo/Live outcomes.
+- Gross PnL, fee, slippage, net PnL, risk, and R-multiple reconciliation.
+- Internal Demo/Live engine hooks that require an existing filled entry plus
+  explicit exit evidence; no browser endpoint can submit arbitrary outcomes.
+- A checksummed JSON export for the Quant Engine offline importer.
+- A Chinese Live-page evidence panel showing formal Demo/Live results,
+  quarantined incomplete executions, and the latest export path.
+
+An opening order marked `filled` is not treated as a closed trade. V13.26.0
+does not update models online, promote releases, read or persist account
+values, expose Withdraw, or create an order through the feedback path.
 
 ## What V13.25.0 Adds
 
@@ -1916,3 +1930,18 @@ Updated in this version:
 Saving or activating a profile does not grant order permission. V13.24.0 adds
 no Live exchange adapter, stores no raw API credentials, exposes no Withdraw
 capability, and keeps Live execution disabled.
+
+## V13.26.0 Formal Execution Outcome Export
+
+The Control Console exports only fully closed, reconciled, checksum-bound
+OKX Demo and Live Canary outcomes. Entry fills without exit evidence remain in
+the quarantine list and cannot enter Quant Engine learning.
+
+Use the `闭环执行证据` panel on the Live page, or call the local-only endpoint:
+
+```text
+POST /api/execution-outcomes/export
+```
+
+The export contains no raw credentials or account balances and does not place
+orders. It is consumed only by the Quant Engine offline feedback importer.

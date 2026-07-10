@@ -8,6 +8,7 @@ from typing import Any
 
 from .demo_execution_store import DemoExecutionRecord, DemoExecutionStore
 from .demo_risk_envelope import evaluate_demo_order_risk
+from .execution_outcome_store import ExecutionOutcomeStore, FormalExecutionOutcome
 
 
 _TERMINAL = {"filled", "canceled", "rejected", "mmp_canceled"}
@@ -37,9 +38,16 @@ def _reject_sensitive_fields(value: Any, path: str) -> None:
 
 
 class DemoExecutionEngine:
-    def __init__(self, *, client: Any, store: DemoExecutionStore):
+    def __init__(
+        self,
+        *,
+        client: Any,
+        store: DemoExecutionStore,
+        outcomeStore: ExecutionOutcomeStore | None = None,
+    ):
         self.client = client
         self.store = store
+        self.outcomeStore = outcomeStore
 
     def execute(
         self,
@@ -183,6 +191,37 @@ class DemoExecutionEngine:
         response = self.client.cancel_all_after(10)
         self.store.append_event(None, "kill_switch_activated", {"reason": reason, "cancelAllAfter": response})
         return response
+
+    def record_closed_outcome(
+        self,
+        *,
+        recordId: str,
+        contract: dict[str, Any],
+        dataSnapshotId: str,
+        closeEvidence: dict[str, Any],
+    ) -> FormalExecutionOutcome:
+        if self.outcomeStore is None:
+            raise RuntimeError("Formal execution outcome store is not configured")
+        self._validate_contract(contract)
+        record = self.store.get_record(recordId)
+        if record.status != "filled":
+            raise RuntimeError("Demo entry must be filled before a closed outcome can be recorded")
+        if record.demoReleaseId != str(contract["demoReleaseId"]):
+            raise PermissionError("Demo execution record does not match the release contract")
+        expected_direction = "long" if str(record.signal.get("side") or "").lower() in {"buy", "long"} else "short"
+        if str(closeEvidence.get("direction") or "") != expected_direction:
+            raise ValueError("Demo closed outcome direction does not match the opening execution")
+        return self.outcomeStore.record_closed({
+            **closeEvidence,
+            "environment": "okx_demo",
+            "sourceRecordId": record.recordId,
+            "releaseId": record.demoReleaseId,
+            "releaseHash": str(contract["releaseContentHash"]),
+            "strategyCandidateId": str(record.signal.get("candidateId") or ""),
+            "dataSnapshotId": str(dataSnapshotId),
+            "instrumentId": str(record.orderPayload.get("instId") or ""),
+            "decisionAt": str(record.signal.get("signalTime") or ""),
+        })
 
     @staticmethod
     def _validate_contract(contract: dict[str, Any]) -> None:

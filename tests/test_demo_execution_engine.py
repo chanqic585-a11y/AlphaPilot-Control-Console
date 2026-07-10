@@ -6,6 +6,7 @@ from pathlib import Path
 
 from alphapilot_control_console.demo_execution_engine import DemoExecutionEngine
 from alphapilot_control_console.demo_execution_store import DemoExecutionStore
+from alphapilot_control_console.execution_outcome_store import ExecutionOutcomeStore
 
 
 class FakeDemoClient:
@@ -125,6 +126,48 @@ class DemoExecutionEngineTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 engine.execute(contract=contract(), signal=unsafe_signal, portfolio={})
             self.assertEqual(store.list_records(), [])
+            store.close()
+
+    def test_closed_outcome_requires_filled_entry_and_explicit_exit_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = DemoExecutionStore(Path(directory) / "demo.sqlite")
+            outcome_store = ExecutionOutcomeStore(Path(directory) / "outcomes.sqlite")
+            client = FakeDemoClient()
+            engine = DemoExecutionEngine(client=client, store=store, outcomeStore=outcome_store)
+            record = engine.execute(contract=contract(), signal=signal(), portfolio={})
+            with self.assertRaises(RuntimeError):
+                engine.record_closed_outcome(
+                    recordId=record.recordId,
+                    contract=contract(),
+                    dataSnapshotId="snapshot-1",
+                    closeEvidence={},
+                )
+            engine.reconcile(record.recordId)
+            engine.reconcile(record.recordId)
+            outcome = engine.record_closed_outcome(
+                recordId=record.recordId,
+                contract=contract(),
+                dataSnapshotId="snapshot-1",
+                closeEvidence={
+                    "timeframe": "1h",
+                    "direction": "long",
+                    "entryAt": "2026-07-10T00:01:00+00:00",
+                    "exitAt": "2026-07-10T01:00:00+00:00",
+                    "entryPrice": 100.0,
+                    "exitPrice": 102.0,
+                    "quantity": 1.0,
+                    "grossPnl": 2.0,
+                    "feePaid": 0.1,
+                    "slippagePaid": 0.1,
+                    "netPnl": 1.8,
+                    "riskAmount": 1.0,
+                    "exitReason": "target",
+                    "sourcePayloadHash": "demo-close-fill-hash",
+                },
+            )
+            self.assertEqual(outcome.environment, "okx_demo")
+            self.assertEqual(len(outcome_store.list_outcomes()), 1)
+            outcome_store.close()
             store.close()
 
 

@@ -8,6 +8,7 @@ from pathlib import Path
 
 from alphapilot_control_console.live_execution_engine import LiveExecutionEngine
 from alphapilot_control_console.live_execution_store import LiveExecutionStore
+from alphapilot_control_console.execution_outcome_store import ExecutionOutcomeStore
 from alphapilot_control_console.risk_profile_store import RiskProfileStore
 
 
@@ -136,6 +137,44 @@ class LiveExecutionEngineTests(unittest.TestCase):
             self.assertTrue(another.runtime_state()["paused"])
         finally:
             another.close()
+
+    def test_closed_live_outcome_preserves_release_and_profile_lineage(self) -> None:
+        outcome_store = ExecutionOutcomeStore(Path(self.directory.name) / "outcomes.sqlite")
+        engine = LiveExecutionEngine(
+            client=self.client,
+            store=self.store,
+            outcomeStore=outcome_store,
+        )
+        record = engine.execute(
+            contract=self.contract,
+            activeProfile=self.profile,
+            signal=self.signal,
+            portfolio=self.portfolio,
+        )
+        engine.reconcile_record(record.recordId)
+        outcome = engine.record_closed_outcome(
+            recordId=record.recordId,
+            dataSnapshotId="snapshot-1",
+            closeEvidence={
+                "timeframe": "1h",
+                "direction": "long",
+                "entryAt": "2026-07-11T00:01:00+00:00",
+                "exitAt": "2026-07-11T01:00:00+00:00",
+                "entryPrice": 100.0,
+                "exitPrice": 102.0,
+                "quantity": 1.0,
+                "grossPnl": 2.0,
+                "feePaid": 0.1,
+                "slippagePaid": 0.1,
+                "netPnl": 1.8,
+                "riskAmount": 1.0,
+                "exitReason": "target",
+                "sourcePayloadHash": "live-close-fill-hash",
+            },
+        )
+        self.assertEqual(outcome.environment, "live")
+        self.assertEqual(outcome.outcome["riskProfileId"], self.profile["riskProfileId"])
+        outcome_store.close()
 
 
 if __name__ == "__main__":

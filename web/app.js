@@ -232,6 +232,7 @@ let latestLiveCandidatePayload = {};
 let selectedLiveCandidatePackageId = null;
 let latestRiskProfilePayload = {};
 let selectedRiskProfileId = null;
+let latestExecutionOutcomeExportPath = "";
 let latestMobilePayload = {};
 let latestSandboxReviewPayload = {};
 let latestCoreConsolePayload = {};
@@ -2968,6 +2969,61 @@ function renderLiveCanary(payload = {}) {
     : '<span class="ok">全部运行门已通过</span>';
 }
 
+function translateExecutionOutcomeQuarantine(reason) {
+  const labels = {
+    position_close_evidence_missing: "开仓已成交，但缺少平仓证据",
+    execution_did_not_create_trade_outcome: "执行未形成完整交易结果",
+    execution_not_terminal: "执行尚未进入终态",
+  };
+  return labels[reason] || reason || "结果证据不完整";
+}
+
+function renderExecutionOutcomes(payload = {}) {
+  if (!el("executionOutcomeFormalCount")) return;
+  const summary = payload.summary || {};
+  const formalCount = Number(summary.formalClosedOutcomeCount || 0);
+  const quarantined = Array.isArray(payload.quarantinedExecutionRecords)
+    ? payload.quarantinedExecutionRecords
+    : [];
+  setText("executionOutcomeFormalCount", formalCount);
+  setText("executionOutcomeDemoCount", summary.okxDemoOutcomeCount ?? 0);
+  setText("executionOutcomeLiveCount", summary.liveOutcomeCount ?? 0);
+  setText("executionOutcomeQuarantineCount", summary.quarantinedExecutionCount ?? quarantined.length);
+  setText("executionOutcomeBadge", formalCount > 0 ? "已有正式闭环证据" : "暂无正式结果");
+  el("executionOutcomeBadge").className = `badge ${formalCount > 0 ? "ok" : "neutral"}`;
+  const exportPath = payload.latestExportPath || payload.exportPath || latestExecutionOutcomeExportPath;
+  if (exportPath) latestExecutionOutcomeExportPath = exportPath;
+  setText(
+    "executionOutcomeExportPath",
+    exportPath ? `最新导出：${exportPath}` : "尚未生成导出文件。",
+  );
+  el("executionOutcomeQuarantineList").innerHTML = quarantined.length
+    ? quarantined.slice(0, 6).map((item) => `
+        <span>${escapeHtml(item.environment || "--")} · ${escapeHtml(item.sourceRecordId || "--")} · ${escapeHtml(translateExecutionOutcomeQuarantine(item.reason))}</span>
+      `).join("")
+    : '<span class="ok">当前没有待隔离的执行记录</span>';
+}
+
+async function exportExecutionOutcomes() {
+  const button = el("exportExecutionOutcomesButton");
+  if (!button) return;
+  button.disabled = true;
+  setText("executionOutcomeActionStatus", "正在导出已闭合且可对账的本地执行证据；未平仓记录会继续隔离。");
+  try {
+    const response = await postJson("/api/execution-outcomes/export", {});
+    latestCoreConsolePayload = {
+      ...latestCoreConsolePayload,
+      executionOutcomes: response.executionOutcomes || {},
+    };
+    renderExecutionOutcomes(response.executionOutcomes || {});
+    setText("executionOutcomeActionStatus", "闭环证据已导出。此操作不会触发模型在线更新、策略晋级或订单。");
+  } catch (error) {
+    setText("executionOutcomeActionStatus", `闭环证据导出失败：${error.message}`);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function riskProfileFormPayload() {
   const selected = selectedRiskProfile();
   if (!selected) throw new Error("请先选择一个风险配置版本");
@@ -5524,6 +5580,7 @@ function renderConsoleFromPayloads() {
   const liveCandidates = core.liveCandidates || { summary: {}, packages: [], recentApprovalActions: [] };
   const riskProfiles = core.riskProfiles || { summary: {}, profiles: [], activeProfiles: {} };
   const liveCanary = core.liveCanary || { summary: {}, runtimeGates: {}, runtime: {}, liveReleases: { summary: {} }, blockers: [] };
+  const executionOutcomes = core.executionOutcomes || { summary: {}, records: [], quarantinedExecutionRecords: [] };
   const liveReadiness = core.liveReadiness || { rows: [], summary: {} };
   const forwardReview = core.forwardReview || { rows: [], summary: {} };
   const simulationBridge = core.simulationBridge || emptySimulationBridge;
@@ -5542,6 +5599,7 @@ function renderConsoleFromPayloads() {
   renderLiveCandidateStatus(liveCandidates);
   renderRiskProfiles(riskProfiles);
   renderLiveCanary(liveCanary);
+  renderExecutionOutcomes(executionOutcomes);
   renderCommandCenter(strategyItems, reportItems, mobile);
   renderRuntimeMonitor(strategyItems, mobile);
   renderStrategies(strategyItems);
@@ -5713,6 +5771,7 @@ async function refreshAll() {
     { key: "liveCandidates", url: "/api/live-candidates", fallback: { summary: {}, packages: [], recentApprovalActions: [] }, timeoutMs: 6000 },
     { key: "riskProfiles", url: "/api/risk-profiles", fallback: { summary: {}, profiles: [], activeProfiles: {} }, timeoutMs: 6000 },
     { key: "liveCanary", url: "/api/live-canary", fallback: { summary: {}, runtimeGates: {}, runtime: {}, liveReleases: { summary: {} }, blockers: [] }, timeoutMs: 6000 },
+    { key: "executionOutcomes", url: "/api/execution-outcomes", fallback: { summary: {}, records: [], quarantinedExecutionRecords: [] }, timeoutMs: 6000 },
     { key: "liveReadiness", url: "/api/live-readiness", fallback: { rows: [], summary: {} }, timeoutMs: 8000 },
     { key: "forwardReview", url: "/api/forward-review", fallback: { rows: [], summary: {} }, timeoutMs: 8000 },
   ], 4);
@@ -6160,6 +6219,7 @@ el("rollbackRiskProfileButton")?.addEventListener("click", rollbackRiskProfileVe
 el("liveCanaryReconcileButton")?.addEventListener("click", reconcileLiveCanary);
 el("liveCanaryArmButton")?.addEventListener("click", armLiveCanary);
 el("liveCanaryKillButton")?.addEventListener("click", stopLiveCanary);
+el("exportExecutionOutcomesButton")?.addEventListener("click", exportExecutionOutcomes);
 el("toggleAdvancedModeButton")?.addEventListener("click", () => {
   toggleAdvancedMode();
   if (document.body.classList.contains("show-advanced")) void loadAdvancedDataIfNeeded();

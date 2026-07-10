@@ -828,6 +828,27 @@
             </div>
             <div id="liveCanaryBlockers" class="exchange-demo-blockers"></div>
           </div>
+          <div class="exchange-demo-section formal-outcome-panel">
+            <div class="simple-section-title">
+              <div>
+                <strong>闭环执行证据</strong>
+                <span>只有已平仓、盈亏与成本可对账、且 release / 策略 / 数据快照谱系完整的结果才进入离线研究。</span>
+              </div>
+              <span id="executionOutcomeBadge" class="badge neutral">暂无正式结果</span>
+            </div>
+            <div class="exchange-demo-pipeline-grid">
+              <div><span>正式闭环结果</span><strong id="executionOutcomeFormalCount">--</strong><small>不会把开仓成交误算为完整交易</small></div>
+              <div><span>OKX Demo</span><strong id="executionOutcomeDemoCount">--</strong><small>必须关联不可变 Demo Release</small></div>
+              <div><span>Live Canary</span><strong id="executionOutcomeLiveCount">--</strong><small>必须关联 Live Release 与 RiskProfile</small></div>
+              <div><span>隔离记录</span><strong id="executionOutcomeQuarantineCount">--</strong><small>未平仓、缺证据或未终态均不学习</small></div>
+            </div>
+            <div id="executionOutcomeQuarantineList" class="exchange-demo-blockers"></div>
+            <div class="live-canary-actions">
+              <button id="exportExecutionOutcomesButton" class="secondary" type="button">导出闭环证据</button>
+              <span id="executionOutcomeActionStatus">导出只读取本地审计账本，不读取凭据、账户金额或创建订单。</span>
+            </div>
+            <small id="executionOutcomeExportPath">尚未生成导出文件。</small>
+          </div>
           <div class="exchange-demo-section risk-profile-panel">
             <div class="simple-section-title">
               <div><strong>风险配置版本</strong><span id="riskProfileMeta">参数可调整，但不会直接开启交易。</span></div>
@@ -2551,6 +2572,6 @@
         <button class="back-home-button" id="backHomeButton" type="button" aria-label="回到策略页">回到策略</button>
       </main>
     </div>
-    <script src="/app.js?v=20260711-v13-25-live-canary"></script>
+    <script src="/app.js?v=20260711-v13-26-outcome-feedback-2"></script>
   </body>
 </html>

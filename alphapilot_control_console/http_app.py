@@ -28,6 +28,10 @@ from .evolution_demo_service import (
     build_evolution_demo_status,
     run_evolution_demo_cycle,
 )
+from .execution_outcome_export import (
+    build_execution_outcome_status,
+    write_execution_outcome_export,
+)
 from .forward_review import build_forward_review, refresh_forward_review
 from .importer import build_mobile_status, import_now, scan_quant_engine
 from .live_readiness import build_live_readiness, create_manual_execution_ticket
@@ -176,7 +180,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.15.2"
+    server_version = "AlphaPilotControlConsole/13.26.0"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -219,8 +223,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.25.0",
-                "source": "alphapilot_control_console_v13_25_0",
+                "version": "V13.26.0",
+                "source": "alphapilot_control_console_v13_26_0",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -507,6 +511,14 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/live-canary":
             self._send_json(_cached_payload("live-canary", 5, build_live_canary_status, fresh=fresh))
+            return
+        if path == "/api/execution-outcomes":
+            self._send_json(_cached_payload(
+                "execution-outcomes",
+                5,
+                build_execution_outcome_status,
+                fresh=fresh,
+            ))
             return
         if path == "/api/risk-profiles":
             self._send_json(_cached_payload("risk-profiles", 5, build_risk_profile_status, fresh=fresh))
@@ -1026,6 +1038,15 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 return
             _RESPONSE_CACHE.clear()
             self._send_json(result)
+            return
+        if parsed.path == "/api/execution-outcomes/export":
+            try:
+                result = write_execution_outcome_export()
+            except (OSError, RuntimeError, ValueError) as error:
+                self._send_json({"ok": False, "error": type(error).__name__, "message": str(error)}, 409)
+                return
+            _RESPONSE_CACHE.clear()
+            self._send_json({"ok": True, "executionOutcomes": result})
             return
         if parsed.path in {
             "/api/risk-profiles/create",

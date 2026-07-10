@@ -6,6 +6,7 @@ import hashlib
 import json
 from typing import Any
 
+from .execution_outcome_store import ExecutionOutcomeStore, FormalExecutionOutcome
 from .live_execution_store import LiveExecutionRecord, LiveExecutionStore
 from .portfolio_risk import evaluate_portfolio_risk
 
@@ -23,9 +24,16 @@ def _first(response: dict[str, Any]) -> dict[str, Any]:
 
 
 class LiveExecutionEngine:
-    def __init__(self, *, client: Any, store: LiveExecutionStore):
+    def __init__(
+        self,
+        *,
+        client: Any,
+        store: LiveExecutionStore,
+        outcomeStore: ExecutionOutcomeStore | None = None,
+    ):
         self.client = client
         self.store = store
+        self.outcomeStore = outcomeStore
 
     def execute(
         self,
@@ -181,6 +189,35 @@ class LiveExecutionEngine:
             "cancelAllAfterCode": str(response.get("code") or ""),
         })
         return response
+
+    def record_closed_outcome(
+        self,
+        *,
+        recordId: str,
+        dataSnapshotId: str,
+        closeEvidence: dict[str, Any],
+    ) -> FormalExecutionOutcome:
+        if self.outcomeStore is None:
+            raise RuntimeError("Formal execution outcome store is not configured")
+        record = self.store.get_record(recordId)
+        if record.status != "filled":
+            raise RuntimeError("Live entry must be filled before a closed outcome can be recorded")
+        expected_direction = "long" if str(record.signal.get("side") or "").lower() in {"buy", "long"} else "short"
+        if str(closeEvidence.get("direction") or "") != expected_direction:
+            raise ValueError("Live closed outcome direction does not match the opening execution")
+        return self.outcomeStore.record_closed({
+            **closeEvidence,
+            "environment": "live",
+            "sourceRecordId": record.recordId,
+            "releaseId": record.liveReleaseId,
+            "releaseHash": record.liveReleaseHash,
+            "riskProfileId": record.riskProfileId,
+            "riskProfileHash": record.riskProfileHash,
+            "strategyCandidateId": record.strategyCandidateId,
+            "dataSnapshotId": str(dataSnapshotId),
+            "instrumentId": record.instrumentId,
+            "decisionAt": str(record.signal.get("signalTime") or ""),
+        })
 
     @staticmethod
     def _validate_contract(contract: dict[str, Any], active_profile: dict[str, Any]) -> dict[str, Any]:
