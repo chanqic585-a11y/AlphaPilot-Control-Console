@@ -2350,14 +2350,22 @@ function renderExchangeDemoSimulation(payload = {}) {
   if (orderGate) {
     const canSubmit = Boolean(summary.canSubmitDemoOrder);
     orderGate.className = `badge ${canSubmit ? "ok" : "warn"}`;
-    orderGate.textContent = canSubmit ? "订单门槛满足" : "订单关闭";
+    orderGate.textContent = canSubmit ? "烟测可用" : "烟测关闭";
   }
 
   setText("exchangeDemoConnectionState", summary.demoPrivateEnabled ? "Demo 开关已开" : "默认锁定");
-  setText("exchangeDemoConnectionMeta", `${summary.exchange || "OKX Demo Trading"} · ${summary.baseUrl || "--"}`);
+  setText("exchangeDemoConnectionMeta", `${summary.exchange || "OKX Demo Trading"} · ${summary.site || "global"} · ${summary.baseUrl || "--"}`);
   setText("exchangeDemoCredentialState", credentialStatus.allConfigured ? "环境变量已配置" : "凭据未完整");
   setText("exchangeDemoReadOnlyState", readonlySummary.statusLabel || (summary.canRunReadOnlyCheck ? "可检查" : "阻塞"));
   setText("exchangeDemoReadOnlyMeta", readonlySummary.nextAction || summary.nextAction || "先配置 OKX Demo 环境变量。");
+  setText("exchangeDemoSmokeState", summary.connectivitySmokeReady ? "可执行" : "锁定");
+  setText("exchangeDemoAutomationGateState", summary.strategyAutomationReady ? "Release 已就绪" : "等待 Release");
+  setText(
+    "exchangeDemoAutomationGateMeta",
+    summary.strategyAutomationReady
+      ? `${summary.eligibleDemoReleaseCount ?? 0} 个不可变 Release 已通过全部闸门。`
+      : `当前 ${summary.eligibleDemoReleaseCount ?? 0} 个合格 Release；连接烟测不会改变该数量。`,
+  );
   setText("exchangeDemoRecentMeta", `${recentEvents.length} 条事件 · 最近 ${formatDate(recentEvents[0]?.createdAt)}`);
   setText("exchangeDemoLauncherCommand", launcher.readOnlyCommand || "powershell -ExecutionPolicy Bypass -File scripts\\start_okx_demo_console.ps1");
 
@@ -2395,6 +2403,7 @@ function renderExchangeDemoSimulation(payload = {}) {
     const blockers = Array.isArray(readonlySummary.blockers) ? readonlySummary.blockers : [];
     readonlyTarget.innerHTML = `
       <div><span>检查时间</span><strong>${formatDate(readonlySummary.lastCheckedAt)}</strong></div>
+      <div><span>账户配置接口</span><strong>${escapeHtml(readonlySummary.accountConfigStatus ?? "--")} / ${escapeHtml(readonlySummary.accountConfigCode ?? "--")}</strong></div>
       <div><span>余额接口</span><strong>${escapeHtml(readonlySummary.balanceStatus ?? "--")} / ${escapeHtml(readonlySummary.balanceCode ?? "--")}</strong></div>
       <div><span>持仓接口</span><strong>${escapeHtml(readonlySummary.positionStatus ?? "--")} / ${escapeHtml(readonlySummary.positionCode ?? "--")}</strong></div>
       <div><span>阻塞</span><strong>${blockers.length ? blockers.map(translateExchangeDemoBlocker).join(" · ") : "无"}</strong></div>
@@ -2433,6 +2442,7 @@ function renderExchangeDemoSimulation(payload = {}) {
             <span>方向 ${escapeHtml(event.side || "--")}</span>
             <span>金额 ${formatNumber(event.notionalUsdt, 2)} USDT</span>
             <span>订单 ${escapeHtml(event.clientOrderId || event.ordId || "--")}</span>
+            ${event.executionPurpose === "connectivity_smoke_only" ? "<span>用途 连接烟测（非策略证据）</span>" : ""}
           </div>
           ${blockers.length ? `<div class="sandbox-lane-next">${blockers.map((item) => escapeHtml(translateExchangeDemoBlocker(item))).join(" · ")}</div>` : ""}
         </div>
@@ -5735,7 +5745,7 @@ async function runExchangeDemoReadOnlyCheck() {
     const response = await postJson("/api/exchange-demo/read-only-check", {});
     renderExchangeDemoSimulation(response.exchangeDemoSimulation || {});
     setText("exchangeDemoActionStatus", response.ok
-      ? "OKX Demo 只读检查通过。订单能力仍需单独开关和人工确认。"
+      ? "OKX Demo 账户配置、模拟余额和模拟持仓只读检查通过。连接烟测与正式策略自动化仍是两道独立闸门。"
       : `只读检查被阻塞或失败：${(response.event?.blockers || response.rejectionReasons || []).map(translateExchangeDemoBlocker).join(" · ") || "请查看最近事件"}`);
   } catch (error) {
     setText("exchangeDemoActionStatus", `只读检查失败：${error.message}`);
@@ -5747,13 +5757,13 @@ async function runExchangeDemoReadOnlyCheck() {
 async function submitExchangeDemoOrder() {
   const button = el("exchangeDemoSubmitButton");
   if (button) button.disabled = true;
-  setText("exchangeDemoActionStatus", "正在提交 OKX Demo 订单请求；只有 Demo 开关、订单开关和人工确认都满足时才会发出。");
+  setText("exchangeDemoActionStatus", "正在提交 OKX Demo 连接烟测订单；该结果不计入策略证据，也不会创建 Demo Release。");
   try {
     const response = await postJson("/api/exchange-demo/order", getExchangeDemoTicketPayload());
     renderExchangeDemoSimulation(response.exchangeDemoSimulation || {});
     setText("exchangeDemoActionStatus", response.ok
-      ? "OKX Demo 订单已提交到模拟环境。请在最近事件里复核返回结果。"
-      : `Demo 订单未提交：${(response.rejectionReasons || response.event?.blockers || []).map(translateExchangeDemoBlocker).join(" · ") || "请查看最近事件"}`);
+      ? "OKX Demo 连接烟测订单已提交。请复核返回结果；正式策略自动化状态不会因此改变。"
+      : `连接烟测订单未提交：${(response.rejectionReasons || response.event?.blockers || []).map(translateExchangeDemoBlocker).join(" · ") || "请查看最近事件"}`);
   } catch (error) {
     setText("exchangeDemoActionStatus", `Demo 订单请求失败：${error.message}`);
   } finally {

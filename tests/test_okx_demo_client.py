@@ -6,6 +6,7 @@ from alphapilot_control_console.credential_runtime import OkxDemoCredentials
 from alphapilot_control_console.exchange_connectors.okx_demo_client import (
     OkxDemoClient,
     OkxDemoRequest,
+    resolve_okx_rest_url,
 )
 
 
@@ -62,6 +63,21 @@ class OkxDemoClientTests(unittest.TestCase):
                     "sz": "1",
                     "clOrdId": "contains spaces",
                 }
+            )
+
+    def test_global_site_resolves_to_official_rest_domain(self) -> None:
+        self.assertEqual(resolve_okx_rest_url("global"), "https://openapi.okx.com")
+
+    def test_unknown_site_is_rejected_locally(self) -> None:
+        with self.assertRaises(ValueError):
+            resolve_okx_rest_url("unknown")
+
+    def test_mismatched_custom_base_url_is_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            OkxDemoClient(
+                OkxDemoCredentials("key", "secret", "pass"),
+                site="global",
+                baseUrl="https://us.okx.com",
             )
 
 

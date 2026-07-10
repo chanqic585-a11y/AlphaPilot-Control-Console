@@ -9,6 +9,7 @@ import json
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from types import MappingProxyType
 from typing import Any, Callable, Protocol
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -17,7 +18,12 @@ from urllib.request import Request, urlopen
 from ..credential_runtime import OkxDemoCredentials
 
 
-OKX_DEMO_REST_URL = "https://openapi.okx.com"
+OKX_SITE_REST_URLS = MappingProxyType({
+    "global": "https://openapi.okx.com",
+    "us": "https://us.okx.com",
+    "eea": "https://eea.okx.com",
+})
+OKX_DEMO_REST_URL = OKX_SITE_REST_URLS["global"]
 _CLIENT_ID = re.compile(r"^[A-Za-z0-9]{1,32}$")
 _ALLOWED_ENDPOINTS = {
     ("GET", "/api/v5/account/config"),
@@ -30,6 +36,14 @@ _ALLOWED_ENDPOINTS = {
     ("POST", "/api/v5/trade/cancel-order"),
     ("POST", "/api/v5/trade/cancel-all-after"),
 }
+
+
+def resolve_okx_rest_url(site: str = "global") -> str:
+    normalized = str(site or "global").strip().lower()
+    try:
+        return OKX_SITE_REST_URLS[normalized]
+    except KeyError as error:
+        raise ValueError(f"Unsupported OKX account site: {normalized}") from error
 
 
 @dataclass(frozen=True)
@@ -102,16 +116,28 @@ class OkxDemoClient:
         *,
         transport: DemoTransport | None = None,
         timestampFactory: Callable[[], str] = _timestamp,
-        baseUrl: str = OKX_DEMO_REST_URL,
+        site: str = "global",
+        baseUrl: str | None = None,
         timeoutSeconds: float = 12.0,
     ):
-        if baseUrl.rstrip("/") != OKX_DEMO_REST_URL:
-            raise ValueError("OKX Demo REST base URL must be the official openapi.okx.com endpoint")
+        normalized_site = str(site or "global").strip().lower()
+        resolved_base_url = resolve_okx_rest_url(normalized_site)
+        if baseUrl is not None and baseUrl.rstrip("/") != resolved_base_url:
+            raise ValueError(f"OKX Demo REST base URL does not match the selected {normalized_site} site")
         self._credentials = credentials
         self._transport = transport or UrllibDemoTransport()
         self._timestamp_factory = timestampFactory
-        self._base_url = OKX_DEMO_REST_URL
+        self._site = normalized_site
+        self._base_url = resolved_base_url
         self._timeout_seconds = timeoutSeconds
+
+    @property
+    def site(self) -> str:
+        return self._site
+
+    @property
+    def base_url(self) -> str:
+        return self._base_url
 
     def request(
         self,
@@ -163,8 +189,16 @@ class OkxDemoClient:
     def get_balance(self, currency: str = "USDT") -> dict[str, Any]:
         return self.request("GET", "/api/v5/account/balance", query={"ccy": currency})
 
-    def get_positions(self, instrumentId: str | None = None) -> dict[str, Any]:
-        return self.request("GET", "/api/v5/account/positions", query={"instId": instrumentId})
+    def get_positions(
+        self,
+        instrumentId: str | None = None,
+        instrumentType: str | None = None,
+    ) -> dict[str, Any]:
+        return self.request(
+            "GET",
+            "/api/v5/account/positions",
+            query={"instId": instrumentId, "instType": instrumentType},
+        )
 
     def place_order(self, payload: dict[str, Any]) -> dict[str, Any]:
         required = ("instId", "tdMode", "side", "ordType", "sz", "clOrdId")

@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.15.1 - Strategy Lifecycle Console Redesign
+AlphaPilot V13.15.2 - Secure OKX Demo Integration
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -1784,3 +1784,48 @@ Updated in this patch:
 - No trading capability is added. Live trading, Withdraw API, raw API key
   storage, real account access, real position access, real order creation, and
   auto trading remain disabled.
+
+## V13.15.2 Secure OKX Demo Integration
+
+V13.15.2 hardens the existing OKX Demo connection before any formal strategy
+automation is enabled.
+
+Updated in this patch:
+
+- Uses one allowlisted `OkxDemoClient` for signing and all OKX Demo private
+  requests.
+- Fixes the selected account site to Global and the REST origin to
+  `https://openapi.okx.com`.
+- Requires `x-simulated-trading: 1` on every private Demo request.
+- The first check reads only account configuration, the USDT Demo balance, and
+  SWAP Demo positions.
+- Persisted check events contain only endpoint status, OKX return code, site,
+  timestamp, and redacted metadata. Account values and credentials are not
+  written to console state.
+- `-EnableOrder` opens a `connectivity_smoke_only` lane. A smoke order is not
+  strategy evidence and cannot create a Demo Release or Live Candidate.
+- Formal automated strategy execution remains locked until an immutable,
+  eligible Demo Release passes every release and runtime gate.
+- Raw API key, secret, and passphrase values exist only in the launcher process
+  environment and are removed when that process exits.
+
+Global-site read-only startup:
+
+```powershell
+cd D:\Codex-Workspace\AlphaPilot-Control-Console
+powershell -ExecutionPolicy Bypass -File scripts\start_okx_demo_console.ps1
+```
+
+Connectivity smoke startup, only after the read-only check passes:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\start_okx_demo_console.ps1 -EnableOrder
+```
+
+Safety boundary:
+
+- Use only an OKX Demo Trading Read+Trade key. Do not use a live key and do not
+  enable Withdraw permission.
+- Connectivity smoke results do not promote strategies.
+- A missing Demo Release always blocks formal strategy automation.
+- Live trading and Withdraw API remain disabled.

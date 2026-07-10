@@ -765,7 +765,7 @@
           <div class="exchange-demo-layout">
             <div class="exchange-demo-main">
               <div class="exchange-ticket-card legacy-demo-ticket">
-                <div class="exchange-ticket-head"><div><p class="panel-eyebrow">LEGACY MANUAL REHEARSAL</p><h3>旧版 OKX Demo 人工演练</h3></div><span id="exchangeDemoOrderGate" class="badge warn">订单关闭</span></div>
+                <div class="exchange-ticket-head"><div><p class="panel-eyebrow">CONNECTIVITY SMOKE ONLY</p><h3>OKX Demo 连接烟测</h3><small>用于验证下单链路，不计入策略样本，也不会创建 Demo Release。</small></div><span id="exchangeDemoOrderGate" class="badge warn">烟测关闭</span></div>
                 <div class="exchange-ticket-grid">
                   <label>&#21512;&#32422; <input id="exchangeDemoInstIdInput" value="BTC-USDT-SWAP" autocomplete="off" /></label>
                   <label>&#26041;&#21521; <select id="exchangeDemoSideInput"><option value="buy">&#20080;&#20837; / &#24320;&#22810;&#26041;&#21521;</option><option value="sell">&#21334;&#20986; / &#24320;&#31354;&#26041;&#21521;</option></select></label>
@@ -777,8 +777,8 @@
                   <label>ordId <input id="exchangeDemoOrdIdInput" placeholder="Demo &#25764;&#21333;&#28436;&#32451;&#21487;&#22635;" autocomplete="off" /></label>
                   <label>&#20154;&#24037;&#30830;&#35748; <input id="exchangeDemoConfirmInput" placeholder="&#36755;&#20837; OKX_DEMO_ORDER_APPROVED" autocomplete="off" /></label>
                 </div>
-                <div class="exchange-ticket-actions"><button id="exchangeDemoReadOnlyButton" type="button">&#21482;&#35835;&#26816;&#26597;</button><button id="exchangeDemoSubmitButton" type="button">&#25552;&#20132; Demo &#35746;&#21333;</button><button id="exchangeDemoEmergencyButton" class="danger-action" type="button">&#32039;&#24613;&#20572;&#27490;&#28436;&#32451;</button></div>
-                <div id="exchangeDemoActionStatus" class="exchange-demo-status">&#31561;&#24453;&#37197;&#32622; OKX Demo &#29615;&#22659;&#21464;&#37327;&#12290;</div>
+                <div class="exchange-ticket-actions"><button id="exchangeDemoReadOnlyButton" type="button">&#21482;&#35835;&#26816;&#26597;</button><button id="exchangeDemoSubmitButton" type="button">提交连接烟测订单</button><button id="exchangeDemoEmergencyButton" class="danger-action" type="button">&#32039;&#24613;&#20572;&#27490;&#28436;&#32451;</button></div>
+                <div id="exchangeDemoActionStatus" class="exchange-demo-status">等待进程内 OKX Demo 凭据；默认只开放只读检查。</div>
               </div>
               <div class="exchange-demo-section"><div class="simple-section-title"><strong>&#26368;&#36817; Demo &#20107;&#20214;</strong><span id="exchangeDemoRecentMeta">&#31561;&#24453;&#20107;&#20214;&#12290;</span></div><div id="exchangeDemoRecentEvents" class="testnet-drill-list"></div></div>
             </div>
@@ -786,6 +786,8 @@
               <div class="exchange-demo-side-card"><span>&#36830;&#25509;&#29366;&#24577;</span><strong id="exchangeDemoConnectionState">--</strong><small id="exchangeDemoConnectionMeta">--</small></div>
               <div class="exchange-demo-side-card"><span>&#20973;&#25454;&#29366;&#24577;</span><strong id="exchangeDemoCredentialState">--</strong><small>&#21482;&#35835;&#21462;&#29615;&#22659;&#21464;&#37327;&#65292;&#19981;&#20889;&#20837;&#32593;&#39029;&#25110; SQLite&#12290;</small></div>
               <div class="exchange-demo-side-card"><span>&#21482;&#35835;&#26816;&#26597;</span><strong id="exchangeDemoReadOnlyState">--</strong><small id="exchangeDemoReadOnlyMeta">--</small></div>
+              <div class="exchange-demo-side-card"><span>连接烟测订单</span><strong id="exchangeDemoSmokeState">--</strong><small>只验证 Demo 下单链路，不是策略执行证据。</small></div>
+              <div class="exchange-demo-side-card"><span>正式策略自动化</span><strong id="exchangeDemoAutomationGateState">--</strong><small id="exchangeDemoAutomationGateMeta">必须有不可变 Demo Release。</small></div>
               <div class="exchange-demo-side-card"><span>&#19978;&#27425;&#21482;&#35835;&#32467;&#26524;</span><div id="exchangeDemoReadOnlyDetails" class="exchange-demo-readonly-details"></div></div>
               <div class="exchange-demo-side-card"><span>&#38459;&#22622;&#39033;</span><div id="exchangeDemoBlockers" class="exchange-demo-blockers"></div></div>
             </aside>

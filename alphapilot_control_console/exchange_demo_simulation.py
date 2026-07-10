@@ -1,30 +1,27 @@
 from __future__ import annotations
 
-import base64
-import hashlib
-import hmac
 import json
 import os
 import time
-from datetime import datetime, timezone
-from typing import Any
-from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+from typing import Any, Callable
 
 from .config import SAFETY_BOUNDARY
+from .credential_runtime import load_okx_demo_credentials, runtime_credential_status
+from .exchange_connectors.okx_demo_client import (
+    OkxDemoClient,
+    OkxDemoError,
+    resolve_okx_rest_url,
+)
 from .exchange_connectors.public_exchange_registry import probe_public_exchanges
+from .evolution_demo_service import build_evolution_demo_status
 from .state_store import list_exchange_demo_events, now_iso, save_exchange_demo_event
 from .usable_strategy_catalog import build_usable_strategy_catalog
-from .evolution_demo_service import build_evolution_demo_status
 
 
-CONTROL_CONSOLE_VERSION = "V13.10.0"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_10_0"
-DEFAULT_DEMO_BASE_URL = "https://openapi.okx.com"
-ALLOWED_DEMO_BASE_URLS = {"https://openapi.okx.com"}
+CONTROL_CONSOLE_VERSION = "V13.15.2"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_15_2"
+DEFAULT_OKX_SITE = "global"
 MAX_DEMO_NOTIONAL_USDT = 250.0
-READ_TIMEOUT_SECONDS = 12
 
 
 def _env_enabled(name: str) -> bool:
@@ -35,107 +32,82 @@ def _env_text(name: str) -> str:
     return os.environ.get(name, "").strip()
 
 
+def _demo_site() -> str:
+    return (_env_text("ALPHAPILOT_OKX_SITE") or DEFAULT_OKX_SITE).lower()
+
+
 def _demo_base_url() -> tuple[str, str | None]:
-    configured = _env_text("ALPHAPILOT_OKX_DEMO_BASE_URL") or DEFAULT_DEMO_BASE_URL
-    normalized = configured.rstrip("/")
-    if normalized not in ALLOWED_DEMO_BASE_URLS:
-        return DEFAULT_DEMO_BASE_URL, f"unsupported_demo_base_url:{normalized}"
-    return normalized, None
+    site = _demo_site()
+    try:
+        return resolve_okx_rest_url(site), None
+    except ValueError:
+        return resolve_okx_rest_url(DEFAULT_OKX_SITE), f"unsupported_okx_site:{site}"
 
 
 def _credential_status() -> dict[str, Any]:
-    key = _env_text("ALPHAPILOT_OKX_DEMO_API_KEY")
-    secret = _env_text("ALPHAPILOT_OKX_DEMO_SECRET_KEY")
-    passphrase = _env_text("ALPHAPILOT_OKX_DEMO_PASSPHRASE")
+    return runtime_credential_status()
+
+
+def _make_demo_client() -> OkxDemoClient:
+    site = _demo_site()
+    resolve_okx_rest_url(site)
+    return OkxDemoClient(load_okx_demo_credentials(), site=site)
+
+
+def _normalize_client_response(payload: dict[str, Any], *, base_url: str) -> dict[str, Any]:
+    raw_code = payload.get("code") if isinstance(payload, dict) else None
+    code = "" if raw_code is None else str(raw_code)
     return {
-        "apiKeyConfigured": bool(key),
-        "secretKeyConfigured": bool(secret),
-        "passphraseConfigured": bool(passphrase),
-        "allConfigured": bool(key and secret and passphrase),
+        "ok": code == "0",
+        "status": 200,
+        "payload": payload if isinstance(payload, dict) else {},
+        "demoHeaderUsed": True,
+        "baseUrl": base_url,
     }
 
 
-def _credential_values() -> dict[str, str]:
+def _failed_client_response(error: Exception, *, base_url: str) -> dict[str, Any]:
     return {
-        "api_key": _env_text("ALPHAPILOT_OKX_DEMO_API_KEY"),
-        "secret_key": _env_text("ALPHAPILOT_OKX_DEMO_SECRET_KEY"),
-        "passphrase": _env_text("ALPHAPILOT_OKX_DEMO_PASSPHRASE"),
+        "ok": False,
+        "status": None,
+        "payload": {},
+        "error": f"okx_demo_request_failed:{type(error).__name__}",
+        "demoHeaderUsed": True,
+        "baseUrl": base_url,
     }
 
 
-def _iso_timestamp() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+def _connectivity_smoke_metadata() -> dict[str, bool | str]:
+    return {
+        "executionPurpose": "connectivity_smoke_only",
+        "strategyEvidenceEligible": False,
+        "createsDemoRelease": False,
+        "createsLiveCandidate": False,
+    }
 
 
-def _sign(secret_key: str, timestamp: str, method: str, request_path: str, body: str) -> str:
-    message = f"{timestamp}{method.upper()}{request_path}{body}"
-    digest = hmac.new(secret_key.encode("utf-8"), message.encode("utf-8"), hashlib.sha256).digest()
-    return base64.b64encode(digest).decode("utf-8")
-
-
-def _compact_json(payload: dict[str, Any]) -> str:
-    return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-
-
-def _okx_request(method: str, path: str, query: dict[str, Any] | None = None, body: dict[str, Any] | None = None) -> dict[str, Any]:
+def _okx_request(
+    method: str,
+    path: str,
+    query: dict[str, Any] | None = None,
+    body: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     base_url, base_url_warning = _demo_base_url()
     if base_url_warning:
         return {"ok": False, "error": base_url_warning, "code": "local_base_url_blocked"}
-
-    credentials = _credential_values()
-    if not all(credentials.values()):
-        return {"ok": False, "error": "okx_demo_credentials_missing", "code": "local_credentials_missing"}
-
-    query_string = ""
-    if query:
-        query_string = "?" + urlencode({key: value for key, value in query.items() if value is not None})
-    request_path = f"{path}{query_string}"
-    body_text = _compact_json(body or {}) if body else ""
-    timestamp = _iso_timestamp()
-    headers = {
-        "Content-Type": "application/json",
-        "OK-ACCESS-KEY": credentials["api_key"],
-        "OK-ACCESS-SIGN": _sign(credentials["secret_key"], timestamp, method, request_path, body_text),
-        "OK-ACCESS-TIMESTAMP": timestamp,
-        "OK-ACCESS-PASSPHRASE": credentials["passphrase"],
-        "x-simulated-trading": "1",
-    }
-    request = Request(
-        f"{base_url}{request_path}",
-        data=body_text.encode("utf-8") if body_text else None,
-        headers=headers,
-        method=method.upper(),
-    )
     try:
-        with urlopen(request, timeout=READ_TIMEOUT_SECONDS) as response:
-            raw = response.read().decode("utf-8")
-            payload = json.loads(raw) if raw else {}
-            return {
-                "ok": True,
-                "status": response.status,
-                "payload": payload,
-                "demoHeaderUsed": True,
-                "baseUrl": base_url,
-            }
-    except HTTPError as error:
-        raw_error = error.read().decode("utf-8", errors="replace")
-        try:
-            payload = json.loads(raw_error)
-        except json.JSONDecodeError:
-            payload = {"message": raw_error[:500]}
+        payload = _make_demo_client().request(method, path, query=query, body=body)
+        return _normalize_client_response(payload, base_url=base_url)
+    except RuntimeError:
         return {
             "ok": False,
-            "status": error.code,
-            "payload": payload,
-            "error": "okx_demo_http_error",
-            "demoHeaderUsed": True,
-            "baseUrl": base_url,
+            "error": "okx_demo_credentials_missing",
+            "code": "local_credentials_missing",
         }
-    except (URLError, TimeoutError, OSError) as error:
+    except (OkxDemoError, PermissionError, ValueError) as error:
         return {
             "ok": False,
-            "error": f"okx_demo_network_error:{type(error).__name__}",
-            "message": str(error),
+            "error": f"okx_demo_request_blocked:{type(error).__name__}",
             "demoHeaderUsed": True,
             "baseUrl": base_url,
         }
@@ -339,8 +311,10 @@ def _build_readonly_summary(events: list[dict[str, Any]]) -> dict[str, Any]:
             "status": "not_run",
             "statusLabel": "尚未检查",
             "lastCheckedAt": None,
+            "accountConfigStatus": None,
             "balanceStatus": None,
             "positionStatus": None,
+            "accountConfigCode": None,
             "balanceCode": None,
             "positionCode": None,
             "blockers": [],
@@ -355,7 +329,7 @@ def _build_readonly_summary(events: list[dict[str, Any]]) -> dict[str, Any]:
         "unknown": "状态未知",
     }
     if status == "passed":
-        next_action = "只读检查已通过；若要做 Demo 订单演练，仍需单独开启订单开关并人工确认。"
+        next_action = "只读检查已通过；连接烟测仍需单独开关，正式策略自动化仍需不可变 Demo Release。"
     elif status == "blocked":
         next_action = "先补齐 OKX Demo 环境变量和 Demo 私有连接开关。"
     else:
@@ -364,8 +338,10 @@ def _build_readonly_summary(events: list[dict[str, Any]]) -> dict[str, Any]:
         "status": status,
         "statusLabel": labels.get(status, status),
         "lastCheckedAt": event.get("createdAt"),
+        "accountConfigStatus": event.get("accountConfigStatus"),
         "balanceStatus": event.get("balanceStatus"),
         "positionStatus": event.get("positionStatus"),
+        "accountConfigCode": event.get("okxAccountConfigCode"),
         "balanceCode": event.get("okxBalanceCode"),
         "positionCode": event.get("okxPositionCode"),
         "blockers": blockers,
@@ -373,7 +349,11 @@ def _build_readonly_summary(events: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def _build_runbook(private_blockers: list[str], order_blockers: list[str]) -> list[dict[str, Any]]:
+def _build_runbook(
+    private_blockers: list[str],
+    order_blockers: list[str],
+    strategy_automation_ready: bool,
+) -> list[dict[str, Any]]:
     return [
         {
             "stepId": "create_okx_demo_key",
@@ -395,9 +375,15 @@ def _build_runbook(private_blockers: list[str], order_blockers: list[str]) -> li
         },
         {
             "stepId": "manual_demo_order",
-            "label": "人工 Demo 订单演练",
+            "label": "连接烟测订单",
             "status": "ready" if not order_blockers else "blocked",
-            "description": "订单演练必须单独开启订单开关、手动填写 sz，并输入 OKX_DEMO_ORDER_APPROVED。",
+            "description": "烟测必须单独开启订单开关、手动填写 sz，并输入确认口令；结果不计入策略证据。",
+        },
+        {
+            "stepId": "formal_demo_automation",
+            "label": "正式策略自动化",
+            "status": "ready" if strategy_automation_ready else "locked",
+            "description": "只有不可变 Demo Release 通过全部闸门后才能运行；连接烟测不能创建 Release。",
         },
         {
             "stepId": "future_live_gate",
@@ -417,6 +403,8 @@ def build_exchange_demo_simulation() -> dict[str, Any]:
     base_url, base_url_warning = _demo_base_url()
     readonly_summary = _build_readonly_summary(recent_events)
     automation_pipeline = _build_automation_pipeline()
+    evolution_demo = build_evolution_demo_status()
+    evolution_summary = evolution_demo.get("summary") if isinstance(evolution_demo.get("summary"), dict) else {}
     preferred = automation_pipeline.get("preferredCandidate") if isinstance(automation_pipeline.get("preferredCandidate"), dict) else {}
     return {
         "version": CONTROL_CONSOLE_VERSION,
@@ -426,6 +414,7 @@ def build_exchange_demo_simulation() -> dict[str, Any]:
             "stage": "exchange_demo_simulation",
             "stageLabel": "交易所 Demo 模拟",
             "exchange": "OKX Demo Trading",
+            "site": _demo_site(),
             "baseUrl": base_url,
             "baseUrlWarning": base_url_warning,
             "demoPrivateEnabled": _env_enabled("ALPHAPILOT_OKX_DEMO_ENABLED"),
@@ -434,6 +423,9 @@ def build_exchange_demo_simulation() -> dict[str, Any]:
             "credentialsConfigured": credential_status["allConfigured"],
             "canRunReadOnlyCheck": not private_blockers,
             "canSubmitDemoOrder": not order_blockers,
+            "connectivitySmokeReady": not order_blockers,
+            "strategyAutomationReady": bool(evolution_summary.get("ready")),
+            "eligibleDemoReleaseCount": int(evolution_summary.get("eligibleReleaseCount") or 0),
             "maxNotionalUsdt": MAX_DEMO_NOTIONAL_USDT,
             "recentEventCount": len(recent_events),
             "nextAction": (
@@ -471,7 +463,11 @@ def build_exchange_demo_simulation() -> dict[str, Any]:
         "readonlySummary": readonly_summary,
         "privateBlockers": private_blockers,
         "orderBlockers": order_blockers,
-        "runbook": _build_runbook(private_blockers, order_blockers),
+        "runbook": _build_runbook(
+            private_blockers,
+            order_blockers,
+            bool(evolution_summary.get("ready")),
+        ),
         "launcher": {
             "script": "scripts/start_okx_demo_console.ps1",
             "readOnlyCommand": "powershell -ExecutionPolicy Bypass -File scripts\\start_okx_demo_console.ps1",
@@ -491,7 +487,7 @@ def build_exchange_demo_simulation() -> dict[str, Any]:
             "notionalUsdt": MAX_DEMO_NOTIONAL_USDT,
         },
         "automationPipeline": automation_pipeline,
-        "evolutionDemo": build_evolution_demo_status(),
+        "evolutionDemo": evolution_demo,
         "recentEvents": recent_events,
         "safetyBoundary": {
             **SAFETY_BOUNDARY,
@@ -566,10 +562,14 @@ def scan_exchange_demo_candidates(payload: dict[str, Any] | None = None) -> dict
 def run_exchange_demo_readonly_check() -> dict[str, Any]:
     blockers = _private_blockers()
     if blockers:
+        base_url, _ = _demo_base_url()
         event = save_exchange_demo_event({
             "eventType": "readonly_check",
             "status": "blocked",
             "blockers": blockers,
+            "site": _demo_site(),
+            "baseUrl": base_url,
+            "demoHeaderUsed": False,
             "liveTrading": False,
         })
         return {
@@ -579,14 +579,46 @@ def run_exchange_demo_readonly_check() -> dict[str, Any]:
             "safetyBoundary": SAFETY_BOUNDARY,
         }
 
-    balance = _okx_request("GET", "/api/v5/account/balance")
-    positions = _okx_request("GET", "/api/v5/account/positions", {"instType": "SWAP"})
-    ok = bool(balance.get("ok") and positions.get("ok"))
+    site = _demo_site()
+    base_url, _ = _demo_base_url()
+    try:
+        client = _make_demo_client()
+    except (RuntimeError, OkxDemoError, PermissionError, ValueError) as error:
+        event = save_exchange_demo_event({
+            "eventType": "readonly_check",
+            "status": "failed",
+            "site": site,
+            "baseUrl": base_url,
+            "errorCode": f"okx_demo_client_unavailable:{type(error).__name__}",
+            "demoHeaderUsed": True,
+            "liveTrading": False,
+        })
+        return {
+            "ok": False,
+            "event": event,
+            "exchangeDemoSimulation": build_exchange_demo_simulation(),
+            "safetyBoundary": SAFETY_BOUNDARY,
+        }
+
+    def run_check(callback: Callable[[], dict[str, Any]]) -> dict[str, Any]:
+        try:
+            return _normalize_client_response(callback(), base_url=base_url)
+        except (OkxDemoError, PermissionError, ValueError) as error:
+            return _failed_client_response(error, base_url=base_url)
+
+    account_config = run_check(client.get_account_config)
+    balance = run_check(lambda: client.get_balance("USDT"))
+    positions = run_check(lambda: client.get_positions(instrumentType="SWAP"))
+    ok = bool(account_config.get("ok") and balance.get("ok") and positions.get("ok"))
     event = save_exchange_demo_event({
         "eventType": "readonly_check",
         "status": "passed" if ok else "failed",
+        "site": site,
+        "baseUrl": base_url,
+        "accountConfigStatus": account_config.get("status"),
         "balanceStatus": balance.get("status"),
         "positionStatus": positions.get("status"),
+        "okxAccountConfigCode": (account_config.get("payload") or {}).get("code") if isinstance(account_config.get("payload"), dict) else None,
         "okxBalanceCode": (balance.get("payload") or {}).get("code") if isinstance(balance.get("payload"), dict) else None,
         "okxPositionCode": (positions.get("payload") or {}).get("code") if isinstance(positions.get("payload"), dict) else None,
         "demoHeaderUsed": True,
@@ -595,6 +627,7 @@ def run_exchange_demo_readonly_check() -> dict[str, Any]:
     return {
         "ok": ok,
         "event": event,
+        "accountConfigPreview": _summarize_okx_payload(account_config),
         "balancePreview": _summarize_okx_payload(balance),
         "positionsPreview": _summarize_okx_payload(positions),
         "exchangeDemoSimulation": build_exchange_demo_simulation(),
@@ -623,11 +656,13 @@ def submit_exchange_demo_order(payload: dict[str, Any] | None = None) -> dict[st
             "notionalUsdt": ticket["notionalUsdt"],
             "blockers": rejection_reasons,
             "liveTrading": False,
+            **_connectivity_smoke_metadata(),
         })
         return {
             "ok": False,
             "event": event,
             "rejectionReasons": rejection_reasons,
+            **_connectivity_smoke_metadata(),
             "exchangeDemoSimulation": build_exchange_demo_simulation(),
             "safetyBoundary": SAFETY_BOUNDARY,
         }
@@ -660,10 +695,12 @@ def submit_exchange_demo_order(payload: dict[str, Any] | None = None) -> dict[st
         "okxMessage": (response.get("payload") or {}).get("msg") if isinstance(response.get("payload"), dict) else None,
         "demoHeaderUsed": True,
         "liveTrading": False,
+        **_connectivity_smoke_metadata(),
     })
     return {
         "ok": ok,
         "event": event,
+        **_connectivity_smoke_metadata(),
         "okxResponsePreview": _summarize_okx_payload(response),
         "exchangeDemoSimulation": build_exchange_demo_simulation(),
         "safetyBoundary": SAFETY_BOUNDARY,
