@@ -24,6 +24,7 @@ OKX_SITE_REST_URLS = MappingProxyType({
     "eea": "https://eea.okx.com",
 })
 OKX_DEMO_REST_URL = OKX_SITE_REST_URLS["global"]
+OKX_DEMO_USER_AGENT = "AlphaPilot-Control-Console/13.15.2"
 _CLIENT_ID = re.compile(r"^[A-Za-z0-9]{1,32}$")
 _ALLOWED_ENDPOINTS = {
     ("GET", "/api/v5/account/config"),
@@ -164,6 +165,8 @@ class OkxDemoClient:
         ).digest()
         headers = {
             "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": OKX_DEMO_USER_AGENT,
             "OK-ACCESS-KEY": self._credentials.apiKey,
             "OK-ACCESS-SIGN": base64.b64encode(digest).decode("ascii"),
             "OK-ACCESS-TIMESTAMP": timestamp,

@@ -45,6 +45,8 @@ class OkxDemoClientTests(unittest.TestCase):
         self.assertEqual(response["code"], "0")
         self.assertEqual(request.path, "/api/v5/trade/order")
         self.assertEqual(request.headers["x-simulated-trading"], "1")
+        self.assertEqual(request.headers["Accept"], "application/json")
+        self.assertEqual(request.headers["User-Agent"], "AlphaPilot-Control-Console/13.15.2")
         self.assertEqual(request.body["clOrdId"], "apdemo123")
         self.assertIn("OK-ACCESS-SIGN", request.headers)
 
