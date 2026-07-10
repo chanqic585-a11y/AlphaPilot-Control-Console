@@ -99,8 +99,14 @@ def build_live_candidate_status() -> dict[str, Any]:
     finally:
         store.close()
     approved = sum(row["approval"]["status"] == "approved_for_future_release_review" for row in rows)
+    from .live_safety_plane import build_live_safety_status
+
+    safety = build_live_safety_status(
+        packages=packages,
+        approval_store_path=APPROVAL_STORE_PATH,
+    )
     return {
-        "version": "V13.15.0",
+        "version": "V13.21.0",
         "source": "live_candidate_manual_boundary_v1",
         "summary": {
             "packageCount": len(rows),
@@ -113,6 +119,7 @@ def build_live_candidate_status() -> dict[str, Any]:
         "packages": rows,
         "recentApprovalActions": actions,
         "rejectedPackages": rejected,
+        "liveSafety": safety,
         "blockers": [] if rows else ["no_live_candidate_package"],
         "safetyBoundary": {
             "manualApprovalRequired": True,

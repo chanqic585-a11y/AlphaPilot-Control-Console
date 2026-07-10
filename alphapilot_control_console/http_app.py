@@ -36,6 +36,7 @@ from .live_candidate_service import (
     build_live_candidate_status,
     revoke_live_candidate,
 )
+from .live_safety_plane import activate_live_kill_switch, build_live_safety_status
 from .local_sandbox_concentration_review import build_local_sandbox_concentration_review
 from .local_sandbox_quality_center import build_local_sandbox_quality_center
 from .local_sandbox_result_review import build_local_sandbox_result_review
@@ -206,8 +207,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.15.2",
-                "source": "alphapilot_control_console_v13_15_2",
+                "version": "V13.21.0",
+                "source": "alphapilot_control_console_v13_21_0",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -488,6 +489,9 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/live-candidates":
             self._send_json(_cached_payload("live-candidates", 5, build_live_candidate_status, fresh=fresh))
+            return
+        if path == "/api/live-safety":
+            self._send_json(_cached_payload("live-safety", 5, build_live_safety_status, fresh=fresh))
             return
         if path == "/api/no-key-pre-live":
             self._send_json(_cached_payload("no-key-pre-live", 15, build_no_key_pre_live_workbench, fresh=fresh))
@@ -980,6 +984,11 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 return
             _RESPONSE_CACHE.clear()
             self._send_json(result)
+            return
+        if parsed.path == "/api/live-safety/kill-switch":
+            payload = self._read_body_json()
+            _RESPONSE_CACHE.clear()
+            self._send_json(activate_live_kill_switch(str(payload.get("reason") or "operator_request")))
             return
         self._send_json({"error": "not_found"}, 404)
 

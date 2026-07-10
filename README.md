@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.20.0 - Immutable-Release-Gated OKX Demo
+AlphaPilot V13.21.0 - Disabled Live Safety Plane
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -12,6 +12,27 @@ status bridge.
 
 It can mechanically execute immutable eligible releases in OKX Demo Trading.
 It is not a live trading system.
+
+## What V13.21.0 Adds
+
+V13.21 adds a fail-closed, local-only Live safety preflight without adding a
+Live exchange adapter.
+
+- Every preflight is bound to the exact Live candidate package, Demo release,
+  risk-budget hashes, instrument state, price snapshot, request expiry, and
+  idempotency key.
+- Private-state reconciliation, restart recovery, circuit breaker, and kill
+  switch are explicit gates.
+- Decisions are persisted in an append-only SQLite audit ledger.
+- Manual approval only clears the review check. A fully valid request ends as
+  `validated_execution_disabled`, never as executable.
+- `attempt_live_execution()` always raises because Live execution approval and
+  the Live adapter do not exist.
+- `GET /api/live-safety` provides operator/mobile-safe status; the only write
+  endpoint activates the local kill switch.
+
+The real environment currently has no Live candidate package and no Live
+request. No credentials are read or stored, and Live/Withdraw remain locked.
 
 ## What V13.20.0 Adds
 
