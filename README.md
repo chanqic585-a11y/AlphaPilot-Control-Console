@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-AlphaPilot V13.24.0 - Versioned Risk Profile Console
+AlphaPilot V13.25.0 - Fail-Closed OKX Live Canary
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
@@ -11,7 +11,21 @@ AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
 It can mechanically execute immutable eligible releases in OKX Demo Trading.
-It is not a live trading system.
+It also contains a default-off, checksum-gated OKX Live Canary adapter.
+
+## What V13.25.0 Adds
+
+- A separate process-only OKX Live credential path and allowlisted REST client.
+- An immutable LiveRelease contract with one-time manual release approval.
+- Restart-safe idempotent Live intent, order, event, and runtime ledgers.
+- Required isolated margin, attached TP/SL, at least 2R, account reconciliation,
+  RiskProfile hash matching, circuit breakers, and emergency stop.
+- Independent master, read, Canary, order, and manual ARM gates.
+- A Chinese Live page showing every blocker without exposing account values.
+
+All Live gates are off by default. The repository stores no raw credentials,
+the Live client contains no Withdraw endpoint, tests use fake transports, and
+this release places no real order.
 
 ## What V13.24.0 Adds
 

@@ -2920,6 +2920,54 @@ function renderRiskProfiles(payload = {}) {
   el("saveRiskProfileButton").disabled = !selected;
 }
 
+function translateLiveCanaryBlocker(value) {
+  const labels = {
+    live_master_gate_disabled: "Live 主开关关闭",
+    live_read_gate_disabled: "只读门关闭",
+    live_canary_gate_disabled: "Canary 门关闭",
+    live_order_gate_disabled: "订单门关闭",
+    live_runtime_credentials_missing: "本次进程凭据缺失",
+    no_approved_live_release: "没有人工批准的 LiveRelease",
+    no_active_live_canary_risk_profile: "没有启用 Live Canary 风险配置",
+    live_release_risk_profile_mismatch: "Release 与风险配置 hash 不匹配",
+    live_kill_switch_active: "紧急停止已激活",
+    live_entries_paused: "新开仓已暂停",
+    live_reconciliation_not_confirmed: "账户对账未确认",
+  };
+  return labels[value] || value || "未知阻塞项";
+}
+
+function renderLiveCanary(payload = {}) {
+  if (!el("liveCanaryHeaderBadge")) return;
+  const summary = payload.summary || {};
+  const gates = payload.runtimeGates || {};
+  const runtime = payload.runtime || {};
+  const releases = payload.liveReleases?.summary || {};
+  const blockers = Array.isArray(payload.blockers) ? payload.blockers : [];
+  const processGateCount = [gates.masterEnabled, gates.readEnabled, gates.canaryEnabled, gates.orderEnabled].filter(Boolean).length;
+  const ready = Boolean(summary.canaryOrderReady);
+  setText("liveCanaryHeaderBadge", ready ? "Canary 已就绪" : "Canary 未就绪");
+  el("liveCanaryHeaderBadge").className = `status-pill ${ready ? "ok" : "danger"}`;
+  setText("topLiveStatus", ready ? "Canary 已就绪" : "实盘默认关闭");
+  el("topLiveStatus").className = `status-pill ${ready ? "ok" : "danger"}`;
+  setText("railModeStatus", ready ? "研究 + Demo 执行 · Canary 已就绪" : "研究 + Demo 执行 · 实盘默认关闭");
+  setText("liveCanaryAdapterBadge", ready ? "适配器可执行" : "适配器已锁定");
+  el("liveCanaryAdapterBadge").className = `badge ${ready ? "ok" : "warn"}`;
+  setText("liveCanaryHeadline", ready
+    ? "Live Canary 的 release、RiskProfile、对账、进程门和人工 ARM 已通过。"
+    : `Live 适配器已安装但仍有 ${blockers.length} 项阻塞；当前不会创建实盘订单。`);
+  setText("liveCanaryProcessGate", `${processGateCount}/4`);
+  setText("liveCanaryReleaseCount", releases.approvedLiveReleaseCount ?? 0);
+  setText("liveCanaryProfileState", summary.activeRiskProfileMatched ? "匹配" : "未匹配");
+  setText("liveCanaryReconcileState", runtime.lastReconciliationMatched ? "已匹配" : "未确认");
+  setText("liveCanaryKillState", runtime.killSwitchActive ? "已停止" : (runtime.paused ? "已暂停" : "未激活"));
+  setText("liveCanaryOrderReady", ready ? "是" : "否");
+  setText("liveAdapterCount", payload.safetyBoundary?.liveAdapterPresent ? 1 : 0);
+  el("liveCanaryBlockers").innerHTML = blockers.length
+    ? blockers.map((item) => `<span>${escapeHtml(translateLiveCanaryBlocker(item))}</span>`).join("")
+    : '<span class="ok">全部运行门已通过</span>';
+}
+
 function riskProfileFormPayload() {
   const selected = selectedRiskProfile();
   if (!selected) throw new Error("请先选择一个风险配置版本");
@@ -3010,6 +3058,59 @@ async function rollbackRiskProfileVersion() {
     setText("riskProfileActionStatus", "已回滚上一版本；已有持仓仍使用开仓时版本。");
   } catch (error) {
     setText("riskProfileActionStatus", `回滚失败：${error.message}`);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function reconcileLiveCanary() {
+  const button = el("liveCanaryReconcileButton");
+  button.disabled = true;
+  setText("liveCanaryActionStatus", "正在读取 OKX Live 账户配置、余额状态、持仓和挂单并做本地对账；不会下单。 ");
+  try {
+    const response = await postJson("/api/live-canary/reconcile", {});
+    renderLiveCanary(response.liveCanary || {});
+    setText("liveCanaryActionStatus", response.reconciliationMatched
+      ? "只读对账已匹配；账户金额和持仓明细未写入本地。"
+      : "只读对账存在未归属持仓或挂单，Canary 已暂停。");
+  } catch (error) {
+    setText("liveCanaryActionStatus", `只读对账失败：${error.message}`);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function armLiveCanary() {
+  const button = el("liveCanaryArmButton");
+  button.disabled = true;
+  setText("liveCanaryActionStatus", "正在校验 release、配置 hash、对账和四层进程门。 ");
+  try {
+    const response = await postJson("/api/live-canary/arm", {
+      actor: "user_manual",
+      confirmation: el("liveCanaryArmConfirmation")?.value || "",
+    });
+    if (el("liveCanaryArmConfirmation")) el("liveCanaryArmConfirmation").value = "";
+    renderLiveCanary(response.liveCanary || {});
+    setText("liveCanaryActionStatus", "固定 Canary 已 ARM；只有匹配 release 的内部信号才可进入机械执行。 ");
+  } catch (error) {
+    setText("liveCanaryActionStatus", `Canary ARM 失败：${error.message}`);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function stopLiveCanary() {
+  const button = el("liveCanaryKillButton");
+  button.disabled = true;
+  setText("liveCanaryActionStatus", "正在先激活本地紧急停止，再尝试发送 OKX cancel-all-after。 ");
+  try {
+    const response = await postJson("/api/live-canary/kill-switch", { reason: "console_operator_emergency_stop" });
+    renderLiveCanary(response.liveCanary || {});
+    setText("liveCanaryActionStatus", response.exchangeCancelSent
+      ? "本地已停止，OKX cancel-all-after 已接受。"
+      : "本地已停止；未发送或未确认 OKX cancel-all-after，请人工复核账户。 ");
+  } catch (error) {
+    setText("liveCanaryActionStatus", `紧急停止请求失败：${error.message}`);
   } finally {
     button.disabled = false;
   }
@@ -5422,6 +5523,7 @@ function renderConsoleFromPayloads() {
   const exchangeDemo = core.exchangeDemo || { summary: {}, modeCards: [], recentEvents: [], credentialStatus: {} };
   const liveCandidates = core.liveCandidates || { summary: {}, packages: [], recentApprovalActions: [] };
   const riskProfiles = core.riskProfiles || { summary: {}, profiles: [], activeProfiles: {} };
+  const liveCanary = core.liveCanary || { summary: {}, runtimeGates: {}, runtime: {}, liveReleases: { summary: {} }, blockers: [] };
   const liveReadiness = core.liveReadiness || { rows: [], summary: {} };
   const forwardReview = core.forwardReview || { rows: [], summary: {} };
   const simulationBridge = core.simulationBridge || emptySimulationBridge;
@@ -5439,6 +5541,7 @@ function renderConsoleFromPayloads() {
   renderExchangeDemoSimulation(exchangeDemo);
   renderLiveCandidateStatus(liveCandidates);
   renderRiskProfiles(riskProfiles);
+  renderLiveCanary(liveCanary);
   renderCommandCenter(strategyItems, reportItems, mobile);
   renderRuntimeMonitor(strategyItems, mobile);
   renderStrategies(strategyItems);
@@ -5609,6 +5712,7 @@ async function refreshAll() {
     { key: "exchangeDemo", url: "/api/exchange-demo/simulation", fallback: { summary: {}, modeCards: [], recentEvents: [], credentialStatus: {} }, timeoutMs: 12000 },
     { key: "liveCandidates", url: "/api/live-candidates", fallback: { summary: {}, packages: [], recentApprovalActions: [] }, timeoutMs: 6000 },
     { key: "riskProfiles", url: "/api/risk-profiles", fallback: { summary: {}, profiles: [], activeProfiles: {} }, timeoutMs: 6000 },
+    { key: "liveCanary", url: "/api/live-canary", fallback: { summary: {}, runtimeGates: {}, runtime: {}, liveReleases: { summary: {} }, blockers: [] }, timeoutMs: 6000 },
     { key: "liveReadiness", url: "/api/live-readiness", fallback: { rows: [], summary: {} }, timeoutMs: 8000 },
     { key: "forwardReview", url: "/api/forward-review", fallback: { rows: [], summary: {} }, timeoutMs: 8000 },
   ], 4);
@@ -6053,6 +6157,9 @@ el("riskProfileSelector")?.addEventListener("change", (event) => {
 el("saveRiskProfileButton")?.addEventListener("click", saveRiskProfileVersion);
 el("activateRiskProfileButton")?.addEventListener("click", activateRiskProfileVersion);
 el("rollbackRiskProfileButton")?.addEventListener("click", rollbackRiskProfileVersion);
+el("liveCanaryReconcileButton")?.addEventListener("click", reconcileLiveCanary);
+el("liveCanaryArmButton")?.addEventListener("click", armLiveCanary);
+el("liveCanaryKillButton")?.addEventListener("click", stopLiveCanary);
 el("toggleAdvancedModeButton")?.addEventListener("click", () => {
   toggleAdvancedMode();
   if (document.body.classList.contains("show-advanced")) void loadAdvancedDataIfNeeded();

@@ -37,6 +37,12 @@ from .live_candidate_service import (
     revoke_live_candidate,
 )
 from .live_safety_plane import activate_live_kill_switch, build_live_safety_status
+from .live_canary_service import (
+    activate_live_canary_kill_switch,
+    arm_live_canary,
+    build_live_canary_status,
+    run_live_readonly_reconciliation,
+)
 from .local_sandbox_concentration_review import build_local_sandbox_concentration_review
 from .local_sandbox_quality_center import build_local_sandbox_quality_center
 from .local_sandbox_result_review import build_local_sandbox_result_review
@@ -213,8 +219,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.24.0",
-                "source": "alphapilot_control_console_v13_24_0",
+                "version": "V13.25.0",
+                "source": "alphapilot_control_console_v13_25_0",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -498,6 +504,9 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/live-safety":
             self._send_json(_cached_payload("live-safety", 5, build_live_safety_status, fresh=fresh))
+            return
+        if path == "/api/live-canary":
+            self._send_json(_cached_payload("live-canary", 5, build_live_canary_status, fresh=fresh))
             return
         if path == "/api/risk-profiles":
             self._send_json(_cached_payload("risk-profiles", 5, build_risk_profile_status, fresh=fresh))
@@ -1000,6 +1009,25 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             self._send_json(activate_live_kill_switch(str(payload.get("reason") or "operator_request")))
             return
         if parsed.path in {
+            "/api/live-canary/reconcile",
+            "/api/live-canary/arm",
+            "/api/live-canary/kill-switch",
+        }:
+            payload = self._read_body_json()
+            try:
+                if parsed.path.endswith("/reconcile"):
+                    result = run_live_readonly_reconciliation()
+                elif parsed.path.endswith("/arm"):
+                    result = arm_live_canary(payload)
+                else:
+                    result = activate_live_canary_kill_switch(payload)
+            except (KeyError, RuntimeError, ValueError, PermissionError) as error:
+                self._send_json({"ok": False, "error": type(error).__name__, "message": str(error)}, 409)
+                return
+            _RESPONSE_CACHE.clear()
+            self._send_json(result)
+            return
+        if parsed.path in {
             "/api/risk-profiles/create",
             "/api/risk-profiles/activate",
             "/api/risk-profiles/rollback",
@@ -1028,7 +1056,7 @@ def run_server(host: str, port: int) -> None:
     server = ThreadingHTTPServer((host, port), ConsoleHandler)
     start_local_sandbox_auto_runner()
     print(f"AlphaPilot Control Console running at http://{host}:{port}")
-    print("Research and OKX Demo control. Runtime credentials are process-only; live and withdraw remain locked.")
+    print("Research, OKX Demo, and gated Live Canary control. Credentials are process-only; Withdraw is absent.")
     try:
         server.serve_forever()
     finally:

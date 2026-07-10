@@ -37,6 +37,10 @@ SAFETY_BOUNDARY = {
     "automaticDemoExecutionAllowed": True,
     "demoOnly": True,
     "rawCredentialStorageAllowed": False,
+    "liveAdapterAvailable": True,
+    "liveRuntimeCredentialsAllowed": True,
+    "liveExecutionEnabledByDefault": False,
+    "liveApprovedReleaseRequired": True,
 }
 
 DEFAULT_EXCHANGE_PROBE_SYMBOL = "BTC/USDT:USDT"

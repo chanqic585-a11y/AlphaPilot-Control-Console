@@ -39,7 +39,7 @@
           <div class="rail-status-dot"></div>
           <div>
             <strong>系统运行中</strong>
-            <span>研究 + Demo 执行 · 实盘关闭</span>
+            <span id="railModeStatus">研究 + Demo 执行 · 实盘默认关闭</span>
           </div>
         </div>
       </aside>
@@ -55,13 +55,13 @@
             <span class="status-pill location" id="currentSectionLabel">当前：策略</span>
             <span class="status-pill ok">本地记录模式</span>
             <span class="status-pill neutral">公共行情</span>
-            <span class="status-pill danger">实盘关闭</span>
+            <span id="topLiveStatus" class="status-pill danger">实盘默认关闭</span>
           </div>
         </header>
 
         <section class="safety">
-          <strong>控制台负责研究和受限 OKX Demo 执行。</strong>
-          不保存 raw API Key，不接实盘 Trade API，不接 Withdraw API，不读取真实账户或真实持仓，不创建实盘订单，不自动晋级实盘。
+          <strong>控制台负责研究、OKX Demo 和默认关闭的 Live Canary。</strong>
+          不保存 raw API Key，不接 Withdraw API；实盘读取与订单只有在独立进程门、不可变 release、风险配置、对账和人工 ARM 全部通过后才可能启用。
         </section>
 
         <section id="simpleConsole" class="panel simple-console-panel page-section active-page">
@@ -803,9 +803,31 @@
               <h2>实盘交易</h2>
               <p>这里只复核不可变 Live Candidate 的 Demo 证据和风险预算。人工批准会绑定 checksum，但不会开启实盘连接或创建订单。</p>
             </div>
-            <span class="status-pill danger">实盘关闭</span>
+            <span id="liveCanaryHeaderBadge" class="status-pill danger">Canary 未就绪</span>
           </div>
-          <div class="exchange-demo-warning"><strong>当前状态：</strong>实盘执行适配器不存在。人工批准只表示接受该固定版本进入未来发布复核，实盘仍锁定。</div>
+          <div class="exchange-demo-warning"><strong>当前状态：</strong><span id="liveCanaryHeadline">Live 适配器已安装但默认关闭；缺任一 release、配置 hash、对账或进程门都会阻止下单。</span></div>
+          <div class="exchange-demo-section live-canary-panel">
+            <div class="simple-section-title">
+              <div><strong>OKX Live Canary 控制</strong><span id="liveCanaryMeta">只读、Canary、订单和人工 ARM 是四层独立门。</span></div>
+              <span id="liveCanaryAdapterBadge" class="badge warn">适配器已锁定</span>
+            </div>
+            <div class="live-canary-gate-grid">
+              <div><span>进程门</span><strong id="liveCanaryProcessGate">--</strong><small>Master / Read / Canary / Order</small></div>
+              <div><span>Live Release</span><strong id="liveCanaryReleaseCount">--</strong><small>必须人工批准且 checksum 匹配</small></div>
+              <div><span>风险配置</span><strong id="liveCanaryProfileState">--</strong><small>必须匹配 release hash</small></div>
+              <div><span>账户对账</span><strong id="liveCanaryReconcileState">--</strong><small>不持久化账户金额</small></div>
+              <div><span>紧急停止</span><strong id="liveCanaryKillState">--</strong><small>本地先停，再尝试 cancel-all-after</small></div>
+              <div><span>订单就绪</span><strong id="liveCanaryOrderReady">--</strong><small>无正式 release 时永远否</small></div>
+            </div>
+            <div class="live-canary-actions">
+              <button id="liveCanaryReconcileButton" class="secondary" type="button">运行只读对账</button>
+              <label>人工 ARM <input id="liveCanaryArmConfirmation" autocomplete="off" placeholder="ARM_OKX_LIVE_CANARY" /></label>
+              <button id="liveCanaryArmButton" type="button">启用固定 Canary</button>
+              <button id="liveCanaryKillButton" class="danger-action" type="button">紧急停止</button>
+              <span id="liveCanaryActionStatus">当前不会主动读取账户或创建订单。</span>
+            </div>
+            <div id="liveCanaryBlockers" class="exchange-demo-blockers"></div>
+          </div>
           <div class="exchange-demo-section risk-profile-panel">
             <div class="simple-section-title">
               <div><strong>风险配置版本</strong><span id="riskProfileMeta">参数可调整，但不会直接开启交易。</span></div>
@@ -865,7 +887,7 @@
               <div><span>候选包</span><strong id="liveCandidatePackageCount">--</strong><small>来自已完成 Demo 的固定版本</small></div>
               <div><span>待人工批准</span><strong id="liveCandidateAwaitingCount">--</strong><small>不能由 AI / ML 写入</small></div>
               <div><span>已批准复核</span><strong id="liveCandidateApprovedCount">--</strong><small>不代表实盘已启用</small></div>
-              <div><span>实盘适配器</span><strong>0</strong><small>当前不存在</small></div>
+              <div><span>实盘适配器</span><strong id="liveAdapterCount">1</strong><small>已安装，默认锁定</small></div>
             </div>
             <div id="liveCandidateList" class="live-candidate-list"></div>
             <div class="live-approval-actions">
@@ -899,16 +921,16 @@
                 <div class="exchange-demo-blockers">
                   <span>不保存 raw API Key</span>
                   <span>不接 Withdraw API</span>
-                  <span>不读取真实账户</span>
-                  <span>不读取真实持仓</span>
-                  <span>不创建真实订单</span>
-                  <span>不自动交易</span>
+                  <span>不持久化真实账户金额</span>
+                  <span>不持久化真实持仓明细</span>
+                  <span>无匹配 LiveRelease 不创建订单</span>
+                  <span>无人工 ARM 不执行 Canary</span>
                 </div>
               </div>
             </div>
             <aside class="exchange-demo-side">
-              <div class="exchange-demo-side-card"><span>实盘状态</span><strong>锁定</strong><small>独立页面保留未来扩展，不混入本地模拟或 OKX Demo。</small></div>
-              <div class="exchange-demo-side-card"><span>下一步</span><strong>先跑 Demo</strong><small>先让可用策略在 Demo 模拟页完成候选筛选和小额模拟演练。</small></div>
+              <div class="exchange-demo-side-card"><span>实盘状态</span><strong>默认锁定</strong><small>适配器存在不代表 release、配置、对账或订单门已通过。</small></div>
+              <div class="exchange-demo-side-card"><span>当前证据</span><strong>以状态卡为准</strong><small>无正式 LiveRelease 时只能做架构和只读连通性验收。</small></div>
             </aside>
           </div>
             </div>
@@ -2529,6 +2551,6 @@
         <button class="back-home-button" id="backHomeButton" type="button" aria-label="回到策略页">回到策略</button>
       </main>
     </div>
-    <script src="/app.js?v=20260710-v13-9-9-performance"></script>
+    <script src="/app.js?v=20260711-v13-25-live-canary"></script>
   </body>
 </html>

@@ -5408,6 +5408,76 @@ body.show-advanced .hero-grid.advanced-section {
   color: var(--text);
 }
 
+.live-canary-panel {
+  border-color: rgba(245, 205, 83, 0.26);
+  background: rgba(16, 20, 29, 0.78);
+}
+
+.live-canary-gate-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.live-canary-gate-grid > div {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  background: rgba(8, 12, 18, 0.62);
+}
+
+.live-canary-gate-grid span,
+.live-canary-gate-grid small {
+  display: block;
+  color: var(--muted);
+}
+
+.live-canary-gate-grid strong {
+  display: block;
+  margin: 5px 0;
+  color: var(--text);
+}
+
+.live-canary-actions {
+  display: grid;
+  grid-template-columns: auto minmax(220px, 1fr) auto auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.live-canary-actions label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+}
+
+.live-canary-actions > span {
+  grid-column: 1 / -1;
+  color: var(--muted);
+}
+
+@media (max-width: 900px) {
+  .live-canary-gate-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .live-canary-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .live-canary-gate-grid,
+  .live-canary-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .live-canary-actions > span {
+    grid-column: auto;
+  }
+}
+
 .risk-entry-toggle input {
   width: 18px;
   height: 18px;
