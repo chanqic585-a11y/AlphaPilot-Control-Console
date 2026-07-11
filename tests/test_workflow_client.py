@@ -37,6 +37,18 @@ class WorkflowClientTests(unittest.TestCase):
         )
         self.assertEqual(command[-1], "projection")
 
+    def test_projection_exposes_console_batch_capability_separately(self) -> None:
+        with patch.object(
+            client,
+            "run_workflow_cli",
+            return_value={"version": "V13.27.3", "items": [], "archivedItems": []},
+        ):
+            projection = client.build_workflow_projection(quant_root=self.quant_root)
+
+        self.assertEqual(projection["controlConsoleVersion"], "V13.27.3")
+        self.assertTrue(projection["capabilities"]["selectedBacktests"])
+        self.assertTrue(projection["capabilities"]["selectedForwardCycles"])
+
     def test_request_run_queues_then_starts_one_background_worker(self) -> None:
         with patch.object(client, "run_workflow_cli") as run_cli, patch.object(
             client, "spawn_workflow_run"

@@ -123,6 +123,11 @@ def build_workflow_projection(
     quant_root: Path | None = None,
 ) -> dict[str, Any]:
     projection = run_workflow_cli(["projection"], quant_root=quant_root)
+    projection["controlConsoleVersion"] = CONTROL_CONSOLE_VERSION
+    projection["capabilities"] = {
+        "selectedBacktests": True,
+        "selectedForwardCycles": True,
+    }
     for bucket in ("items", "archivedItems"):
         for item in projection.get(bucket) or []:
             if isinstance(item, dict):

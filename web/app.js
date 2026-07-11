@@ -1327,7 +1327,7 @@ function renderDualLayerLane(targetId, countId, rows, emptyText) {
 
 function renderDualLayerWorkflow(payload = emptyWorkflow) {
   latestWorkflowPayload = payload || emptyWorkflow;
-  workflowBatchBackendReady = payload?.version === "V13.27.3";
+  workflowBatchBackendReady = payload?.controlConsoleVersion === "V13.27.3";
   const items = Array.isArray(payload?.items) ? payload.items.filter((item) => item.stage === "backtest") : [];
   const archived = Array.isArray(payload?.archivedItems) ? payload.archivedItems.filter((item) => item.stage === "backtest") : [];
   const awaiting = items.filter((item) => item.status === "awaiting");

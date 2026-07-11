@@ -279,6 +279,7 @@ class WorkflowUiContractTests(unittest.TestCase):
         self.assertIn("data-demo-workflow-select", self.js)
         self.assertIn("pruneWorkflowSelection", self.js)
         self.assertIn("demoBatchActionEligible", self.js)
+        self.assertIn('payload?.controlConsoleVersion === "V13.27.3"', self.js)
 
     def test_live_gate_copy_includes_automation_and_mobile_copy_stays_read_only(self) -> None:
         self.assertIn("五层独立门", self.html)
