@@ -1750,7 +1750,8 @@ function collectDemoReadonlyIssue(exchangePayload = {}) {
   const is50110 = blockers.includes("okx_demo_50110_key_type_ip_or_domain");
   return {
     key: issueGroupKey("exchangeDemo", "readonly_preflight", blockers),
-    acknowledgementId: "demo-readonly-preflight",
+    acknowledgementId: "demo-page-guidance",
+    acknowledgementVersion: "demo-guidance-v1",
     pageId: "exchangeDemo",
     stage: "readonly_preflight",
     stageLabel: "Demo 模拟 · 运行前检查",
@@ -1784,7 +1785,8 @@ function collectDemoIssues(payload = { queues: {} }, exchangePayload = {}) {
       .map((step) => step.label);
     return {
       key,
-      acknowledgementId: runtimeBlocked ? "demo-runtime" : "demo-evidence",
+      acknowledgementId: "demo-page-guidance",
+      acknowledgementVersion: "demo-guidance-v1",
       pageId: "exchangeDemo",
       stage: "okx_demo",
       stageLabel: runtimeBlocked ? "Demo 模拟 · 运行前检查" : "Demo 模拟 · 证据闸门",

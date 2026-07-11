@@ -162,8 +162,8 @@ class WorkflowUiContractTests(unittest.TestCase):
     def test_one_time_issue_guidance_has_persistent_and_session_fallbacks(self) -> None:
         self.assertIn('id="issueGuidanceDialog"', self.html)
         self.assertIn('id="issueGuidanceNextAction"', self.html)
-        self.assertIn('/issue-guidance.js?v=20260712-v13-27-1-8-demo-alert-ack2', self.html)
-        self.assertIn('/app.js?v=20260712-v13-27-1-8-demo-alert-ack2', self.html)
+        self.assertIn('/issue-guidance.js?v=20260712-v13-27-1-8-demo-alert-ack3', self.html)
+        self.assertIn('/app.js?v=20260712-v13-27-1-8-demo-alert-ack3', self.html)
         self.assertIn("ALPHAPILOT_ISSUE_ACK_V1", self.issue_js)
         self.assertIn("function issueFingerprint", self.issue_js)
         self.assertIn("localStorage", self.issue_js)
@@ -179,10 +179,11 @@ class WorkflowUiContractTests(unittest.TestCase):
         close_index = self.issue_js.index("dialog.close", self.issue_js.index("issueGuidanceAcknowledgeButton"))
         self.assertLess(acknowledge_index, close_index)
 
-    def test_demo_guidance_uses_stable_acknowledgement_categories(self) -> None:
+    def test_demo_guidance_uses_one_page_level_acknowledgement(self) -> None:
         self.assertIn("issue.acknowledgementId", self.issue_js)
-        self.assertIn('acknowledgementId: "demo-readonly-preflight"', self.js)
-        self.assertIn('acknowledgementId: runtimeBlocked ? "demo-runtime" : "demo-evidence"', self.js)
+        self.assertIn("issue.acknowledgementVersion", self.issue_js)
+        self.assertGreaterEqual(self.js.count('acknowledgementId: "demo-page-guidance"'), 2)
+        self.assertGreaterEqual(self.js.count('acknowledgementVersion: "demo-guidance-v1"'), 2)
 
     def test_demo_evidence_is_collapsed_by_default(self) -> None:
         self.assertIn('<details class="demo-evidence-section">', self.js)
