@@ -8,11 +8,12 @@
   }
 
   function issueFingerprint(issue = {}) {
+    const acknowledgementIdentity = issue.acknowledgementId || normalizedBlockers(issue).join("|");
     return [
       issue.pageId || "unknown_page",
       issue.strategyId || "global",
       issue.stage || "unknown_stage",
-      normalizedBlockers(issue).join("|"),
+      acknowledgementIdentity,
       issue.version || "1",
     ].join("::");
   }
