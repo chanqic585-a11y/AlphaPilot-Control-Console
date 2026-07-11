@@ -233,6 +233,31 @@ class WorkflowUiContractTests(unittest.TestCase):
         self.assertIn("风险配置与闭环证据", self.html)
         self.assertIn("高级配置，默认折叠", self.html)
 
+    def test_demo_and_live_share_automatic_execution_controls(self) -> None:
+        for target_id in (
+            "demoAutoExecutionStatus",
+            "demoAutoExecutionToggle",
+            "liveAutoExecutionStatus",
+            "liveAutoExecutionToggle",
+            "autoExecutionLastHeartbeat",
+            "autoExecutionNextEvaluation",
+        ):
+            self.assertIn(f'id="{target_id}"', self.html)
+        self.assertIn("data-auto-execution-action", self.html)
+        self.assertIn("function renderAutomaticExecution", self.js)
+        self.assertIn("function runAutomaticExecutionAction", self.js)
+        for label in ("等待策略条件匹配", "自动运行中", "暂停新开仓", "紧急停止"):
+            self.assertIn(label, self.js)
+        self.assertIn("auto-execution-control", self.css)
+
+    def test_live_gate_copy_includes_automation_and_mobile_copy_stays_read_only(self) -> None:
+        self.assertIn("五层独立门", self.html)
+        self.assertIn("Master / Read / Canary / Order / Automation", self.html)
+        self.assertIn("gates.automationEnabled", self.js)
+        self.assertIn('setText("liveCanaryProcessGate", `${processGateCount}/5`)', self.js)
+        self.assertIn('live_automation_gate_disabled: "自动执行门关闭"', self.js)
+        self.assertIn("手机端不发起下单；后台自动执行状态仅用于查看。", self.html)
+
 
 if __name__ == "__main__":
     unittest.main()

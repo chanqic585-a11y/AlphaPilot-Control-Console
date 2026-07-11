@@ -5942,6 +5942,89 @@ body.show-advanced .hero-grid.advanced-section {
   background: rgba(16, 20, 29, 0.78);
 }
 
+.auto-execution-control {
+  margin: 14px 0;
+  padding: 14px;
+  border: 1px solid rgba(113, 137, 158, 0.36);
+  border-left: 3px solid #f3cf55;
+  background: #0b1117;
+}
+
+.auto-execution-head,
+.auto-execution-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.auto-execution-head > div {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.auto-execution-head span,
+.auto-execution-head small,
+.auto-execution-metrics span,
+.auto-execution-actions > span {
+  color: #8ea1b4;
+}
+
+.auto-execution-head strong[data-state="running"],
+.auto-execution-head strong[data-state="waiting"] {
+  color: #71d6ad;
+}
+
+.auto-execution-head strong[data-state="paused"],
+.auto-execution-head strong[data-state="disarmed"] {
+  color: #f3cf55;
+}
+
+.auto-execution-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin: 12px 0;
+  border: 1px solid rgba(113, 137, 158, 0.24);
+  background: rgba(113, 137, 158, 0.18);
+}
+
+.auto-execution-metrics > div {
+  min-width: 0;
+  padding: 10px 12px;
+  background: #0d141b;
+}
+
+.auto-execution-metrics span,
+.auto-execution-metrics strong {
+  display: block;
+}
+
+.auto-execution-metrics strong {
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
+.auto-execution-actions {
+  justify-content: flex-start;
+}
+
+.auto-execution-actions > span {
+  flex: 1 1 260px;
+}
+
+@media (max-width: 760px) {
+  .auto-execution-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .auto-execution-actions button {
+    flex: 1 1 calc(50% - 8px);
+  }
+}
+
 .live-canary-gate-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

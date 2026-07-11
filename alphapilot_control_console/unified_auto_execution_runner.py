@@ -88,18 +88,21 @@ class UnifiedAutoExecutionRunner:
         return results
 
     def status(self) -> dict[str, Any]:
+        with self._lock:
+            last_results = dict(self._last_results)
         environments: dict[str, dict[str, Any]] = {}
         for environment in ENVIRONMENTS:
             try:
-                environments[environment] = self.controller.status(environment)
+                environments[environment] = {
+                    **self.controller.status(environment),
+                    "lastHeartbeatResult": last_results.get(environment) or {},
+                }
             except Exception as error:
                 environments[environment] = {
                     "environment": environment,
                     "status": "status_unavailable",
                     "blockers": [f"status_exception:{type(error).__name__}"],
                 }
-        with self._lock:
-            last_results = dict(self._last_results)
         return {
             "version": "V13.27.2",
             "source": "unified_auto_execution_runner_v1",

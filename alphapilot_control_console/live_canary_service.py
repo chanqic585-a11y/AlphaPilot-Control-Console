@@ -112,7 +112,8 @@ def build_live_canary_status(
         "safetyBoundary": {
             "liveAdapterPresent": True,
             "liveExecutionEnabledByDefault": False,
-            "automaticSignalRunnerPresent": False,
+            "automaticSignalRunnerPresent": True,
+            "automaticExecutionEnabledByDefault": False,
             "approvedLiveReleaseRequired": True,
             "activeRiskProfileHashRequired": True,
             "privateStateReconciliationRequired": True,

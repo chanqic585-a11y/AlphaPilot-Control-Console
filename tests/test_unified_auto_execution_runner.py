@@ -74,6 +74,15 @@ class UnifiedAutoExecutionRunnerTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(controller.actions[:2], [("okx_demo", "arm"), ("okx_demo", "start")])
 
+    def test_status_exposes_each_environments_last_heartbeat_result(self) -> None:
+        controller = FakeController()
+        runner = UnifiedAutoExecutionRunner(controller=controller)
+
+        runner.run_once()
+        status = runner.status()
+
+        self.assertEqual(status["environments"]["okx_demo"]["lastHeartbeatResult"]["status"], "waiting")
+
     def test_live_start_requires_current_process_arm(self) -> None:
         controller = FakeController()
         runner = UnifiedAutoExecutionRunner(controller=controller)

@@ -50,6 +50,8 @@ class LiveCanaryServiceTests(unittest.TestCase):
         self.assertFalse(status["summary"]["canaryOrderReady"])
         self.assertTrue(status["safetyBoundary"]["liveAdapterPresent"])
         self.assertFalse(status["safetyBoundary"]["liveExecutionEnabledByDefault"])
+        self.assertTrue(status["safetyBoundary"]["automaticSignalRunnerPresent"])
+        self.assertFalse(status["safetyBoundary"]["automaticExecutionEnabledByDefault"])
 
     def test_readonly_reconciliation_persists_counts_not_account_values(self) -> None:
         result = run_live_readonly_reconciliation(

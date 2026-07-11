@@ -629,6 +629,25 @@
               </div>
             </div>
             <div id="demoWorkflowActionStatus" class="workflow-action-status">Demo 凭据每次运行只输入一次，全部合格策略共用；订单、持仓和盈亏仍按策略分别记录。</div>
+            <section class="auto-execution-control" data-auto-execution-environment="okx_demo">
+              <div class="auto-execution-head">
+                <div><span>自动执行</span><strong id="demoAutoExecutionStatus">未启动</strong></div>
+                <small>启动后按闭合 K 线自动扫描、仲裁、下单和对账；无需逐单确认。</small>
+              </div>
+              <div class="auto-execution-metrics">
+                <div><span>启用策略</span><strong id="demoAutoExecutionReleaseCount">0</strong></div>
+                <div><span>上次心跳</span><strong id="autoExecutionLastHeartbeat">--</strong></div>
+                <div><span>下次检查</span><strong id="autoExecutionNextEvaluation">--</strong></div>
+                <div><span>最近结果</span><strong id="demoAutoExecutionResult">等待启动</strong></div>
+              </div>
+              <div class="auto-execution-actions">
+                <button id="demoAutoExecutionToggle" type="button" data-auto-execution-action="start" data-auto-execution-environment="okx_demo">启动自动运行</button>
+                <button class="secondary" type="button" data-auto-execution-action="pause" data-auto-execution-environment="okx_demo">暂停新开仓</button>
+                <button class="secondary" type="button" data-auto-execution-action="stop" data-auto-execution-environment="okx_demo">停止</button>
+                <button class="danger-action" type="button" data-auto-execution-action="emergency_stop" data-auto-execution-environment="okx_demo">紧急停止</button>
+                <span id="demoAutoExecutionActionStatus" aria-live="polite">等待操作。</span>
+              </div>
+            </section>
             <div class="lifecycle-summary-grid demo-workflow-summary">
               <div class="lifecycle-summary-card"><span>待 Demo 模拟</span><strong id="demoWorkflowWaitingCount">0</strong><small>尚未生成可执行 Release</small></div>
               <div class="lifecycle-summary-card"><span>Demo 验证中</span><strong id="demoWorkflowValidatingCount">0</strong><small>已进入 OKX Demo 执行周期</small></div>
@@ -881,13 +900,32 @@
           </div>
           <div class="exchange-demo-warning"><strong>当前状态：</strong><span id="liveCanaryHeadline">Live 适配器已安装但默认关闭；缺任一 release、配置 hash、对账或进程门都会阻止下单。</span></div>
           <div class="workflow-action-status">实盘账户凭据输入一次；每条策略仍需逐条批准启用，并分别绑定不可变 Release 与 RiskProfile。</div>
+          <section class="auto-execution-control" data-auto-execution-environment="okx_live">
+            <div class="auto-execution-head">
+              <div><span>自动执行</span><strong id="liveAutoExecutionStatus">未启动</strong></div>
+              <small>完成本进程 ARM 后，运行方式与 Demo 一致；通知只做告知，不等待逐单批准。</small>
+            </div>
+            <div class="auto-execution-metrics">
+              <div><span>启用策略</span><strong id="liveAutoExecutionReleaseCount">0</strong></div>
+              <div><span>上次心跳</span><strong id="liveAutoExecutionLastHeartbeat">--</strong></div>
+              <div><span>下次检查</span><strong id="liveAutoExecutionNextEvaluation">--</strong></div>
+              <div><span>最近结果</span><strong id="liveAutoExecutionResult">等待 ARM</strong></div>
+            </div>
+            <div class="auto-execution-actions">
+              <button id="liveAutoExecutionToggle" type="button" data-auto-execution-action="start" data-auto-execution-environment="okx_live">启动自动运行</button>
+              <button class="secondary" type="button" data-auto-execution-action="pause" data-auto-execution-environment="okx_live">暂停新开仓</button>
+              <button class="secondary" type="button" data-auto-execution-action="stop" data-auto-execution-environment="okx_live">停止</button>
+              <button class="danger-action" type="button" data-auto-execution-action="emergency_stop" data-auto-execution-environment="okx_live">紧急停止</button>
+              <span id="liveAutoExecutionActionStatus" aria-live="polite">请先完成只读对账与本进程 ARM。</span>
+            </div>
+          </section>
           <div class="exchange-demo-section live-canary-panel">
             <div class="simple-section-title">
-              <div><strong>OKX Live Canary 控制</strong><span id="liveCanaryMeta">只读、Canary、订单和人工 ARM 是四层独立门。</span></div>
+              <div><strong>OKX Live Canary 控制</strong><span id="liveCanaryMeta">只读、Canary、订单、自动执行和人工 ARM 是五层独立门。</span></div>
               <span id="liveCanaryAdapterBadge" class="badge warn">适配器已锁定</span>
             </div>
             <div class="live-canary-gate-grid">
-              <div><span>进程门</span><strong id="liveCanaryProcessGate">--</strong><small>Master / Read / Canary / Order</small></div>
+              <div><span>进程门</span><strong id="liveCanaryProcessGate">--</strong><small>Master / Read / Canary / Order / Automation</small></div>
               <div><span>Live Release</span><strong id="liveCanaryReleaseCount">--</strong><small>必须人工批准且 checksum 匹配</small></div>
               <div><span>风险配置</span><strong id="liveCanaryProfileState">--</strong><small>必须匹配 release hash</small></div>
               <div><span>账户对账</span><strong id="liveCanaryReconcileState">--</strong><small>不持久化账户金额</small></div>
@@ -2598,7 +2636,7 @@
             <div class="mobile-console-card">
               <span>手机端职责</span>
               <strong>状态查看 / 人工确认</strong>
-              <small>不承载策略计算，不自动执行交易。</small>
+              <small>不承载策略计算；后台自动执行状态仅用于查看。</small>
             </div>
             <div class="mobile-console-card">
               <span>同步内容</span>
@@ -2608,7 +2646,7 @@
             <div class="mobile-console-card">
               <span>安全边界</span>
               <strong>只读</strong>
-              <small>不保存 raw API Key，不接 Withdraw API，不自动下单。</small>
+              <small>手机端不发起下单；后台自动执行状态仅用于查看。</small>
             </div>
           </div>
           <div class="mobile-console-body">

@@ -235,6 +235,7 @@ let latestAutoExecutionReviewPayload = {};
 let latestAutoExecutionLearningPayload = {};
 let latestLiveCandidatePayload = {};
 let latestLiveCanaryPayload = {};
+let latestAutomaticExecutionPayload = { environments: {} };
 let selectedLiveCandidatePackageId = null;
 let latestRiskProfilePayload = {};
 let selectedRiskProfileId = null;
@@ -389,6 +390,108 @@ function formatDate(value) {
     minute: "2-digit",
     hour12: false,
   }).format(date);
+}
+
+function automaticExecutionStateLabel(runtime = {}) {
+  const status = runtime.status || runtime.lastHeartbeatResult?.status || "disabled";
+  if (status === "running") {
+    const matched = Number(runtime.lastHeartbeatResult?.batch?.matchedSignalCount || 0);
+    const created = Number(runtime.lastHeartbeatResult?.batch?.createdOrderCount || 0);
+    return matched > 0 || created > 0 ? "自动运行中" : "等待策略条件匹配";
+  }
+  const labels = {
+    waiting: "等待策略条件匹配",
+    paused: "暂停新开仓",
+    disarmed: "等待本进程 ARM",
+    disabled: "未启动",
+    status_unavailable: "状态不可用",
+    runner_error: "运行异常",
+  };
+  return labels[status] || status || "未启动";
+}
+
+function automaticExecutionResultLabel(runtime = {}) {
+  const heartbeat = runtime.lastHeartbeatResult || {};
+  const batch = heartbeat.batch || {};
+  const blockers = Array.isArray(heartbeat.blockers) ? heartbeat.blockers : [];
+  if (blockers.length) return `阻塞 ${blockers.length} 项`;
+  const matched = Number(batch.matchedSignalCount || 0);
+  const created = Number(batch.createdOrderCount || 0);
+  if (!matched && !created) return "等待策略条件匹配";
+  return `匹配 ${matched} · 下单 ${created}`;
+}
+
+function renderAutomaticExecution(payload = { environments: {} }) {
+  latestAutomaticExecutionPayload = payload || { environments: {} };
+  const environments = latestAutomaticExecutionPayload.environments || {};
+  const configurations = [
+    {
+      environment: "okx_demo",
+      prefix: "demoAutoExecution",
+      heartbeatId: "autoExecutionLastHeartbeat",
+      nextId: "autoExecutionNextEvaluation",
+    },
+    {
+      environment: "okx_live",
+      prefix: "liveAutoExecution",
+      heartbeatId: "liveAutoExecutionLastHeartbeat",
+      nextId: "liveAutoExecutionNextEvaluation",
+    },
+  ];
+  configurations.forEach(({ environment, prefix, heartbeatId, nextId }) => {
+    const runtime = environments[environment] || {};
+    const state = automaticExecutionStateLabel(runtime);
+    setText(`${prefix}Status`, state);
+    setText(`${prefix}ReleaseCount`, String(runtime.releaseCount ?? 0));
+    setText(heartbeatId, runtime.lastHeartbeatAt ? `${formatDate(runtime.lastHeartbeatAt)} 北京时间` : "--");
+    setText(nextId, runtime.nextEvaluationAt ? `${formatDate(runtime.nextEvaluationAt)} 北京时间` : "--");
+    setText(`${prefix}Result`, automaticExecutionResultLabel(runtime));
+    const toggle = el(`${prefix}Toggle`);
+    if (toggle) {
+      toggle.textContent = runtime.desiredEnabled ? "保持自动运行" : "启动自动运行";
+      toggle.disabled = environment === "okx_live" && !runtime.armedForCurrentProcess;
+      toggle.title = toggle.disabled ? "请先完成只读对账和本进程 ARM" : "按闭合 K 线持续自动运行";
+    }
+    const statusElement = el(`${prefix}Status`);
+    if (statusElement) statusElement.dataset.state = runtime.status || "disabled";
+  });
+}
+
+async function loadAutomaticExecution(force = false) {
+  const payload = await getJsonSafe(
+    `/api/auto-execution/runtime${force ? "?fresh=1" : ""}`,
+    { environments: {}, running: false },
+    8000,
+  );
+  renderAutomaticExecution(payload);
+  return payload;
+}
+
+async function runAutomaticExecutionAction(environment, action, button) {
+  const prefix = environment === "okx_live" ? "liveAutoExecution" : "demoAutoExecution";
+  if (button) button.disabled = true;
+  setText(`${prefix}ActionStatus`, action === "emergency_stop" ? "正在执行紧急停止。" : "正在更新自动运行状态。");
+  try {
+    const response = await postJson("/api/auto-execution/action", {
+      environment,
+      action,
+      reason: action === "emergency_stop" ? "console_operator_emergency_stop" : `console_${action}`,
+    });
+    renderAutomaticExecution(response.runtime || { environments: {} });
+    const messages = {
+      start: "自动运行已启动；系统将按闭合 K 线持续扫描。",
+      pause: "已暂停新开仓；对账与持仓保护仍保留。",
+      stop: "自动运行已停止。",
+      emergency_stop: "紧急停止已执行，请复核交易所挂单与持仓。",
+    };
+    setText(`${prefix}ActionStatus`, messages[action] || "操作已完成。");
+    if (environment === "okx_demo") await loadDemoWorkflow(true);
+    else await refreshLiveCanaryStatus();
+  } catch (error) {
+    setText(`${prefix}ActionStatus`, `操作失败：${error.message}`);
+  } finally {
+    if (button) button.disabled = false;
+  }
 }
 
 function escapeHtml(value) {
@@ -2108,6 +2211,15 @@ function renderDemoWorkflow(payload = { summary: {}, queues: {} }) {
   }
   updateDemoRuntimeLauncher(payload);
   refreshDemoPageIssues();
+  if (payload?.automaticExecution) {
+    renderAutomaticExecution({
+      ...latestAutomaticExecutionPayload,
+      environments: {
+        ...(latestAutomaticExecutionPayload.environments || {}),
+        okx_demo: payload.automaticExecution,
+      },
+    });
+  }
 }
 
 async function loadDemoWorkflow(force = false) {
@@ -4304,6 +4416,7 @@ function translateLiveCanaryBlocker(value) {
     live_read_gate_disabled: "只读门关闭",
     live_canary_gate_disabled: "Canary 门关闭",
     live_order_gate_disabled: "订单门关闭",
+    live_automation_gate_disabled: "自动执行门关闭",
     live_runtime_credentials_missing: "本次进程凭据缺失",
     no_approved_live_release: "没有人工批准的 LiveRelease",
     no_active_live_canary_risk_profile: "没有启用 Live Canary 风险配置",
@@ -4326,7 +4439,13 @@ function renderLiveCanary(payload = {}) {
   const livePositions = Array.isArray(payload?.portfolioSnapshot?.positions)
     ? payload.portfolioSnapshot.positions
     : (Array.isArray(payload.positions) ? payload.positions : (Array.isArray(runtime.positions) ? runtime.positions : []));
-  const processGateCount = [gates.masterEnabled, gates.readEnabled, gates.canaryEnabled, gates.orderEnabled].filter(Boolean).length;
+  const processGateCount = [
+    gates.masterEnabled,
+    gates.readEnabled,
+    gates.canaryEnabled,
+    gates.orderEnabled,
+    gates.automationEnabled,
+  ].filter(Boolean).length;
   const ready = Boolean(summary.canaryOrderReady);
   setText("liveCanaryHeaderBadge", ready ? "Canary 已就绪" : "Canary 未就绪");
   el("liveCanaryHeaderBadge").className = `status-pill ${ready ? "ok" : "danger"}`;
@@ -4338,7 +4457,7 @@ function renderLiveCanary(payload = {}) {
   setText("liveCanaryHeadline", ready
     ? "Live Canary 的 release、RiskProfile、对账、进程门和人工 ARM 已通过。"
     : `Live 适配器已安装但仍有 ${blockers.length} 项阻塞；当前不会创建实盘订单。`);
-  setText("liveCanaryProcessGate", `${processGateCount}/4`);
+  setText("liveCanaryProcessGate", `${processGateCount}/5`);
   setText("liveCanaryReleaseCount", releases.approvedLiveReleaseCount ?? 0);
   setText("liveCanaryProfileState", summary.activeRiskProfileMatched ? "匹配" : "未匹配");
   setText("liveCanaryReconcileState", runtime.lastReconciliationMatched ? "已匹配" : "未确认");
@@ -4357,6 +4476,25 @@ function renderLiveCanary(payload = {}) {
     });
   }
   registerPageIssues("liveTradingPage", liveIssues);
+  if (payload?.automaticExecution) {
+    renderAutomaticExecution({
+      ...latestAutomaticExecutionPayload,
+      environments: {
+        ...(latestAutomaticExecutionPayload.environments || {}),
+        okx_live: payload.automaticExecution,
+      },
+    });
+  }
+}
+
+async function refreshLiveCanaryStatus() {
+  const payload = await getJsonSafe(
+    "/api/live-canary?fresh=1",
+    { summary: {}, runtimeGates: {}, runtime: {}, liveReleases: { summary: {} }, blockers: [] },
+    10000,
+  );
+  renderLiveCanary(payload);
+  return payload;
 }
 
 function translateExecutionOutcomeQuarantine(reason) {
@@ -4516,6 +4654,7 @@ async function reconcileLiveCanary() {
   try {
     const response = await postJson("/api/live-canary/reconcile", {});
     renderLiveCanary(response.liveCanary || {});
+    if (response.automaticExecution) renderAutomaticExecution(response.automaticExecution);
     setText("liveCanaryActionStatus", response.reconciliationMatched
       ? "只读对账已匹配；账户金额和持仓明细未写入本地。"
       : "只读对账存在未归属持仓或挂单，Canary 已暂停。");
@@ -4537,6 +4676,7 @@ async function armLiveCanary() {
     });
     if (el("liveCanaryArmConfirmation")) el("liveCanaryArmConfirmation").value = "";
     renderLiveCanary(response.liveCanary || {});
+    if (response.automaticExecution) renderAutomaticExecution(response.automaticExecution);
     setText("liveCanaryActionStatus", "固定 Canary 已 ARM；只有匹配 release 的内部信号才可进入机械执行。 ");
   } catch (error) {
     setText("liveCanaryActionStatus", `Canary ARM 失败：${error.message}`);
@@ -4547,19 +4687,7 @@ async function armLiveCanary() {
 
 async function stopLiveCanary() {
   const button = el("liveCanaryKillButton");
-  button.disabled = true;
-  setText("liveCanaryActionStatus", "正在先激活本地紧急停止，再尝试发送 OKX cancel-all-after。 ");
-  try {
-    const response = await postJson("/api/live-canary/kill-switch", { reason: "console_operator_emergency_stop" });
-    renderLiveCanary(response.liveCanary || {});
-    setText("liveCanaryActionStatus", response.exchangeCancelSent
-      ? "本地已停止，OKX cancel-all-after 已接受。"
-      : "本地已停止；未发送或未确认 OKX cancel-all-after，请人工复核账户。 ");
-  } catch (error) {
-    setText("liveCanaryActionStatus", `紧急停止请求失败：${error.message}`);
-  } finally {
-    button.disabled = false;
-  }
+  await runAutomaticExecutionAction("okx_live", "emergency_stop", button);
 }
 
 function forwardReviewBadge(row) {
@@ -6970,6 +7098,7 @@ function renderConsoleFromPayloads() {
   const liveCandidates = core.liveCandidates || { summary: {}, packages: [], recentApprovalActions: [] };
   const riskProfiles = core.riskProfiles || { summary: {}, profiles: [], activeProfiles: {} };
   const liveCanary = core.liveCanary || { summary: {}, runtimeGates: {}, runtime: {}, liveReleases: { summary: {} }, blockers: [] };
+  const automaticExecution = core.automaticExecution || mobile.automaticExecution || { environments: {} };
   const executionOutcomes = core.executionOutcomes || { summary: {}, records: [], quarantinedExecutionRecords: [] };
   const liveReadiness = core.liveReadiness || { rows: [], summary: {} };
   const forwardReview = core.forwardReview || { rows: [], summary: {} };
@@ -6989,6 +7118,7 @@ function renderConsoleFromPayloads() {
   renderLiveCandidateStatus(liveCandidates);
   renderRiskProfiles(riskProfiles);
   renderLiveCanary(liveCanary);
+  renderAutomaticExecution(automaticExecution);
   renderExecutionOutcomes(executionOutcomes);
   renderCommandCenter(strategyItems, reportItems, mobile);
   renderRuntimeMonitor(strategyItems, mobile);
@@ -7168,6 +7298,7 @@ async function refreshAll() {
     { key: "liveCandidates", url: "/api/live-candidates", fallback: { summary: {}, packages: [], recentApprovalActions: [] }, timeoutMs: 6000 },
     { key: "riskProfiles", url: "/api/risk-profiles", fallback: { summary: {}, profiles: [], activeProfiles: {} }, timeoutMs: 6000 },
     { key: "liveCanary", url: "/api/live-canary", fallback: { summary: {}, runtimeGates: {}, runtime: {}, liveReleases: { summary: {} }, blockers: [] }, timeoutMs: 6000 },
+    { key: "automaticExecution", url: "/api/auto-execution/runtime", fallback: { environments: {}, running: false }, timeoutMs: 6000 },
     { key: "executionOutcomes", url: "/api/execution-outcomes", fallback: { summary: {}, records: [], quarantinedExecutionRecords: [] }, timeoutMs: 6000 },
     { key: "liveReadiness", url: "/api/live-readiness", fallback: { rows: [], summary: {} }, timeoutMs: 8000 },
     { key: "forwardReview", url: "/api/forward-review", fallback: { rows: [], summary: {} }, timeoutMs: 8000 },
@@ -7679,6 +7810,13 @@ el("rollbackRiskProfileButton")?.addEventListener("click", rollbackRiskProfileVe
 el("liveCanaryReconcileButton")?.addEventListener("click", reconcileLiveCanary);
 el("liveCanaryArmButton")?.addEventListener("click", armLiveCanary);
 el("liveCanaryKillButton")?.addEventListener("click", stopLiveCanary);
+document.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-auto-execution-action]");
+  if (!button) return;
+  const environment = button.dataset.autoExecutionEnvironment || "";
+  const action = button.dataset.autoExecutionAction || "";
+  void runAutomaticExecutionAction(environment, action, button);
+});
 el("exportExecutionOutcomesButton")?.addEventListener("click", exportExecutionOutcomes);
 el("toggleAdvancedModeButton")?.addEventListener("click", () => {
   toggleAdvancedMode();
@@ -7797,5 +7935,8 @@ try {
 refreshAll().catch((error) => {
   el("strategyList").innerHTML = `<div class="item">加载失败：${error.message}</div>`;
 });
+window.setInterval(() => {
+  void loadAutomaticExecution(true);
+}, 15000);
 updateCurrentSection();
 loadCurrentSectionData();
