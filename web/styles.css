@@ -3909,10 +3909,22 @@ code {
   right: 24px;
   bottom: 24px;
   z-index: 20;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  min-width: 42px;
   min-height: 42px;
-  border-radius: 999px;
-  padding: 0 18px;
+  border-radius: 6px;
+  padding: 0;
+  overflow: hidden;
+  font-size: 0;
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+}
+
+.back-home-button::before {
+  content: "←";
+  font-size: 20px;
+  line-height: 1;
 }
 
 .pre-live-panel {

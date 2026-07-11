@@ -37,6 +37,11 @@ class WorkflowUiContractTests(unittest.TestCase):
     def test_static_asset_cachebuster_matches_patch(self) -> None:
         self.assertIn("v13-27-1-3-demo-workflow", self.html)
 
+    def test_back_to_strategy_control_is_compact_and_named(self) -> None:
+        self.assertIn('title="回到策略页"', self.html)
+        self.assertIn(".back-home-button::before", self.css)
+        self.assertIn('content: "←"', self.css)
+
     def test_api_errors_surface_backend_parameter_reason(self) -> None:
         self.assertIn("payload.message || payload.error", self.js)
 
