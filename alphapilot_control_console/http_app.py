@@ -45,7 +45,6 @@ from .live_candidate_service import (
 from .live_safety_plane import activate_live_kill_switch, build_live_safety_status
 from .live_canary_service import (
     activate_live_canary_kill_switch,
-    arm_live_canary,
     build_live_canary_status,
     run_live_readonly_reconciliation,
 )
@@ -129,6 +128,12 @@ from .state_store import (
     upsert_paper_observation_task,
     update_strategy_status,
     update_weakness_action_task,
+)
+from .unified_auto_execution_runner import (
+    get_unified_auto_execution_status,
+    run_unified_auto_execution_action,
+    start_unified_auto_execution_runner,
+    stop_unified_auto_execution_runner,
 )
 
 
@@ -281,9 +286,15 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             self._send_json(_cached_payload(
                 "mobile-status",
                 15,
-                lambda: build_mobile_status(scan_quant_engine()),
+                lambda: {
+                    **build_mobile_status(scan_quant_engine()),
+                    "automaticExecution": get_unified_auto_execution_status(),
+                },
                 fresh=fresh,
             ))
+            return
+        if path == "/api/auto-execution/runtime":
+            self._send_json(get_unified_auto_execution_status())
             return
         if path == "/api/runtime":
             payload = scan_quant_engine()
@@ -534,7 +545,15 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             self._send_json(_cached_payload("exchange-demo-simulation", 15, build_exchange_demo_simulation, fresh=fresh))
             return
         if path == "/api/demo-workflow":
-            self._send_json(_cached_payload("demo-workflow", 5, build_demo_workflow_status, fresh=fresh))
+            self._send_json(_cached_payload(
+                "demo-workflow",
+                5,
+                lambda: {
+                    **build_demo_workflow_status(),
+                    "automaticExecution": get_unified_auto_execution_status().get("environments", {}).get("okx_demo", {}),
+                },
+                fresh=fresh,
+            ))
             return
         if path == "/api/evolution-demo":
             self._send_json(_cached_payload("evolution-demo", 5, build_evolution_demo_status, fresh=fresh))
@@ -546,7 +565,15 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             self._send_json(_cached_payload("live-safety", 5, build_live_safety_status, fresh=fresh))
             return
         if path == "/api/live-canary":
-            self._send_json(_cached_payload("live-canary", 5, build_live_canary_status, fresh=fresh))
+            self._send_json(_cached_payload(
+                "live-canary",
+                5,
+                lambda: {
+                    **build_live_canary_status(),
+                    "automaticExecution": get_unified_auto_execution_status().get("environments", {}).get("okx_live", {}),
+                },
+                fresh=fresh,
+            ))
             return
         if path == "/api/execution-outcomes":
             self._send_json(_cached_payload(
@@ -1057,6 +1084,16 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             _RESPONSE_CACHE.clear()
             self._send_json(run_demo_workflow_action(payload))
             return
+        if parsed.path == "/api/auto-execution/action":
+            payload = self._read_body_json()
+            _RESPONSE_CACHE.clear()
+            try:
+                result = run_unified_auto_execution_action(payload)
+            except (KeyError, RuntimeError, ValueError, PermissionError) as error:
+                self._send_json({"ok": False, "error": type(error).__name__, "message": str(error)}, 409)
+                return
+            self._send_json(result, 200 if result.get("ok") else 409)
+            return
         if parsed.path == "/api/no-key-pre-live/scan":
             payload = self._read_body_json()
             self._send_json(scan_no_key_pre_live_candidates(payload))
@@ -1140,7 +1177,20 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 if parsed.path.endswith("/reconcile"):
                     result = run_live_readonly_reconciliation()
                 elif parsed.path.endswith("/arm"):
-                    result = arm_live_canary(payload)
+                    automatic = run_unified_auto_execution_action({
+                        **payload,
+                        "environment": "okx_live",
+                        "action": "arm",
+                    })
+                    if not automatic.get("ok"):
+                        self._send_json(automatic, 409)
+                        return
+                    arm_result = automatic.get("armResult") if isinstance(automatic.get("armResult"), dict) else {}
+                    result = {
+                        **arm_result,
+                        "ok": True,
+                        "automaticExecution": automatic.get("runtime") or {},
+                    }
                 else:
                     result = activate_live_canary_kill_switch(payload)
             except (KeyError, RuntimeError, ValueError, PermissionError) as error:
@@ -1197,11 +1247,13 @@ def run_server(host: str, port: int) -> None:
     server = ThreadingHTTPServer((host, port), ConsoleHandler)
     start_local_sandbox_auto_runner()
     resume_incomplete_workflow_runs()
+    start_unified_auto_execution_runner()
     print(f"AlphaPilot Control Console running at http://{host}:{port}")
     print("Research, OKX Demo, and gated Live Canary control. Credentials are process-only; Withdraw is absent.")
     try:
         server.serve_forever()
     finally:
+        stop_unified_auto_execution_runner()
         stop_local_sandbox_auto_runner()
 
 
