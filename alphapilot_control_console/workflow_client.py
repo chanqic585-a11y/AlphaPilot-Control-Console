@@ -432,16 +432,19 @@ def resume_incomplete_workflow_runs(
     started_count = 0
     already_running_count = 0
     errors: list[dict[str, str | None]] = []
-    for run_id in candidates:
+    if candidates:
         try:
-            worker = spawn_workflow_run(run_id, quant_root=quant_root)
+            worker = spawn_workflow_batch(candidates, quant_root=quant_root)
             if worker.get("started"):
-                started_count += 1
+                started_count = len(candidates)
             elif worker.get("alreadyRunning"):
-                already_running_count += 1
+                already_running_count = len(candidates)
         except (FileNotFoundError, RuntimeError, ValueError, OSError) as error:
             errors.append(
-                {"workflowRunId": run_id, "error": str(error)[-500:]}
+                {
+                    "workflowRunId": ",".join(candidates),
+                    "error": str(error)[-500:],
+                }
             )
 
     _STARTUP_WORKFLOW_RECOVERY_STATUS = {
