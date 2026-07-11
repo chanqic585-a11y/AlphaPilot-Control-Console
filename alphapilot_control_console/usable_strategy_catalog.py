@@ -12,6 +12,7 @@ CONTROL_CONSOLE_VERSION = "V13.7.41"
 CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_7_41"
 
 LOW_FREQUENCY_TASK_PACK_REPORT = "v13_7_21_paper_observation_task_pack_report.json"
+LOW_FREQUENCY_FACTORY_REPORT = "v13_7_20_five_strategy_candidate_factory_report.json"
 SHORT_CYCLE_SELECTED_REPORT = "v13_7_40_short_cycle_selected_candidate_cards.json"
 USABLE_STRATEGY_CATALOG_REPORT = "v13_7_41_usable_strategy_catalog.json"
 
@@ -84,7 +85,11 @@ def _score_metrics(metrics: dict[str, Any], test_metrics: dict[str, Any] | None 
     return round(max(0.0, min(score, 100.0)), 2)
 
 
-def _normalize_low_frequency_task(task: dict[str, Any], index: int) -> dict[str, Any]:
+def _normalize_low_frequency_task(
+    task: dict[str, Any],
+    index: int,
+    candidate_specs: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
     metrics = task.get("historicalMetrics") if isinstance(task.get("historicalMetrics"), dict) else {}
     pairs = _safe_pairs(task.get("recommendedPairs"))
     return {
@@ -107,7 +112,11 @@ def _normalize_low_frequency_task(task: dict[str, Any], index: int) -> dict[str,
         "metrics": metrics,
         "validationMetrics": {},
         "testMetrics": {},
-        "params": task.get("params") if isinstance(task.get("params"), dict) else {},
+        "params": (
+            task.get("params")
+            if isinstance(task.get("params"), dict) and task.get("params")
+            else candidate_specs.get(str(task.get("candidateId") or ""), {})
+        ),
         "score": _score_metrics(metrics),
         "riskNotes": [
             "低频候选仍需要本地沙盒持续观察，不能直接升级实盘。",
@@ -228,13 +237,21 @@ def build_usable_strategy_catalog(quant_path: Path | None = None) -> dict[str, A
     root = (quant_path or get_quant_engine_path() or DEFAULT_QUANT_ENGINE_PATH).expanduser().resolve()
     reports_dir = root / "reports"
     low_payload = _read_json(reports_dir / LOW_FREQUENCY_TASK_PACK_REPORT)
+    factory_payload = _read_json(reports_dir / LOW_FREQUENCY_FACTORY_REPORT)
     short_payload = _read_json(reports_dir / SHORT_CYCLE_SELECTED_REPORT)
     low_tasks = low_payload.get("paperObservationTasks") if isinstance(low_payload.get("paperObservationTasks"), list) else []
     short_candidates = (
         short_payload.get("selectedCandidates") if isinstance(short_payload.get("selectedCandidates"), list) else []
     )
+    factory = factory_payload.get("factory") if isinstance(factory_payload.get("factory"), dict) else {}
+    approved = factory.get("approvedCandidates") if isinstance(factory.get("approvedCandidates"), list) else []
+    candidate_specs = {
+        str(row.get("candidateId") or ""): dict(row.get("spec") or {})
+        for row in approved
+        if isinstance(row, dict) and isinstance(row.get("spec"), dict)
+    }
     low_rows = [
-        _normalize_low_frequency_task(task, index)
+        _normalize_low_frequency_task(task, index, candidate_specs)
         for index, task in enumerate(low_tasks, start=1)
         if isinstance(task, dict)
     ]

@@ -91,6 +91,56 @@ class WorkflowClientTests(unittest.TestCase):
         request.assert_called_once_with("run-1", quant_root=self.quant_root)
         self.assertEqual(result["requestedCount"], 1)
 
+    def test_import_optimized_action_whitelists_fields_and_starts_new_backtest(self) -> None:
+        created = {
+            "strategyVersionId": "version-2",
+            "displayName": "策略优化版",
+        }
+        projection = {
+            "items": [
+                {
+                    "strategyVersionId": "version-2",
+                    "workflowRunId": "run-2",
+                    "stage": "backtest",
+                    "status": "awaiting",
+                }
+            ]
+        }
+        with patch.object(
+            client,
+            "run_workflow_cli",
+            side_effect=[created, projection],
+        ) as run_cli, patch.object(
+            client,
+            "request_dual_layer_backtest",
+            return_value={"workflowRunId": "run-2", "worker": {"started": True}},
+        ) as start:
+            try:
+                result = client.request_workflow_action(
+                    "import-optimized",
+                    {
+                        "legacyStrategyId": "legacy-1",
+                        "displayName": "策略优化版",
+                        "definition": {"timeframe": "1h", "targetR": 2.0},
+                        "baseParameters": {"volume_min": 1.2, "targetRMultiple": 2.0},
+                        "parameters": {"volume_min": 1.3, "targetRMultiple": 2.0},
+                        "startBacktest": True,
+                        "apiKey": "must-not-flow",
+                        "endpoint": "https://evil.invalid",
+                    },
+                    quant_root=self.quant_root,
+                )
+            except ValueError as error:
+                self.fail(f"import-optimized action is unavailable: {error}")
+
+        command = run_cli.call_args_list[0].args[0]
+        self.assertEqual(command[0], "import-optimized")
+        self.assertNotIn("must-not-flow", command)
+        self.assertNotIn("https://evil.invalid", command)
+        start.assert_called_once_with("run-2", quant_root=self.quant_root)
+        self.assertEqual(result["strategyVersionId"], "version-2")
+        self.assertTrue(result["backtest"]["worker"]["started"])
+
 
 if __name__ == "__main__":
     unittest.main()

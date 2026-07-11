@@ -14,6 +14,7 @@ from .live_candidate_service import build_live_candidate_status
 from .simulation_review import build_simulation_review
 from .state_store import list_strategy_stage_assignments, now_iso
 from .strategy_promotion_gate import build_strategy_promotion_gate
+from .strategy_optimization import build_optimization_context
 from .usable_strategy_catalog import build_usable_strategy_catalog
 
 
@@ -165,6 +166,14 @@ def _load_source(
 def _new_record(row: dict[str, Any], source_kind: str) -> dict[str, Any]:
     strategy_id = _strategy_id(row)
     content_hash = _content_hash(row)
+    target_r = _first_text(row, "targetR", "targetRewardRiskRatio") or "2.0"
+    try:
+        target_r_value = max(2.0, float(target_r))
+    except ValueError:
+        target_r_value = 2.0
+    parameters = dict(row.get("params") or {}) if isinstance(row.get("params"), dict) else {}
+    if not any(key in parameters for key in ("targetR", "targetRMultiple", "targetRewardRiskRatio")):
+        parameters["targetRewardRiskRatio"] = target_r_value
     return {
         "lifecycleId": _hash({"strategyId": strategy_id, "contentHash": content_hash}, "lifecycle")[:42],
         "strategyId": strategy_id,
@@ -181,6 +190,23 @@ def _new_record(row: dict[str, Any], source_kind: str) -> dict[str, Any]:
         "formalDemoRelease": False,
         "formalLiveCandidate": False,
         "consistencyReasons": [],
+        "rawOptimizationContext": {
+            "sourceKind": "legacy_catalog",
+            "legacyStrategyId": strategy_id,
+            "definition": {
+                "schemaVersion": "strategy_workflow_definition_v1",
+                "family": row.get("family") or "legacy_research",
+                "direction": row.get("direction") or "research",
+                "timeframe": row.get("timeframe") or "1h",
+                "targetR": target_r_value,
+                "researchOnly": True,
+                "sourceReport": row.get("sourceReport"),
+            },
+            "parameters": parameters,
+            "metrics": dict(row.get("metrics") or {}) if isinstance(row.get("metrics"), dict) else {},
+            "validationMetrics": dict(row.get("validationMetrics") or {}) if isinstance(row.get("validationMetrics"), dict) else {},
+            "testMetrics": dict(row.get("testMetrics") or {}) if isinstance(row.get("testMetrics"), dict) else {},
+        },
     }
 
 
@@ -268,7 +294,7 @@ def _finalize_record(record: dict[str, Any]) -> dict[str, Any]:
     current_evidence = [row for row in history if row.get("stage") == stage]
     stage_entered_at = next((row.get("observedAt") for row in reversed(current_evidence) if row.get("observedAt")), None)
     current_source_kind = str(current_evidence[-1].get("sourceKind") or record["sourceKind"]) if current_evidence else record["sourceKind"]
-    return {
+    finalized = {
         "lifecycleId": record["lifecycleId"],
         "strategyId": record["strategyId"],
         "displayName": record["displayName"],
@@ -290,6 +316,13 @@ def _finalize_record(record: dict[str, Any]) -> dict[str, Any]:
         "history": history,
         "archived": stage == "archived",
     }
+    finalized["optimizationContext"] = build_optimization_context(
+        {
+            **finalized,
+            "optimizationContext": record.get("rawOptimizationContext") or {},
+        }
+    )
+    return finalized
 
 
 def build_strategy_lifecycle_projection(

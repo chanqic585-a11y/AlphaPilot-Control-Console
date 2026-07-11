@@ -148,6 +148,42 @@ class StrategyLifecycleProjectionTests(unittest.TestCase):
         self.assertTrue(all(item["page"] == "demo" for item in result["items"]))
         self.assertTrue(all("历史样本保留" in item["evidenceSummary"] for item in result["items"]))
 
+    def test_local_and_demo_items_include_parameter_optimization_context(self) -> None:
+        result = self.build(
+            catalog={
+                "strategies": [
+                    {
+                        "strategyId": "strategy-1",
+                        "name": "空头上影拒绝",
+                        "family": "short_rejection",
+                        "direction": "short",
+                        "timeframe": "1h",
+                        "targetR": 2.0,
+                        "params": {
+                            "volume_min": 1.2,
+                            "max_hold": 12,
+                            "targetRMultiple": 2.0,
+                        },
+                        "metrics": {"profitFactor": 1.05},
+                        "validationMetrics": {"profitFactor": 0.9},
+                    }
+                ],
+                "summary": {},
+            },
+            strategy_stage_assignments={
+                "strategy-1": {"strategyId": "strategy-1", "stage": "demo_trial"},
+            },
+        )
+
+        item = result["items"][0]
+        self.assertIn("optimizationContext", item)
+        context = item["optimizationContext"]
+        self.assertEqual(context["sourceKind"], "legacy_catalog")
+        self.assertEqual(context["legacyStrategyId"], "strategy-1")
+        self.assertEqual(context["parameters"]["volume_min"], 1.2)
+        self.assertEqual(context["definition"]["targetR"], 2.0)
+        self.assertEqual(context["validationMetrics"]["profitFactor"], 0.9)
+
     def test_formal_demo_release_supersedes_demo_trial_assignment(self) -> None:
         result = self.build(
             catalog={

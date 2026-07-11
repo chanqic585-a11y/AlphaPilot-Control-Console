@@ -9,6 +9,10 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from .config import DATA_DIR, get_quant_engine_path
+from .strategy_optimization import (
+    build_optimization_context,
+    validate_optimization_parameters,
+)
 
 
 CONTROL_CONSOLE_VERSION = "V13.27.1.1"
@@ -20,6 +24,7 @@ ALLOWED_COMMANDS = {
     "bootstrap",
     "cancel",
     "challenger",
+    "import-optimized",
     "pause",
     "projection",
     "queue",
@@ -104,7 +109,38 @@ def build_workflow_projection(
     *,
     quant_root: Path | None = None,
 ) -> dict[str, Any]:
-    return run_workflow_cli(["projection"], quant_root=quant_root)
+    projection = run_workflow_cli(["projection"], quant_root=quant_root)
+    for bucket in ("items", "archivedItems"):
+        for item in projection.get(bucket) or []:
+            if isinstance(item, dict):
+                item["optimizationContext"] = build_optimization_context(item)
+    return projection
+
+
+def _start_created_version_backtest(
+    created: dict[str, Any],
+    *,
+    quant_root: Path | None,
+) -> dict[str, Any]:
+    version_id = str(created.get("strategyVersionId") or "").strip()
+    projection = build_workflow_projection(quant_root=quant_root)
+    run = next(
+        (
+            item
+            for item in projection.get("items") or []
+            if isinstance(item, dict)
+            and item.get("strategyVersionId") == version_id
+            and item.get("stage") == "backtest"
+        ),
+        None,
+    )
+    if run is None:
+        raise RuntimeError("created_strategy_backtest_run_missing")
+    backtest = request_dual_layer_backtest(
+        str(run.get("workflowRunId") or ""),
+        quant_root=quant_root,
+    )
+    return {**created, "backtest": backtest}
 
 
 def spawn_workflow_run(
@@ -248,7 +284,14 @@ def request_workflow_action(
             raise ValueError("challenger_identity_required")
         if not isinstance(definition, dict) or not isinstance(parameters, dict):
             raise ValueError("challenger_definition_and_parameters_required")
-        return run_workflow_cli(
+        base_parameters = payload.get("baseParameters")
+        if isinstance(base_parameters, dict):
+            parameters = validate_optimization_parameters(
+                definition,
+                base_parameters,
+                parameters,
+            )
+        created = run_workflow_cli(
             [
                 "challenger",
                 "--parent-version-id",
@@ -262,4 +305,43 @@ def request_workflow_action(
             ],
             quant_root=quant_root,
         )
+        if bool(payload.get("startBacktest")):
+            return _start_created_version_backtest(created, quant_root=quant_root)
+        return created
+    if normalized == "import-optimized":
+        legacy_id = str(payload.get("legacyStrategyId") or "").strip()
+        display_name = str(payload.get("displayName") or "").strip()
+        definition = payload.get("definition")
+        base_parameters = payload.get("baseParameters")
+        parameters = payload.get("parameters")
+        if not legacy_id or not display_name:
+            raise ValueError("legacy_optimization_identity_required")
+        if not isinstance(definition, dict) or not isinstance(base_parameters, dict):
+            raise ValueError("legacy_optimization_context_required")
+        parameters = validate_optimization_parameters(
+            definition,
+            base_parameters,
+            parameters,
+        )
+        created = run_workflow_cli(
+            [
+                "import-optimized",
+                "--legacy-strategy-id",
+                legacy_id,
+                "--display-name",
+                display_name,
+                "--source-type",
+                "legacy_stage_optimization",
+                "--definition-json",
+                json.dumps(definition, ensure_ascii=False, separators=(",", ":")),
+                "--base-parameters-json",
+                json.dumps(base_parameters, ensure_ascii=False, separators=(",", ":")),
+                "--parameters-json",
+                json.dumps(parameters, ensure_ascii=False, separators=(",", ":")),
+            ],
+            quant_root=quant_root,
+        )
+        if bool(payload.get("startBacktest")):
+            return _start_created_version_backtest(created, quant_root=quant_root)
+        return created
     raise ValueError("unsupported_workflow_action")
