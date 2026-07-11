@@ -31,6 +31,7 @@ def live_runtime_gates(environment: Mapping[str, str] | None = None) -> dict[str
         "readEnabled": _flag(source, "ALPHAPILOT_OKX_LIVE_READ_ENABLED"),
         "canaryEnabled": _flag(source, "ALPHAPILOT_OKX_LIVE_CANARY_ENABLED"),
         "orderEnabled": _flag(source, "ALPHAPILOT_OKX_LIVE_ORDER_ENABLED"),
+        "automationEnabled": _flag(source, "ALPHAPILOT_OKX_LIVE_AUTOMATION_ENABLED"),
     }
 
 
@@ -78,6 +79,7 @@ def build_live_canary_status(
         (gates["readEnabled"], "live_read_gate_disabled"),
         (gates["canaryEnabled"], "live_canary_gate_disabled"),
         (gates["orderEnabled"], "live_order_gate_disabled"),
+        (gates["automationEnabled"], "live_automation_gate_disabled"),
         (credentials["allConfigured"], "live_runtime_credentials_missing"),
         (bool(releases), "no_approved_live_release"),
         (profile is not None, "no_active_live_canary_risk_profile"),
@@ -193,7 +195,13 @@ def arm_live_canary(
     source = os.environ if environment is None else environment
     status = build_live_canary_status(environment=source, store_path=store_path)
     gates = status["runtimeGates"]
-    required = gates["masterEnabled"] and gates["readEnabled"] and gates["canaryEnabled"] and gates["orderEnabled"]
+    required = (
+        gates["masterEnabled"]
+        and gates["readEnabled"]
+        and gates["canaryEnabled"]
+        and gates["orderEnabled"]
+        and gates["automationEnabled"]
+    )
     if not required or not status["credentialStatus"]["allConfigured"]:
         raise PermissionError("All OKX Live Canary process gates and runtime credentials are required")
     if not status["summary"]["activeRiskProfileMatched"] or not status["liveReleases"]["releases"]:

@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from alphapilot_control_console.unified_auto_execution_adapters import (
     OkxDemoAutoExecutionAdapter,
+    OkxLiveAutoExecutionAdapter,
 )
 
 
@@ -83,6 +84,41 @@ class UnifiedAutoExecutionAdapterTests(unittest.TestCase):
         reconcile.assert_called_once_with()
         pause.assert_called_once_with("unit_test")
         stop.assert_called_once_with("emergency")
+
+    def test_live_adapter_requires_automation_ready_status(self) -> None:
+        with patch(
+            "alphapilot_control_console.unified_auto_execution_adapters.build_live_canary_status",
+            return_value={"summary": {"canaryOrderReady": True}, "runtimeGates": {"automationEnabled": False}, "blockers": []},
+        ):
+            blocked = OkxLiveAutoExecutionAdapter().preflight()
+
+        self.assertFalse(blocked["ok"])
+        self.assertIn("live_automation_gate_disabled", blocked["blockers"])
+
+    def test_live_adapter_routes_batch_reconciliation_pause_and_stop(self) -> None:
+        adapter = OkxLiveAutoExecutionAdapter()
+        releases = [type("Release", (), {"releaseId": "live-release-1"})()]
+        with patch(
+            "alphapilot_control_console.unified_auto_execution_adapters.run_live_auto_execution_batch",
+            return_value={"ok": True},
+        ) as batch, patch(
+            "alphapilot_control_console.unified_auto_execution_adapters.reconcile_live_auto_execution_runtime",
+            return_value={"ok": True},
+        ) as reconcile, patch(
+            "alphapilot_control_console.unified_auto_execution_adapters.pause_live_auto_execution_runtime",
+        ) as pause, patch(
+            "alphapilot_control_console.unified_auto_execution_adapters.activate_live_canary_kill_switch",
+            return_value={"ok": True},
+        ) as stop:
+            self.assertTrue(adapter.run_batch(releases, {})["ok"])
+            self.assertTrue(adapter.reconcile()["ok"])
+            adapter.pause("unit_test")
+            self.assertTrue(adapter.emergency_stop("emergency")["ok"])
+
+        batch.assert_called_once_with(["live-release-1"])
+        reconcile.assert_called_once_with()
+        pause.assert_called_once_with("unit_test")
+        stop.assert_called_once_with({"reason": "emergency"})
 
 
 if __name__ == "__main__":

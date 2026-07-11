@@ -5,6 +5,7 @@ param(
   [switch]$EnableReadOnly,
   [switch]$EnableCanary,
   [switch]$EnableOrder,
+  [switch]$EnableAutomation,
   [switch]$Smoke
 )
 
@@ -40,6 +41,9 @@ if (($EnableCanary -or $EnableOrder) -and -not $EnableReadOnly) {
 if ($EnableOrder -and -not $EnableCanary) {
   throw "-EnableOrder requires -EnableCanary."
 }
+if ($EnableAutomation -and -not $EnableOrder) {
+  throw "-EnableAutomation requires -EnableOrder."
+}
 
 Write-Host "AlphaPilot OKX Live Canary Launcher" -ForegroundColor Cyan
 Write-Host "Use a dedicated OKX Live Read+Trade key with Withdraw disabled." -ForegroundColor Yellow
@@ -57,7 +61,7 @@ if ($EnableReadOnly) {
     throw "All three OKX Live runtime credentials are required."
   }
 }
-if ($EnableCanary -or $EnableOrder) {
+if ($EnableCanary -or $EnableOrder -or $EnableAutomation) {
   $confirmation = Read-Host "Type ENABLE_OKX_LIVE_CANARY_PROCESS to open process gates"
   if ($confirmation -cne "ENABLE_OKX_LIVE_CANARY_PROCESS") {
     throw "Exact Live Canary process confirmation is required."
@@ -69,13 +73,14 @@ $env:ALPHAPILOT_OKX_LIVE_ENABLED = if ($EnableReadOnly) { "1" } else { "0" }
 $env:ALPHAPILOT_OKX_LIVE_READ_ENABLED = if ($EnableReadOnly) { "1" } else { "0" }
 $env:ALPHAPILOT_OKX_LIVE_CANARY_ENABLED = if ($EnableCanary) { "1" } else { "0" }
 $env:ALPHAPILOT_OKX_LIVE_ORDER_ENABLED = if ($EnableOrder) { "1" } else { "0" }
+$env:ALPHAPILOT_OKX_LIVE_AUTOMATION_ENABLED = if ($EnableAutomation) { "1" } else { "0" }
 $env:ALPHAPILOT_OKX_LIVE_API_KEY = $apiKey
 $env:ALPHAPILOT_OKX_LIVE_SECRET_KEY = $secretKey
 $env:ALPHAPILOT_OKX_LIVE_PASSPHRASE = $passphrase
 
 try {
   Write-Host "Starting at http://127.0.0.1:$Port/" -ForegroundColor Green
-  Write-Host "Read=$EnableReadOnly Canary=$EnableCanary Order=$EnableOrder" -ForegroundColor Yellow
+  Write-Host "Read=$EnableReadOnly Canary=$EnableCanary Order=$EnableOrder Automation=$EnableAutomation" -ForegroundColor Yellow
   Write-Host "A matching LiveRelease, RiskProfile, reconciliation, and UI ARM confirmation are still required." -ForegroundColor Yellow
   & $python -m alphapilot_control_console.http_app --host $HostName --port $Port
   exit $LASTEXITCODE
@@ -85,6 +90,7 @@ try {
   Remove-Item Env:\ALPHAPILOT_OKX_LIVE_READ_ENABLED -ErrorAction SilentlyContinue
   Remove-Item Env:\ALPHAPILOT_OKX_LIVE_CANARY_ENABLED -ErrorAction SilentlyContinue
   Remove-Item Env:\ALPHAPILOT_OKX_LIVE_ORDER_ENABLED -ErrorAction SilentlyContinue
+  Remove-Item Env:\ALPHAPILOT_OKX_LIVE_AUTOMATION_ENABLED -ErrorAction SilentlyContinue
   Remove-Item Env:\ALPHAPILOT_OKX_LIVE_API_KEY -ErrorAction SilentlyContinue
   Remove-Item Env:\ALPHAPILOT_OKX_LIVE_SECRET_KEY -ErrorAction SilentlyContinue
   Remove-Item Env:\ALPHAPILOT_OKX_LIVE_PASSPHRASE -ErrorAction SilentlyContinue
