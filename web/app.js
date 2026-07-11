@@ -273,7 +273,7 @@ const emptyStrategyLifecycle = {
   sourceWarnings: [],
 };
 const emptyWorkflow = {
-  version: "V13.27.1.4",
+  version: "V13.27.1.5",
   summary: {},
   items: [],
   archivedItems: [],

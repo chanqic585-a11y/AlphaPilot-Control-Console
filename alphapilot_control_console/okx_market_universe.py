@@ -105,7 +105,7 @@ def build_okx_usdt_swap_universe(
     ranked.sort(key=lambda row: (-float(row["quoteVolumeProxy"]), float(row["spreadPct"]), str(row["instId"])))
     total = len(instrument_rows)
     return {
-        "source": "okx_public_full_market_universe_v13_27_1_4",
+        "source": "okx_public_full_market_universe_v13_27_1_5",
         "generatedAt": now_iso(),
         "marketScope": "okx_usdt_linear_perpetual_full_market",
         "totalInstrumentCount": total,

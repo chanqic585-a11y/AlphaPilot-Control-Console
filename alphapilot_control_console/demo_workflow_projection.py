@@ -12,8 +12,8 @@ from .demo_market_scan_service import get_demo_strategy_market_scan
 from .demo_strategy_runtime_settings import get_demo_strategy_runtime_settings
 
 
-VERSION = "V13.27.1.4"
-SOURCE = "demo_workflow_projection_v13_27_1_4"
+VERSION = "V13.27.1.5"
+SOURCE = "demo_workflow_projection_v13_27_1_5"
 
 QUEUE_BY_STAGE = {
     "demo_trial": "waiting",

@@ -3,12 +3,35 @@
 Current version:
 
 ```text
-AlphaPilot V13.27.1.4 - Demo Evidence, Full-Market Scan, and Progress
+AlphaPilot V13.27.1.5 - One-Time Guidance and Safe Demo Launcher
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
 AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
+
+## What V13.27.1.5 Adds
+
+- Adds one-time, stage-aware issue guidance to Strategy, Local Simulation, Demo
+  Simulation, and Live pages. The highest-priority unresolved issue opens once;
+  users can reopen it explicitly with `查看处理办法`.
+- Collapses the permanent Demo evidence checklist by default, preserving the
+  evidence without crowding the main execution view.
+- Adds a loopback-only `启动 OKX Demo` action. The browser requests only a fixed
+  local launcher; it never reads, transmits, or stores API credentials.
+- Prompts once per Demo runtime for API Key, Secret Key, and Passphrase. That
+  one process-level Demo account connection is shared by all eligible
+  strategies, while orders, positions, PnL, risk gates, and evidence remain
+  isolated by strategy and immutable Release.
+- Keeps the Live boundary distinct: account credentials are entered once, but
+  every strategy must still be approved individually before activation. This
+  patch does not enable Live trading.
+- Replaces an existing Console listener only after exact PID, command-line,
+  port, and confirmation checks. Mobile and LAN clients cannot launch a local
+  process.
+
+See `docs/V13.27.1.5-one-time-guidance-demo-launcher.md` for the launcher,
+credential-sharing, one-time guidance, and safety contracts.
 
 ## What V13.27.1.4 Adds
 

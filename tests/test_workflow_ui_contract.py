@@ -14,6 +14,9 @@ class WorkflowUiContractTests(unittest.TestCase):
         cls.js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
         cls.css = (ROOT / "web" / "styles.css").read_text(encoding="utf-8")
         cls.http_app = (ROOT / "alphapilot_control_console" / "http_app.py").read_text(encoding="utf-8")
+        cls.readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        patch_doc = ROOT / "docs" / "V13.27.1.5-one-time-guidance-demo-launcher.md"
+        cls.patch_doc = patch_doc.read_text(encoding="utf-8") if patch_doc.exists() else ""
         issue_guidance_path = ROOT / "web" / "issue-guidance.js"
         cls.issue_js = issue_guidance_path.read_text(encoding="utf-8") if issue_guidance_path.exists() else ""
 
@@ -37,7 +40,14 @@ class WorkflowUiContractTests(unittest.TestCase):
         self.assertIn("strategy-optimization-dialog", self.css)
 
     def test_static_asset_cachebuster_matches_patch(self) -> None:
-        self.assertIn("v13-27-1-4-demo-evidence", self.html)
+        self.assertIn("v13-27-1-5-guidance", self.html)
+
+    def test_patch_version_and_documentation_are_consistent(self) -> None:
+        self.assertIn('version: "V13.27.1.5"', self.js)
+        self.assertIn('"version": "V13.27.1.5"', self.http_app)
+        self.assertIn("AlphaPilot V13.27.1.5", self.readme)
+        self.assertIn("Demo 一次输入全部共用", self.patch_doc)
+        self.assertIn("实盘账户一次输入、策略逐条批准启用", self.patch_doc)
 
     def test_back_to_strategy_control_is_compact_and_named(self) -> None:
         self.assertIn('title="回到策略页"', self.html)

@@ -31,7 +31,7 @@ def get_demo_strategy_runtime_settings(strategy_id: str) -> dict[str, Any]:
             min(int(saved.get("maxConcurrentSymbols") or DEFAULT_MAX_CONCURRENT_SYMBOLS), MAX_CONFIGURABLE_SYMBOLS),
         ),
         "updatedAt": saved.get("updatedAt"),
-        "source": saved.get("source") or "demo_strategy_runtime_settings_v13_27_1_4",
+        "source": saved.get("source") or "demo_strategy_runtime_settings_v13_27_1_5",
         "okxDemoOnly": True,
         "liveExecutionAllowed": False,
     }
@@ -59,7 +59,7 @@ def update_demo_strategy_runtime_settings(
         "strategyId": normalized,
         "maxConcurrentSymbols": requested,
         "updatedAt": now,
-        "source": "demo_strategy_runtime_settings_v13_27_1_4",
+        "source": "demo_strategy_runtime_settings_v13_27_1_5",
         "okxDemoOnly": True,
         "liveExecutionAllowed": False,
     }
