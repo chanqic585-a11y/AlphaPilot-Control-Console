@@ -180,6 +180,9 @@ def authorize_demo_override(
         "riskEnvelope": risk_envelope,
         "releaseMode": "experimental_override",
         "bypassedEvidence": ["local_forward_samples"],
+        "postDemoPromotionPolicy": (
+            "demo_validation_supersedes_local_forward_evidence"
+        ),
         "reason": normalized_reason,
         "executionBoundary": {
             "environment": "okx_demo_only",
@@ -222,6 +225,9 @@ def authorize_demo_override(
             "reason": normalized_reason,
             "confirmationMatched": True,
             "bypassedEvidence": ["local_forward_samples"],
+            "postDemoPromotionPolicy": (
+                "demo_validation_supersedes_local_forward_evidence"
+            ),
         },
         "createdAt": datetime.now(UTC).isoformat(),
     }
@@ -238,6 +244,9 @@ def authorize_demo_override(
             "reason": normalized_reason,
             "actor": actor,
             "bypassedEvidence": ["local_forward_samples"],
+            "postDemoPromotionPolicy": (
+                "demo_validation_supersedes_local_forward_evidence"
+            ),
             "okxDemoOnly": True,
             "createsOrder": False,
             "liveExecutionAllowed": False,

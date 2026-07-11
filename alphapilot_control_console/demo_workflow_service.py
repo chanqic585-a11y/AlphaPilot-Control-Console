@@ -311,7 +311,7 @@ def run_demo_workflow_action(payload: dict[str, Any] | None = None) -> dict[str,
             "ok": bool(result.get("ok")),
             "status": result.get("status") or ("ready" if result.get("ok") else "blocked"),
             "message": (
-                "受控 Demo-only Release 已生成；实盘晋级仍锁定。"
+                "受控 Demo-only Release 已生成；当前不能直接实盘，完整 Demo 验证通过后可进入实盘候选复核。"
                 if result.get("ok")
                 else "受控 Demo 放行未通过硬门槛。"
             ),

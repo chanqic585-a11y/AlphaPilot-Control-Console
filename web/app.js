@@ -1384,6 +1384,8 @@ function renderFormalLocalForwardCard(item) {
   const progress = dualLayerProgressModel(item);
   const selectable = workflowBatchBackendReady && item.status === "running";
   const selected = selectable && workflowSelection.localForward.has(item.workflowRunId);
+  const candidateId = String(item.result?.strategyCandidateId || "").trim();
+  const canReleaseToDemo = Boolean(candidateId) && item.status !== "cancelled";
   const closedSamples = Number(
     item.result?.totalClosedOutcomeCount
     ?? item.progress?.closedOutcomeCount
@@ -1409,7 +1411,11 @@ function renderFormalLocalForwardCard(item) {
         <span>交易所订单 0</span>
       </div>
       <p>每次启动只读取最新闭合 K 线；重复同一根 K 线不会伪造新闭合样本。</p>
-      ${selectable ? `<div class="workflow-actions"><button type="button" data-local-forward-action="run-one" data-workflow-run-id="${escapeHtml(item.workflowRunId || "")}">启动这一条</button></div>` : ""}
+      ${(selectable || canReleaseToDemo) ? `<div class="workflow-actions">
+        ${selectable ? `<button type="button" data-local-forward-action="run-one" data-workflow-run-id="${escapeHtml(item.workflowRunId || "")}">启动这一条</button>` : ""}
+        ${canReleaseToDemo ? `<button class="secondary" type="button" data-local-forward-demo-release data-strategy-id="${escapeHtml(candidateId)}">人工放行到 Demo</button>` : ""}
+      </div>` : ""}
+      ${canReleaseToDemo ? "<p class=\"muted\">人工放行会保留缺失的本地前向证据；完整 Demo 验证通过后可进入实盘候选复核。</p>" : ""}
       <details class="workflow-details"><summary>高级详情</summary><div><span>运行 ID</span><code>${escapeHtml(item.workflowRunId || "--")}</code><span>Forward Release</span><code>${escapeHtml(item.result?.forwardReleaseId || "--")}</code></div></details>
     </article>
   `;
@@ -2509,7 +2515,7 @@ function openDemoOverrideDialog(strategyId) {
   if (!dialog) return;
   if (el("demoOverrideReason")) el("demoOverrideReason").value = "";
   if (el("demoOverrideConfirmation")) el("demoOverrideConfirmation").value = "";
-  setText("demoOverrideStatus", "该权限只绕过本地前向样本门槛，正式回测、2R 和完整策略定义仍必须通过。");
+  setText("demoOverrideStatus", "该权限只绕过本地前向样本门槛，正式回测、2R 和完整策略定义仍必须通过；Demo 验证通过后才可进入实盘候选复核。");
   if (typeof dialog.showModal === "function") dialog.showModal();
   else dialog.setAttribute("open", "");
 }
@@ -7973,6 +7979,11 @@ el("formalLocalForwardList")?.addEventListener("change", (event) => {
   updateWorkflowSelectionButton("localForwardRunSelectedButton", workflowSelection.localForward);
 });
 el("formalLocalForwardList")?.addEventListener("click", (event) => {
+  const demoButton = event.target.closest("[data-local-forward-demo-release]");
+  if (demoButton) {
+    openDemoOverrideDialog(demoButton.dataset.strategyId || "");
+    return;
+  }
   const button = event.target.closest('[data-local-forward-action="run-one"]');
   if (!button) return;
   button.disabled = true;

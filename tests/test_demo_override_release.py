@@ -127,12 +127,25 @@ class DemoOverrideReleaseTests(unittest.TestCase):
         self.assertEqual(first["contract"]["demoReleaseId"], second["contract"]["demoReleaseId"])
         validate_demo_contract(first["contract"])
         self.assertEqual(first["contract"]["releaseMode"], "experimental_override")
+        self.assertIn("postDemoPromotionPolicy", first["contract"])
+        self.assertEqual(
+            first["contract"]["postDemoPromotionPolicy"],
+            "demo_validation_supersedes_local_forward_evidence",
+        )
+        self.assertEqual(
+            first["contract"]["overrideAudit"]["bypassedEvidence"],
+            ["local_forward_samples"],
+        )
         self.assertFalse(first["contract"]["livePromotionAllowed"])
         self.assertEqual(first["contract"]["executionBoundary"]["environment"], "okx_demo_only")
         self.assertFalse(first["contract"]["executionBoundary"]["liveExecutionAllowed"])
         market = first["contract"]["strategy"]["marketDefinition"]
         self.assertEqual(market["universePolicy"]["mode"], "okx_usdt_linear_perpetual_full_market")
         self.assertEqual(audits[0][0], "demo_override_release_authorized")
+        self.assertEqual(
+            audits[0][1]["postDemoPromotionPolicy"],
+            "demo_validation_supersedes_local_forward_evidence",
+        )
         self.assertTrue(audits[0][1]["liveExecutionAllowed"] is False)
 
 

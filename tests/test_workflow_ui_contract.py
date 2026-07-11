@@ -31,6 +31,16 @@ class WorkflowUiContractTests(unittest.TestCase):
         self.assertIn("openStrategyOptimizationDialog", self.js)
         self.assertIn("latestStrategyLifecyclePayload", self.js)
 
+    def test_local_forward_card_can_open_audited_demo_release_dialog(self) -> None:
+        self.assertIn("人工放行到 Demo", self.js)
+        self.assertIn("data-local-forward-demo-release", self.js)
+        self.assertIn("item.result?.strategyCandidateId", self.js)
+        self.assertIn(
+            "openDemoOverrideDialog(demoButton.dataset.strategyId",
+            self.js,
+        )
+        self.assertIn("Demo 验证通过后可进入实盘候选复核", self.html)
+
     def test_parameter_dialog_explains_immutable_restart(self) -> None:
         self.assertIn('id="strategyOptimizationDialog"', self.html)
         self.assertIn('id="strategyOptimizationParameterList"', self.html)
