@@ -82,13 +82,132 @@ class WorkflowClientTests(unittest.TestCase):
         }
         with patch.object(
             client, "build_workflow_projection", return_value=projection
-        ), patch.object(client, "request_dual_layer_backtest") as request:
-            request.return_value = {"workflowRunId": "run-1"}
+        ), patch.object(client, "request_selected_backtests") as request:
+            request.return_value = {
+                "requestedCount": 1,
+                "workflowRunIds": ["run-1"],
+            }
             result = client.request_all_awaiting_backtests(
                 quant_root=self.quant_root
             )
 
-        request.assert_called_once_with("run-1", quant_root=self.quant_root)
+        request.assert_called_once_with(["run-1"], quant_root=self.quant_root)
+        self.assertEqual(result["requestedCount"], 1)
+
+    def test_run_selected_validates_runs_and_starts_one_serial_worker(self) -> None:
+        projection = {
+            "items": [
+                {"workflowRunId": "run-1", "stage": "backtest", "status": "awaiting"},
+                {"workflowRunId": "run-2", "stage": "backtest", "status": "paused"},
+                {"workflowRunId": "run-3", "stage": "backtest", "status": "failed"},
+            ]
+        }
+        with patch.object(
+            client, "build_workflow_projection", return_value=projection
+        ), patch.object(client, "spawn_workflow_batch") as spawn:
+            spawn.return_value = {
+                "started": True,
+                "workflowRunIds": ["run-2", "run-1"],
+            }
+
+            result = client.request_selected_backtests(
+                ["run-2", "run-1"],
+                quant_root=self.quant_root,
+            )
+
+        spawn.assert_called_once_with(
+            ["run-2", "run-1"],
+            quant_root=self.quant_root,
+        )
+        self.assertEqual(result["requestedCount"], 2)
+        self.assertEqual(result["workflowRunIds"], ["run-2", "run-1"])
+
+    def test_run_selected_rejects_duplicate_or_ineligible_runs(self) -> None:
+        projection = {
+            "items": [
+                {"workflowRunId": "run-1", "stage": "backtest", "status": "awaiting"},
+                {"workflowRunId": "run-2", "stage": "backtest", "status": "failed"},
+            ]
+        }
+        with patch.object(
+            client, "build_workflow_projection", return_value=projection
+        ):
+            with self.assertRaisesRegex(ValueError, "duplicate_workflow_run_id"):
+                client.request_selected_backtests(
+                    ["run-1", "run-1"],
+                    quant_root=self.quant_root,
+                )
+            with self.assertRaisesRegex(ValueError, "workflow_run_not_eligible"):
+                client.request_selected_backtests(
+                    ["run-2"],
+                    quant_root=self.quant_root,
+                )
+
+    def test_run_selected_action_accepts_run_id_list_only(self) -> None:
+        with patch.object(client, "request_selected_backtests") as request:
+            request.return_value = {
+                "requestedCount": 2,
+                "workflowRunIds": ["run-1", "run-2"],
+            }
+            result = client.request_workflow_action(
+                "run-selected",
+                {
+                    "workflowRunIds": ["run-1", "run-2"],
+                    "apiKey": "must-not-flow",
+                },
+                quant_root=self.quant_root,
+            )
+
+        request.assert_called_once_with(
+            ["run-1", "run-2"],
+            quant_root=self.quant_root,
+        )
+        self.assertEqual(result["requestedCount"], 2)
+
+    def test_run_selected_forward_cycles_accepts_only_running_local_runs(self) -> None:
+        projection = {
+            "items": [
+                {"workflowRunId": "forward-1", "stage": "local_forward", "status": "running"},
+                {"workflowRunId": "forward-2", "stage": "local_forward", "status": "blocked"},
+            ]
+        }
+        with patch.object(
+            client, "build_workflow_projection", return_value=projection
+        ), patch.object(client, "spawn_forward_batch") as spawn:
+            spawn.return_value = {
+                "started": True,
+                "workflowRunIds": ["forward-1"],
+            }
+            result = client.request_selected_forward_cycles(
+                ["forward-1"],
+                quant_root=self.quant_root,
+            )
+
+            with self.assertRaisesRegex(ValueError, "workflow_run_not_eligible"):
+                client.request_selected_forward_cycles(
+                    ["forward-2"],
+                    quant_root=self.quant_root,
+                )
+
+        spawn.assert_called_once_with(["forward-1"], quant_root=self.quant_root)
+        self.assertEqual(result["requestedCount"], 1)
+
+    def test_run_selected_forward_action_uses_id_list(self) -> None:
+        with patch.object(client, "request_selected_forward_cycles") as request:
+            request.return_value = {
+                "requestedCount": 1,
+                "workflowRunIds": ["forward-1"],
+            }
+            result = client.request_workflow_action(
+                "run-selected-forward",
+                {"workflowRunIds": ["forward-1"]},
+                quant_root=self.quant_root,
+            )
+
+        request.assert_called_once_with(
+            ["forward-1"],
+            quant_root=self.quant_root,
+        )
         self.assertEqual(result["requestedCount"], 1)
 
     def test_startup_recovery_resumes_only_interrupted_backtests(self) -> None:

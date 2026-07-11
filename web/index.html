@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#080c0f" />
     <title>AlphaPilot 控制台</title>
-    <link rel="stylesheet" href="/styles.css?v=20260712-v13-27-2-unified-auto-execution" />
+    <link rel="stylesheet" href="/styles.css?v=20260712-v13-27-3-short-cycle-workflow" />
   </head>
   <body>
     <a class="skip-link" href="#mainContent">跳到主要内容</a>
@@ -80,7 +80,8 @@
                 <span id="workflowStrategyMeta" aria-live="polite">正在读取 Quant Engine 工作流。</span>
               </div>
               <div class="workflow-toolbar">
-                <button id="workflowRunAllButton" type="button">一键运行全部待回测</button>
+                <button id="workflowRunSelectedButton" type="button" disabled>启动选中 (0)</button>
+                <button id="workflowRunAllButton" class="secondary" type="button">启动全部待运行</button>
                 <button id="workflowRefreshButton" class="secondary" type="button">刷新</button>
               </div>
             </div>
@@ -556,23 +557,35 @@
             </div>
             <span class="status-pill ok">&#26412;&#22320;&#36816;&#34892;</span>
           </div>
+          <div class="lifecycle-stage-panel">
+            <div class="lifecycle-panel-head">
+              <div><h3>正式本地前向</h3><span id="formalLocalForwardMeta" aria-live="polite">回测通过后使用公共行情收集独立闭合样本。</span></div>
+              <div class="workflow-toolbar">
+                <button id="localForwardRunSelectedButton" type="button" disabled>启动选中 (0)</button>
+                <button id="localForwardRunAllButton" class="secondary" type="button">启动全部待运行</button>
+                <button id="localLabRefreshButton" class="secondary" type="button">刷新</button>
+              </div>
+            </div>
+            <div id="localForwardActionStatus" class="workflow-action-status">每次启动只读取最新闭合公共 K 线；不连接私有接口，不创建交易所订单。</div>
+            <div id="formalLocalForwardSummary" class="lifecycle-summary-grid"></div>
+            <div id="formalLocalForwardList" class="lifecycle-card-list" aria-live="polite"></div>
+          </div>
+          <details class="lifecycle-archive">
+            <summary><span>查看旧沙盒与兼容投影</span><small>历史功能保留，不作为新主线批量控制入口</small></summary>
+            <div class="lifecycle-archive-body">
           <div class="local-lab-actions lifecycle-primary-actions">
-            <button id="localLabRunSandboxButton" type="button">&#36816;&#34892;&#26412;&#22320;&#27801;&#30418;</button>
-            <button id="localLabDailyReportButton" class="secondary" type="button">&#29983;&#25104;&#27801;&#30418;&#26085;&#25253;</button>
-            <button id="localLabRefreshButton" class="secondary" type="button">&#21047;&#26032;&#26412;&#39029;</button>
-            <span id="localLabActionStatus">&#26412;&#22320;&#23454;&#39564;&#23460;&#21482;&#20889;&#20837;&#26412;&#22320;&#35266;&#23519;&#25968;&#25454;&#12290;</span>
+            <button id="localLabRunSandboxButton" type="button">运行旧本地沙盒</button>
+            <button id="localLabDailyReportButton" class="secondary" type="button">生成旧沙盒日报</button>
+            <span id="localLabActionStatus">旧沙盒只写入本地观察数据。</span>
           </div>
           <div class="lifecycle-stage-panel">
             <div class="lifecycle-panel-head">
-              <div><h3>当前本地模拟策略</h3><span id="localLifecycleMeta" aria-live="polite">只显示尚未晋级 Demo 的策略。</span></div>
-              <span class="lifecycle-page-badge">本地模拟</span>
+              <div><h3>兼容本地生命周期</h3><span id="localLifecycleMeta" aria-live="polite">只用于核对历史策略状态。</span></div>
+              <span class="lifecycle-page-badge">兼容</span>
             </div>
             <div id="localLifecycleSummary" class="lifecycle-summary-grid"></div>
             <div id="localLifecycleList" class="lifecycle-card-list" aria-live="polite"></div>
           </div>
-          <details class="lifecycle-archive">
-            <summary><span>查看沙盒运行统计</span><small>虚拟权益、样本质量和旧复核口径</small></summary>
-            <div class="lifecycle-archive-body">
           <div class="mode-flow-grid">
             <div class="mode-flow-card active"><span>1</span><strong>&#26412;&#22320;&#27801;&#30418;</strong><small>&#25345;&#32493;&#29983;&#25104;&#34394;&#25311;&#35266;&#23519;&#26679;&#26412;</small></div>
             <div class="mode-flow-card active"><span>2</span><strong>&#26412;&#22320;&#27169;&#25311;</strong><small>&#20445;&#23384;&#26412;&#22320;&#31080;&#25454;&#21644;&#38381;&#21512;&#32467;&#26524;</small></div>
@@ -625,6 +638,8 @@
               </div>
               <div class="workflow-toolbar">
                 <button id="demoRuntimeLauncherButton" type="button">启动 OKX Demo</button>
+                <button id="demoWorkflowRunSelectedButton" type="button" disabled>启动选中 (0)</button>
+                <button id="demoWorkflowRunAllButton" class="secondary" type="button">启动全部待运行</button>
                 <button id="demoWorkflowRefreshButton" class="secondary" type="button">刷新进度</button>
               </div>
             </div>
@@ -2772,7 +2787,7 @@
         </div>
       </form>
     </dialog>
-    <script src="/issue-guidance.js?v=20260712-v13-27-2-unified-auto-execution"></script>
-    <script src="/app.js?v=20260712-v13-27-2-unified-auto-execution"></script>
+    <script src="/issue-guidance.js?v=20260712-v13-27-3-short-cycle-workflow"></script>
+    <script src="/app.js?v=20260712-v13-27-3-short-cycle-workflow"></script>
   </body>
 </html>

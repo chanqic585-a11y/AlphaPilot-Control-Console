@@ -23,6 +23,14 @@ SAFETY_BOUNDARY = {
     "withdrawAllowed": False,
     "rawCredentialStorageAllowed": False,
 }
+SAFE_BATCH_ACTIONS = {
+    "scan_public_market",
+    "prepare_demo_release",
+    "run_demo_preflight",
+    "run_demo_cycle",
+    "retry_demo_cycle",
+}
+SHARED_BATCH_ACTIONS = {"run_demo_preflight"}
 
 
 def _text(value: Any) -> str:
@@ -43,6 +51,109 @@ def _build_sources() -> tuple[dict[str, Any], dict[str, Any]]:
 def build_demo_workflow_status() -> dict[str, Any]:
     lifecycle, exchange_demo = _build_sources()
     return build_demo_workflow_projection(lifecycle=lifecycle, exchange_demo=exchange_demo)
+
+
+def run_demo_workflow_batch_action(
+    payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    payload = payload if isinstance(payload, dict) else {}
+    requested_raw = payload.get("strategyIds")
+    requested_ids = (
+        [_text(value) for value in requested_raw]
+        if isinstance(requested_raw, list)
+        else []
+    )
+    requested_ids = [value for value in requested_ids if value]
+    if not requested_ids:
+        return _blocked(
+            message="请选择至少一条可运行的 Demo 策略。",
+            blockers=["demo_strategy_selection_required"],
+            workflow=build_demo_workflow_status(),
+        )
+    if len(requested_ids) != len(set(requested_ids)):
+        return _blocked(
+            message="Demo 策略选择中存在重复项。",
+            blockers=["duplicate_demo_strategy_id"],
+            workflow=build_demo_workflow_status(),
+        )
+
+    workflow = build_demo_workflow_status()
+    queues = workflow.get("queues") if isinstance(workflow.get("queues"), dict) else {}
+    items = [
+        row
+        for key in ("waiting", "validating")
+        for row in (queues.get(key) or [])
+        if isinstance(row, dict)
+    ]
+    by_id = {_text(row.get("strategyId")): row for row in items}
+    results: list[dict[str, Any]] = []
+    rejected: list[dict[str, str]] = []
+    shared_results: dict[str, dict[str, Any]] = {}
+    created_demo_order = False
+
+    for strategy_id in requested_ids:
+        item = by_id.get(strategy_id)
+        next_action = (
+            item.get("nextAction")
+            if isinstance(item, dict) and isinstance(item.get("nextAction"), dict)
+            else {}
+        )
+        action_id = _text(next_action.get("actionId"))
+        if (
+            item is None
+            or not next_action.get("enabled")
+            or action_id not in SAFE_BATCH_ACTIONS
+        ):
+            rejected.append(
+                {
+                    "strategyId": strategy_id,
+                    "reason": "demo_next_action_not_batch_eligible",
+                }
+            )
+            continue
+        if action_id in SHARED_BATCH_ACTIONS and action_id in shared_results:
+            results.append(
+                {
+                    "strategyId": strategy_id,
+                    "action": action_id,
+                    "ok": bool(shared_results[action_id].get("ok")),
+                    "status": "shared_step_reused",
+                }
+            )
+            continue
+        result = run_demo_workflow_action(
+            {"action": action_id, "strategyId": strategy_id}
+        )
+        created_demo_order = created_demo_order or bool(
+            (result.get("safetyBoundary") or {}).get("createsOrder")
+        )
+        if action_id in SHARED_BATCH_ACTIONS:
+            shared_results[action_id] = result
+        results.append(
+            {
+                "strategyId": strategy_id,
+                "action": action_id,
+                "ok": bool(result.get("ok")),
+                "status": _text(result.get("status")) or "completed",
+                "message": _text(result.get("message")),
+                "blockers": list(result.get("blockers") or []),
+            }
+        )
+
+    return {
+        "ok": bool(results) and all(row.get("ok") for row in results),
+        "status": "completed" if results and not rejected else "completed_with_rejections",
+        "message": f"已处理 {len(results)} 条 Demo 策略；{len(rejected)} 条因当前步骤不允许批量启动而跳过。",
+        "requestedCount": len(requested_ids),
+        "processedCount": len(results),
+        "results": results,
+        "rejected": rejected,
+        "workflow": build_demo_workflow_status(),
+        "safetyBoundary": {
+            **SAFETY_BOUNDARY,
+            "createsOrder": created_demo_order,
+        },
+    }
 
 
 def _find_lifecycle_item(lifecycle: dict[str, Any], strategy_id: str) -> dict[str, Any] | None:
@@ -136,6 +247,8 @@ def _release_readiness(item: dict[str, Any], exchange_demo: dict[str, Any]) -> d
 def run_demo_workflow_action(payload: dict[str, Any] | None = None) -> dict[str, Any]:
     payload = payload if isinstance(payload, dict) else {}
     action = _text(payload.get("action"))
+    if action == "run_selected_demo":
+        return run_demo_workflow_batch_action(payload)
     strategy_id = _text(payload.get("strategyId"))
     lifecycle, exchange_demo = _build_sources()
     item = _find_lifecycle_item(lifecycle, strategy_id)

@@ -41,7 +41,7 @@ class WorkflowStartupRecoveryTests(unittest.TestCase):
             payload = http_app.build_health_payload()
 
         self.assertEqual(payload["workflowRecovery"], recovery)
-        self.assertEqual(payload["version"], "V13.27.2")
+        self.assertEqual(payload["version"], "V13.27.3")
 
 
 if __name__ == "__main__":

@@ -192,6 +192,85 @@ class DemoWorkflowActionTests(unittest.TestCase):
         self.assertFalse(result["safetyBoundary"]["createsOrder"])
         self.assertFalse(result["settings"]["liveExecutionAllowed"])
 
+    def test_batch_runs_only_each_items_current_legal_demo_action(self) -> None:
+        workflow = {
+            "queues": {
+                "waiting": [
+                    {
+                        "strategyId": "strategy-1",
+                        "nextAction": {"actionId": "scan_public_market", "enabled": True},
+                    },
+                    {
+                        "strategyId": "strategy-override",
+                        "nextAction": {"actionId": "authorize_demo_override", "enabled": True},
+                    },
+                ],
+                "validating": [
+                    {
+                        "strategyId": "strategy-2",
+                        "nextAction": {"actionId": "run_demo_cycle", "enabled": True},
+                    }
+                ],
+            }
+        }
+        with patch.object(
+            service, "build_demo_workflow_status", side_effect=[workflow, workflow]
+        ), patch.object(service, "run_demo_workflow_action") as run_action:
+            run_action.side_effect = [
+                {"ok": True, "status": "completed", "message": "scan"},
+                {"ok": True, "status": "completed", "message": "cycle"},
+            ]
+            result = service.run_demo_workflow_batch_action(
+                {
+                    "strategyIds": ["strategy-1", "strategy-2", "strategy-override"]
+                }
+            )
+
+        self.assertEqual(
+            [call.args[0] for call in run_action.call_args_list],
+            [
+                {"action": "scan_public_market", "strategyId": "strategy-1"},
+                {"action": "run_demo_cycle", "strategyId": "strategy-2"},
+            ],
+        )
+        self.assertEqual(result["requestedCount"], 3)
+        self.assertEqual(result["processedCount"], 2)
+        self.assertEqual(result["rejected"][0]["strategyId"], "strategy-override")
+        self.assertFalse(result["safetyBoundary"]["liveExecutionAllowed"])
+
+    def test_batch_deduplicates_global_readonly_preflight(self) -> None:
+        workflow = {
+            "queues": {
+                "waiting": [],
+                "validating": [
+                    {
+                        "strategyId": "strategy-1",
+                        "nextAction": {"actionId": "run_demo_preflight", "enabled": True},
+                    },
+                    {
+                        "strategyId": "strategy-2",
+                        "nextAction": {"actionId": "run_demo_preflight", "enabled": True},
+                    },
+                ],
+            }
+        }
+        with patch.object(
+            service, "build_demo_workflow_status", side_effect=[workflow, workflow]
+        ), patch.object(
+            service,
+            "run_demo_workflow_action",
+            return_value={"ok": True, "status": "completed", "message": "preflight"},
+        ) as run_action:
+            result = service.run_demo_workflow_batch_action(
+                {"strategyIds": ["strategy-1", "strategy-2"]}
+            )
+
+        run_action.assert_called_once_with(
+            {"action": "run_demo_preflight", "strategyId": "strategy-1"}
+        )
+        self.assertEqual(result["processedCount"], 2)
+        self.assertEqual(result["results"][1]["status"], "shared_step_reused")
+
 
 if __name__ == "__main__":
     unittest.main()

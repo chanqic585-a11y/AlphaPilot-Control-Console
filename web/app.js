@@ -254,6 +254,13 @@ let latestWorkflowPayload = {};
 let latestStrategyLifecyclePayload = {};
 let workflowPollTimer = null;
 let activeOptimizationContext = null;
+let workflowBatchBackendReady = false;
+let demoWorkflowBatchBackendReady = false;
+const workflowSelection = {
+  backtest: new Set(),
+  localForward: new Set(),
+  demo: new Set(),
+};
 
 const emptyMobileStatus = {
   commandSummary: {},
@@ -274,7 +281,7 @@ const emptyStrategyLifecycle = {
   sourceWarnings: [],
 };
 const emptyWorkflow = {
-  version: "V13.27.2",
+  version: "V13.27.3",
   summary: {},
   items: [],
   archivedItems: [],
@@ -301,6 +308,26 @@ const weaknessActionStatusLabels = {
 
 function el(id) {
   return document.getElementById(id);
+}
+
+function pruneWorkflowSelection(selection, eligibleIds) {
+  const eligible = new Set(eligibleIds);
+  [...selection].forEach((value) => {
+    if (!eligible.has(value)) selection.delete(value);
+  });
+}
+
+function updateWorkflowSelectionButton(buttonId, selection) {
+  const button = el(buttonId);
+  if (!button) return;
+  button.disabled = selection.size === 0;
+  button.textContent = `启动选中 (${selection.size})`;
+}
+
+function setWorkflowSelection(selection, id, checked) {
+  if (!id) return;
+  if (checked) selection.add(id);
+  else selection.delete(id);
 }
 
 const issueController = window.AlphaPilotIssueGuidance?.createController() || null;
@@ -1219,13 +1246,13 @@ function dualLayerMetricRows(item) {
 }
 
 function dualLayerCardActions(item) {
-  if (item.status === "awaiting") return [{ action: "run-dual-layer", label: "一键双层回测", primary: true }];
+  if (item.status === "awaiting") return [{ action: "run-dual-layer", label: "启动这一条", primary: true }];
   if (item.status === "queued") return [{ action: "cancel", label: "取消排队" }];
   if (item.status === "running") return [
     { action: "pause", label: "暂停" },
     { action: "cancel", label: "取消" },
   ];
-  if (item.status === "paused") return [{ action: "run-dual-layer", label: "继续运行", primary: true }];
+  if (item.status === "paused") return [{ action: "run-dual-layer", label: "启动这一条", primary: true }];
   if (["failed", "blocked"].includes(item.status)) {
     return [
       {
@@ -1260,8 +1287,11 @@ function renderDualLayerCard(item, archived = false) {
   const tone = item.status === "passed" ? "ok" : ["failed", "blocked"].includes(item.status) ? "danger" : item.status === "running" ? "warn" : "neutral";
   const runProgress = dualLayerProgressModel(item);
   const issueKey = archived ? "" : strategyIssueKey(item);
+  const selectable = workflowBatchBackendReady && !archived && ["awaiting", "paused"].includes(item.status);
+  const selected = selectable && workflowSelection.backtest.has(item.workflowRunId);
   return `
     <article class="workflow-card" data-workflow-run-id="${escapeHtml(item.workflowRunId || "")}">
+      ${selectable ? `<label class="workflow-select"><input type="checkbox" data-workflow-select value="${escapeHtml(item.workflowRunId || "")}" ${selected ? "checked" : ""}><span>选择这条策略</span></label>` : ""}
       <div class="workflow-card-head">
         <div><h5>${escapeHtml(item.displayName || "未命名策略")}</h5><small>第 ${Number(item.attemptNumber || 1)} 次尝试</small></div>
         <span class="badge ${tone}">${escapeHtml(statusLabel)}</span>
@@ -1297,12 +1327,22 @@ function renderDualLayerLane(targetId, countId, rows, emptyText) {
 
 function renderDualLayerWorkflow(payload = emptyWorkflow) {
   latestWorkflowPayload = payload || emptyWorkflow;
+  workflowBatchBackendReady = payload?.version === "V13.27.3";
   const items = Array.isArray(payload?.items) ? payload.items.filter((item) => item.stage === "backtest") : [];
   const archived = Array.isArray(payload?.archivedItems) ? payload.archivedItems.filter((item) => item.stage === "backtest") : [];
   const awaiting = items.filter((item) => item.status === "awaiting");
   const running = items.filter((item) => ["queued", "running", "paused"].includes(item.status));
   const passed = items.filter((item) => item.status === "passed");
   const failed = items.filter((item) => ["failed", "blocked", "cancelled"].includes(item.status));
+  pruneWorkflowSelection(
+    workflowSelection.backtest,
+    items.filter((item) => ["awaiting", "paused"].includes(item.status)).map((item) => item.workflowRunId),
+  );
+  updateWorkflowSelectionButton("workflowRunSelectedButton", workflowSelection.backtest);
+  if (el("workflowRunAllButton")) {
+    el("workflowRunAllButton").disabled = !workflowBatchBackendReady || !items.some((item) => ["awaiting", "paused"].includes(item.status));
+    el("workflowRunAllButton").title = workflowBatchBackendReady ? "按所选顺序使用一个串行 worker" : "下次正常重启控制台后启用 V13.27.3 批量能力";
+  }
   const summaryTarget = el("workflowBacktestSummary");
   if (summaryTarget) {
     const cards = [
@@ -1332,6 +1372,94 @@ function renderDualLayerWorkflow(payload = emptyWorkflow) {
     : `待回测 ${awaiting.length} · 运行中 ${running.length} · 正式通过 ${passed.length} · 未通过或阻塞 ${failed.length}`);
   scheduleWorkflowPoll(items);
   registerPageIssues("simpleConsole", collectStrategyIssues(payload));
+  renderFormalLocalForward(payload);
+}
+
+function formalLocalForwardItems(payload = emptyWorkflow) {
+  return (Array.isArray(payload?.items) ? payload.items : [])
+    .filter((item) => item.stage === "local_forward");
+}
+
+function renderFormalLocalForwardCard(item) {
+  const progress = dualLayerProgressModel(item);
+  const selectable = workflowBatchBackendReady && item.status === "running";
+  const selected = selectable && workflowSelection.localForward.has(item.workflowRunId);
+  const closedSamples = Number(
+    item.result?.totalClosedOutcomeCount
+    ?? item.progress?.closedOutcomeCount
+    ?? item.result?.closedOutcomeCount
+    ?? 0,
+  );
+  const tone = item.status === "passed" ? "ok" : item.status === "blocked" ? "danger" : "warn";
+  return `
+    <article class="lifecycle-card formal-local-forward-card" data-local-forward-run-id="${escapeHtml(item.workflowRunId || "")}">
+      ${selectable ? `<label class="workflow-select"><input type="checkbox" data-local-forward-select value="${escapeHtml(item.workflowRunId || "")}" ${selected ? "checked" : ""}><span>选择这条策略</span></label>` : ""}
+      <div class="lifecycle-card-head">
+        <div><h4>${escapeHtml(item.displayName || "未命名策略")}</h4><small>${escapeHtml(item.optimizationContext?.definition?.timeframe || "--")} · 公共行情前向</small></div>
+        <span class="badge ${tone}">${escapeHtml(dualLayerStatusLabels[item.status] || item.status || "--")}</span>
+      </div>
+      <div class="lifecycle-progress">
+        <div><span>当前步骤</span><strong>${escapeHtml(progress.label || "本地前向采样")}</strong></div>
+        <div class="lifecycle-progress-track"><i style="width:${progress.percent}%"></i></div>
+        <small>${closedSamples}/30 个闭合样本 · 达到复核起点前不会自动晋级 Demo</small>
+      </div>
+      <div class="lifecycle-card-metrics">
+        <span>闭合样本 ${closedSamples}</span>
+        <span>本轮观察 ${Number(item.result?.observedInstrumentCount || 0)} 个合约</span>
+        <span>交易所订单 0</span>
+      </div>
+      <p>每次启动只读取最新闭合 K 线；重复同一根 K 线不会伪造新闭合样本。</p>
+      ${selectable ? `<div class="workflow-actions"><button type="button" data-local-forward-action="run-one" data-workflow-run-id="${escapeHtml(item.workflowRunId || "")}">启动这一条</button></div>` : ""}
+      <details class="workflow-details"><summary>高级详情</summary><div><span>运行 ID</span><code>${escapeHtml(item.workflowRunId || "--")}</code><span>Forward Release</span><code>${escapeHtml(item.result?.forwardReleaseId || "--")}</code></div></details>
+    </article>
+  `;
+}
+
+function renderFormalLocalForward(payload = emptyWorkflow) {
+  const items = formalLocalForwardItems(payload);
+  const running = items.filter((item) => item.status === "running");
+  const passed = items.filter((item) => item.status === "passed");
+  const blocked = items.filter((item) => ["blocked", "failed"].includes(item.status));
+  pruneWorkflowSelection(
+    workflowSelection.localForward,
+    running.map((item) => item.workflowRunId),
+  );
+  updateWorkflowSelectionButton("localForwardRunSelectedButton", workflowSelection.localForward);
+  if (el("localForwardRunAllButton")) {
+    el("localForwardRunAllButton").disabled = !workflowBatchBackendReady || running.length === 0;
+    el("localForwardRunAllButton").title = workflowBatchBackendReady ? "串行运行最新闭合公共 K 线周期" : "下次正常重启控制台后启用 V13.27.3 批量能力";
+  }
+  const summary = el("formalLocalForwardSummary");
+  if (summary) {
+    const cards = [
+      { label: "前向采样中", value: running.length, meta: "可启动最新闭合 K 线周期" },
+      { label: "本地前向通过", value: passed.length, meta: "等待不可变 Demo Release" },
+      { label: "未通过 / 阻塞", value: blocked.length, meta: "保留原因与优化路径" },
+    ];
+    summary.innerHTML = cards.map((card) => `<div class="lifecycle-summary-card"><span>${escapeHtml(card.label)}</span><strong>${card.value}</strong><small>${escapeHtml(card.meta)}</small></div>`).join("");
+  }
+  const target = el("formalLocalForwardList");
+  if (target) target.innerHTML = items.length
+    ? items.map(renderFormalLocalForwardCard).join("")
+    : '<div class="lifecycle-empty">还没有正式回测通过并进入本地前向的策略。</div>';
+  setText("formalLocalForwardMeta", `${running.length} 条采样中 · ${passed.length} 条通过 · ${blocked.length} 条未通过或阻塞。`);
+}
+
+async function runFormalLocalForwardSelection(workflowRunIds) {
+  const runIds = [...new Set((workflowRunIds || []).filter(Boolean))];
+  if (!runIds.length) return;
+  setText("localForwardActionStatus", `正在按顺序运行 ${runIds.length} 条本地前向策略...`);
+  try {
+    const response = await postJson("/api/workflow/action", {
+      action: "run-selected-forward",
+      workflowRunIds: runIds,
+    });
+    workflowSelection.localForward.clear();
+    renderDualLayerWorkflow(response.workflow || emptyWorkflow);
+    setText("localForwardActionStatus", `已启动 ${Number(response.result?.requestedCount || 0)} 条；公共行情周期将串行运行。`);
+  } catch (error) {
+    setText("localForwardActionStatus", `启动失败：${error.message}`);
+  }
 }
 
 async function runDualLayerWorkflowAction(action, item = {}) {
@@ -1358,18 +1486,22 @@ async function runDualLayerWorkflowAction(action, item = {}) {
     return;
   }
   const status = el("workflowActionStatus");
-  if (status) status.textContent = action === "run-all-awaiting"
-    ? "正在启动全部待回测策略..."
+  if (status) status.textContent = ["run-all-awaiting", "run-selected"].includes(action)
+    ? "正在提交串行回测队列..."
     : "正在提交工作流动作...";
   try {
     const response = await postJson("/api/workflow/action", {
       action,
       workflowRunId: item.workflowRunId,
+      workflowRunIds: item.workflowRunIds,
       strategyVersionId: item.strategyVersionId,
     });
+    if (["run-all-awaiting", "run-selected"].includes(action)) {
+      workflowSelection.backtest.clear();
+    }
     renderDualLayerWorkflow(response.workflow || emptyWorkflow);
-    if (status) status.textContent = action === "run-all-awaiting"
-      ? `已请求 ${Number(response.result?.requestedCount || 0)} 条待回测策略。`
+    if (status) status.textContent = ["run-all-awaiting", "run-selected"].includes(action)
+      ? `已请求 ${Number(response.result?.requestedCount || 0)} 条待回测策略，系统将串行执行。`
       : "动作已提交，阶段状态会自动刷新。";
   } catch (error) {
     if (status) status.textContent = `操作失败：${error.message}`;
@@ -2070,6 +2202,17 @@ function normalizeDemoWorkflowItem(rawItem = {}) {
   };
 }
 
+function demoBatchActionEligible(item = {}) {
+  const nextAction = item.nextAction || {};
+  return demoWorkflowBatchBackendReady && Boolean(nextAction.enabled) && [
+    "scan_public_market",
+    "prepare_demo_release",
+    "run_demo_preflight",
+    "run_demo_cycle",
+    "retry_demo_cycle",
+  ].includes(nextAction.actionId);
+}
+
 function renderCompactExecutionPositions(positions, options = {}) {
   const rows = Array.isArray(positions) ? positions.filter(Boolean) : [];
   const title = options.title || "当前持仓";
@@ -2115,11 +2258,14 @@ function renderDemoWorkflowCard(rawItem) {
   const blockers = Array.isArray(failure.blockers) ? failure.blockers : [];
   const suggestions = Array.isArray(failure.suggestions) ? failure.suggestions : [];
   const canRun = Boolean(nextAction.enabled);
+  const selectable = demoBatchActionEligible(item);
+  const selected = selectable && workflowSelection.demo.has(item.strategyId);
   const retryVisible = failure.status === "failed" && failure.canRetrySameVersion;
   const optimizeVisible = Boolean(failure.canOptimize);
   const issueKey = demoIssueKey(item);
   return `
     <article class="demo-workflow-card" data-demo-strategy-id="${escapeHtml(item.strategyId || "")}">
+      ${selectable ? `<label class="workflow-select"><input type="checkbox" data-demo-workflow-select value="${escapeHtml(item.strategyId || "")}" ${selected ? "checked" : ""}><span>选择这条策略</span></label>` : ""}
       <div class="workflow-card-head">
         <div><h5>${escapeHtml(item.displayName || item.strategyId || "--")}</h5><small>${escapeHtml(item.timeframe || "--")} · ${escapeHtml(item.direction || "方向待定")}</small></div>
         <span class="badge ${item.queue === "passed" ? "ok" : item.queue === "validating" ? "warn" : "neutral"}">${escapeHtml(item.queueLabel || "Demo")}</span>
@@ -2162,7 +2308,7 @@ function renderDemoWorkflowCard(rawItem) {
       <div class="lifecycle-next"><span>下一步</span><strong>${escapeHtml(nextAction.description || "等待正式阶段决定。")}</strong></div>
       ${nextAction.command ? `<details class="demo-workflow-command"><summary>备用手动启动命令</summary><code>${escapeHtml(nextAction.command)}</code></details>` : ""}
       <div class="workflow-actions">
-        ${canRun ? `<button type="button" data-demo-workflow-action="${escapeHtml(nextAction.actionId || "")}" data-strategy-id="${escapeHtml(item.strategyId || "")}">${escapeHtml(nextAction.label || "执行下一步")}</button>` : ""}
+        ${canRun ? `<button type="button" data-demo-workflow-action="${escapeHtml(nextAction.actionId || "")}" data-strategy-id="${escapeHtml(item.strategyId || "")}" title="${escapeHtml(nextAction.label || "执行当前合法步骤")}">启动这一条</button>` : ""}
         ${canDemoOverride ? `<button type="button" class="secondary" data-demo-workflow-action="open_demo_override" data-strategy-id="${escapeHtml(item.strategyId || "")}">受控放行到 Demo</button>` : ""}
         ${retryVisible ? `<button type="button" class="secondary" data-demo-workflow-action="retry_demo_cycle" data-strategy-id="${escapeHtml(item.strategyId || "")}">重新验证</button>` : ""}
         ${optimizeVisible ? `<button type="button" class="secondary" data-demo-workflow-action="optimize" data-strategy-id="${escapeHtml(item.strategyId || "")}">改善优化</button>` : ""}
@@ -2185,8 +2331,18 @@ function renderDemoWorkflowLane(targetId, countId, rows, emptyText) {
 
 function renderDemoWorkflow(payload = { summary: {}, queues: {} }) {
   latestDemoWorkflowPayload = payload || { summary: {}, queues: {} };
+  demoWorkflowBatchBackendReady = payload?.version === "V13.27.3";
   const summary = payload?.summary || {};
   const queues = payload?.queues || {};
+  const batchEligibleIds = demoWorkflowRows(payload)
+    .filter(demoBatchActionEligible)
+    .map((item) => item.strategyId);
+  pruneWorkflowSelection(workflowSelection.demo, batchEligibleIds);
+  updateWorkflowSelectionButton("demoWorkflowRunSelectedButton", workflowSelection.demo);
+  if (el("demoWorkflowRunAllButton")) {
+    el("demoWorkflowRunAllButton").disabled = !demoWorkflowBatchBackendReady || batchEligibleIds.length === 0;
+    el("demoWorkflowRunAllButton").title = demoWorkflowBatchBackendReady ? "每条策略只执行当前一道合法步骤" : "下次正常重启并重新输入 Demo 凭据后启用 V13.27.3 批量能力";
+  }
   setText("demoWorkflowWaitingCount", String(summary.waitingCount ?? 0));
   setText("demoWorkflowValidatingCount", String(summary.validatingCount ?? 0));
   setText("demoWorkflowPassedCount", String(summary.passedCount ?? 0));
@@ -2219,6 +2375,27 @@ function renderDemoWorkflow(payload = { summary: {}, queues: {} }) {
         okx_demo: payload.automaticExecution,
       },
     });
+  }
+}
+
+async function runDemoWorkflowSelection(strategyIds) {
+  const selectedIds = [...new Set((strategyIds || []).filter(Boolean))];
+  if (!selectedIds.length) return;
+  setText("demoWorkflowActionStatus", `正在按当前合法步骤处理 ${selectedIds.length} 条 Demo 策略...`);
+  try {
+    const response = await postJson("/api/demo-workflow/action", {
+      action: "run_selected_demo",
+      strategyIds: selectedIds,
+    });
+    workflowSelection.demo.clear();
+    renderDemoWorkflow(response.workflow || { summary: {}, queues: {} });
+    const rejected = Number(response.rejected?.length || 0);
+    setText(
+      "demoWorkflowActionStatus",
+      `已处理 ${Number(response.processedCount || 0)} 条；${rejected} 条因当前闸门不可批量启动而跳过。`,
+    );
+  } catch (error) {
+    setText("demoWorkflowActionStatus", `批量启动失败：${error.message}`);
   }
 }
 
@@ -7719,7 +7896,21 @@ document.addEventListener("click", (event) => {
 });
 el("simpleRefreshButton")?.addEventListener("click", refreshAll);
 el("workflowRefreshButton")?.addEventListener("click", refreshWorkflow);
-el("workflowRunAllButton")?.addEventListener("click", () => runDualLayerWorkflowAction("run-all-awaiting"));
+el("workflowRunSelectedButton")?.addEventListener("click", () => {
+  void runDualLayerWorkflowAction("run-selected", { workflowRunIds: [...workflowSelection.backtest] });
+});
+el("workflowRunAllButton")?.addEventListener("click", () => {
+  const runIds = (latestWorkflowPayload?.items || [])
+    .filter((item) => item.stage === "backtest" && ["awaiting", "paused"].includes(item.status))
+    .map((item) => item.workflowRunId);
+  void runDualLayerWorkflowAction("run-selected", { workflowRunIds: runIds });
+});
+el("simpleConsole")?.addEventListener("change", (event) => {
+  const input = event.target.closest("[data-workflow-select]");
+  if (!input) return;
+  setWorkflowSelection(workflowSelection.backtest, input.value, input.checked);
+  updateWorkflowSelectionButton("workflowRunSelectedButton", workflowSelection.backtest);
+});
 el("simpleConsole")?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-workflow-action]");
   if (!button) return;
@@ -7766,9 +7957,47 @@ el("simpleRunSandboxButton")?.addEventListener("click", runLocalSandboxFromSimpl
 el("localLabRunSandboxButton")?.addEventListener("click", runLocalLabSandboxFromPanel);
 el("localLabDailyReportButton")?.addEventListener("click", buildLocalLabDailyReport);
 el("localLabRefreshButton")?.addEventListener("click", refreshAll);
+el("localForwardRunSelectedButton")?.addEventListener("click", () => {
+  void runFormalLocalForwardSelection([...workflowSelection.localForward]);
+});
+el("localForwardRunAllButton")?.addEventListener("click", () => {
+  const runIds = formalLocalForwardItems(latestWorkflowPayload)
+    .filter((item) => item.status === "running")
+    .map((item) => item.workflowRunId);
+  void runFormalLocalForwardSelection(runIds);
+});
+el("formalLocalForwardList")?.addEventListener("change", (event) => {
+  const input = event.target.closest("[data-local-forward-select]");
+  if (!input) return;
+  setWorkflowSelection(workflowSelection.localForward, input.value, input.checked);
+  updateWorkflowSelectionButton("localForwardRunSelectedButton", workflowSelection.localForward);
+});
+el("formalLocalForwardList")?.addEventListener("click", (event) => {
+  const button = event.target.closest('[data-local-forward-action="run-one"]');
+  if (!button) return;
+  button.disabled = true;
+  void runFormalLocalForwardSelection([button.dataset.workflowRunId || ""]).finally(() => {
+    button.disabled = false;
+  });
+});
 el("exchangeDemoReadOnlyButton")?.addEventListener("click", runExchangeDemoReadOnlyCheck);
 el("demoRuntimeLauncherButton")?.addEventListener("click", launchOkxDemoRuntime);
 el("demoWorkflowRefreshButton")?.addEventListener("click", () => loadDemoWorkflow(true));
+el("demoWorkflowRunSelectedButton")?.addEventListener("click", () => {
+  void runDemoWorkflowSelection([...workflowSelection.demo]);
+});
+el("demoWorkflowRunAllButton")?.addEventListener("click", () => {
+  const strategyIds = demoWorkflowRows(latestDemoWorkflowPayload)
+    .filter(demoBatchActionEligible)
+    .map((item) => item.strategyId);
+  void runDemoWorkflowSelection(strategyIds);
+});
+el("exchangeDemo")?.addEventListener("change", (event) => {
+  const input = event.target.closest("[data-demo-workflow-select]");
+  if (!input) return;
+  setWorkflowSelection(workflowSelection.demo, input.value, input.checked);
+  updateWorkflowSelectionButton("demoWorkflowRunSelectedButton", workflowSelection.demo);
+});
 el("exchangeDemo")?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-demo-workflow-action]");
   if (!button) return;

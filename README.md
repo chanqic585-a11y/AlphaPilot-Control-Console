@@ -3,12 +3,33 @@
 Current version:
 
 ```text
-AlphaPilot V13.27.2 - Unified Automatic Execution
+AlphaPilot V13.27.3 - Short-Cycle Workflow Candidate Pack
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
 AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
+
+## What V13.27.3 Adds
+
+- Registers five 5-minute and five 15-minute executable research candidates in
+  the Quant Engine. Registration is idempotent and never creates a Demo or Live
+  release.
+- Uses historical point-in-time dynamic Top50 OKX USDT perpetual universes for
+  formal backtests. A single-symbol run is smoke/debug evidence only and cannot
+  promote a strategy.
+- Keeps `targetR >= 2`, fees, slippage, funding, delay, purged walk-forward,
+  locked OOS, and unseen-symbol validation as formal promotion requirements.
+- Adds `启动这一条`, checkbox selection, `启动选中`, and `启动全部待运行`
+  controls to Strategy, formal Local Forward, and Demo workflow pages.
+- Runs selected historical backtests and public local-forward cycles serially,
+  so one click cannot start competing heavy workers.
+- Lets Demo batch controls execute only each card's current legal step. They do
+  not authorize a controlled override, bypass an immutable release, enable
+  Live, or store credentials. OKX Demo credentials remain process-only.
+
+See `docs/V13.27.3-short-cycle-workflow.md` for the Short-Cycle Workflow
+contracts, page controls, and safety boundary.
 
 ## What V13.27.2 Adds
 

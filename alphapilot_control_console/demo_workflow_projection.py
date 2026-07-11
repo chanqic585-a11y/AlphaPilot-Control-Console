@@ -12,7 +12,7 @@ from .demo_market_scan_service import get_demo_strategy_market_scan
 from .demo_strategy_runtime_settings import get_demo_strategy_runtime_settings
 
 
-VERSION = "V13.27.2"
+VERSION = "V13.27.3"
 SOURCE = "demo_workflow_projection_v13_27_1_8"
 
 QUEUE_BY_STAGE = {

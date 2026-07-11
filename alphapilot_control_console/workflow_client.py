@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import subprocess
@@ -16,7 +17,7 @@ from .strategy_optimization import (
 )
 
 
-CONTROL_CONSOLE_VERSION = "V13.27.2"
+CONTROL_CONSOLE_VERSION = "V13.27.3"
 WORKFLOW_MODULE = "alphapilot.evolution.workflow.cli"
 APPROVED_WAREHOUSE_ROOT = Path(r"D:\Codex-Workspace\回测数据")
 ALLOWED_COMMANDS = {
@@ -34,6 +35,8 @@ ALLOWED_COMMANDS = {
     "run",
     "one-click-backtest",
     "research-smoke",
+    "run-selected-backtests",
+    "run-selected-forward-cycles",
 }
 _BACKGROUND_PROCESSES: dict[str, subprocess.Popen] = {}
 _STARTUP_WORKFLOW_RECOVERY_STATUS: dict[str, Any] = {
@@ -194,6 +197,85 @@ def spawn_workflow_run(
     }
 
 
+def _spawn_serial_batch(
+    workflow_run_ids: Sequence[str],
+    *,
+    command: str,
+    worker_prefix: str,
+    quant_root: Path | None = None,
+) -> dict[str, Any]:
+    run_ids = [_safe_run_id(value) for value in workflow_run_ids]
+    if not run_ids:
+        raise ValueError("workflow_run_ids_required")
+    if len(run_ids) != len(set(run_ids)):
+        raise ValueError("duplicate_workflow_run_id")
+
+    digest = hashlib.sha256("\n".join(run_ids).encode("utf-8")).hexdigest()[:16]
+    worker_id = f"{worker_prefix}-{digest}"
+    existing = _BACKGROUND_PROCESSES.get(worker_id)
+    if existing is not None and existing.poll() is None:
+        return {
+            "started": False,
+            "alreadyRunning": True,
+            "workerId": worker_id,
+            "workflowRunIds": run_ids,
+            "processId": existing.pid,
+        }
+
+    root = (quant_root or get_quant_engine_path()).resolve()
+    log_root = DATA_DIR / "workflow_jobs"
+    log_root.mkdir(parents=True, exist_ok=True)
+    log_path = log_root / f"{worker_id}.log"
+    arguments = [command]
+    for run_id in run_ids:
+        arguments.extend(["--run-id", run_id])
+    creation_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    with log_path.open("a", encoding="utf-8") as log_handle:
+        process = subprocess.Popen(
+            build_workflow_command(arguments, quant_root=root),
+            cwd=root,
+            stdin=subprocess.DEVNULL,
+            stdout=log_handle,
+            stderr=subprocess.STDOUT,
+            creationflags=creation_flags,
+        )
+    _BACKGROUND_PROCESSES[worker_id] = process
+    return {
+        "started": True,
+        "alreadyRunning": False,
+        "workerId": worker_id,
+        "workflowRunIds": run_ids,
+        "processId": process.pid,
+        "logPath": str(log_path),
+    }
+
+
+def spawn_workflow_batch(
+    workflow_run_ids: Sequence[str],
+    *,
+    quant_root: Path | None = None,
+) -> dict[str, Any]:
+    return _spawn_serial_batch(
+        workflow_run_ids,
+        command="run-selected-backtests",
+        worker_prefix="serial-backtest",
+        quant_root=quant_root,
+    )
+
+
+def spawn_forward_batch(
+    workflow_run_ids: Sequence[str],
+    *,
+    quant_root: Path | None = None,
+) -> dict[str, Any]:
+    return _spawn_serial_batch(
+        workflow_run_ids,
+        command="run-selected-forward-cycles",
+        worker_prefix="serial-forward",
+        quant_root=quant_root,
+    )
+
+
 def request_backtest_run(
     workflow_run_id: str,
     *,
@@ -223,19 +305,78 @@ def request_all_awaiting_backtests(
     quant_root: Path | None = None,
 ) -> dict[str, Any]:
     projection = build_workflow_projection(quant_root=quant_root)
-    requested = []
+    run_ids: list[str] = []
     for item in projection.get("items") or []:
         if not isinstance(item, dict):
             continue
         if item.get("stage") != "backtest" or item.get("status") != "awaiting":
             continue
-        requested.append(
-            request_dual_layer_backtest(
-                str(item.get("workflowRunId") or ""),
-                quant_root=quant_root,
-            )
-        )
-    return {"requestedCount": len(requested), "runs": requested}
+        run_ids.append(str(item.get("workflowRunId") or ""))
+    if not run_ids:
+        return {"requestedCount": 0, "workflowRunIds": [], "worker": None}
+    return request_selected_backtests(run_ids, quant_root=quant_root)
+
+
+def request_selected_backtests(
+    workflow_run_ids: Sequence[str],
+    *,
+    quant_root: Path | None = None,
+) -> dict[str, Any]:
+    run_ids = [_safe_run_id(value) for value in workflow_run_ids]
+    if not run_ids:
+        raise ValueError("workflow_run_ids_required")
+    if len(run_ids) != len(set(run_ids)):
+        raise ValueError("duplicate_workflow_run_id")
+
+    projection = build_workflow_projection(quant_root=quant_root)
+    eligible_ids = {
+        str(item.get("workflowRunId") or "").strip()
+        for item in projection.get("items") or []
+        if isinstance(item, dict)
+        and item.get("stage") == "backtest"
+        and item.get("status") in {"awaiting", "paused"}
+    }
+    ineligible = [run_id for run_id in run_ids if run_id not in eligible_ids]
+    if ineligible:
+        raise ValueError(f"workflow_run_not_eligible:{','.join(ineligible)}")
+
+    worker = spawn_workflow_batch(run_ids, quant_root=quant_root)
+    return {
+        "requestedCount": len(run_ids),
+        "workflowRunIds": run_ids,
+        "worker": worker,
+    }
+
+
+def request_selected_forward_cycles(
+    workflow_run_ids: Sequence[str],
+    *,
+    quant_root: Path | None = None,
+) -> dict[str, Any]:
+    run_ids = [_safe_run_id(value) for value in workflow_run_ids]
+    if not run_ids:
+        raise ValueError("workflow_run_ids_required")
+    if len(run_ids) != len(set(run_ids)):
+        raise ValueError("duplicate_workflow_run_id")
+
+    projection = build_workflow_projection(quant_root=quant_root)
+    eligible_ids = {
+        str(item.get("workflowRunId") or "").strip()
+        for item in projection.get("items") or []
+        if isinstance(item, dict)
+        and item.get("stage") == "local_forward"
+        and item.get("status") == "running"
+    }
+    ineligible = [run_id for run_id in run_ids if run_id not in eligible_ids]
+    if ineligible:
+        raise ValueError(f"workflow_run_not_eligible:{','.join(ineligible)}")
+
+    worker = spawn_forward_batch(run_ids, quant_root=quant_root)
+    return {
+        "requestedCount": len(run_ids),
+        "workflowRunIds": run_ids,
+        "worker": worker,
+    }
 
 
 def get_startup_workflow_recovery_status() -> dict[str, Any]:
@@ -317,7 +458,17 @@ def request_workflow_action(
     quant_root: Path | None = None,
 ) -> dict[str, Any]:
     normalized = str(action or "").strip().lower()
-    if normalized in {"run-selected", "run-dual-layer"}:
+    if normalized == "run-selected":
+        run_ids = payload.get("workflowRunIds")
+        if not isinstance(run_ids, list):
+            raise ValueError("workflow_run_ids_required")
+        return request_selected_backtests(run_ids, quant_root=quant_root)
+    if normalized == "run-selected-forward":
+        run_ids = payload.get("workflowRunIds")
+        if not isinstance(run_ids, list):
+            raise ValueError("workflow_run_ids_required")
+        return request_selected_forward_cycles(run_ids, quant_root=quant_root)
+    if normalized == "run-dual-layer":
         return request_dual_layer_backtest(
             str(payload.get("workflowRunId") or ""),
             quant_root=quant_root,

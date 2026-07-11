@@ -19,7 +19,7 @@ from .strategy_stage_service import build_strategy_stage_board
 from .usable_strategy_catalog import build_usable_strategy_catalog
 
 
-CONTROL_CONSOLE_VERSION = "V13.27.2"
+CONTROL_CONSOLE_VERSION = "V13.27.3"
 CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_27_1_8"
 DEFAULT_OKX_SITE = "global"
 MAX_DEMO_NOTIONAL_USDT = 250.0

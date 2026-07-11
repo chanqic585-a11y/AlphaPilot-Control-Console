@@ -4285,6 +4285,27 @@ body:not(.show-advanced) .legacy-demo-ticket {
   background: #0b1117;
 }
 
+.workflow-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.workflow-select input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: var(--gold);
+}
+
+.workflow-select:has(input:checked) {
+  color: var(--gold);
+}
+
 .workflow-card-head > div {
   display: grid;
   gap: 4px;
