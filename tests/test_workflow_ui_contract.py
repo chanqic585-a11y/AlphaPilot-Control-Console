@@ -170,6 +170,14 @@ class WorkflowUiContractTests(unittest.TestCase):
         self.assertIn("presentHighestPriority", self.issue_js)
         self.assertIn("if (dialog.open) return false", self.issue_js)
 
+    def test_issue_guidance_acknowledge_button_persists_before_closing(self) -> None:
+        self.assertIn('id="issueGuidanceAcknowledgeButton"', self.html)
+        self.assertIn('getElementById("issueGuidanceAcknowledgeButton")', self.issue_js)
+        self.assertIn("event.preventDefault()", self.issue_js)
+        acknowledge_index = self.issue_js.index("acknowledgeCurrent();", self.issue_js.index("issueGuidanceAcknowledgeButton"))
+        close_index = self.issue_js.index("dialog.close", self.issue_js.index("issueGuidanceAcknowledgeButton"))
+        self.assertLess(acknowledge_index, close_index)
+
     def test_demo_evidence_is_collapsed_by_default(self) -> None:
         self.assertIn('<details class="demo-evidence-section">', self.js)
         self.assertIn('<summary class="demo-section-head">', self.js)

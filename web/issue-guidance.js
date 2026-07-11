@@ -137,6 +137,12 @@
     }
 
     dialog?.addEventListener("close", acknowledgeCurrent);
+    documentRef?.getElementById("issueGuidanceAcknowledgeButton")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      acknowledgeCurrent();
+      if (typeof dialog.close === "function") dialog.close("acknowledged");
+      else dialog.removeAttribute("open");
+    });
     documentRef?.getElementById("issueGuidanceCloseButton")?.addEventListener("click", () => {
       if (typeof dialog.close === "function") dialog.close();
       else {
