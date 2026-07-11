@@ -16,12 +16,16 @@ status bridge.
   instead of leaving the operator-facing blocker list empty.
 - Shows a one-time `OKX Demo 前检查失败` dialog with the current state, completed
   safety checks, and concrete API-key type, IP allowlist, and regional-domain
-  review steps. Closing the dialog acknowledges that failure fingerprint so it
-  does not repeat on every poll.
+  review steps. Closing the dialog acknowledges the Demo page guidance version,
+  so lower-priority Demo evidence notices do not immediately open a second
+  dialog. Inline guidance remains available.
 - Keeps the same guidance visible in the Demo status, read-only details, and
   recent-event list after the dialog is closed.
 - Updates the workflow action status as soon as preflight returns, before the
   background workflow refresh completes.
+- Prevents a duplicate resume attempt from rewriting an active backtest worker
+  as `queued`, and reads official-data checkpoint counts so collection progress
+  is displayed as real partitions such as `27/150`.
 - Does not place orders, persist credentials, loosen risk gates, or enable Live
   or Withdraw capabilities.
 
