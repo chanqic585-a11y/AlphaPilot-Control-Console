@@ -15,7 +15,7 @@ class WorkflowUiContractTests(unittest.TestCase):
         cls.css = (ROOT / "web" / "styles.css").read_text(encoding="utf-8")
         cls.http_app = (ROOT / "alphapilot_control_console" / "http_app.py").read_text(encoding="utf-8")
         cls.readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        patch_doc = ROOT / "docs" / "V13.27.1.7-demo-state-accuracy.md"
+        patch_doc = ROOT / "docs" / "V13.27.1.8-demo-preflight-guidance.md"
         cls.patch_doc = patch_doc.read_text(encoding="utf-8") if patch_doc.exists() else ""
         issue_guidance_path = ROOT / "web" / "issue-guidance.js"
         cls.issue_js = issue_guidance_path.read_text(encoding="utf-8") if issue_guidance_path.exists() else ""
@@ -40,14 +40,14 @@ class WorkflowUiContractTests(unittest.TestCase):
         self.assertIn("strategy-optimization-dialog", self.css)
 
     def test_static_asset_cachebuster_matches_patch(self) -> None:
-        self.assertIn("v13-27-1-7-demo-state", self.html)
+        self.assertIn("v13-27-1-8-demo-alert", self.html)
 
     def test_patch_version_and_documentation_are_consistent(self) -> None:
-        self.assertIn('version: "V13.27.1.7"', self.js)
-        self.assertIn('"version": "V13.27.1.7"', self.http_app)
-        self.assertIn("AlphaPilot V13.27.1.7", self.readme)
+        self.assertIn('version: "V13.27.1.8"', self.js)
+        self.assertIn('"version": "V13.27.1.8"', self.http_app)
+        self.assertIn("AlphaPilot V13.27.1.8", self.readme)
         self.assertIn("Read-only preflight", self.patch_doc)
-        self.assertIn("Full-market candidate", self.patch_doc)
+        self.assertIn("50110", self.patch_doc)
         self.assertIn("process-only", self.patch_doc)
 
     def test_back_to_strategy_control_is_compact_and_named(self) -> None:
@@ -94,6 +94,23 @@ class WorkflowUiContractTests(unittest.TestCase):
         self.assertIn('if (action === "run_demo_preflight")', self.js)
         self.assertIn("await runExchangeDemoReadOnlyCheck()", self.js)
         self.assertIn("await loadDemoWorkflow(true)", self.js)
+
+    def test_demo_readonly_failure_registers_one_time_actionable_guidance(self) -> None:
+        self.assertIn("function collectDemoReadonlyIssue", self.js)
+        self.assertIn("okx_demo_50110_key_type_ip_or_domain", self.js)
+        self.assertIn("OKX Demo 前检查失败", self.js)
+        self.assertIn("IP 白名单", self.js)
+        self.assertIn("refreshDemoPageIssues", self.js)
+        self.assertIn('version: "readonly-preflight-v1"', self.js)
+        self.assertIn("issueController.presentHighestPriority", self.js)
+
+    def test_demo_preflight_final_status_is_set_before_workflow_refresh(self) -> None:
+        branch_start = self.js.index('if (action === "run_demo_preflight")')
+        branch_end = self.js.index("return;", branch_start)
+        branch = self.js[branch_start:branch_end]
+        final_status = branch.index('response?.ok ? "Demo 前检查已通过')
+        refresh = branch.index("await loadDemoWorkflow(true)")
+        self.assertLess(final_status, refresh)
 
     def test_demo_cards_show_process_trade_pnl_and_failure_fields(self) -> None:
         for label in (
@@ -143,7 +160,7 @@ class WorkflowUiContractTests(unittest.TestCase):
     def test_one_time_issue_guidance_has_persistent_and_session_fallbacks(self) -> None:
         self.assertIn('id="issueGuidanceDialog"', self.html)
         self.assertIn('id="issueGuidanceNextAction"', self.html)
-        self.assertIn('/issue-guidance.js?v=20260712-v13-27-1-7-demo-state', self.html)
+        self.assertIn('/issue-guidance.js?v=20260712-v13-27-1-8-demo-alert', self.html)
         self.assertIn("ALPHAPILOT_ISSUE_ACK_V1", self.issue_js)
         self.assertIn("function issueFingerprint", self.issue_js)
         self.assertIn("localStorage", self.issue_js)

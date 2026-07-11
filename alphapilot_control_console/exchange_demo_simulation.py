@@ -19,8 +19,8 @@ from .strategy_stage_service import build_strategy_stage_board
 from .usable_strategy_catalog import build_usable_strategy_catalog
 
 
-CONTROL_CONSOLE_VERSION = "V13.27.1.5"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_27_1_5"
+CONTROL_CONSOLE_VERSION = "V13.27.1.8"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_27_1_8"
 DEFAULT_OKX_SITE = "global"
 MAX_DEMO_NOTIONAL_USDT = 250.0
 
@@ -395,6 +395,31 @@ def _latest_candidate_scan_event(events: list[dict[str, Any]]) -> dict[str, Any]
     return None
 
 
+def _readonly_code_blockers(codes: list[Any]) -> list[str]:
+    normalized = {str(code or "").strip() for code in codes}
+    normalized.discard("")
+    normalized.discard("0")
+    if not normalized:
+        return []
+    blockers: list[str] = []
+    if "50110" in normalized:
+        blockers.append("okx_demo_50110_key_type_ip_or_domain")
+    blockers.append("okx_demo_readonly_api_rejected")
+    return blockers
+
+
+def _readonly_event_blockers(event: dict[str, Any]) -> list[str]:
+    blockers = list(event.get("blockers") or []) if isinstance(event.get("blockers"), list) else []
+    derived = _readonly_code_blockers(
+        [
+            event.get("okxAccountConfigCode"),
+            event.get("okxBalanceCode"),
+            event.get("okxPositionCode"),
+        ]
+    )
+    return list(dict.fromkeys([*blockers, *derived]))
+
+
 def _build_readonly_summary(events: list[dict[str, Any]]) -> dict[str, Any]:
     event = _latest_readonly_event(events)
     if not event:
@@ -411,7 +436,7 @@ def _build_readonly_summary(events: list[dict[str, Any]]) -> dict[str, Any]:
             "blockers": [],
             "nextAction": "先用 OKX Demo 启动脚本启动控制台，再点击只读检查。",
         }
-    blockers = event.get("blockers") if isinstance(event.get("blockers"), list) else []
+    blockers = _readonly_event_blockers(event)
     status = str(event.get("status") or "unknown")
     labels = {
         "passed": "只读检查通过",
@@ -423,6 +448,11 @@ def _build_readonly_summary(events: list[dict[str, Any]]) -> dict[str, Any]:
         next_action = "只读检查已通过；连接烟测仍需单独开关，正式策略自动化仍需不可变 Demo Release。"
     elif status == "blocked":
         next_action = "先补齐 OKX Demo 环境变量和 Demo 私有连接开关。"
+    elif "okx_demo_50110_key_type_ip_or_domain" in blockers:
+        next_action = (
+            "OKX 返回 50110。请确认使用模拟交易页创建的交易型 Demo API Key，"
+            "优先核对当前公网 IP 白名单和账户区域 API 域名；修改后重启 Demo 控制台再检查。"
+        )
     else:
         next_action = "请复核 OKX Demo 返回码、网络连接和模拟账户权限。"
     return {
@@ -718,6 +748,11 @@ def run_exchange_demo_readonly_check() -> dict[str, Any]:
     balance = run_check(lambda: client.get_balance("USDT"))
     positions = run_check(lambda: client.get_positions(instrumentType="SWAP"))
     ok = bool(account_config.get("ok") and balance.get("ok") and positions.get("ok"))
+    response_codes = [
+        (account_config.get("payload") or {}).get("code") if isinstance(account_config.get("payload"), dict) else None,
+        (balance.get("payload") or {}).get("code") if isinstance(balance.get("payload"), dict) else None,
+        (positions.get("payload") or {}).get("code") if isinstance(positions.get("payload"), dict) else None,
+    ]
     event = save_exchange_demo_event({
         "eventType": "readonly_check",
         "status": "passed" if ok else "failed",
@@ -729,6 +764,7 @@ def run_exchange_demo_readonly_check() -> dict[str, Any]:
         "okxAccountConfigCode": (account_config.get("payload") or {}).get("code") if isinstance(account_config.get("payload"), dict) else None,
         "okxBalanceCode": (balance.get("payload") or {}).get("code") if isinstance(balance.get("payload"), dict) else None,
         "okxPositionCode": (positions.get("payload") or {}).get("code") if isinstance(positions.get("payload"), dict) else None,
+        "blockers": _readonly_code_blockers(response_codes),
         "demoHeaderUsed": True,
         "liveTrading": False,
     })

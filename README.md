@@ -3,12 +3,30 @@
 Current version:
 
 ```text
-AlphaPilot V13.27.1.7 - Demo Validation State Accuracy
+AlphaPilot V13.27.1.8 - Demo Preflight Guidance
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
 AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
+
+## What V13.27.1.8 Adds
+
+- Converts OKX Demo read-only response code `50110` into an explicit blocker
+  instead of leaving the operator-facing blocker list empty.
+- Shows a one-time `OKX Demo 前检查失败` dialog with the current state, completed
+  safety checks, and concrete API-key type, IP allowlist, and regional-domain
+  review steps. Closing the dialog acknowledges that failure fingerprint so it
+  does not repeat on every poll.
+- Keeps the same guidance visible in the Demo status, read-only details, and
+  recent-event list after the dialog is closed.
+- Updates the workflow action status as soon as preflight returns, before the
+  background workflow refresh completes.
+- Does not place orders, persist credentials, loosen risk gates, or enable Live
+  or Withdraw capabilities.
+
+See `docs/V13.27.1.8-demo-preflight-guidance.md` for the Read-only preflight,
+50110, one-time guidance, and process-only credential contracts.
 
 ## What V13.27.1.7 Adds
 

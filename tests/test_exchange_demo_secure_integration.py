@@ -28,6 +28,24 @@ class FakeReadOnlyDemoClient:
         return {"code": "0", "msg": "", "data": [{"instId": "BTC-USDT-SWAP", "pos": "1"}]}
 
 
+class RejectedReadOnlyDemoClient:
+    def _rejected(self) -> dict:
+        return {"code": "50110", "msg": "request rejected", "data": []}
+
+    def get_account_config(self) -> dict:
+        return self._rejected()
+
+    def get_balance(self, currency: str = "USDT") -> dict:
+        return self._rejected()
+
+    def get_positions(
+        self,
+        instrumentId: str | None = None,
+        instrumentType: str | None = None,
+    ) -> dict:
+        return self._rejected()
+
+
 class ExchangeDemoSecureIntegrationTests(unittest.TestCase):
     def test_saved_public_scan_result_restores_candidate_progress_after_refresh(self) -> None:
         candidate = {
@@ -85,6 +103,27 @@ class ExchangeDemoSecureIntegrationTests(unittest.TestCase):
         for forbidden in ("private-uid", "999.99", '"pos": "1"', "OK-ACCESS-KEY", "OK-ACCESS-SIGN"):
             self.assertNotIn(forbidden, serialized_event)
             self.assertNotIn(forbidden, serialized_result)
+
+    def test_readonly_50110_is_saved_as_actionable_blocker(self) -> None:
+        saved_events: list[dict] = []
+
+        def save_event(event: dict) -> dict:
+            saved_events.append(dict(event))
+            return {**event, "eventId": "event-50110", "createdAt": "2026-07-12T00:00:00Z"}
+
+        with patch.object(simulation, "_private_blockers", return_value=[]), patch.object(
+            simulation, "_make_demo_client", return_value=RejectedReadOnlyDemoClient()
+        ), patch.object(simulation, "save_exchange_demo_event", side_effect=save_event), patch.object(
+            simulation, "build_exchange_demo_simulation", return_value={"summary": {}}
+        ):
+            result = simulation.run_exchange_demo_readonly_check()
+
+        self.assertFalse(result["ok"])
+        self.assertIn("okx_demo_50110_key_type_ip_or_domain", saved_events[0]["blockers"])
+        summary = simulation._build_readonly_summary([saved_events[0]])
+        self.assertIn("okx_demo_50110_key_type_ip_or_domain", summary["blockers"])
+        self.assertIn("50110", summary["nextAction"])
+        self.assertIn("IP 白名单", summary["nextAction"])
 
     def test_manual_demo_order_is_connectivity_smoke_not_strategy_evidence(self) -> None:
         saved_events: list[dict] = []

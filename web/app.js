@@ -273,7 +273,7 @@ const emptyStrategyLifecycle = {
   sourceWarnings: [],
 };
 const emptyWorkflow = {
-  version: "V13.27.1.7",
+  version: "V13.27.1.8",
   summary: {},
   items: [],
   archivedItems: [],
@@ -1731,13 +1731,50 @@ function demoIssueKey(item) {
   return codes.length ? issueGroupKey("exchangeDemo", "okx_demo", codes) : "";
 }
 
-function collectDemoIssues(payload = { queues: {} }) {
+function demoReadonlyIssueCodes(readonlySummary = {}) {
+  const blockers = Array.isArray(readonlySummary.blockers) ? [...readonlySummary.blockers] : [];
+  const codes = [
+    readonlySummary.accountConfigCode ?? readonlySummary.okxAccountConfigCode,
+    readonlySummary.balanceCode ?? readonlySummary.okxBalanceCode,
+    readonlySummary.positionCode ?? readonlySummary.okxPositionCode,
+  ].map((value) => String(value ?? "").trim()).filter((value) => value && value !== "0");
+  if (codes.includes("50110")) blockers.push("okx_demo_50110_key_type_ip_or_domain");
+  if (codes.length || readonlySummary.status === "failed") blockers.push("okx_demo_readonly_api_rejected");
+  return uniqueIssueCodes(blockers);
+}
+
+function collectDemoReadonlyIssue(exchangePayload = {}) {
+  const readonlySummary = exchangePayload?.readonlySummary || {};
+  if (!['failed', 'blocked'].includes(readonlySummary.status)) return null;
+  const blockers = demoReadonlyIssueCodes(readonlySummary);
+  const is50110 = blockers.includes("okx_demo_50110_key_type_ip_or_domain");
+  return {
+    key: issueGroupKey("exchangeDemo", "readonly_preflight", blockers),
+    pageId: "exchangeDemo",
+    stage: "readonly_preflight",
+    stageLabel: "Demo 模拟 · 运行前检查",
+    priority: 110,
+    blockers,
+    title: "OKX Demo 前检查失败",
+    summary: is50110
+      ? "OKX 三个只读接口已收到请求，但均返回业务码 50110，当前不能进入全市场扫描或 Demo 交易。"
+      : "OKX Demo 只读连接、账户配置、余额或持仓检查未通过。",
+    completed: ["Demo 请求未下单", "失败返回码已记录", "策略仍停在运行前检查"],
+    nextAction: is50110
+      ? "确认这是模拟交易页创建的交易型 API Key；优先核对当前公网 IP 白名单。若账户属于 EEA、US 或 AU，请同时核对区域 API 域名。修改后重启 Demo 控制台并重新运行前检查。"
+      : (readonlySummary.nextAction || "核对 Demo API Key、Passphrase、网络和账户权限后重新运行前检查。"),
+    safety: "不要在网页保存 API Key；不要启用 Withdraw。排障时优先更新 IP 白名单，不建议长期取消白名单。",
+    version: "readonly-preflight-v1",
+  };
+}
+
+function collectDemoIssues(payload = { queues: {} }, exchangePayload = {}) {
   const queues = payload?.queues || {};
   const rows = [
     ...(Array.isArray(queues.waiting) ? queues.waiting : []),
     ...(Array.isArray(queues.validating) ? queues.validating : []),
   ].filter((item) => demoIssueCodes(item).length);
-  return [...groupIssueItems(rows, demoIssueKey).entries()].map(([key, group]) => {
+  const lifecycleIssues = [...groupIssueItems(rows, demoIssueKey).entries()].map(([key, group]) => {
     const first = group[0];
     const blockers = demoIssueCodes(first);
     const runtimeBlocked = blockers.includes("okx_demo_runtime");
@@ -1763,6 +1800,12 @@ function collectDemoIssues(payload = { queues: {} }) {
       version: group.length > 1 ? "aggregate-1" : (first.release?.demoReleaseId || first.strategyId || "1"),
     };
   });
+  const readonlyIssue = collectDemoReadonlyIssue(exchangePayload);
+  return readonlyIssue ? [readonlyIssue, ...lifecycleIssues] : lifecycleIssues;
+}
+
+function refreshDemoPageIssues() {
+  registerPageIssues("exchangeDemo", collectDemoIssues(latestDemoWorkflowPayload, latestExchangeDemoPayload));
 }
 
 function collectLiveIssues(payload = {}) {
@@ -2056,7 +2099,7 @@ function renderDemoWorkflow(payload = { summary: {}, queues: {} }) {
     }, 15000);
   }
   updateDemoRuntimeLauncher(payload);
-  registerPageIssues("exchangeDemo", collectDemoIssues(payload));
+  refreshDemoPageIssues();
 }
 
 async function loadDemoWorkflow(force = false) {
@@ -2214,11 +2257,11 @@ async function runDemoWorkflowAction(action, strategyId, extra = {}) {
   if (action === "run_demo_preflight") {
     setText("demoWorkflowActionStatus", "正在运行 OKX Demo 前检查；只读取模拟账户配置、余额和持仓，不会下单。");
     const response = await runExchangeDemoReadOnlyCheck();
-    await loadDemoWorkflow(true);
     setText(
       "demoWorkflowActionStatus",
       response?.ok ? "Demo 前检查已通过，可以继续全市场扫描与 Demo 验证。" : "Demo 前检查尚未通过，请查看页面提示后重试。",
     );
+    await loadDemoWorkflow(true);
     return;
   }
   setText("demoWorkflowActionStatus", "正在执行当前合法步骤，请稍候。");
@@ -3061,6 +3104,8 @@ function translateExchangeDemoBlocker(value) {
     demo_release_not_found: "指定 Demo Release 不存在",
     demo_runtime_paused: "Demo 新开仓已自动暂停",
     demo_kill_switch_active: "Demo kill switch 已启用",
+    okx_demo_50110_key_type_ip_or_domain: "OKX 50110：Demo Key 类型、IP 白名单或区域域名不匹配",
+    okx_demo_readonly_api_rejected: "OKX Demo 只读 API 业务请求被拒绝",
   };
   return labels[value] || value || "--";
 }
@@ -3693,7 +3738,7 @@ function renderExchangeDemoSimulation(payload = {}) {
 
   const blockerTarget = el("exchangeDemoBlockers");
   if (blockerTarget) {
-    const blockers = Array.from(new Set([...privateBlockers, ...orderBlockers]));
+    const blockers = Array.from(new Set([...privateBlockers, ...orderBlockers, ...demoReadonlyIssueCodes(readonlySummary)]));
     blockerTarget.innerHTML = blockers.map((item) => `<span>${escapeHtml(translateExchangeDemoBlocker(item))}</span>`).join("")
       || '<span class="ok">当前无 Demo 阻塞项；仍需人工确认才能提交订单。</span>';
   }
@@ -3722,7 +3767,7 @@ function renderExchangeDemoSimulation(payload = {}) {
 
   const readonlyTarget = el("exchangeDemoReadOnlyDetails");
   if (readonlyTarget) {
-    const blockers = Array.isArray(readonlySummary.blockers) ? readonlySummary.blockers : [];
+    const blockers = demoReadonlyIssueCodes(readonlySummary);
     readonlyTarget.innerHTML = `
       <div><span>检查时间</span><strong>${formatDate(readonlySummary.lastCheckedAt)}</strong></div>
       <div><span>账户配置接口</span><strong>${escapeHtml(readonlySummary.accountConfigStatus ?? "--")} / ${escapeHtml(readonlySummary.accountConfigCode ?? "--")}</strong></div>
@@ -3750,7 +3795,9 @@ function renderExchangeDemoSimulation(payload = {}) {
   const eventsTarget = el("exchangeDemoRecentEvents");
   if (eventsTarget) {
     eventsTarget.innerHTML = recentEvents.map((event) => {
-      const blockers = Array.isArray(event.blockers) ? event.blockers : [];
+      const blockers = event.eventType === "readonly_check"
+        ? demoReadonlyIssueCodes(event)
+        : (Array.isArray(event.blockers) ? event.blockers : []);
       return `
         <div class="testnet-drill-row">
           <div class="testnet-drill-row-head">
@@ -3771,6 +3818,7 @@ function renderExchangeDemoSimulation(payload = {}) {
       `;
     }).join("") || '<div class="testnet-design-empty">暂无 OKX Demo 事件。先做只读检查或本地紧急停止演练。</div>';
   }
+  refreshDemoPageIssues();
 }
 
 function renderSandboxSimulationLane(observationTasks, qualityRows) {
@@ -7408,9 +7456,10 @@ async function runExchangeDemoReadOnlyCheck() {
   try {
     const response = await postJson("/api/exchange-demo/read-only-check", {});
     renderExchangeDemoSimulation(response.exchangeDemoSimulation || {});
+    const readonlyBlockers = demoReadonlyIssueCodes(response.exchangeDemoSimulation?.readonlySummary || response.event || {});
     setText("exchangeDemoActionStatus", response.ok
       ? "OKX Demo 账户配置、模拟余额和模拟持仓只读检查通过。连接烟测与正式策略自动化仍是两道独立闸门。"
-      : `只读检查被阻塞或失败：${(response.event?.blockers || response.rejectionReasons || []).map(translateExchangeDemoBlocker).join(" · ") || "请查看最近事件"}`);
+      : `只读检查被阻塞或失败：${readonlyBlockers.map(translateExchangeDemoBlocker).join(" · ") || "请查看最近事件"}`);
     return response;
   } catch (error) {
     setText("exchangeDemoActionStatus", `只读检查失败：${error.message}`);
