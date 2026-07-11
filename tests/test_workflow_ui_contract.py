@@ -15,7 +15,7 @@ class WorkflowUiContractTests(unittest.TestCase):
         cls.css = (ROOT / "web" / "styles.css").read_text(encoding="utf-8")
         cls.http_app = (ROOT / "alphapilot_control_console" / "http_app.py").read_text(encoding="utf-8")
         cls.readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        patch_doc = ROOT / "docs" / "V13.27.1.5-one-time-guidance-demo-launcher.md"
+        patch_doc = ROOT / "docs" / "V13.27.1.6-workflow-checkpoint-resume.md"
         cls.patch_doc = patch_doc.read_text(encoding="utf-8") if patch_doc.exists() else ""
         issue_guidance_path = ROOT / "web" / "issue-guidance.js"
         cls.issue_js = issue_guidance_path.read_text(encoding="utf-8") if issue_guidance_path.exists() else ""
@@ -40,12 +40,14 @@ class WorkflowUiContractTests(unittest.TestCase):
         self.assertIn("strategy-optimization-dialog", self.css)
 
     def test_static_asset_cachebuster_matches_patch(self) -> None:
-        self.assertIn("v13-27-1-5-guidance", self.html)
+        self.assertIn("v13-27-1-6-resume", self.html)
 
     def test_patch_version_and_documentation_are_consistent(self) -> None:
-        self.assertIn('version: "V13.27.1.5"', self.js)
-        self.assertIn('"version": "V13.27.1.5"', self.http_app)
-        self.assertIn("AlphaPilot V13.27.1.5", self.readme)
+        self.assertIn('version: "V13.27.1.6"', self.js)
+        self.assertIn('"version": "V13.27.1.6"', self.http_app)
+        self.assertIn("AlphaPilot V13.27.1.6", self.readme)
+        self.assertIn("Browser close does not stop the worker", self.patch_doc)
+        self.assertIn("Explicit pause remains paused", self.patch_doc)
         self.assertIn("Demo 一次输入全部共用", self.patch_doc)
         self.assertIn("实盘账户一次输入、策略逐条批准启用", self.patch_doc)
 
@@ -112,6 +114,7 @@ class WorkflowUiContractTests(unittest.TestCase):
         self.assertIn("workflow-run-progress-track", self.css)
         self.assertIn('status === "paused"', self.js)
         self.assertIn("downloadProgress", self.js)
+        self.assertIn("控制台重启后会从当前检查点自动继续", self.html)
 
     def test_demo_cards_show_permanent_evidence_and_full_market_summary(self) -> None:
         for label in (
@@ -132,7 +135,7 @@ class WorkflowUiContractTests(unittest.TestCase):
     def test_one_time_issue_guidance_has_persistent_and_session_fallbacks(self) -> None:
         self.assertIn('id="issueGuidanceDialog"', self.html)
         self.assertIn('id="issueGuidanceNextAction"', self.html)
-        self.assertIn('/issue-guidance.js?v=20260711-v13-27-1-5-guidance', self.html)
+        self.assertIn('/issue-guidance.js?v=20260711-v13-27-1-6-resume', self.html)
         self.assertIn("ALPHAPILOT_ISSUE_ACK_V1", self.issue_js)
         self.assertIn("function issueFingerprint", self.issue_js)
         self.assertIn("localStorage", self.issue_js)

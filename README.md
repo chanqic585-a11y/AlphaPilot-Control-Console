@@ -3,12 +3,28 @@
 Current version:
 
 ```text
-AlphaPilot V13.27.1.5 - One-Time Guidance and Safe Demo Launcher
+AlphaPilot V13.27.1.6 - Workflow Checkpoint Resume
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
 AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
+
+## What V13.27.1.6 Adds
+
+- Restarts interrupted `queued` and `running` backtest workers when the Control
+  Console starts, reusing the same workflow run and persisted checkpoint.
+- Keeps an explicit user pause paused. The existing `继续运行` action resumes
+  that same run only when the user requests it.
+- Adds a cross-process run lock so a restarted Console cannot create duplicate
+  workers for the same workflow run.
+- Exposes startup recovery state through `/api/health` and clarifies the resume
+  behavior on the Strategy page.
+- Does not delete historical data, create a new strategy version, or repeat
+  completed official-data partitions.
+
+See `docs/V13.27.1.6-workflow-checkpoint-resume.md` for the restart, pause,
+checkpoint, and duplicate-worker contracts.
 
 ## What V13.27.1.5 Adds
 

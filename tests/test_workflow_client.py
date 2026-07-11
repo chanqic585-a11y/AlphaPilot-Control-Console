@@ -91,6 +91,59 @@ class WorkflowClientTests(unittest.TestCase):
         request.assert_called_once_with("run-1", quant_root=self.quant_root)
         self.assertEqual(result["requestedCount"], 1)
 
+    def test_startup_recovery_resumes_only_interrupted_backtests(self) -> None:
+        projection = {
+            "items": [
+                {"workflowRunId": "run-running", "stage": "backtest", "status": "running"},
+                {"workflowRunId": "run-queued", "stage": "backtest", "status": "queued"},
+                {"workflowRunId": "run-paused", "stage": "backtest", "status": "paused"},
+                {"workflowRunId": "run-awaiting", "stage": "backtest", "status": "awaiting"},
+                {"workflowRunId": "run-forward", "stage": "local_forward", "status": "running"},
+            ]
+        }
+        with patch.object(
+            client, "build_workflow_projection", return_value=projection
+        ), patch.object(client, "spawn_workflow_run") as spawn:
+            spawn.side_effect = [
+                {"started": True, "workflowRunId": "run-running"},
+                {"started": True, "workflowRunId": "run-queued"},
+            ]
+
+            result = client.resume_incomplete_workflow_runs(
+                quant_root=self.quant_root
+            )
+
+        self.assertEqual(
+            [call.args[0] for call in spawn.call_args_list],
+            ["run-running", "run-queued"],
+        )
+        self.assertEqual(result["candidateCount"], 2)
+        self.assertEqual(result["startedCount"], 2)
+        self.assertEqual(result["errorCount"], 0)
+
+    def test_startup_recovery_records_errors_without_aborting_other_runs(self) -> None:
+        projection = {
+            "items": [
+                {"workflowRunId": "run-1", "stage": "backtest", "status": "running"},
+                {"workflowRunId": "run-2", "stage": "backtest", "status": "queued"},
+            ]
+        }
+        with patch.object(
+            client, "build_workflow_projection", return_value=projection
+        ), patch.object(
+            client,
+            "spawn_workflow_run",
+            side_effect=[RuntimeError("worker unavailable"), {"started": True}],
+        ):
+            result = client.resume_incomplete_workflow_runs(
+                quant_root=self.quant_root
+            )
+
+        self.assertEqual(result["candidateCount"], 2)
+        self.assertEqual(result["startedCount"], 1)
+        self.assertEqual(result["errorCount"], 1)
+        self.assertEqual(result["errors"][0]["workflowRunId"], "run-1")
+
     def test_import_optimized_action_whitelists_fields_and_starts_new_backtest(self) -> None:
         created = {
             "strategyVersionId": "version-2",

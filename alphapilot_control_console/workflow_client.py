@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -15,7 +16,7 @@ from .strategy_optimization import (
 )
 
 
-CONTROL_CONSOLE_VERSION = "V13.27.1.5"
+CONTROL_CONSOLE_VERSION = "V13.27.1.6"
 WORKFLOW_MODULE = "alphapilot.evolution.workflow.cli"
 APPROVED_WAREHOUSE_ROOT = Path(r"D:\Codex-Workspace\回测数据")
 ALLOWED_COMMANDS = {
@@ -35,6 +36,15 @@ ALLOWED_COMMANDS = {
     "research-smoke",
 }
 _BACKGROUND_PROCESSES: dict[str, subprocess.Popen] = {}
+_STARTUP_WORKFLOW_RECOVERY_STATUS: dict[str, Any] = {
+    "status": "not_started",
+    "candidateCount": 0,
+    "startedCount": 0,
+    "alreadyRunningCount": 0,
+    "errorCount": 0,
+    "errors": [],
+    "checkedAt": None,
+}
 
 
 def _safe_run_id(value: str) -> str:
@@ -226,6 +236,78 @@ def request_all_awaiting_backtests(
             )
         )
     return {"requestedCount": len(requested), "runs": requested}
+
+
+def get_startup_workflow_recovery_status() -> dict[str, Any]:
+    return {
+        **_STARTUP_WORKFLOW_RECOVERY_STATUS,
+        "errors": list(_STARTUP_WORKFLOW_RECOVERY_STATUS.get("errors") or []),
+    }
+
+
+def resume_incomplete_workflow_runs(
+    *,
+    quant_root: Path | None = None,
+) -> dict[str, Any]:
+    """Restart interrupted backtest workers without overriding explicit pauses."""
+
+    global _STARTUP_WORKFLOW_RECOVERY_STATUS
+    checked_at = datetime.now(timezone.utc).isoformat()
+    try:
+        projection = build_workflow_projection(quant_root=quant_root)
+    except (FileNotFoundError, RuntimeError, ValueError) as error:
+        _STARTUP_WORKFLOW_RECOVERY_STATUS = {
+            "status": "failed",
+            "candidateCount": 0,
+            "startedCount": 0,
+            "alreadyRunningCount": 0,
+            "errorCount": 1,
+            "errors": [{"workflowRunId": None, "error": str(error)[-500:]}],
+            "checkedAt": checked_at,
+        }
+        return get_startup_workflow_recovery_status()
+
+    candidates: list[str] = []
+    seen: set[str] = set()
+    for item in projection.get("items") or []:
+        if not isinstance(item, dict):
+            continue
+        if item.get("stage") != "backtest" or item.get("status") not in {
+            "queued",
+            "running",
+        }:
+            continue
+        run_id = str(item.get("workflowRunId") or "").strip()
+        if not run_id or run_id in seen:
+            continue
+        seen.add(run_id)
+        candidates.append(run_id)
+
+    started_count = 0
+    already_running_count = 0
+    errors: list[dict[str, str | None]] = []
+    for run_id in candidates:
+        try:
+            worker = spawn_workflow_run(run_id, quant_root=quant_root)
+            if worker.get("started"):
+                started_count += 1
+            elif worker.get("alreadyRunning"):
+                already_running_count += 1
+        except (FileNotFoundError, RuntimeError, ValueError, OSError) as error:
+            errors.append(
+                {"workflowRunId": run_id, "error": str(error)[-500:]}
+            )
+
+    _STARTUP_WORKFLOW_RECOVERY_STATUS = {
+        "status": "completed_with_errors" if errors else "completed",
+        "candidateCount": len(candidates),
+        "startedCount": started_count,
+        "alreadyRunningCount": already_running_count,
+        "errorCount": len(errors),
+        "errors": errors,
+        "checkedAt": checked_at,
+    }
+    return get_startup_workflow_recovery_status()
 
 
 def request_workflow_action(

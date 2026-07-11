@@ -109,7 +109,9 @@ from .usable_strategy_catalog import build_usable_strategy_catalog
 from .weakness_action_board import build_weakness_action_board
 from .workflow_client import (
     build_workflow_projection as build_quant_workflow_projection,
+    get_startup_workflow_recovery_status,
     request_workflow_action,
+    resume_incomplete_workflow_runs,
 )
 from .state_store import (
     ALLOWED_ARTIFACT_REVIEW_STATUSES,
@@ -192,7 +194,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.27.1.5"
+    server_version = "AlphaPilotControlConsole/13.27.1.6"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -233,12 +235,7 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         query = parse_qs(parsed.query or "")
         fresh = _is_fresh_query(query)
         if path == "/api/health":
-            self._send_json({
-                "ok": True,
-                "version": "V13.27.1.5",
-                "source": "alphapilot_control_console_v13_27_1_5",
-                "safetyBoundary": SAFETY_BOUNDARY,
-            })
+            self._send_json(build_health_payload())
             return
         if path == "/api/workflow":
             try:
@@ -251,7 +248,7 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             except (FileNotFoundError, RuntimeError, ValueError) as error:
                 self._send_json(
                     {
-                        "version": "V13.27.1.5",
+                        "version": "V13.27.1.6",
                         "source": "quant_workflow_unavailable",
                         "loadError": str(error),
                         "summary": {},
@@ -1186,9 +1183,20 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         print(f"{self.address_string()} - {format % args}")
 
 
+def build_health_payload() -> dict[str, object]:
+    return {
+        "ok": True,
+        "version": "V13.27.1.6",
+        "source": "alphapilot_control_console_v13_27_1_6",
+        "workflowRecovery": get_startup_workflow_recovery_status(),
+        "safetyBoundary": SAFETY_BOUNDARY,
+    }
+
+
 def run_server(host: str, port: int) -> None:
     server = ThreadingHTTPServer((host, port), ConsoleHandler)
     start_local_sandbox_auto_runner()
+    resume_incomplete_workflow_runs()
     print(f"AlphaPilot Control Console running at http://{host}:{port}")
     print("Research, OKX Demo, and gated Live Canary control. Credentials are process-only; Withdraw is absent.")
     try:
