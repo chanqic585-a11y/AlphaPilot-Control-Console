@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import mimetypes
+import os
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -48,6 +49,7 @@ from .live_canary_service import (
     build_live_canary_status,
     run_live_readonly_reconciliation,
 )
+from .local_demo_launcher import LOCAL_DEMO_LAUNCHER
 from .local_sandbox_concentration_review import build_local_sandbox_concentration_review
 from .local_sandbox_quality_center import build_local_sandbox_quality_center
 from .local_sandbox_result_review import build_local_sandbox_result_review
@@ -747,6 +749,25 @@ class ConsoleHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
+        if parsed.path == "/api/local-control/open-okx-demo-launcher":
+            self._read_body_json()
+            result = LOCAL_DEMO_LAUNCHER.open(
+                str(self.client_address[0]),
+                current_pid=os.getpid(),
+                port=int(self.server.server_address[1]),
+                mobile=str(self.server.server_address[0]) in {"0.0.0.0", "::"},
+            )
+            status = 202
+            if not result.get("ok"):
+                status = {
+                    "local_host_required": 403,
+                    "launcher_already_open": 409,
+                    "invalid_launcher_context": 409,
+                    "launcher_script_missing": 500,
+                    "launcher_start_failed": 500,
+                }.get(str(result.get("error") or ""), 500)
+            self._send_json(result, status)
+            return
         if parsed.path == "/api/workflow/action":
             payload = self._read_body_json()
             action = str(payload.get("action") or "")

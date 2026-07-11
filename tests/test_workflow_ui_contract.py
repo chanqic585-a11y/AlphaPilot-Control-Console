@@ -49,6 +49,11 @@ class WorkflowUiContractTests(unittest.TestCase):
         self.assertIn('path == "/api/demo-workflow"', self.http_app)
         self.assertIn('parsed.path == "/api/demo-workflow/action"', self.http_app)
 
+    def test_okx_demo_launcher_endpoint_is_bound_to_request_client(self) -> None:
+        self.assertIn('parsed.path == "/api/local-control/open-okx-demo-launcher"', self.http_app)
+        self.assertIn("self.client_address[0]", self.http_app)
+        self.assertIn("LOCAL_DEMO_LAUNCHER.open", self.http_app)
+
     def test_lifecycle_cards_show_visible_stage_progress(self) -> None:
         self.assertIn("lifecycle-progress-track", self.js)
         self.assertIn("progress.percent", self.js)
