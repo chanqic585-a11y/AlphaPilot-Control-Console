@@ -18,8 +18,8 @@ from .strategy_optimization import build_optimization_context
 from .usable_strategy_catalog import build_usable_strategy_catalog
 
 
-CONTROL_CONSOLE_VERSION = "V13.27.1.3"
-CONTROL_CONSOLE_SOURCE = "strategy_lifecycle_projection_v13_27_1_3"
+CONTROL_CONSOLE_VERSION = "V13.27.1.4"
+CONTROL_CONSOLE_SOURCE = "strategy_lifecycle_projection_v13_27_1_4"
 
 STAGE_ORDER = {
     "research_candidate": 10,

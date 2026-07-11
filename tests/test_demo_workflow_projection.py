@@ -145,7 +145,8 @@ class DemoWorkflowProjectionTests(unittest.TestCase):
         self.assertEqual(len(all_ids), len(set(all_ids)))
 
         waiting = result["queues"]["waiting"][0]
-        self.assertEqual(waiting["market"]["instrumentId"], "BTC-USDT-SWAP")
+        self.assertIsNone(waiting["market"]["instrumentId"])
+        self.assertEqual(waiting["market"]["currentTopCandidate"], "BTC-USDT-SWAP")
         self.assertIsNone(waiting["position"]["entryPrice"])
         self.assertIsNone(waiting["performance"]["unrealizedPnl"])
         self.assertEqual(waiting["nextAction"]["actionId"], "scan_public_market")
@@ -197,6 +198,129 @@ class DemoWorkflowProjectionTests(unittest.TestCase):
         self.assertTrue(
             all("尚未生成不可变 Demo Release" in item["failure"]["analysis"] for item in result["queues"]["waiting"])
         )
+        first = result["queues"]["waiting"][0]
+        self.assertEqual(
+            {row["evidenceId"] for row in first["evidenceChecklist"]["items"]},
+            {
+                "formal_backtest",
+                "target_reward_risk",
+                "strategy_definition",
+                "local_forward_samples",
+                "formal_strategy_candidate",
+                "immutable_demo_release",
+                "demo_runtime",
+                "demo_closed_trades",
+            },
+        )
+        self.assertTrue(first["evidenceChecklist"]["summary"]["blockingCount"] > 0)
+
+    def test_full_market_scan_and_symbol_limit_are_projected_without_fake_position(self) -> None:
+        result = build_demo_workflow_projection(
+            lifecycle={"items": [lifecycle_item("trial-1", "demo_trial")]},
+            exchange_demo={
+                "summary": {},
+                "automationPipeline": {"summary": {}, "candidates": []},
+                "evolutionDemo": {
+                    "summary": {"ready": False},
+                    "contracts": [],
+                    "recentRecords": [],
+                    "recentOutcomes": [],
+                    "blockers": [],
+                    "activeRiskProfile": {
+                        "profile": {
+                            "maxConcurrentPositions": 3,
+                            "maxPositionsPerStrategy": 2,
+                        }
+                    },
+                },
+            },
+            market_scan_loader=lambda _strategy_id: {
+                "marketScope": "okx_usdt_linear_perpetual_full_market",
+                "totalInstrumentCount": 120,
+                "liveUsdtLinearSwapCount": 98,
+                "liquidityEligibleCount": 40,
+                "deepScreenedCount": 20,
+                "strategyMatchedCount": 3,
+                "currentTopCandidate": "ETH-USDT-SWAP",
+                "rankedCandidates": [{"rank": 1, "instId": "ETH-USDT-SWAP", "scanStatus": "matched"}],
+                "progress": {"completed": 20, "required": 20, "percent": 100, "status": "completed"},
+            },
+            settings_loader=lambda _strategy_id: {"maxConcurrentSymbols": 3},
+        )
+
+        item = result["queues"]["waiting"][0]
+        self.assertEqual(item["marketUniverse"]["totalInstrumentCount"], 120)
+        self.assertEqual(item["marketUniverse"]["strategyMatchedCount"], 3)
+        self.assertEqual(item["market"]["currentTopCandidate"], "ETH-USDT-SWAP")
+        self.assertIsNone(item["market"]["instrumentId"])
+        self.assertEqual(item["executionLimits"]["requestedMaxConcurrentSymbols"], 3)
+        self.assertEqual(item["executionLimits"]["profileMaxPositionsPerStrategy"], 2)
+        self.assertEqual(item["executionLimits"]["effectiveConfiguredMaximum"], 2)
+        self.assertEqual(item["nextAction"]["actionId"], "prepare_demo_release")
+
+    def test_projection_exposes_all_open_positions_for_multi_symbol_demo(self) -> None:
+        lifecycle = {
+            "items": [lifecycle_item("multi-1", "demo_validation_running")]
+        }
+        exchange_demo = {
+            "summary": {
+                "credentialsConfigured": True,
+                "demoPrivateEnabled": True,
+                "demoOrderEnabled": True,
+            },
+            "automationPipeline": {"summary": {}, "candidates": []},
+            "portfolioSnapshot": {
+                "positions": [
+                    {
+                        "strategyCandidateId": "multi-1",
+                        "instId": "BTC-USDT-SWAP",
+                        "status": "open",
+                        "side": "buy",
+                        "quantity": 0.01,
+                        "entryPrice": 60000,
+                        "markPrice": 60600,
+                        "unrealizedPnl": 6,
+                    },
+                    {
+                        "strategyCandidateId": "multi-1",
+                        "instId": "ETH-USDT-SWAP",
+                        "status": "open",
+                        "side": "sell",
+                        "quantity": 0.2,
+                        "entryPrice": 3000,
+                        "markPrice": 2970,
+                        "unrealizedPnl": 6,
+                    },
+                ]
+            },
+            "evolutionDemo": {
+                "summary": {"ready": True},
+                "runtimeGates": {
+                    "privateEnabled": True,
+                    "orderEnabled": True,
+                    "automationEnabled": True,
+                },
+                "contracts": [
+                    {"demoReleaseId": "release-multi", "strategyCandidateId": "multi-1"}
+                ],
+                "recentRecords": [],
+                "recentOutcomes": [],
+                "blockers": [],
+            },
+        }
+
+        result = build_demo_workflow_projection(
+            lifecycle=lifecycle,
+            exchange_demo=exchange_demo,
+        )
+
+        item = result["queues"]["validating"][0]
+        self.assertEqual(len(item["positions"]), 2)
+        self.assertEqual(
+            [row["instrumentId"] for row in item["positions"]],
+            ["BTC-USDT-SWAP", "ETH-USDT-SWAP"],
+        )
+        self.assertEqual(item["executionLimits"]["currentOpenPositions"], 2)
 
 
 if __name__ == "__main__":

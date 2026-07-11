@@ -57,20 +57,28 @@ def exchange_demo(*, candidate_status: str = "strategy_loaded", contract: bool =
 
 
 class DemoWorkflowActionTests(unittest.TestCase):
-    def test_public_scan_action_uses_existing_public_only_scanner(self) -> None:
-        scanned_exchange = exchange_demo(candidate_status="market_ready")
+    def test_public_scan_action_uses_full_okx_public_universe(self) -> None:
         with patch.object(service, "build_strategy_lifecycle_projection", return_value=lifecycle("demo_trial")), patch.object(
             service,
-            "scan_exchange_demo_candidates",
-            return_value={"ok": True, "exchangeDemoSimulation": scanned_exchange},
+            "scan_demo_strategy_public_universe",
+            return_value={
+                "ok": True,
+                "scan": {
+                    "marketScope": "okx_usdt_linear_perpetual_full_market",
+                    "totalInstrumentCount": 120,
+                    "currentTopCandidate": "BTC-USDT-SWAP",
+                },
+                "createsOrder": False,
+            },
+            create=True,
         ) as scan, patch.object(service, "build_exchange_demo_simulation", return_value=exchange_demo()):
             result = service.run_demo_workflow_action(
                 {"action": "scan_public_market", "strategyId": "strategy-1"}
             )
 
         self.assertTrue(result["ok"])
-        scan.assert_called_once()
-        self.assertEqual(result["workflow"]["queues"]["waiting"][0]["nextAction"]["actionId"], "prepare_demo_release")
+        scan.assert_called_once_with("strategy-1")
+        self.assertEqual(result["scan"]["totalInstrumentCount"], 120)
         self.assertFalse(result["safetyBoundary"]["createsOrder"])
 
     def test_release_preflight_explains_why_trial_cannot_trade(self) -> None:
@@ -87,6 +95,8 @@ class DemoWorkflowActionTests(unittest.TestCase):
         self.assertEqual(result["status"], "blocked")
         self.assertIn("immutable_demo_release_missing", result["blockers"])
         self.assertIn("local_forward_evidence_incomplete", result["blockers"])
+        self.assertIn("target_r_below_2r", result["blockers"])
+        self.assertIn("strategy_definition_incomplete", result["blockers"])
         self.assertEqual(result["readiness"]["closedSamples"], 1)
         self.assertEqual(result["readiness"]["reviewStartSamples"], 30)
         self.assertFalse(result["safetyBoundary"]["createsOrder"])
@@ -111,6 +121,76 @@ class DemoWorkflowActionTests(unittest.TestCase):
         run_cycle.assert_called_once_with({"demoReleaseId": "release-1"})
         self.assertTrue(result["safetyBoundary"]["okxDemoOnly"])
         self.assertFalse(result["safetyBoundary"]["liveExecutionAllowed"])
+
+    def test_controlled_override_action_creates_demo_release_without_order(self) -> None:
+        override_result = {
+            "ok": True,
+            "status": "ready",
+            "created": True,
+            "contract": {
+                "demoReleaseId": "release-override",
+                "strategyCandidateId": "strategy-1",
+                "releaseMode": "experimental_override",
+                "livePromotionAllowed": False,
+            },
+            "createsOrder": False,
+            "liveExecutionAllowed": False,
+        }
+        with patch.object(service, "build_strategy_lifecycle_projection", return_value=lifecycle("demo_trial")), patch.object(
+            service,
+            "build_exchange_demo_simulation",
+            return_value=exchange_demo(candidate_status="market_ready"),
+        ), patch.object(
+            service,
+            "authorize_demo_override",
+            return_value=override_result,
+            create=True,
+        ) as authorize:
+            result = service.run_demo_workflow_action(
+                {
+                    "action": "authorize_demo_override",
+                    "strategyId": "strategy-1",
+                    "reason": "开始 OKX Demo 全市场验证",
+                    "confirmation": "仅放行到OKX DEMO",
+                }
+            )
+
+        self.assertTrue(result["ok"])
+        self.assertFalse(result["safetyBoundary"]["createsOrder"])
+        self.assertFalse(result["safetyBoundary"]["liveExecutionAllowed"])
+        authorize.assert_called_once()
+        _, kwargs = authorize.call_args
+        self.assertEqual(kwargs["reason"], "开始 OKX Demo 全市场验证")
+        self.assertEqual(kwargs["confirmation"], "仅放行到OKX DEMO")
+
+    def test_update_symbol_limit_is_a_local_demo_setting_only(self) -> None:
+        with patch.object(service, "build_strategy_lifecycle_projection", return_value=lifecycle("demo_trial")), patch.object(
+            service,
+            "build_exchange_demo_simulation",
+            return_value=exchange_demo(candidate_status="market_ready"),
+        ), patch.object(
+            service,
+            "update_demo_strategy_runtime_settings",
+            return_value={
+                "strategyId": "strategy-1",
+                "maxConcurrentSymbols": 3,
+                "okxDemoOnly": True,
+                "liveExecutionAllowed": False,
+            },
+            create=True,
+        ) as update:
+            result = service.run_demo_workflow_action(
+                {
+                    "action": "update_demo_strategy_settings",
+                    "strategyId": "strategy-1",
+                    "maxConcurrentSymbols": 3,
+                }
+            )
+
+        self.assertTrue(result["ok"])
+        update.assert_called_once_with("strategy-1", 3)
+        self.assertFalse(result["safetyBoundary"]["createsOrder"])
+        self.assertFalse(result["settings"]["liveExecutionAllowed"])
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#080c0f" />
     <title>AlphaPilot 控制台</title>
-    <link rel="stylesheet" href="/styles.css?v=20260711-v13-27-1-3-demo-workflow-2" />
+    <link rel="stylesheet" href="/styles.css?v=20260711-v13-27-1-4-demo-evidence" />
   </head>
   <body>
     <a class="skip-link" href="#mainContent">跳到主要内容</a>
@@ -616,7 +616,7 @@
             </div>
             <span id="exchangeDemoModeBadge" class="status-pill danger">Demo &#38145;&#23450;</span>
           </div>
-          <div class="exchange-demo-warning"><strong>安全边界：</strong>Demo 自动执行只作用于 OKX 模拟账户和固定 1000 USDT 风险包。Withdraw、实盘自动晋级和实盘执行全部关闭。</div>
+          <div class="exchange-demo-warning"><strong>安全边界：</strong>Demo 自动执行只作用于 OKX 模拟账户和版本化 RiskProfile（默认资金上限 1000 USDT）。Withdraw、实盘自动晋级和实盘执行全部关闭。</div>
           <div class="demo-workflow-panel">
             <div class="lifecycle-panel-head">
               <div>
@@ -898,7 +898,11 @@
               <span id="liveCanaryActionStatus">当前不会主动读取账户或创建订单。</span>
             </div>
             <div id="liveCanaryBlockers" class="exchange-demo-blockers"></div>
+            <div id="liveCompactExecutionPositions"></div>
           </div>
+          <details class="lifecycle-archive">
+            <summary><span>风险配置与闭环证据</span><small>高级配置，默认折叠</small></summary>
+            <div class="lifecycle-archive-body">
           <div class="exchange-demo-section formal-outcome-panel">
             <div class="simple-section-title">
               <div>
@@ -962,6 +966,8 @@
               <span id="riskProfileActionStatus">修改会生成新版本；已有持仓继续使用开仓时配置。</span>
             </div>
           </div>
+            </div>
+          </details>
           <div class="lifecycle-stage-panel">
             <div class="lifecycle-panel-head">
               <div><h3>实盘候选</h3><span id="liveLifecycleMeta" aria-live="polite">只显示具有不可变 Live Candidate Package 的策略。</span></div>
@@ -2672,6 +2678,33 @@
         </div>
       </form>
     </dialog>
-    <script src="/app.js?v=20260711-v13-27-1-3-demo-workflow-2"></script>
+    <dialog id="demoOverrideDialog" class="strategy-optimization-dialog demo-override-dialog" aria-labelledby="demoOverrideTitle">
+      <form id="demoOverrideForm">
+        <div class="strategy-optimization-head">
+          <div>
+            <p class="panel-eyebrow">CONTROLLED DEMO-ONLY RELEASE</p>
+            <h2 id="demoOverrideTitle">受控放行到 OKX Demo</h2>
+          </div>
+          <button id="demoOverrideCloseButton" class="dialog-close-button" type="button" aria-label="关闭受控放行窗口" title="关闭">&times;</button>
+        </div>
+        <div class="strategy-optimization-notice demo-override-warning">
+          这只允许策略进入 OKX Demo 收集独立模拟证据，不会直接形成实盘候选，也不会绕过正式回测、完整策略定义或目标不低于 2R 的硬规则。
+        </div>
+        <label class="strategy-optimization-name">
+          <span>放行原因</span>
+          <textarea id="demoOverrideReason" rows="4" required placeholder="说明为什么现在需要提前进入 Demo，以及准备如何复核风险。"></textarea>
+        </label>
+        <label class="strategy-optimization-name">
+          <span>确认语</span>
+          <input id="demoOverrideConfirmation" autocomplete="off" required placeholder="仅放行到OKX DEMO" />
+        </label>
+        <p id="demoOverrideStatus" class="strategy-optimization-status" aria-live="polite"></p>
+        <div class="strategy-optimization-actions">
+          <button id="demoOverrideCancelButton" class="secondary" type="button">取消</button>
+          <button id="demoOverrideSubmitButton" type="submit">确认 Demo-only 放行</button>
+        </div>
+      </form>
+    </dialog>
+    <script src="/app.js?v=20260711-v13-27-1-4-demo-evidence"></script>
   </body>
 </html>

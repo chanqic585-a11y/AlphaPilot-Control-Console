@@ -17,6 +17,7 @@ def arbitrate_demo_signals(
     *,
     maxPositions: int,
     coolingCandidateIds: set[str] | None = None,
+    allowSameFamilyMultipleSymbols: bool = False,
 ) -> DemoArbitrationResult:
     if maxPositions < 1:
         raise ValueError("maxPositions must be positive")
@@ -40,7 +41,9 @@ def arbitrate_demo_signals(
             reason = "candidate_cooldown"
         elif symbol in symbol_sides and symbol_sides[symbol] != side:
             reason = "symbol_direction_conflict"
-        elif family in families:
+        elif symbol in symbol_sides:
+            reason = "duplicate_symbol_signal"
+        elif family in families and not allowSameFamilyMultipleSymbols:
             reason = "duplicate_strategy_family"
         elif correlation_group and correlation_group in correlation_groups:
             reason = "correlated_strategy_conflict"

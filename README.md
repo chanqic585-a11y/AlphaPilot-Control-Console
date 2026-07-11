@@ -3,12 +3,40 @@
 Current version:
 
 ```text
-AlphaPilot V13.27.1.3 - Unified Demo Workflow Progress
+AlphaPilot V13.27.1.4 - Demo Evidence, Full-Market Scan, and Progress
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
 AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
+
+## What V13.27.1.4 Adds
+
+- Keeps a permanent evidence checklist on every Demo strategy card. Formal
+  backtest, target R, strategy definition, local-forward samples, immutable
+  candidate/release, process-only Demo runtime, and closed Demo trades remain
+  visible before and after they are satisfied.
+- Adds a controlled `Demo-only` override for the local-forward sample gate. It
+  requires a reason and the exact phrase `仅放行到OKX DEMO`; it cannot bypass
+  formal backtest evidence, a complete strategy definition, or the `>= 2R`
+  target, and it can never form a Live Candidate.
+- Replaces single-symbol presentation with an OKX public full-market universe:
+  all live USDT linear perpetual contracts are filtered by market metadata,
+  public ticker availability, liquidity, and spread before a capped deep
+  strategy scan. Missing public values are rejected rather than synthesized.
+- Adds a per-strategy `1..10` simultaneous-symbol preference. The effective
+  limit is always the lower of that preference, the active Demo RiskProfile,
+  remaining portfolio slots, duplicate-symbol rules, and current risk budget.
+- Shows separate `current top candidate` and `actual position instrument`
+  fields, plus a compact multi-position view shared by Demo and Live pages.
+- Adds visible progress tracks to running, queued, and paused dual-layer
+  backtests. Download partition counts are shown when known; otherwise the UI
+  displays honest workflow-phase progress instead of inventing elapsed time.
+- Keeps Live and Withdraw boundaries unchanged. Public market scanning requires
+  no credentials; Demo credentials remain process-only and are never persisted.
+
+See `docs/V13.27.1.4-demo-evidence-full-market-progress.md` for the evidence,
+override, universe, concurrency, and UI contracts.
 
 ## What V13.27.1.3 Adds
 

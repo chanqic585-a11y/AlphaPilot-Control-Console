@@ -68,6 +68,41 @@ def metadata(_symbol: str) -> dict:
     }
 
 
+def dynamic_metadata(symbol: str) -> dict:
+    return {
+        **metadata(symbol),
+        "instId": symbol,
+    }
+
+
+def trending_snapshot(_symbol: str, _timeframe: str, _limit: int) -> dict:
+    now = int(time.time() * 1000)
+    candles = []
+    for index in range(260):
+        close = 100.0 + index * 0.1
+        candles.append(
+            {
+                "timestamp": now - (259 - index) * 86_400_000,
+                "open": close - 0.05,
+                "high": close + 0.05,
+                "low": close - 0.15,
+                "close": close,
+                "volume": 1000.0,
+                "confirmed": True,
+            }
+        )
+    return {
+        "ok": True,
+        "price": candles[-1]["close"],
+        "bidPrice": candles[-1]["close"] - 0.01,
+        "askPrice": candles[-1]["close"] + 0.01,
+        "spreadPct": 0.0002,
+        "atr14": 0.2,
+        "latestCandleAt": now,
+        "_confirmedCandles": candles,
+    }
+
+
 class DemoReleaseScannerTests(unittest.TestCase):
     def test_scanner_binds_signal_to_release_and_sizes_from_public_metadata(self) -> None:
         result = scan_immutable_demo_release(
@@ -101,6 +136,80 @@ class DemoReleaseScannerTests(unittest.TestCase):
 
         self.assertEqual(calls, 0)
         self.assertIn("release_market_definition_incomplete", result["blockers"])
+
+    def test_dynamic_full_market_policy_uses_ranked_public_universe_and_reports_progress(self) -> None:
+        release = contract()
+        release["strategy"]["marketDefinition"] = {
+            "timeframe": "1h",
+            "universePolicy": {
+                "mode": "okx_usdt_linear_perpetual_full_market",
+                "screeningLimit": 2,
+            },
+        }
+        calls: list[int] = []
+
+        def universe_loader(limit: int) -> dict:
+            calls.append(limit)
+            return {
+                "marketScope": "okx_usdt_linear_perpetual_full_market",
+                "totalInstrumentCount": 123,
+                "liveUsdtLinearSwapCount": 98,
+                "liquidityEligibleCount": 40,
+                "screeningPool": [
+                    {"instId": "BTC-USDT-SWAP", "quoteVolumeProxy": 20},
+                    {"instId": "ETH-USDT-SWAP", "quoteVolumeProxy": 10},
+                ],
+                "errors": [],
+            }
+
+        result = scan_immutable_demo_release(
+            release,
+            snapshot_loader=snapshot,
+            metadata_loader=dynamic_metadata,
+            universe_loader=universe_loader,
+        )
+
+        self.assertEqual(calls, [2])
+        self.assertEqual({row["instId"] for row in result["signals"]}, {"BTC-USDT-SWAP", "ETH-USDT-SWAP"})
+        self.assertEqual(result["universe"]["totalInstrumentCount"], 123)
+        self.assertEqual(result["universe"]["liquidityEligibleCount"], 40)
+        self.assertEqual(result["progress"]["completed"], 2)
+        self.assertEqual(result["progress"]["required"], 2)
+        self.assertEqual(result["progress"]["percent"], 100)
+        self.assertEqual(result["progress"]["status"], "completed")
+
+    def test_strategy_family_policy_scans_without_generic_placeholder_rules(self) -> None:
+        release = contract()
+        release["strategy"]["marketDefinition"] = {
+            "timeframe": "1d",
+            "eligibleInstruments": ["BTC-USDT-SWAP"],
+        }
+        release["strategy"]["forwardSignalPolicy"] = {
+            "policyType": "strategy_family_params_v1",
+            "family": "breakout",
+            "direction": "long",
+            "parameters": {
+                "btcRegimes": ["bull"],
+                "minVolumeRatio": 0.5,
+                "rsiMin": 0,
+                "rsiMax": 100,
+                "breakoutMultiplier": 0.998,
+                "atrMultiplier": 2.0,
+                "btcReturn24hMinPct": -100,
+                "btcReturn3dMinPct": -100,
+            },
+        }
+
+        result = scan_immutable_demo_release(
+            release,
+            snapshot_loader=trending_snapshot,
+            metadata_loader=dynamic_metadata,
+        )
+
+        self.assertEqual(result["blockers"], [])
+        self.assertEqual(len(result["signals"]), 1)
+        self.assertEqual(result["signals"][0]["instId"], "BTC-USDT-SWAP")
+        self.assertEqual(result["signals"][0]["factorContext"]["policyType"], "strategy_family_params_v1")
 
 
 if __name__ == "__main__":

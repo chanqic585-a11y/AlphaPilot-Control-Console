@@ -12,10 +12,15 @@ from typing import Any
 from .config import DATA_DIR, get_quant_engine_path
 from .credential_runtime import load_okx_demo_credentials, runtime_credential_status
 from .demo_arbitrator import arbitrate_demo_signals
+from .demo_market_scan_service import save_demo_release_scan
 from .demo_execution_engine import DemoExecutionEngine
 from .demo_execution_store import DemoExecutionStore
 from .demo_release_scanner import scan_immutable_demo_release
 from .demo_runtime_guard import evaluate_demo_runtime_guard
+from .demo_strategy_runtime_settings import (
+    effective_symbol_limit,
+    get_demo_strategy_runtime_settings,
+)
 from .exchange_connectors.okx_demo_client import OkxDemoClient
 from .execution_outcome_store import ExecutionOutcomeStore
 from .portfolio_risk import normalize_risk_profile
@@ -57,6 +62,8 @@ def validate_demo_contract(contract: dict[str, Any]) -> None:
         raise PermissionError("Live or withdraw capability is forbidden")
     if boundary.get("rawCredentialFieldsAllowed") is not False:
         raise PermissionError("Raw credential fields must be forbidden")
+    if contract.get("releaseMode") == "experimental_override" and contract.get("livePromotionAllowed") is not False:
+        raise PermissionError("Experimental Demo override promotion must remain disabled")
     if not contract.get("demoReleaseId") or not contract.get("strategyCandidateId"):
         raise ValueError("Demo release identity is incomplete")
     if not contract.get("releaseContentHash"):
@@ -117,7 +124,7 @@ def _portfolio_from_demo_account(
     risk_by_correlation: dict[str, float] = {}
     for record in attributed_records:
         signal = record.signal
-        strategy = str(signal.get("candidateId") or "unknown")
+        strategy = str(signal.get("strategyCandidateId") or signal.get("candidateId") or "unknown")
         symbol = str(signal.get("instId") or "unknown")
         direction = "long" if str(signal.get("side") or "").lower() == "buy" else "short"
         correlation = str(signal.get("correlationGroup") or "")
@@ -279,6 +286,13 @@ def build_evolution_demo_status() -> dict[str, Any]:
                 "strategyCandidateId": contract.get("strategyCandidateId"),
                 "status": contract.get("status"),
                 "contractHash": contract.get("contractHash"),
+                "releaseMode": contract.get("releaseMode") or "formal_evidence",
+                "livePromotionAllowed": bool(contract.get("livePromotionAllowed", False)),
+                "marketDefinition": (
+                    (contract.get("strategy") or {}).get("marketDefinition")
+                    if isinstance(contract.get("strategy"), dict)
+                    else {}
+                ),
             }
             for contract in contracts
         ],
@@ -323,6 +337,18 @@ def run_evolution_demo_cycle(payload: dict[str, Any]) -> dict[str, Any]:
             "scan": scan,
             "status": status,
         }
+    scan_strategy_id = str(contract.get("strategyCandidateId") or "")
+    if scan_strategy_id:
+        try:
+            save_demo_release_scan(scan_strategy_id, scan)
+        except (OSError, ValueError):
+            return {
+                "ok": False,
+                "blockers": ["demo_market_scan_persistence_failed"],
+                "externalSignalsIgnored": externally_supplied_signal_count,
+                "scan": scan,
+                "status": status,
+            }
     signals = scan.get("signals") if isinstance(scan.get("signals"), list) else []
     store = DemoExecutionStore(STORE_PATH)
     try:
@@ -372,6 +398,7 @@ def run_evolution_demo_cycle(payload: dict[str, Any]) -> dict[str, Any]:
             }
         limits = contract.get("riskEnvelope") if isinstance(contract.get("riskEnvelope"), dict) else {}
         max_positions = int(limits.get("maxConcurrentPositions") or 3)
+        max_positions_per_strategy = int(limits.get("maxPositionsPerStrategy") or max_positions)
         current_positions = int(portfolio.get("openPositionCount") or 0)
         available_slots = max_positions - current_positions
         if available_slots <= 0:
@@ -387,9 +414,49 @@ def run_evolution_demo_cycle(payload: dict[str, Any]) -> dict[str, Any]:
                 "scan": scan,
                 "status": status,
             }
+        strategy_id = str(contract.get("strategyCandidateId") or "")
+        current_strategy_positions = int(
+            (portfolio.get("positionsByStrategy") or {}).get(strategy_id, 0)
+            if isinstance(portfolio.get("positionsByStrategy"), dict)
+            else 0
+        )
+        strategy_settings = get_demo_strategy_runtime_settings(strategy_id)
+        requested_slots = max(
+            0,
+            int(strategy_settings.get("maxConcurrentSymbols") or 1) - current_strategy_positions,
+        )
+        profile_strategy_slots = max(0, max_positions_per_strategy - current_strategy_positions)
+        risk_per_trade = float(limits.get("riskPerTradePercent") or 0.25)
+        remaining_risk = max(
+            0.0,
+            float(limits.get("maxOpenRiskPercent") or 1.0) - float(portfolio.get("openRiskPercent") or 0.0),
+        )
+        risk_slots = int(remaining_risk // risk_per_trade) if risk_per_trade > 0 else 0
+        symbol_limit = effective_symbol_limit(
+            requested=requested_slots,
+            portfolio_limit=profile_strategy_slots,
+            remaining_slots=available_slots,
+            risk_slots=risk_slots,
+            matched_count=len(signals),
+        )
+        if symbol_limit["effective"] <= 0:
+            return {
+                "ok": False,
+                "blockers": ["strategy_symbol_limit_reached"],
+                "symbolLimit": symbol_limit,
+                "rejectedSignals": [
+                    {**item, "reason": "strategy_symbol_limit_reached"}
+                    for item in signals
+                    if isinstance(item, dict)
+                ],
+                "externalSignalsIgnored": externally_supplied_signal_count,
+                "scan": scan,
+                "status": status,
+            }
         arbitration = arbitrate_demo_signals(
             [item for item in signals if isinstance(item, dict)],
-            maxPositions=available_slots,
+            maxPositions=int(symbol_limit["effective"]),
+            allowSameFamilyMultipleSymbols=True,
         )
         created = []
         execution_rejections = []
@@ -415,6 +482,7 @@ def run_evolution_demo_cycle(payload: dict[str, Any]) -> dict[str, Any]:
             "rejectedSignals": [*arbitration.rejected, *execution_rejections],
             "externalSignalsIgnored": externally_supplied_signal_count,
             "scan": scan,
+            "symbolLimit": symbol_limit,
             "status": build_evolution_demo_status(),
         }
     finally:

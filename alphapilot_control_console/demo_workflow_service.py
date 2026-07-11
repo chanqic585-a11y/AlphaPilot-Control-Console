@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
+from .demo_override_release import authorize_demo_override
+from .demo_market_scan_service import scan_demo_strategy_public_universe
+from .demo_strategy_runtime_settings import update_demo_strategy_runtime_settings
 from .demo_workflow_projection import build_demo_workflow_projection
 from .evolution_demo_service import run_evolution_demo_cycle
 from .exchange_demo_simulation import (
     build_exchange_demo_simulation,
     run_exchange_demo_readonly_check,
-    scan_exchange_demo_candidates,
 )
 from .strategy_lifecycle_projection import build_strategy_lifecycle_projection
 
@@ -105,7 +107,13 @@ def _release_readiness(item: dict[str, Any], exchange_demo: dict[str, Any]) -> d
         definition.get("targetR")
         or parameters.get("targetRewardRiskRatio")
         or parameters.get("targetR"),
-        2.0,
+        0.0,
+    )
+    strategy_definition_complete = bool(
+        str(definition.get("family") or "").strip()
+        and str(definition.get("direction") or item.get("direction") or "").strip()
+        and str(definition.get("timeframe") or item.get("timeframe") or "").strip()
+        and parameters
     )
     contract = _find_contract(exchange_demo, _text(item.get("strategyId")))
     readiness = {
@@ -117,6 +125,7 @@ def _release_readiness(item: dict[str, Any], exchange_demo: dict[str, Any]) -> d
         "localForwardReviewStartReached": closed_samples >= 30,
         "targetR": target_r,
         "targetRPassed": target_r >= 2.0,
+        "strategyDefinitionComplete": strategy_definition_complete,
         "formalStrategyCandidateRegistered": bool(contract),
         "immutableDemoReleaseAvailable": bool(contract),
         "note": "30 个闭合样本只是正式复核起点，不代表自动通过全部 Demo 硬门槛。",
@@ -138,16 +147,13 @@ def run_demo_workflow_action(payload: dict[str, Any] | None = None) -> dict[str,
         )
 
     if action == "scan_public_market":
-        scan_result = scan_exchange_demo_candidates({"limit": 20})
-        scanned_exchange = scan_result.get("exchangeDemoSimulation")
-        if not isinstance(scanned_exchange, dict):
-            scanned_exchange = build_exchange_demo_simulation()
+        scan_result = scan_demo_strategy_public_universe(strategy_id)
         return {
             "ok": bool(scan_result.get("ok")),
             "status": "completed" if scan_result.get("ok") else "failed",
-            "message": "公共行情检查完成。" if scan_result.get("ok") else "公共行情检查失败。",
-            "workflow": _response_workflow(lifecycle, scanned_exchange),
-            "scan": scan_result.get("event") or {},
+            "message": "OKX USDT 永续全市场公共行情检查完成。" if scan_result.get("ok") else "OKX 全市场公共行情检查失败。",
+            "workflow": build_demo_workflow_status(),
+            "scan": scan_result.get("scan") or {},
             "safetyBoundary": SAFETY_BOUNDARY,
         }
 
@@ -160,6 +166,8 @@ def run_demo_workflow_action(payload: dict[str, Any] | None = None) -> dict[str,
             blockers.append("local_forward_evidence_incomplete")
         if not readiness["targetRPassed"]:
             blockers.append("target_r_below_2r")
+        if not readiness["strategyDefinitionComplete"]:
+            blockers.append("strategy_definition_incomplete")
         if not readiness["formalStrategyCandidateRegistered"]:
             blockers.append("formal_strategy_candidate_not_registered")
         if not readiness["immutableDemoReleaseAvailable"]:
@@ -177,6 +185,47 @@ def run_demo_workflow_action(payload: dict[str, Any] | None = None) -> dict[str,
             "message": "不可变 Demo Release 已存在，可以继续运行前检查。",
             "readiness": readiness,
             "workflow": _response_workflow(lifecycle, exchange_demo),
+            "safetyBoundary": SAFETY_BOUNDARY,
+        }
+
+    if action == "authorize_demo_override":
+        result = authorize_demo_override(
+            item,
+            reason=_text(payload.get("reason")),
+            confirmation=_text(payload.get("confirmation")),
+        )
+        return {
+            "ok": bool(result.get("ok")),
+            "status": result.get("status") or ("ready" if result.get("ok") else "blocked"),
+            "message": (
+                "受控 Demo-only Release 已生成；实盘晋级仍锁定。"
+                if result.get("ok")
+                else "受控 Demo 放行未通过硬门槛。"
+            ),
+            "blockers": list(result.get("blockers") or []),
+            "override": result,
+            "workflow": build_demo_workflow_status() if result.get("ok") else _response_workflow(lifecycle, exchange_demo),
+            "safetyBoundary": SAFETY_BOUNDARY,
+        }
+
+    if action == "update_demo_strategy_settings":
+        try:
+            settings = update_demo_strategy_runtime_settings(
+                strategy_id,
+                payload.get("maxConcurrentSymbols", 1),
+            )
+        except (TypeError, ValueError) as error:
+            return _blocked(
+                message="每策略同时开仓币种数必须是 1 到 10 的整数。",
+                blockers=[str(error)],
+                workflow=_response_workflow(lifecycle, exchange_demo),
+            )
+        return {
+            "ok": True,
+            "status": "completed",
+            "message": "每策略同时开仓币种上限已保存；组合风险上限仍优先。",
+            "settings": settings,
+            "workflow": build_demo_workflow_status(),
             "safetyBoundary": SAFETY_BOUNDARY,
         }
 

@@ -225,6 +225,7 @@ let latestExchangeDemoCandidate = null;
 let latestDemoWorkflowPayload = { summary: {}, queues: {} };
 let demoWorkflowLoading = null;
 let demoWorkflowPollTimer = null;
+let activeDemoOverrideStrategyId = null;
 let latestNoKeyPreLivePayload = {};
 let latestNoKeyPreLiveCandidate = null;
 let latestAutoExecutionEnginePayload = {};
@@ -270,7 +271,7 @@ const emptyStrategyLifecycle = {
   sourceWarnings: [],
 };
 const emptyWorkflow = {
-  version: "V13.27.1.3",
+  version: "V13.27.1.4",
   summary: {},
   items: [],
   archivedItems: [],
@@ -1059,6 +1060,38 @@ function dualLayerProgressText(item) {
   return required > 0 ? `${label} · 数据分区 ${completed}/${required}` : label;
 }
 
+function dualLayerProgressModel(item) {
+  const status = String(item?.status || "awaiting");
+  const phase = item?.phase || item?.progress?.phase;
+  const phases = Object.keys(dualLayerPhaseLabels);
+  const downloadProgress = item?.downloadProgress || {};
+  const workflowProgress = item?.progress || {};
+  let completed = Number(downloadProgress.completed ?? workflowProgress.completed ?? 0);
+  let required = Number(downloadProgress.required ?? workflowProgress.required ?? 0);
+  let percent = Number(workflowProgress.percent);
+
+  if (!Number.isFinite(percent)) {
+    percent = required > 0 ? (completed / required) * 100 : 0;
+  }
+  if (required <= 0 && ["queued", "running", "paused"].includes(status)) {
+    const phaseIndex = Math.max(0, phases.indexOf(phase));
+    completed = phaseIndex;
+    required = Math.max(1, phases.length);
+    percent = phaseIndex > 0 ? (phaseIndex / required) * 100 : (status === "queued" ? 4 : 8);
+  }
+  if (status === "passed") percent = 100;
+  if (["awaiting", "cancelled", "retired"].includes(status) && required <= 0) percent = 0;
+  if (status === "paused") percent = Math.max(4, percent);
+
+  return {
+    status,
+    label: dualLayerProgressText(item),
+    completed,
+    required,
+    percent: Math.max(0, Math.min(100, Math.round(percent))),
+  };
+}
+
 function dualLayerEvidenceText(item) {
   if (item?.evidenceClass === "formal_backtest") return "正式证据：OKX 官方公共数据";
   if (item?.evidenceClass === "research_smoke") return "研究烟测：本地旧数据，不参与晋级";
@@ -1118,13 +1151,16 @@ function renderDualLayerCard(item, archived = false) {
   const dataCoverage = item?.dataCoverage || {};
   const statusLabel = archived ? "已归档" : dualLayerStatusLabels[item.status] || item.status || "--";
   const tone = item.status === "passed" ? "ok" : ["failed", "blocked"].includes(item.status) ? "danger" : item.status === "running" ? "warn" : "neutral";
+  const runProgress = dualLayerProgressModel(item);
   return `
     <article class="workflow-card" data-workflow-run-id="${escapeHtml(item.workflowRunId || "")}">
       <div class="workflow-card-head">
         <div><h5>${escapeHtml(item.displayName || "未命名策略")}</h5><small>第 ${Number(item.attemptNumber || 1)} 次尝试</small></div>
         <span class="badge ${tone}">${escapeHtml(statusLabel)}</span>
       </div>
-      <p class="workflow-progress">${escapeHtml(dualLayerProgressText(item))}</p>
+      <div class="workflow-run-progress-head"><span>${escapeHtml(runProgress.label)}</span><strong>${runProgress.percent}%</strong></div>
+      <div class="workflow-run-progress-track ${escapeHtml(runProgress.status)}"><i style="width:${runProgress.percent}%"></i></div>
+      ${runProgress.required > 0 ? `<small class="workflow-run-progress-note">${runProgress.completed}/${runProgress.required} 个可核验步骤</small>` : ""}
       <div class="workflow-evidence-row"><span>${escapeHtml(dualLayerEvidenceText(item))}</span><small>目标 ≥ 2R</small></div>
       ${metrics.length ? `<div class="workflow-metrics">${metrics.map((row) => `<span>${escapeHtml(row)}</span>`).join("")}</div>` : ""}
       ${failure && failure !== "--" ? `<div class="workflow-failure"><strong>${escapeHtml(failure)}</strong></div>` : ""}
@@ -1550,6 +1586,10 @@ function demoWorkflowReasonLabel(value) {
     formal_backtest_evidence_missing: "缺少正式回测证据",
     local_forward_evidence_incomplete: "本地前向闭合样本不足",
     target_r_below_2r: "目标盈亏比低于 2R",
+    strategy_definition_incomplete: "策略家族、方向、周期或参数不完整",
+    active_demo_risk_profile_missing: "缺少已启用的 OKX Demo 风险配置",
+    override_reason_required: "需要填写受控放行原因",
+    override_confirmation_mismatch: "受控放行确认语不匹配",
     demo_strategy_not_found: "找不到策略",
     unsupported_demo_workflow_action: "不支持的工作流动作",
   };
@@ -1565,13 +1605,110 @@ function renderDemoProcessSteps(steps) {
   `).join("")}</div>`;
 }
 
+const demoWorkflowActions = {
+  updateSettings: { action: "update_demo_strategy_settings" },
+  authorizeOverride: { action: "authorize_demo_override" },
+};
+
+function demoEvidenceSourceLabel(sourceType) {
+  const labels = {
+    automatic: "系统自动",
+    manual_runtime: "人工操作",
+    controlled_override: "受控放行",
+  };
+  return labels[sourceType] || "待确认";
+}
+
+function demoEvidenceStatusLabel(status) {
+  const labels = {
+    passed: "已满足",
+    bypassed: "Demo 受控放行",
+    pending: "待处理",
+    missing: "缺失",
+  };
+  return labels[status] || status || "待处理";
+}
+
+function renderDemoEvidence(checklist = {}) {
+  const rows = Array.isArray(checklist.items) ? checklist.items : [];
+  const summary = checklist.summary || {};
+  return `
+    <section class="demo-evidence-section">
+      <div class="demo-section-head"><strong>证据清单</strong><small>${Number(summary.passedCount || 0)}/${rows.length || 0} 已满足 · ${Number(summary.blockingCount || 0)} 项阻塞</small></div>
+      <div class="demo-evidence-list">
+        ${rows.map((row) => `
+          <div class="demo-evidence-row ${escapeHtml(row.status || "pending")}">
+            <span class="demo-evidence-state">${escapeHtml(demoEvidenceStatusLabel(row.status))}</span>
+            <div><strong>${escapeHtml(row.label || "证据")}</strong><small>${escapeHtml(String(row.current ?? "--"))} / ${escapeHtml(String(row.target ?? "--"))}</small></div>
+            <em>${escapeHtml(demoEvidenceSourceLabel(row.sourceType))}</em>
+            <p>${escapeHtml(row.nextAction || row.detail || "等待系统复核。")}</p>
+          </div>
+        `).join("") || '<div class="workflow-empty">证据清单尚未生成。</div>'}
+      </div>
+    </section>
+  `;
+}
+
+function renderDemoMarketUniverse(universe = {}) {
+  const ranked = Array.isArray(universe.rankedCandidates) ? universe.rankedCandidates : [];
+  const progress = universe.progress || {};
+  const matched = universe.strategyMatchedCount;
+  const matchedText = matched === null || matched === undefined ? "待深扫" : String(matched);
+  const scanPercent = Math.max(0, Math.min(100, Number(progress.percent || 0)));
+  return `
+    <section class="demo-market-universe">
+      <div class="demo-section-head"><strong>OKX USDT 永续全市场</strong><small>${escapeHtml(universe.matchStatus || "尚未扫描")}</small></div>
+      <div class="demo-market-metrics">
+        <div><span>市场合约</span><strong>${Number(universe.liveUsdtLinearSwapCount || universe.totalInstrumentCount || 0)}</strong></div>
+        <div><span>流动性合格</span><strong>${Number(universe.liquidityEligibleCount || 0)}</strong></div>
+        <div><span>深度扫描</span><strong>${Number(universe.deepScreenedCount || 0)}</strong></div>
+        <div><span>策略匹配</span><strong>${escapeHtml(matchedText)}</strong></div>
+      </div>
+      <div class="workflow-run-progress-track ${escapeHtml(progress.status || "awaiting")}"><i style="width:${scanPercent}%"></i></div>
+      <div class="demo-market-candidates">
+        ${ranked.slice(0, 5).map((row) => `<span>${escapeHtml(row.instId || row.symbol || "--")}${row.score !== undefined ? ` · ${escapeHtml(formatNumber(row.score))}` : ""}</span>`).join("") || "<span>扫描后显示最匹配候选，不固定单一币种。</span>"}
+      </div>
+    </section>
+  `;
+}
+
+function renderCompactExecutionPositions(positions, options = {}) {
+  const rows = Array.isArray(positions) ? positions.filter(Boolean) : [];
+  const title = options.title || "当前持仓";
+  const emptyText = options.emptyText || "当前没有持仓；系统会继续扫描全市场。";
+  return `
+    <section class="compact-execution-positions">
+      <div class="demo-section-head"><strong>${escapeHtml(title)}</strong><small>${rows.length} 个持仓</small></div>
+      ${rows.length ? `<div class="compact-position-list">${rows.map((row) => `
+        <article class="compact-position-row">
+          <div><strong>${escapeHtml(row.instrumentId || row.instId || row.symbol || "--")}</strong><small>${escapeHtml(row.side || row.direction || "方向待定")} · ${escapeHtml(demoWorkflowStatusLabel(row.status || "unknown"))}</small></div>
+          <div><span>买入 / 开仓价</span><strong>${escapeHtml(demoWorkflowValue(row.entryPrice, (value) => formatNumber(value, 6)))}</strong></div>
+          <div><span>现价</span><strong>${escapeHtml(demoWorkflowValue(row.markPrice, (value) => formatNumber(value, 6)))}</strong></div>
+          <div><span>浮动盈亏</span><strong class="${Number(row.unrealizedPnl || 0) > 0 ? "positive" : Number(row.unrealizedPnl || 0) < 0 ? "negative" : ""}">${escapeHtml(demoWorkflowValue(row.unrealizedPnl, (value) => formatUsd(value, 2)))}</strong></div>
+          <div><span>目标盈利价</span><strong>${escapeHtml(demoWorkflowValue(row.takeProfitPrice, (value) => formatNumber(value, 6)))}</strong></div>
+          <div><span>止损价</span><strong>${escapeHtml(demoWorkflowValue(row.stopLossPrice, (value) => formatNumber(value, 6)))}</strong></div>
+        </article>
+      `).join("")}</div>` : `<div class="workflow-empty">${escapeHtml(emptyText)}</div>`}
+    </section>
+  `;
+}
+
 function renderDemoWorkflowCard(item) {
   const progress = item.progress || {};
   const market = item.market || {};
   const position = item.position || {};
+  const positions = Array.isArray(item.positions) && item.positions.length
+    ? item.positions
+    : (market.instrumentId ? [{ instrumentId: market.instrumentId, ...position, unrealizedPnl: item.performance?.unrealizedPnl }] : []);
   const performance = item.performance || {};
   const failure = item.failure || {};
   const nextAction = item.nextAction || {};
+  const evidenceChecklist = item.evidenceChecklist || {};
+  const evidenceById = new Map((evidenceChecklist.items || []).map((row) => [row.evidenceId, row]));
+  const executionLimits = item.executionLimits || {};
+  const requestedSymbolLimit = Math.max(1, Number(executionLimits.requestedMaxConcurrentSymbols || 1));
+  const canDemoOverride = !item.release?.formal
+    && ["formal_backtest", "target_reward_risk", "strategy_definition"].every((evidenceId) => evidenceById.get(evidenceId)?.status === "passed");
   const percent = Math.max(0, Math.min(100, Number(progress.percent || 0)));
   const pnlTone = Number(performance.realizedPnl || 0) > 0
     ? "positive"
@@ -1591,20 +1728,27 @@ function renderDemoWorkflowCard(item) {
       <div class="lifecycle-progress-track"><i style="width:${percent}%"></i></div>
       <small class="demo-workflow-progress-note">${Number(progress.completed ?? 0)}/${Number(progress.required ?? 0)} 个流程步骤</small>
       ${renderDemoProcessSteps(item.processSteps)}
+      ${renderDemoMarketUniverse(item.marketUniverse || {})}
       <div class="demo-workflow-trade-grid">
-        <div><span>交易币种</span><strong>${escapeHtml(demoWorkflowValue(market.instrumentId))}</strong></div>
-        <div><span>持仓状态</span><strong>${escapeHtml(demoWorkflowStatusLabel(position.status || "not_started"))}</strong></div>
-        <div><span>买入 / 开仓价</span><strong>${escapeHtml(demoWorkflowValue(position.entryPrice, (value) => formatNumber(value, 6)))}</strong></div>
-        <div><span>当前价格</span><strong>${escapeHtml(demoWorkflowValue(position.markPrice ?? market.markPrice, (value) => formatNumber(value, 6)))}</strong></div>
-        <div><span>目标盈利价</span><strong>${escapeHtml(demoWorkflowValue(position.takeProfitPrice, (value) => formatNumber(value, 6)))}</strong></div>
-        <div><span>止损价</span><strong>${escapeHtml(demoWorkflowValue(position.stopLossPrice, (value) => formatNumber(value, 6)))}</strong></div>
-        <div><span>持仓数量</span><strong>${escapeHtml(demoWorkflowValue(position.quantity, (value) => formatNumber(value, 6)))}</strong></div>
-        <div><span>浮动盈亏</span><strong class="${performance.unrealizedPnl > 0 ? "positive" : performance.unrealizedPnl < 0 ? "negative" : ""}">${escapeHtml(demoWorkflowValue(performance.unrealizedPnl, (value) => formatUsd(value, 2)))}</strong></div>
+        <div><span>当前首选候选</span><strong>${escapeHtml(demoWorkflowValue(market.currentTopCandidate))}</strong></div>
+        <div><span>实际持仓币种</span><strong>${escapeHtml(demoWorkflowValue(market.instrumentId))}</strong></div>
+        <div><span>持仓状态</span><strong>${escapeHtml(positions.length ? `${positions.length} 个进行中` : demoWorkflowStatusLabel(position.status || "not_started"))}</strong></div>
         <div><span>已实现盈亏</span><strong class="${pnlTone}">${escapeHtml(demoWorkflowValue(performance.realizedPnl, (value) => formatUsd(value, 2)))}</strong></div>
         <div><span>手续费</span><strong>${escapeHtml(demoWorkflowValue(performance.fees, (value) => formatUsd(value, 2)))}</strong></div>
         <div><span>滑点</span><strong>${escapeHtml(demoWorkflowValue(performance.slippage, (value) => formatUsd(value, 2)))}</strong></div>
         <div><span>闭合交易</span><strong>${Number(performance.closedTradeCount || 0)}</strong></div>
       </div>
+      <div class="demo-symbol-limit">
+        <label>每策略最多同时开仓
+          <select data-demo-symbol-limit>
+            ${Array.from({ length: 10 }, (_, index) => index + 1).map((value) => `<option value="${value}" ${value === requestedSymbolLimit ? "selected" : ""}>${value} 个币种</option>`).join("")}
+          </select>
+        </label>
+        <button type="button" class="secondary" data-demo-workflow-action="${demoWorkflowActions.updateSettings.action}" data-strategy-id="${escapeHtml(item.strategyId || "")}">保存上限</button>
+        <small>当前风险配置最多 ${Number(executionLimits.profileMaxPositionsPerStrategy || 1)} 个；实际生效 ${Number(executionLimits.effectiveConfiguredMaximum || 1)} 个，剩余 ${Number(executionLimits.availableConfiguredSlots || 0)} 个。</small>
+      </div>
+      ${renderCompactExecutionPositions(positions, { title: "当前 Demo 持仓", emptyText: "尚未开仓；策略会继续扫描全市场并等待真实条件匹配。" })}
+      ${renderDemoEvidence(evidenceChecklist)}
       ${failure.status && failure.status !== "none" ? `
         <div class="demo-workflow-failure">
           <span>失败原因 / 当前阻塞</span>
@@ -1619,6 +1763,7 @@ function renderDemoWorkflowCard(item) {
       ${nextAction.command ? `<div class="demo-workflow-command"><span>启动命令</span><code>${escapeHtml(nextAction.command)}</code></div>` : ""}
       <div class="workflow-actions">
         ${canRun ? `<button type="button" data-demo-workflow-action="${escapeHtml(nextAction.actionId || "")}" data-strategy-id="${escapeHtml(item.strategyId || "")}">${escapeHtml(nextAction.label || "执行下一步")}</button>` : ""}
+        ${canDemoOverride ? `<button type="button" class="secondary" data-demo-workflow-action="open_demo_override" data-strategy-id="${escapeHtml(item.strategyId || "")}">受控放行到 Demo</button>` : ""}
         ${retryVisible ? `<button type="button" class="secondary" data-demo-workflow-action="retry_demo_cycle" data-strategy-id="${escapeHtml(item.strategyId || "")}">重新验证</button>` : ""}
         ${optimizeVisible ? `<button type="button" class="secondary" data-demo-workflow-action="optimize" data-strategy-id="${escapeHtml(item.strategyId || "")}">改善优化</button>` : ""}
       </div>
@@ -1680,7 +1825,49 @@ async function loadDemoWorkflow(force = false) {
   return demoWorkflowLoading;
 }
 
-async function runDemoWorkflowAction(action, strategyId) {
+function openDemoOverrideDialog(strategyId) {
+  activeDemoOverrideStrategyId = strategyId;
+  const dialog = el("demoOverrideDialog");
+  if (!dialog) return;
+  if (el("demoOverrideReason")) el("demoOverrideReason").value = "";
+  if (el("demoOverrideConfirmation")) el("demoOverrideConfirmation").value = "";
+  setText("demoOverrideStatus", "该权限只绕过本地前向样本门槛，正式回测、2R 和完整策略定义仍必须通过。");
+  if (typeof dialog.showModal === "function") dialog.showModal();
+  else dialog.setAttribute("open", "");
+}
+
+function closeDemoOverrideDialog() {
+  const dialog = el("demoOverrideDialog");
+  activeDemoOverrideStrategyId = null;
+  if (!dialog) return;
+  if (typeof dialog.close === "function" && dialog.open) dialog.close();
+  else dialog.removeAttribute("open");
+}
+
+async function submitDemoOverride(event) {
+  event.preventDefault();
+  if (!activeDemoOverrideStrategyId) return;
+  const reason = String(el("demoOverrideReason")?.value || "").trim();
+  const confirmation = String(el("demoOverrideConfirmation")?.value || "").trim();
+  if (!reason || confirmation !== "仅放行到OKX DEMO") {
+    setText("demoOverrideStatus", "请填写放行原因，并完整输入确认语：仅放行到OKX DEMO");
+    return;
+  }
+  const submitButton = el("demoOverrideSubmitButton");
+  if (submitButton) submitButton.disabled = true;
+  try {
+    await runDemoWorkflowAction(
+      demoWorkflowActions.authorizeOverride.action,
+      activeDemoOverrideStrategyId,
+      { reason, confirmation },
+    );
+    closeDemoOverrideDialog();
+  } finally {
+    if (submitButton) submitButton.disabled = false;
+  }
+}
+
+async function runDemoWorkflowAction(action, strategyId, extra = {}) {
   if (action === "optimize") {
     const item = (latestStrategyLifecyclePayload?.items || []).find((row) => row.strategyId === strategyId);
     if (item) openStrategyOptimizationDialog(item);
@@ -1688,7 +1875,7 @@ async function runDemoWorkflowAction(action, strategyId) {
   }
   setText("demoWorkflowActionStatus", "正在执行当前合法步骤，请稍候。");
   try {
-    const response = await postJson("/api/demo-workflow/action", { action, strategyId });
+    const response = await postJson("/api/demo-workflow/action", { action, strategyId, ...extra });
     renderDemoWorkflow(response.workflow || { summary: {}, queues: {} });
     const blockers = Array.isArray(response.blockers) ? response.blockers : [];
     setText(
@@ -3731,6 +3918,9 @@ function renderLiveCanary(payload = {}) {
   const runtime = payload.runtime || {};
   const releases = payload.liveReleases?.summary || {};
   const blockers = Array.isArray(payload.blockers) ? payload.blockers : [];
+  const livePositions = Array.isArray(payload?.portfolioSnapshot?.positions)
+    ? payload.portfolioSnapshot.positions
+    : (Array.isArray(payload.positions) ? payload.positions : (Array.isArray(runtime.positions) ? runtime.positions : []));
   const processGateCount = [gates.masterEnabled, gates.readEnabled, gates.canaryEnabled, gates.orderEnabled].filter(Boolean).length;
   const ready = Boolean(summary.canaryOrderReady);
   setText("liveCanaryHeaderBadge", ready ? "Canary 已就绪" : "Canary 未就绪");
@@ -3753,6 +3943,12 @@ function renderLiveCanary(payload = {}) {
   el("liveCanaryBlockers").innerHTML = blockers.length
     ? blockers.map((item) => `<span>${escapeHtml(translateLiveCanaryBlocker(item))}</span>`).join("")
     : '<span class="ok">全部运行门已通过</span>';
+  if (el("liveCompactExecutionPositions")) {
+    el("liveCompactExecutionPositions").innerHTML = renderCompactExecutionPositions(livePositions, {
+      title: "当前实盘持仓",
+      emptyText: "当前没有实盘持仓；实盘执行仍由 Canary 闸门控制。",
+    });
+  }
 }
 
 function translateExecutionOutcomeQuarantine(reason) {
@@ -7003,6 +7199,12 @@ el("strategyOptimizationCancelButton")?.addEventListener("click", closeStrategyO
 el("strategyOptimizationDialog")?.addEventListener("click", (event) => {
   if (event.target === event.currentTarget) closeStrategyOptimizationDialog();
 });
+el("demoOverrideForm")?.addEventListener("submit", submitDemoOverride);
+el("demoOverrideCloseButton")?.addEventListener("click", closeDemoOverrideDialog);
+el("demoOverrideCancelButton")?.addEventListener("click", closeDemoOverrideDialog);
+el("demoOverrideDialog")?.addEventListener("click", (event) => {
+  if (event.target === event.currentTarget) closeDemoOverrideDialog();
+});
 el("weaknessActionStatusFilter")?.addEventListener("change", (event) => {
   weaknessActionFilters.status = event.target.value || "active";
   renderWeaknessActionBoard(latestWeaknessActionBoardPayload);
@@ -7024,8 +7226,15 @@ el("exchangeDemo")?.addEventListener("click", (event) => {
   if (!button) return;
   const action = button.dataset.demoWorkflowAction || "";
   const strategyId = button.dataset.strategyId || "";
+  if (action === "open_demo_override") {
+    openDemoOverrideDialog(strategyId);
+    return;
+  }
+  const extra = action === demoWorkflowActions.updateSettings.action
+    ? { maxConcurrentSymbols: Number(button.closest(".demo-workflow-card")?.querySelector("[data-demo-symbol-limit]")?.value || 1) }
+    : {};
   button.disabled = true;
-  void runDemoWorkflowAction(action, strategyId).finally(() => {
+  void runDemoWorkflowAction(action, strategyId, extra).finally(() => {
     button.disabled = false;
   });
 });

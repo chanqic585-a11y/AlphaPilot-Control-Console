@@ -19,6 +19,22 @@ class DemoArbitratorTests(unittest.TestCase):
         self.assertEqual(reasons["b"], "symbol_direction_conflict")
         self.assertEqual(reasons["c"], "duplicate_strategy_family")
 
+    def test_one_strategy_can_select_multiple_distinct_symbols_when_explicitly_enabled(self) -> None:
+        signals = [
+            {"candidateId": "a", "strategyFamilyId": "trend", "instId": "BTC-USDT-SWAP", "side": "buy", "score": 0.9},
+            {"candidateId": "b", "strategyFamilyId": "trend", "instId": "ETH-USDT-SWAP", "side": "buy", "score": 0.8},
+            {"candidateId": "c", "strategyFamilyId": "trend", "instId": "BTC-USDT-SWAP", "side": "buy", "score": 0.7},
+        ]
+
+        result = arbitrate_demo_signals(
+            signals,
+            maxPositions=3,
+            allowSameFamilyMultipleSymbols=True,
+        )
+
+        self.assertEqual([item["candidateId"] for item in result.selected], ["a", "b"])
+        self.assertEqual(result.rejected[0]["reason"], "duplicate_symbol_signal")
+
 
 if __name__ == "__main__":
     unittest.main()

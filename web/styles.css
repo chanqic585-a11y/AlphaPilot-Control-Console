@@ -6185,3 +6185,244 @@ body.show-advanced .hero-grid.advanced-section {
     grid-column: 1 / -1;
   }
 }
+
+.workflow-run-progress-head,
+.demo-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.workflow-run-progress-head {
+  margin-top: 14px;
+  color: var(--text);
+}
+
+.workflow-run-progress-head span,
+.demo-section-head small,
+.workflow-run-progress-note {
+  color: var(--muted);
+}
+
+.workflow-run-progress-track {
+  width: 100%;
+  height: 8px;
+  margin: 8px 0 5px;
+  overflow: hidden;
+  background: #1b2532;
+  border: 1px solid #2d3a4d;
+  border-radius: 4px;
+}
+
+.workflow-run-progress-track i {
+  display: block;
+  min-width: 2px;
+  height: 100%;
+  background: #65d6b5;
+  transition: width 180ms ease;
+}
+
+.workflow-run-progress-track.running i,
+.workflow-run-progress-track.queued i {
+  background: #f3c64d;
+}
+
+.workflow-run-progress-track.paused i,
+.workflow-run-progress-track.blocked i {
+  background: #ef8d62;
+}
+
+.demo-evidence-section,
+.demo-market-universe,
+.compact-execution-positions {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #283548;
+}
+
+.demo-evidence-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.demo-evidence-row {
+  display: grid;
+  grid-template-columns: 110px minmax(180px, 1fr) auto;
+  gap: 8px 12px;
+  align-items: center;
+  padding: 10px 12px;
+  background: #0b1119;
+  border: 1px solid #263244;
+  border-radius: 6px;
+}
+
+.demo-evidence-row.passed,
+.demo-evidence-row.bypassed {
+  border-color: #285c50;
+}
+
+.demo-evidence-row.missing {
+  border-color: #713444;
+}
+
+.demo-evidence-row p {
+  grid-column: 2 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.demo-evidence-row em,
+.demo-evidence-state {
+  color: #9fc0dd;
+  font-size: 12px;
+  font-style: normal;
+}
+
+.demo-market-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(110px, 1fr));
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.demo-market-metrics > div,
+.demo-workflow-trade-grid > div {
+  min-width: 0;
+}
+
+.demo-market-metrics span,
+.compact-position-row span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.demo-market-metrics strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 18px;
+}
+
+.demo-market-candidates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.demo-market-candidates span {
+  padding: 5px 8px;
+  color: #b9c9dc;
+  background: #101923;
+  border: 1px solid #2d3a4d;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.demo-symbol-limit {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px;
+  background: #101720;
+  border: 1px solid #2c3b4d;
+  border-radius: 6px;
+}
+
+.demo-symbol-limit label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.demo-symbol-limit select {
+  min-width: 128px;
+}
+
+.demo-symbol-limit small {
+  flex: 1;
+  color: var(--muted);
+}
+
+.compact-position-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.compact-position-row {
+  display: grid;
+  grid-template-columns: minmax(170px, 1.4fr) repeat(6, minmax(105px, 1fr));
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  background: #0b1119;
+  border: 1px solid #263244;
+  border-left: 3px solid #65d6b5;
+  border-radius: 6px;
+}
+
+.compact-position-row > div {
+  min-width: 0;
+}
+
+.compact-position-row strong {
+  overflow-wrap: anywhere;
+}
+
+.demo-override-dialog textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.demo-override-warning {
+  border-left-color: #f3c64d;
+}
+
+@media (max-width: 900px) {
+  .demo-market-metrics {
+    grid-template-columns: repeat(2, minmax(110px, 1fr));
+  }
+
+  .compact-position-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .compact-position-row > div:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .demo-symbol-limit {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 640px) {
+  .demo-evidence-row {
+    grid-template-columns: 1fr;
+  }
+
+  .demo-evidence-row p {
+    grid-column: 1;
+  }
+
+  .demo-evidence-row em,
+  .demo-evidence-state {
+    width: max-content;
+  }
+
+  .demo-market-metrics,
+  .compact-position-row {
+    grid-template-columns: 1fr;
+  }
+
+  .compact-position-row > div:first-child {
+    grid-column: auto;
+  }
+}

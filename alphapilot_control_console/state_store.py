@@ -161,6 +161,10 @@ def load_state() -> dict[str, Any]:
         state["localSandboxLearningSnapshots"] = []
     if not isinstance(state.get("strategyStageAssignments"), dict):
         state["strategyStageAssignments"] = {}
+    if not isinstance(state.get("demoStrategyRuntimeSettings"), dict):
+        state["demoStrategyRuntimeSettings"] = {}
+    if not isinstance(state.get("demoStrategyMarketScans"), dict):
+        state["demoStrategyMarketScans"] = {}
     if not isinstance(state.get("manualExecutionTickets"), list):
         state["manualExecutionTickets"] = []
     if not isinstance(state.get("preLiveRehearsals"), list):

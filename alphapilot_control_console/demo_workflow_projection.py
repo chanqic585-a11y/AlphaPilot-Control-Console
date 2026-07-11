@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
+from .demo_evidence import build_demo_evidence_checklist
+from .demo_market_scan_service import get_demo_strategy_market_scan
+from .demo_strategy_runtime_settings import get_demo_strategy_runtime_settings
 
-VERSION = "V13.27.1.3"
-SOURCE = "demo_workflow_projection_v13_27_1_3"
+
+VERSION = "V13.27.1.4"
+SOURCE = "demo_workflow_projection_v13_27_1_4"
 
 QUEUE_BY_STAGE = {
     "demo_trial": "waiting",
@@ -129,20 +134,25 @@ def _market_view(
     candidate: dict[str, Any],
     latest_record: dict[str, Any],
     latest_position: dict[str, Any],
+    market_scan: dict[str, Any],
 ) -> dict[str, Any]:
     signal = _mapping(latest_record.get("signal"))
     instrument_id = _text(
         latest_position.get("instId")
         or signal.get("instId")
+    ) or None
+    current_top_candidate = _text(
+        market_scan.get("currentTopCandidate")
         or candidate.get("instId")
     ) or None
     return {
         "instrumentId": instrument_id,
-        "symbol": _text(candidate.get("symbol")) or instrument_id,
+        "currentTopCandidate": current_top_candidate,
+        "symbol": instrument_id or current_top_candidate,
         "side": _text(latest_position.get("side") or signal.get("side") or candidate.get("side")) or None,
-        "dataStatus": _text(candidate.get("screeningStatus") or candidate.get("marketDataStatus")) or "not_started",
+        "dataStatus": _text(market_scan.get("matchStatus") or candidate.get("screeningStatus") or candidate.get("marketDataStatus")) or "not_started",
         "markPrice": _number(latest_position.get("markPrice") or latest_position.get("markPx")),
-        "updatedAt": latest_position.get("updatedAt") or latest_record.get("updatedAt") or None,
+        "updatedAt": latest_position.get("updatedAt") or latest_record.get("updatedAt") or market_scan.get("updatedAt") or None,
     }
 
 
@@ -165,6 +175,22 @@ def _position_view(latest_record: dict[str, Any], latest_position: dict[str, Any
         "takeProfitPrice": _number(latest_position.get("takeProfitPrice") or signal.get("takeProfitPrice")),
         "openedAt": latest_position.get("openedAt") or latest_record.get("createdAt") or None,
     }
+
+
+def _position_summaries(positions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    summaries: list[dict[str, Any]] = []
+    for position in positions:
+        view = _position_view({}, position)
+        summaries.append(
+            {
+                "instrumentId": _text(position.get("instId") or position.get("symbol")) or None,
+                **view,
+                "unrealizedPnl": _number(position.get("unrealizedPnl") or position.get("upl")),
+                "realizedPnl": _number(position.get("realizedPnl")),
+                "updatedAt": position.get("updatedAt") or position.get("reconciledAt") or None,
+            }
+        )
+    return summaries
 
 
 def _performance_view(outcomes: list[dict[str, Any]], latest_position: dict[str, Any]) -> dict[str, Any]:
@@ -409,11 +435,18 @@ def _build_item(
     lifecycle_item: dict[str, Any],
     exchange_demo: dict[str, Any],
     indexes: dict[str, Any],
+    market_scan_loader: Callable[[str], dict[str, Any]],
+    settings_loader: Callable[[str], dict[str, Any]],
 ) -> dict[str, Any]:
     strategy_id = _text(lifecycle_item.get("strategyId"))
     stage = _text(lifecycle_item.get("currentStage"))
     candidates = indexes["candidatesByStrategy"].get(strategy_id, [])
     candidate = candidates[0] if candidates else {}
+    market_scan = market_scan_loader(strategy_id)
+    settings = settings_loader(strategy_id)
+    effective_candidate = dict(candidate)
+    if int(_number(market_scan.get("totalInstrumentCount")) or 0) > 0 and not list(market_scan.get("errors") or []):
+        effective_candidate["screeningStatus"] = "market_ready"
     contract = indexes["contractsByStrategy"].get(strategy_id, {})
     records = indexes["recordsByStrategy"].get(strategy_id, [])
     outcomes = indexes["outcomesByStrategy"].get(strategy_id, [])
@@ -430,6 +463,30 @@ def _build_item(
     automation_enabled = bool(runtime_gates.get("automationEnabled"))
     readonly_status = _text(_mapping(exchange_demo.get("readonlySummary")).get("status"))
     queue = QUEUE_BY_STAGE[stage]
+    active_profile_record = _mapping(evolution.get("activeRiskProfile"))
+    active_profile = _mapping(active_profile_record.get("profile"))
+    contract_limits = _mapping(contract.get("riskEnvelope"))
+    requested_symbols = max(1, int(_number(settings.get("maxConcurrentSymbols")) or 1))
+    profile_position_limit = max(
+        1,
+        int(_number(contract_limits.get("maxPositionsPerStrategy") or active_profile.get("maxPositionsPerStrategy")) or 1),
+    )
+    profile_portfolio_limit = max(
+        1,
+        int(_number(contract_limits.get("maxConcurrentPositions") or active_profile.get("maxConcurrentPositions")) or 1),
+    )
+    effective_configured_maximum = min(requested_symbols, profile_position_limit, profile_portfolio_limit)
+    evidence_checklist = build_demo_evidence_checklist(
+        lifecycle_item,
+        contract=contract,
+        runtime={
+            "credentialsConfigured": credentials_configured,
+            "privateEnabled": private_enabled,
+            "orderEnabled": order_enabled,
+            "automationReady": runtime_ready,
+            "closedTradeCount": len(outcomes),
+        },
+    )
     return {
         "strategyId": strategy_id,
         "displayName": lifecycle_item.get("displayName") or strategy_id,
@@ -439,6 +496,29 @@ def _build_item(
         "timeframe": lifecycle_item.get("timeframe"),
         "direction": lifecycle_item.get("direction"),
         "metrics": _mapping(lifecycle_item.get("metrics")),
+        "evidenceChecklist": evidence_checklist,
+        "marketUniverse": {
+            "marketScope": market_scan.get("marketScope") or "okx_usdt_linear_perpetual_full_market",
+            "totalInstrumentCount": int(_number(market_scan.get("totalInstrumentCount")) or 0),
+            "liveUsdtLinearSwapCount": int(_number(market_scan.get("liveUsdtLinearSwapCount")) or 0),
+            "liquidityEligibleCount": int(_number(market_scan.get("liquidityEligibleCount")) or 0),
+            "deepScreenedCount": int(_number(market_scan.get("deepScreenedCount")) or 0),
+            "strategyMatchedCount": market_scan.get("strategyMatchedCount"),
+            "currentTopCandidate": market_scan.get("currentTopCandidate") or candidate.get("instId"),
+            "rankedCandidates": list(market_scan.get("rankedCandidates") or []),
+            "progress": _mapping(market_scan.get("progress")),
+            "matchStatus": market_scan.get("matchStatus") or "not_started",
+            "updatedAt": market_scan.get("updatedAt"),
+        },
+        "executionLimits": {
+            "requestedMaxConcurrentSymbols": requested_symbols,
+            "profileMaxPositionsPerStrategy": profile_position_limit,
+            "profileMaxConcurrentPositions": profile_portfolio_limit,
+            "effectiveConfiguredMaximum": effective_configured_maximum,
+            "currentOpenPositions": len(positions),
+            "availableConfiguredSlots": max(0, effective_configured_maximum - len(positions)),
+            "note": "实际可开仓数还会取剩余组合风险、重复币种和相关性闸门的更低值。",
+        },
         "release": {
             "formal": bool(contract),
             "demoReleaseId": contract.get("demoReleaseId"),
@@ -446,7 +526,7 @@ def _build_item(
         },
         "progress": _progress(
             stage=stage,
-            candidate=candidate,
+            candidate=effective_candidate,
             contract=contract,
             records=records,
             outcomes=outcomes,
@@ -454,14 +534,15 @@ def _build_item(
         ),
         "processSteps": _process_steps(
             stage=stage,
-            candidate=candidate,
+            candidate=effective_candidate,
             contract=contract,
             records=records,
             outcomes=outcomes,
             runtime_ready=runtime_ready,
         ),
-        "market": _market_view(candidate, latest_record, latest_position),
+        "market": _market_view(effective_candidate, latest_record, latest_position, market_scan),
         "position": _position_view(latest_record, latest_position),
+        "positions": _position_summaries(positions),
         "performance": _performance_view(outcomes, latest_position),
         "reconciliation": {
             "status": _text(latest_position.get("reconciliationStatus")) or ("not_started" if not records else "pending"),
@@ -476,7 +557,7 @@ def _build_item(
         ),
         "nextAction": _next_action(
             stage=stage,
-            candidate=candidate,
+            candidate=effective_candidate,
             contract=contract,
             runtime_ready=runtime_ready,
             credentials_configured=credentials_configured,
@@ -493,6 +574,8 @@ def build_demo_workflow_projection(
     *,
     lifecycle: dict[str, Any],
     exchange_demo: dict[str, Any],
+    market_scan_loader: Callable[[str], dict[str, Any]] = get_demo_strategy_market_scan,
+    settings_loader: Callable[[str], dict[str, Any]] = get_demo_strategy_runtime_settings,
 ) -> dict[str, Any]:
     """Project lifecycle and actual Demo evidence into four exclusive queues."""
 
@@ -508,7 +591,15 @@ def build_demo_workflow_projection(
         queue = QUEUE_BY_STAGE.get(stage)
         if not queue:
             continue
-        queues[queue].append(_build_item(lifecycle_item, exchange_demo, indexes))
+        queues[queue].append(
+            _build_item(
+                lifecycle_item,
+                exchange_demo,
+                indexes,
+                market_scan_loader,
+                settings_loader,
+            )
+        )
 
     for rows in queues.values():
         rows.sort(key=lambda item: (_text(item.get("displayName")), _text(item.get("strategyId"))))

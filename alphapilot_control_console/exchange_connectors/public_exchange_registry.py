@@ -377,6 +377,40 @@ def _request_public_json(url: str, params: dict[str, str]) -> tuple[dict[str, An
         return {}, f"公共行情读取失败：{exc}", latency
 
 
+def fetch_okx_public_payload(
+    path: str,
+    params: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Fetch one OKX public payload without accepting credentials."""
+
+    normalized_path = "/" + str(path or "").strip().lstrip("/")
+    if not normalized_path.startswith(("/api/v5/public/", "/api/v5/market/")):
+        return {
+            "ok": False,
+            "payload": {},
+            "error": "okx_public_path_not_allowed",
+            "latencyMs": None,
+            "publicOnly": True,
+            "apiKeyUsed": False,
+            "privateEndpointsUsed": False,
+            "ordersAllowed": False,
+        }
+    payload, error, latency = _request_public_json(
+        f"https://www.okx.com{normalized_path}",
+        params or {},
+    )
+    return {
+        "ok": error is None,
+        "payload": payload,
+        "error": error,
+        "latencyMs": latency,
+        "publicOnly": True,
+        "apiKeyUsed": False,
+        "privateEndpointsUsed": False,
+        "ordersAllowed": False,
+    }
+
+
 def _normalize_okx_candles(rows: list[Any]) -> list[dict[str, Any]]:
     candles: list[dict[str, Any]] = []
     for row in rows:

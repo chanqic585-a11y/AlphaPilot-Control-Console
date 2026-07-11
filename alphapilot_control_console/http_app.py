@@ -233,8 +233,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.27.1.3",
-                "source": "alphapilot_control_console_v13_27_1_3",
+                "version": "V13.27.1.4",
+                "source": "alphapilot_control_console_v13_27_1_4",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -249,7 +249,7 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             except (FileNotFoundError, RuntimeError, ValueError) as error:
                 self._send_json(
                     {
-                        "version": "V13.27.1.3",
+                        "version": "V13.27.1.4",
                         "source": "quant_workflow_unavailable",
                         "loadError": str(error),
                         "summary": {},
