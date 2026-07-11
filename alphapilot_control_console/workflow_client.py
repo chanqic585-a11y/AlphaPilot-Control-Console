@@ -17,7 +17,7 @@ from .strategy_optimization import (
 )
 
 
-CONTROL_CONSOLE_VERSION = "V13.27.3"
+CONTROL_CONSOLE_VERSION = "V13.27.4"
 WORKFLOW_MODULE = "alphapilot.evolution.workflow.cli"
 APPROVED_WAREHOUSE_ROOT = Path(r"D:\Codex-Workspace\回测数据")
 ALLOWED_COMMANDS = {

@@ -41,11 +41,11 @@ class WorkflowClientTests(unittest.TestCase):
         with patch.object(
             client,
             "run_workflow_cli",
-            return_value={"version": "V13.27.3", "items": [], "archivedItems": []},
+            return_value={"version": "V13.27.4", "items": [], "archivedItems": []},
         ):
             projection = client.build_workflow_projection(quant_root=self.quant_root)
 
-        self.assertEqual(projection["controlConsoleVersion"], "V13.27.3")
+        self.assertEqual(projection["controlConsoleVersion"], "V13.27.4")
         self.assertTrue(projection["capabilities"]["selectedBacktests"])
         self.assertTrue(projection["capabilities"]["selectedForwardCycles"])
 

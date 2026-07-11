@@ -281,7 +281,7 @@ const emptyStrategyLifecycle = {
   sourceWarnings: [],
 };
 const emptyWorkflow = {
-  version: "V13.27.3",
+  version: "V13.27.4",
   summary: {},
   items: [],
   archivedItems: [],
@@ -1327,7 +1327,7 @@ function renderDualLayerLane(targetId, countId, rows, emptyText) {
 
 function renderDualLayerWorkflow(payload = emptyWorkflow) {
   latestWorkflowPayload = payload || emptyWorkflow;
-  workflowBatchBackendReady = payload?.controlConsoleVersion === "V13.27.3";
+  workflowBatchBackendReady = payload?.controlConsoleVersion === "V13.27.4";
   const items = Array.isArray(payload?.items) ? payload.items.filter((item) => item.stage === "backtest") : [];
   const archived = Array.isArray(payload?.archivedItems) ? payload.archivedItems.filter((item) => item.stage === "backtest") : [];
   const awaiting = items.filter((item) => item.status === "awaiting");
@@ -1341,7 +1341,7 @@ function renderDualLayerWorkflow(payload = emptyWorkflow) {
   updateWorkflowSelectionButton("workflowRunSelectedButton", workflowSelection.backtest);
   if (el("workflowRunAllButton")) {
     el("workflowRunAllButton").disabled = !workflowBatchBackendReady || !items.some((item) => ["awaiting", "paused"].includes(item.status));
-    el("workflowRunAllButton").title = workflowBatchBackendReady ? "按所选顺序使用一个串行 worker" : "下次正常重启控制台后启用 V13.27.3 批量能力";
+    el("workflowRunAllButton").title = workflowBatchBackendReady ? "按所选顺序使用一个串行 worker" : "下次正常重启控制台后启用 V13.27.4 批量能力";
   }
   const summaryTarget = el("workflowBacktestSummary");
   if (summaryTarget) {
@@ -1433,7 +1433,7 @@ function renderFormalLocalForward(payload = emptyWorkflow) {
   updateWorkflowSelectionButton("localForwardRunSelectedButton", workflowSelection.localForward);
   if (el("localForwardRunAllButton")) {
     el("localForwardRunAllButton").disabled = !workflowBatchBackendReady || running.length === 0;
-    el("localForwardRunAllButton").title = workflowBatchBackendReady ? "串行运行最新闭合公共 K 线周期" : "下次正常重启控制台后启用 V13.27.3 批量能力";
+    el("localForwardRunAllButton").title = workflowBatchBackendReady ? "串行运行最新闭合公共 K 线周期" : "下次正常重启控制台后启用 V13.27.4 批量能力";
   }
   const summary = el("formalLocalForwardSummary");
   if (summary) {
@@ -2337,7 +2337,7 @@ function renderDemoWorkflowLane(targetId, countId, rows, emptyText) {
 
 function renderDemoWorkflow(payload = { summary: {}, queues: {} }) {
   latestDemoWorkflowPayload = payload || { summary: {}, queues: {} };
-  demoWorkflowBatchBackendReady = payload?.version === "V13.27.3";
+  demoWorkflowBatchBackendReady = payload?.version === "V13.27.4";
   const summary = payload?.summary || {};
   const queues = payload?.queues || {};
   const batchEligibleIds = demoWorkflowRows(payload)
@@ -2347,7 +2347,7 @@ function renderDemoWorkflow(payload = { summary: {}, queues: {} }) {
   updateWorkflowSelectionButton("demoWorkflowRunSelectedButton", workflowSelection.demo);
   if (el("demoWorkflowRunAllButton")) {
     el("demoWorkflowRunAllButton").disabled = !demoWorkflowBatchBackendReady || batchEligibleIds.length === 0;
-    el("demoWorkflowRunAllButton").title = demoWorkflowBatchBackendReady ? "每条策略只执行当前一道合法步骤" : "下次正常重启并重新输入 Demo 凭据后启用 V13.27.3 批量能力";
+    el("demoWorkflowRunAllButton").title = demoWorkflowBatchBackendReady ? "每条策略只执行当前一道合法步骤" : "下次正常重启并重新输入 Demo 凭据后启用 V13.27.4 批量能力";
   }
   setText("demoWorkflowWaitingCount", String(summary.waitingCount ?? 0));
   setText("demoWorkflowValidatingCount", String(summary.validatingCount ?? 0));

@@ -3,12 +3,31 @@
 Current version:
 
 ```text
-AlphaPilot V13.27.3 - Short-Cycle Workflow Candidate Pack
+AlphaPilot V13.27.4 - Workflow Recovery and Demo Release
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
 AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
+
+## What V13.27.4 Adds
+
+- Restarts incomplete backtests as one deterministic serial batch instead of
+  spawning competing workers.
+- Shows every selected strategy as queued before the first heavy backtest
+  begins.
+- Adds `人工放行到 Demo` to eligible local-forward cards using the immutable
+  `strategyCandidateId`.
+- Records the missing local-forward evidence, reason, actor, confirmation, and
+  `postDemoPromotionPolicy` in the Demo-only release audit.
+- Keeps the local-forward result unchanged: a manual release does not mark it
+  passed and does not create an order.
+- Treats complete OKX Demo validation as the final strategy-performance gate
+  before live-candidate review. The override itself cannot directly enable
+  Live execution.
+- Continues to keep raw credentials process-only and Withdraw absent.
+
+See `docs/V13.27.4-workflow-recovery-demo-release.md`.
 
 ## What V13.27.3 Adds
 
