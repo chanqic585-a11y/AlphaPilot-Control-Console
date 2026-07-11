@@ -10,10 +10,13 @@
   function issueFingerprint(issue = {}) {
     const acknowledgementIdentity = issue.acknowledgementId || normalizedBlockers(issue).join("|");
     const acknowledgementVersion = issue.acknowledgementVersion || issue.version || "1";
+    const acknowledgementStage = issue.acknowledgementScope === "page"
+      ? "page"
+      : (issue.stage || "unknown_stage");
     return [
       issue.pageId || "unknown_page",
       issue.strategyId || "global",
-      issue.stage || "unknown_stage",
+      acknowledgementStage,
       acknowledgementIdentity,
       acknowledgementVersion,
     ].join("::");
