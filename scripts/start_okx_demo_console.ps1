@@ -5,7 +5,9 @@ param(
   [switch]$EnableOrder,
   [switch]$EnableAutomation,
   [switch]$EnableCancel,
-  [switch]$Smoke
+  [switch]$Smoke,
+  [switch]$ReplaceExistingConsole,
+  [int]$ExpectedConsoleProcessId = 0
 )
 
 $ErrorActionPreference = "Stop"
@@ -48,6 +50,10 @@ if ($Smoke) {
   exit $LASTEXITCODE
 }
 
+if ($EnableAutomation -and -not $EnableOrder) {
+  throw "-EnableAutomation requires -EnableOrder. Automatic Demo execution never bypasses the order gate."
+}
+
 Write-Host ""
 Write-Host "AlphaPilot OKX Demo Console Launcher" -ForegroundColor Cyan
 Write-Host "Only OKX Demo Trading credentials should be used. Never paste live API keys here." -ForegroundColor Yellow
@@ -61,6 +67,48 @@ $passphrase = Read-SecretText "OKX Demo Passphrase"
 
 if ([string]::IsNullOrWhiteSpace($apiKey) -or [string]::IsNullOrWhiteSpace($secretKey) -or [string]::IsNullOrWhiteSpace($passphrase)) {
   throw "OKX Demo API key, secret key, and passphrase are required for Demo mode."
+}
+
+if ($EnableAutomation) {
+  Write-Host ""
+  Write-Host "One Demo credential set will serve all eligible immutable Demo strategies in this runtime." -ForegroundColor Yellow
+  $automationConfirmation = Read-Host "Type ENABLE_OKX_DEMO_AUTOMATION to continue"
+  if ($automationConfirmation -cne "ENABLE_OKX_DEMO_AUTOMATION") {
+    Write-Host "OKX Demo automation launch cancelled. Existing console remains running." -ForegroundColor Yellow
+    exit 2
+  }
+}
+
+if ($ReplaceExistingConsole) {
+  if ($ExpectedConsoleProcessId -le 0) {
+    throw "A verified AlphaPilot console process id is required for replacement mode."
+  }
+  $listener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
+  if ($null -eq $listener) {
+    throw "No listener exists on the requested AlphaPilot port."
+  }
+  $listenerProcessId = [int]$listener.OwningProcess
+  if ($listenerProcessId -ne $ExpectedConsoleProcessId) {
+    throw "The port owner changed; refusing to stop an unverified process."
+  }
+  $processInfo = Get-CimInstance Win32_Process -Filter "ProcessId = $listenerProcessId"
+  if ($null -eq $processInfo -or $processInfo.CommandLine -notmatch "alphapilot_control_console\.http_app") {
+    throw "The listener is not the AlphaPilot Control Console; refusing process handoff."
+  }
+
+  Write-Host "Verified AlphaPilot console PID $listenerProcessId. Replacing the local runtime." -ForegroundColor Cyan
+  Stop-Process -Id $listenerProcessId
+  $releaseDeadline = (Get-Date).AddSeconds(10)
+  do {
+    $remainingListener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -eq $remainingListener) {
+      break
+    }
+    Start-Sleep -Milliseconds 250
+  } while ((Get-Date) -lt $releaseDeadline)
+  if ($null -ne $remainingListener) {
+    throw "Port did not become available after the verified AlphaPilot process stopped."
+  }
 }
 
 $env:ALPHAPILOT_OKX_DEMO_ENABLED = "1"
@@ -86,9 +134,6 @@ try {
   }
   if (-not $EnableCancel) {
     Write-Host "Demo cancel gate is OFF. Add -EnableCancel only for manual emergency cancel rehearsal." -ForegroundColor Yellow
-  }
-  if ($EnableAutomation -and -not $EnableOrder) {
-    throw "-EnableAutomation requires -EnableOrder. Automatic Demo execution never bypasses the order gate."
   }
   if ($EnableAutomation) {
     Write-Host "Formal Demo automation gate is ON. Only immutable eligible Demo Releases can run; no release means no strategy order." -ForegroundColor Yellow
