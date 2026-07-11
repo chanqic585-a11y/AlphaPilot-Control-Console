@@ -1991,3 +1991,22 @@ The current Alpha191 observer remains visibly waiting for formal data lineage;
 the console does not fabricate a successful backtest. This release adds no
 credential persistence, exchange order creation, automatic promotion, or Live
 activation. See `docs/V13.27.1-workflow-strategy-page.md`.
+
+## V13.27.1.1 Dual-Data Backtest Action
+
+V13.27.1.1 keeps the Strategy page concise while exposing the real dual-layer
+workflow state from Quant Engine.
+
+- `一键回测` first inspects the existing read-only local research warehouse,
+  then prepares official OKX public data required by the immutable strategy
+  contract.
+- The card shows the current phase, research/formal evidence class, public-data
+  download progress, coverage, and the only permitted automatic next stage:
+  Local Forward.
+- A local research smoke result cannot promote a strategy. Only a checksum-bound
+  formal backtest pass may create an awaiting Local Forward run.
+- The UI never creates a pass result, Demo release, Live candidate, or order.
+
+Release checks passed with 76 Console tests and Node syntax validation. The
+bounded public-data integration result is documented in
+`docs/V13.27.1.1-dual-data-one-click-backtest.md`.
