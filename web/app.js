@@ -1633,8 +1633,8 @@ function renderDemoEvidence(checklist = {}) {
   const rows = Array.isArray(checklist.items) ? checklist.items : [];
   const summary = checklist.summary || {};
   return `
-    <section class="demo-evidence-section">
-      <div class="demo-section-head"><strong>证据清单</strong><small>${Number(summary.passedCount || 0)}/${rows.length || 0} 已满足 · ${Number(summary.blockingCount || 0)} 项阻塞</small></div>
+    <details class="demo-evidence-section">
+      <summary class="demo-section-head"><strong>证据清单</strong><small>${Number(summary.passedCount || 0)}/${rows.length || 0} 已满足 · ${Number(summary.blockingCount || 0)} 项阻塞</small></summary>
       <div class="demo-evidence-list">
         ${rows.map((row) => `
           <div class="demo-evidence-row ${escapeHtml(row.status || "pending")}">
@@ -1645,7 +1645,7 @@ function renderDemoEvidence(checklist = {}) {
           </div>
         `).join("") || '<div class="workflow-empty">证据清单尚未生成。</div>'}
       </div>
-    </section>
+    </details>
   `;
 }
 

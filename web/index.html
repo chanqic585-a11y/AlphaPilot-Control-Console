@@ -2705,6 +2705,32 @@
         </div>
       </form>
     </dialog>
+    <dialog id="issueGuidanceDialog" class="issue-guidance-dialog" aria-labelledby="issueGuidanceTitle">
+      <form method="dialog">
+        <div class="issue-guidance-head">
+          <div>
+            <p class="panel-eyebrow">NEXT ACTION</p>
+            <h2 id="issueGuidanceTitle">需要处理的问题</h2>
+          </div>
+          <button id="issueGuidanceCloseButton" class="dialog-close-button" type="button" aria-label="关闭处理说明" title="关闭">&times;</button>
+        </div>
+        <p id="issueGuidanceStage" class="issue-guidance-stage">当前阶段</p>
+        <p id="issueGuidanceSummary" class="issue-guidance-summary">正在读取阻塞原因。</p>
+        <section class="issue-guidance-section">
+          <h3>系统已经完成</h3>
+          <ul id="issueGuidanceCompletedList"></ul>
+        </section>
+        <section class="issue-guidance-section primary">
+          <h3>你现在要做</h3>
+          <p id="issueGuidanceNextAction">等待明确操作。</p>
+        </section>
+        <p id="issueGuidanceSafety" class="issue-guidance-safety">不会越过现有安全闸门。</p>
+        <div class="issue-guidance-actions">
+          <button value="acknowledged" type="submit">知道了</button>
+        </div>
+      </form>
+    </dialog>
+    <script src="/issue-guidance.js?v=20260711-v13-27-1-5-guidance"></script>
     <script src="/app.js?v=20260711-v13-27-1-4-demo-evidence"></script>
   </body>
 </html>

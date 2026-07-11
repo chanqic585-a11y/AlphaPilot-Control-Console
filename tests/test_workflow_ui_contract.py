@@ -14,6 +14,8 @@ class WorkflowUiContractTests(unittest.TestCase):
         cls.js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
         cls.css = (ROOT / "web" / "styles.css").read_text(encoding="utf-8")
         cls.http_app = (ROOT / "alphapilot_control_console" / "http_app.py").read_text(encoding="utf-8")
+        issue_guidance_path = ROOT / "web" / "issue-guidance.js"
+        cls.issue_js = issue_guidance_path.read_text(encoding="utf-8") if issue_guidance_path.exists() else ""
 
     def test_failed_or_blocked_workflow_has_three_required_actions(self) -> None:
         for label in ("重新回测", "改善优化", "归档"):
@@ -116,6 +118,21 @@ class WorkflowUiContractTests(unittest.TestCase):
             self.assertIn(label, self.js)
         self.assertIn("demo-evidence-list", self.css)
         self.assertIn("demo-market-universe", self.css)
+
+    def test_one_time_issue_guidance_has_persistent_and_session_fallbacks(self) -> None:
+        self.assertIn('id="issueGuidanceDialog"', self.html)
+        self.assertIn('id="issueGuidanceNextAction"', self.html)
+        self.assertIn('/issue-guidance.js?v=20260711-v13-27-1-5-guidance', self.html)
+        self.assertIn("ALPHAPILOT_ISSUE_ACK_V1", self.issue_js)
+        self.assertIn("function issueFingerprint", self.issue_js)
+        self.assertIn("localStorage", self.issue_js)
+        self.assertIn("sessionStorage", self.issue_js)
+        self.assertIn("presentHighestPriority", self.issue_js)
+
+    def test_demo_evidence_is_collapsed_by_default(self) -> None:
+        self.assertIn('<details class="demo-evidence-section">', self.js)
+        self.assertIn('<summary class="demo-section-head">', self.js)
+        self.assertNotIn('<details class="demo-evidence-section" open', self.js)
 
     def test_demo_symbol_limit_and_override_have_explicit_controls(self) -> None:
         self.assertIn("每策略最多同时开仓", self.js)
