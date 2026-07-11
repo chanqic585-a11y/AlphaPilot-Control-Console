@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#080c0f" />
     <title>AlphaPilot 控制台</title>
-    <link rel="stylesheet" href="/styles.css?v=20260711-v13-27-1-2-targeted-optimization" />
+    <link rel="stylesheet" href="/styles.css?v=20260711-v13-27-1-3-demo-workflow" />
   </head>
   <body>
     <a class="skip-link" href="#mainContent">跳到主要内容</a>
@@ -612,18 +612,44 @@
             <div>
               <p class="panel-eyebrow">OKX DEMO TRADING</p>
               <h2>&#20132;&#26131;&#25152; Demo &#27169;&#25311;</h2>
-              <p>这里只显示已从本地模拟晋级的策略。Demo 观察用于行情与流程验证；只有通过硬门槛并冻结校验和的正式 Demo Release 才能进入 OKX 模拟账户。</p>
+              <p>这里按“待模拟、验证中、已通过、实盘候选”展示完整过程。只有生成不可变 Demo Release 并通过运行闸门后，策略才会在 OKX Demo 账户产生订单和持仓。</p>
             </div>
             <span id="exchangeDemoModeBadge" class="status-pill danger">Demo &#38145;&#23450;</span>
           </div>
           <div class="exchange-demo-warning"><strong>安全边界：</strong>Demo 自动执行只作用于 OKX 模拟账户和固定 1000 USDT 风险包。Withdraw、实盘自动晋级和实盘执行全部关闭。</div>
-          <div class="lifecycle-stage-panel">
+          <div class="demo-workflow-panel">
             <div class="lifecycle-panel-head">
-              <div><h3>Demo 观察与正式验证</h3><span id="demoLifecycleMeta" aria-live="polite">显示已晋级的 Demo 观察策略，并单独标记正式 Release。</span></div>
-              <span class="lifecycle-page-badge">Demo 模拟</span>
+              <div>
+                <h3>Demo 模拟工作流</h3>
+                <span id="demoWorkflowMeta" aria-live="polite">正在读取策略、Release、OKX Demo 执行和闭合交易证据。</span>
+              </div>
+              <button id="demoWorkflowRefreshButton" class="secondary" type="button">刷新进度</button>
             </div>
-            <div id="demoLifecycleSummary" class="lifecycle-summary-grid"></div>
-            <div id="demoLifecycleList" class="lifecycle-card-list" aria-live="polite"></div>
+            <div id="demoWorkflowActionStatus" class="workflow-action-status">每条策略会显示当前步骤、阻塞原因和唯一下一步；没有真实订单时不会显示虚构盈亏。</div>
+            <div class="lifecycle-summary-grid demo-workflow-summary">
+              <div class="lifecycle-summary-card"><span>待 Demo 模拟</span><strong id="demoWorkflowWaitingCount">0</strong><small>尚未生成可执行 Release</small></div>
+              <div class="lifecycle-summary-card"><span>Demo 验证中</span><strong id="demoWorkflowValidatingCount">0</strong><small>已进入 OKX Demo 执行周期</small></div>
+              <div class="lifecycle-summary-card"><span>Demo 模拟通过</span><strong id="demoWorkflowPassedCount">0</strong><small>闭合交易和风险复核通过</small></div>
+              <div class="lifecycle-summary-card"><span>实盘候选</span><strong id="demoWorkflowLiveCandidateCount">0</strong><small>只认不可变候选包</small></div>
+            </div>
+            <div class="demo-workflow-lanes">
+              <section class="demo-workflow-lane">
+                <div class="workflow-lane-head"><h4>待 Demo 模拟</h4><span id="demoWorkflowWaitingLaneCount">0</span></div>
+                <div id="demoWorkflowWaitingList" class="demo-workflow-card-list" aria-live="polite"></div>
+              </section>
+              <section class="demo-workflow-lane">
+                <div class="workflow-lane-head"><h4>Demo 验证中</h4><span id="demoWorkflowValidatingLaneCount">0</span></div>
+                <div id="demoWorkflowValidatingList" class="demo-workflow-card-list" aria-live="polite"></div>
+              </section>
+              <section class="demo-workflow-lane">
+                <div class="workflow-lane-head"><h4>Demo 模拟通过</h4><span id="demoWorkflowPassedLaneCount">0</span></div>
+                <div id="demoWorkflowPassedList" class="demo-workflow-card-list" aria-live="polite"></div>
+              </section>
+              <section class="demo-workflow-lane">
+                <div class="workflow-lane-head"><h4>实盘候选</h4><span id="demoWorkflowLiveCandidateLaneCount">0</span></div>
+                <div id="demoWorkflowLiveCandidateList" class="demo-workflow-card-list" aria-live="polite"></div>
+              </section>
+            </div>
           </div>
           <details class="lifecycle-archive">
             <summary><span>Demo 连接与旧演练工具</span><small>高级功能，默认隐藏</small></summary>
@@ -2646,6 +2672,6 @@
         </div>
       </form>
     </dialog>
-    <script src="/app.js?v=20260711-v13-27-1-2-targeted-optimization"></script>
+    <script src="/app.js?v=20260711-v13-27-1-3-demo-workflow"></script>
   </body>
 </html>

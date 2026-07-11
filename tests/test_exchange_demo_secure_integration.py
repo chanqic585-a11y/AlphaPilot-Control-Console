@@ -29,6 +29,34 @@ class FakeReadOnlyDemoClient:
 
 
 class ExchangeDemoSecureIntegrationTests(unittest.TestCase):
+    def test_saved_public_scan_result_restores_candidate_progress_after_refresh(self) -> None:
+        candidate = {
+            "candidateId": "demo::strategy-1::BTC-USDT-SWAP",
+            "strategyId": "strategy-1",
+            "instId": "BTC-USDT-SWAP",
+            "screeningStatus": "strategy_loaded",
+            "marketDataStatus": "not_scanned",
+        }
+        saved_scan = {
+            "eventType": "demo_candidate_scan",
+            "status": "completed",
+            "candidateResults": [
+                {
+                    "strategyId": "strategy-1",
+                    "instId": "BTC-USDT-SWAP",
+                    "screeningStatus": "market_ready",
+                    "marketDataStatus": "public_ok",
+                }
+            ],
+        }
+        with patch.object(simulation, "_build_strategy_candidates", return_value=([candidate], {"strategyCount": 1})), patch.object(
+            simulation, "_build_demo_trial_pool", return_value=([], {})
+        ):
+            pipeline = simulation._build_automation_pipeline(saved_scan)
+
+        self.assertEqual(pipeline["candidates"][0]["screeningStatus"], "market_ready")
+        self.assertEqual(pipeline["summary"]["publicOkCount"], 1)
+
     def test_readonly_check_uses_single_client_and_persists_only_redacted_metadata(self) -> None:
         client = FakeReadOnlyDemoClient()
         saved_events: list[dict] = []

@@ -4509,6 +4509,49 @@ body:not(.show-advanced) .legacy-demo-ticket {
   justify-content: flex-end;
 }
 
+.lifecycle-progress {
+  display: grid;
+  gap: 7px;
+  margin-top: 13px;
+  padding: 10px;
+  border: 1px solid rgba(24, 211, 166, 0.2);
+  border-radius: 5px;
+  background: rgba(24, 211, 166, 0.04);
+}
+
+.lifecycle-progress > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.lifecycle-progress span,
+.lifecycle-progress small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.lifecycle-progress strong {
+  color: #dce7e3;
+  font-size: 12px;
+  text-align: right;
+}
+
+.lifecycle-progress-track {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: #151e26;
+}
+
+.lifecycle-progress-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--green);
+}
+
 .lifecycle-card-metrics,
 .lifecycle-blockers {
   display: flex;
@@ -4568,6 +4611,251 @@ body:not(.show-advanced) .legacy-demo-ticket {
   border-radius: 6px;
   color: var(--muted);
   text-align: center;
+}
+
+.demo-workflow-panel {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.demo-workflow-summary {
+  margin-bottom: 18px;
+}
+
+.demo-workflow-lanes {
+  display: grid;
+  gap: 22px;
+}
+
+.demo-workflow-lane {
+  min-width: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-strong);
+}
+
+.demo-workflow-card-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.demo-workflow-card {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #0a1016;
+}
+
+.demo-workflow-progress-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  margin-top: 13px;
+}
+
+.demo-workflow-progress-head span,
+.demo-workflow-progress-note {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.demo-workflow-progress-head strong {
+  overflow-wrap: anywhere;
+  color: #e6edf3;
+  font-size: 12px;
+}
+
+.demo-workflow-progress-head em {
+  color: var(--green);
+  font-size: 12px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.demo-workflow-card > .lifecycle-progress-track {
+  margin-top: 7px;
+}
+
+.demo-workflow-progress-note {
+  display: block;
+  margin-top: 6px;
+}
+
+.demo-process-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.demo-process-step {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 7px;
+  align-items: center;
+  min-width: 0;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #0e151c;
+}
+
+.demo-process-step > span {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.demo-process-step > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.demo-process-step strong,
+.demo-process-step small {
+  overflow-wrap: anywhere;
+  font-size: 10px;
+}
+
+.demo-process-step strong {
+  color: #cfd8e1;
+}
+
+.demo-process-step small {
+  color: var(--muted);
+}
+
+.demo-process-step.completed {
+  border-color: rgba(24, 211, 166, 0.28);
+  background: rgba(24, 211, 166, 0.05);
+}
+
+.demo-process-step.completed > span,
+.demo-process-step.running > span {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.demo-process-step.blocked {
+  border-color: rgba(255, 209, 61, 0.25);
+}
+
+.demo-workflow-trade-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--line);
+}
+
+.demo-workflow-trade-grid > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px;
+  background: #0d141b;
+}
+
+.demo-workflow-trade-grid span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.demo-workflow-trade-grid strong {
+  overflow-wrap: anywhere;
+  color: #edf2f7;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.demo-workflow-trade-grid strong.positive {
+  color: var(--green);
+}
+
+.demo-workflow-trade-grid strong.negative {
+  color: var(--red);
+}
+
+.demo-workflow-failure {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 10px;
+  border-left: 3px solid var(--gold);
+  background: rgba(255, 209, 61, 0.07);
+}
+
+.demo-workflow-failure > span {
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.demo-workflow-failure > strong {
+  color: var(--gold);
+  font-size: 13px;
+}
+
+.demo-workflow-failure p,
+.demo-workflow-failure ul {
+  margin: 0;
+  color: #d6dde4;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.demo-workflow-failure ul {
+  padding-left: 18px;
+}
+
+.demo-workflow-failure > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.demo-workflow-failure em {
+  padding: 3px 6px;
+  border: 1px solid rgba(255, 209, 61, 0.25);
+  border-radius: 4px;
+  color: var(--gold);
+  font-size: 10px;
+  font-style: normal;
+}
+
+.demo-workflow-command {
+  display: grid;
+  gap: 5px;
+  margin-top: 9px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #070c11;
+}
+
+.demo-workflow-command span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.demo-workflow-command code {
+  overflow-wrap: anywhere;
+  color: var(--gold);
+  font-size: 11px;
+  white-space: normal;
 }
 
 .lifecycle-archive {
@@ -5869,5 +6157,19 @@ body.show-advanced .hero-grid.advanced-section {
   .strategy-optimization-actions {
     display: grid;
     grid-template-columns: 1fr;
+  }
+
+  .demo-workflow-card-list,
+  .demo-process-steps,
+  .demo-workflow-trade-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .demo-workflow-progress-head {
+    grid-template-columns: 1fr auto;
+  }
+
+  .demo-workflow-progress-head span {
+    grid-column: 1 / -1;
   }
 }

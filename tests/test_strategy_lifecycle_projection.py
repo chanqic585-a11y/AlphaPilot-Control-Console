@@ -309,6 +309,31 @@ class StrategyLifecycleProjectionTests(unittest.TestCase):
         self.assertEqual(result["summary"]["archivedCount"], 2)
         self.assertEqual(result["archiveSummary"]["researchArtifactCount"], 2)
 
+    def test_local_forward_stage_exposes_visible_sample_progress(self) -> None:
+        result = self.build(
+            catalog={
+                "strategies": [
+                    {
+                        "strategyId": "strategy-1",
+                        "name": "Forward Strategy",
+                        "metrics": {"closedSamples": 12},
+                    }
+                ],
+                "summary": {},
+            },
+            strategy_stage_assignments={
+                "strategy-1": {"strategyId": "strategy-1", "stage": "local_sandbox"}
+            },
+        )
+
+        progress = result["items"][0]["progress"]
+        self.assertEqual(progress["phase"], "local_forward_sampling")
+        self.assertEqual(progress["completed"], 12)
+        self.assertEqual(progress["required"], 30)
+        self.assertEqual(progress["percent"], 40)
+        self.assertIn("12/30", progress["label"])
+        self.assertIn("复核起点", progress["note"])
+
 
 if __name__ == "__main__":
     unittest.main()

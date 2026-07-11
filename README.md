@@ -3,12 +3,49 @@
 Current version:
 
 ```text
-AlphaPilot V13.26.2 - Strategy Stage Display Consistency
+AlphaPilot V13.27.1.3 - Unified Demo Workflow Progress
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
 AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
+
+## What V13.27.1.3 Adds
+
+- Replaces the ambiguous Demo observation list with four exclusive queues:
+  `待 Demo 模拟`, `Demo 验证中`, `Demo 模拟通过`, and `实盘候选`.
+- Shows a six-step progress path for every Demo strategy: strategy load, public
+  market check, immutable release, runtime preflight, Demo execution, and
+  closed-trade review.
+- Shows actual instrument, position status, entry/mark/TP/SL prices, quantity,
+  realized/unrealized PnL, fees, slippage, and reconciliation state when those
+  values exist in OKX Demo or the immutable execution ledger. Missing values
+  stay empty and are never synthesized from backtest results.
+- Adds `GET /api/demo-workflow` and gated `POST /api/demo-workflow/action`.
+  The action endpoint can run the public scan, report release-readiness gaps,
+  run the existing read-only preflight, or invoke the existing immutable
+  Release Demo cycle. It cannot bypass a missing Release.
+- Persists only redacted public candidate scan status so a page refresh does
+  not erase the visible step. Raw API credentials remain process-only.
+- Adds visible local-forward sample progress. `30` closed samples is still only
+  a review starting point, never an automatic promotion.
+
+The ten strategies currently assigned to `demo_trial` are therefore displayed
+under `待 Demo 模拟`, not `Demo 验证中`: there is no formal StrategyCandidate,
+immutable DemoRelease, or OKX Demo execution record for them yet.
+
+### How a waiting strategy starts OKX Demo validation
+
+1. Open `Demo模拟` and click the card's current primary action.
+2. `检查 Demo 行情` scans OKX public market data only.
+3. `检查 Demo Release 条件` lists missing backtest, local-forward, candidate,
+   checksum, or immutable-release evidence.
+4. Only a strategy with an immutable eligible Release can advance to runtime
+   preflight.
+5. Start the Console with process-only Demo credentials and explicit Demo
+   order/automation gates, then run the preflight.
+6. `运行一次 Demo 验证` reads signals only from the frozen Release and writes
+   real Demo order/position/outcome evidence. Live and Withdraw remain locked.
 
 ## What V13.26.2 Fixes
 

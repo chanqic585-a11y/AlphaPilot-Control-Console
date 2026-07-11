@@ -28,6 +28,7 @@ from .evolution_demo_service import (
     build_evolution_demo_status,
     run_evolution_demo_cycle,
 )
+from .demo_workflow_service import build_demo_workflow_status, run_demo_workflow_action
 from .execution_outcome_export import (
     build_execution_outcome_status,
     write_execution_outcome_export,
@@ -189,7 +190,7 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.27.1.1"
+    server_version = "AlphaPilotControlConsole/13.27.1.3"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -232,8 +233,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._send_json({
                 "ok": True,
-                "version": "V13.27.1.1",
-                "source": "alphapilot_control_console_v13_27_1",
+                "version": "V13.27.1.3",
+                "source": "alphapilot_control_console_v13_27_1_3",
                 "safetyBoundary": SAFETY_BOUNDARY,
             })
             return
@@ -248,7 +249,7 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             except (FileNotFoundError, RuntimeError, ValueError) as error:
                 self._send_json(
                     {
-                        "version": "V13.27.1.1",
+                        "version": "V13.27.1.3",
                         "source": "quant_workflow_unavailable",
                         "loadError": str(error),
                         "summary": {},
@@ -532,6 +533,9 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/exchange-demo/simulation":
             self._send_json(_cached_payload("exchange-demo-simulation", 15, build_exchange_demo_simulation, fresh=fresh))
+            return
+        if path == "/api/demo-workflow":
+            self._send_json(_cached_payload("demo-workflow", 5, build_demo_workflow_status, fresh=fresh))
             return
         if path == "/api/evolution-demo":
             self._send_json(_cached_payload("evolution-demo", 5, build_evolution_demo_status, fresh=fresh))
@@ -1029,6 +1033,11 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/exchange-demo/scan-candidates":
             payload = self._read_body_json()
             self._send_json(scan_exchange_demo_candidates(payload))
+            return
+        if parsed.path == "/api/demo-workflow/action":
+            payload = self._read_body_json()
+            _RESPONSE_CACHE.clear()
+            self._send_json(run_demo_workflow_action(payload))
             return
         if parsed.path == "/api/no-key-pre-live/scan":
             payload = self._read_body_json()

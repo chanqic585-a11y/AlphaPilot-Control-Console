@@ -19,8 +19,8 @@ from .strategy_stage_service import build_strategy_stage_board
 from .usable_strategy_catalog import build_usable_strategy_catalog
 
 
-CONTROL_CONSOLE_VERSION = "V13.15.2"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_15_2"
+CONTROL_CONSOLE_VERSION = "V13.27.1.3"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_27_1_3"
 DEFAULT_OKX_SITE = "global"
 MAX_DEMO_NOTIONAL_USDT = 250.0
 
@@ -303,6 +303,19 @@ def _build_automation_pipeline(scan_payload: dict[str, Any] | None = None) -> di
     ok_market_count = 0
     probe_by_inst: dict[str, dict[str, Any]] = {}
     if isinstance(scan_payload, dict):
+        saved_results = scan_payload.get("candidateResults") if isinstance(scan_payload.get("candidateResults"), list) else []
+        saved_by_candidate = {
+            (str(item.get("strategyId") or ""), str(item.get("instId") or "")): item
+            for item in saved_results
+            if isinstance(item, dict)
+        }
+        if saved_results:
+            market_probe_count = len(saved_results)
+            ok_market_count = sum(
+                str(item.get("screeningStatus") or "") == "market_ready"
+                for item in saved_results
+                if isinstance(item, dict)
+            )
         for item in scan_payload.get("scans", []) if isinstance(scan_payload.get("scans"), list) else []:
             inst_id = item.get("instId")
             probe = item.get("publicProbe") if isinstance(item.get("publicProbe"), dict) else {}
@@ -314,6 +327,20 @@ def _build_automation_pipeline(scan_payload: dict[str, Any] | None = None) -> di
             if okx and okx.get("ok"):
                 ok_market_count += 1
     for candidate in candidates:
+        saved = saved_by_candidate.get((str(candidate.get("strategyId") or ""), str(candidate.get("instId") or ""))) if isinstance(scan_payload, dict) else None
+        if saved:
+            candidate.update({
+                key: saved.get(key)
+                for key in (
+                    "marketDataStatus",
+                    "screeningStatus",
+                    "marketLatencyMs",
+                    "missingPublicFields",
+                    "reason",
+                )
+                if key in saved
+            })
+            continue
         probe = probe_by_inst.get(candidate["instId"])
         if probe:
             candidate["marketDataStatus"] = "public_ok" if probe.get("ok") else "public_gap"
@@ -357,6 +384,13 @@ def _build_automation_pipeline(scan_payload: dict[str, Any] | None = None) -> di
 def _latest_readonly_event(events: list[dict[str, Any]]) -> dict[str, Any] | None:
     for event in events:
         if event.get("eventType") == "readonly_check":
+            return event
+    return None
+
+
+def _latest_candidate_scan_event(events: list[dict[str, Any]]) -> dict[str, Any] | None:
+    for event in events:
+        if event.get("eventType") == "demo_candidate_scan":
             return event
     return None
 
@@ -459,7 +493,7 @@ def build_exchange_demo_simulation() -> dict[str, Any]:
     recent_events = list_exchange_demo_events(limit=20)
     base_url, base_url_warning = _demo_base_url()
     readonly_summary = _build_readonly_summary(recent_events)
-    automation_pipeline = _build_automation_pipeline()
+    automation_pipeline = _build_automation_pipeline(_latest_candidate_scan_event(recent_events))
     evolution_demo = build_evolution_demo_status()
     evolution_summary = evolution_demo.get("summary") if isinstance(evolution_demo.get("summary"), dict) else {}
     preferred = automation_pipeline.get("preferredCandidate") if isinstance(automation_pipeline.get("preferredCandidate"), dict) else {}
@@ -604,6 +638,22 @@ def scan_exchange_demo_candidates(payload: dict[str, Any] | None = None) -> dict
         "liveTrading": False,
         "apiKeyUsed": False,
         "ordersCreated": False,
+        "candidateResults": [
+            {
+                key: candidate.get(key)
+                for key in (
+                    "strategyId",
+                    "instId",
+                    "marketDataStatus",
+                    "screeningStatus",
+                    "marketLatencyMs",
+                    "missingPublicFields",
+                    "reason",
+                )
+            }
+            for candidate in pipeline.get("candidates", [])
+            if isinstance(candidate, dict)
+        ],
     })
     return {
         "ok": True,

@@ -18,8 +18,8 @@ from .strategy_optimization import build_optimization_context
 from .usable_strategy_catalog import build_usable_strategy_catalog
 
 
-CONTROL_CONSOLE_VERSION = "V13.26.2"
-CONTROL_CONSOLE_SOURCE = "strategy_lifecycle_projection_v2"
+CONTROL_CONSOLE_VERSION = "V13.27.1.3"
+CONTROL_CONSOLE_SOURCE = "strategy_lifecycle_projection_v13_27_1_3"
 
 STAGE_ORDER = {
     "research_candidate": 10,
@@ -284,6 +284,72 @@ def _evidence_summary(record: dict[str, Any], stage: str) -> str:
     return "已归档，只保留研究追溯。"
 
 
+def _stage_progress(record: dict[str, Any], stage: str) -> dict[str, Any]:
+    closed_samples = max(0, _safe_int(record.get("metrics", {}).get("closedSamples")))
+    if stage == "research_candidate":
+        return {
+            "phase": "backtest_waiting",
+            "label": "等待正式回测",
+            "completed": 0,
+            "required": 1,
+            "percent": 0,
+            "note": "回测过程和数据补齐进度显示在策略页主工作流。",
+        }
+    if stage == "backtest_passed":
+        return {
+            "phase": "backtest_completed",
+            "label": "正式回测已通过",
+            "completed": 1,
+            "required": 1,
+            "percent": 100,
+            "note": "等待建立本地前向任务。",
+        }
+    if stage == "local_simulation_running":
+        return {
+            "phase": "local_forward_sampling",
+            "label": f"本地前向闭合样本 {closed_samples}/30",
+            "completed": closed_samples,
+            "required": 30,
+            "percent": min(99, round(closed_samples / 30 * 100)),
+            "note": "30 个闭合样本只是复核起点，不代表自动晋级。",
+        }
+    if stage == "local_simulation_passed":
+        return {
+            "phase": "local_forward_reviewed",
+            "label": "本地前向已正式通过",
+            "completed": max(30, closed_samples),
+            "required": 30,
+            "percent": 100,
+            "note": "等待生成不可变 Demo Release。",
+        }
+    if stage == "demo_trial":
+        return {
+            "phase": "demo_release_preparation",
+            "label": "等待 Demo Release",
+            "completed": 1,
+            "required": 6,
+            "percent": 17,
+            "note": "尚未开始交易所 Demo 下单。",
+        }
+    if stage == "demo_validation_running":
+        return {
+            "phase": "demo_validation",
+            "label": "正在收集 Demo 闭合交易",
+            "completed": 4,
+            "required": 6,
+            "percent": 67,
+            "note": "实际订单、持仓和盈亏以 Demo 执行账本为准。",
+        }
+    return {
+        "phase": "completed",
+        "label": "阶段已完成",
+        "completed": 1,
+        "required": 1,
+        "percent": 100,
+        "note": "等待下一阶段的正式决定。",
+    }
+
+
 def _finalize_record(record: dict[str, Any]) -> dict[str, Any]:
     history = sorted(record["history"], key=lambda row: STAGE_ORDER.get(str(row.get("stage")), 0))
     stages = [str(row.get("stage")) for row in history]
@@ -310,6 +376,7 @@ def _finalize_record(record: dict[str, Any]) -> dict[str, Any]:
         "consistencyStatus": "reconciliation_required" if consistency_reasons else "consistent",
         "consistencyReasons": consistency_reasons,
         "evidenceSummary": _evidence_summary(record, stage),
+        "progress": _stage_progress(record, stage),
         "metrics": record["metrics"],
         "nextGate": NEXT_GATES[stage],
         "blockers": _unique_text(record["blockers"]),

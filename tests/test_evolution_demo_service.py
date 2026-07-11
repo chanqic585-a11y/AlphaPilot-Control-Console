@@ -4,6 +4,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import alphapilot_control_console.evolution_demo_service as service
@@ -93,6 +94,39 @@ class EvolutionDemoServiceTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(result["externalSignalsIgnored"], 1)
         self.assertEqual(result["created"], [])
+
+    def test_status_exposes_redacted_demo_closed_outcomes_for_operator_pnl(self) -> None:
+        class FakeOutcomeStore:
+            def list_outcomes(self) -> list[object]:
+                return [
+                    SimpleNamespace(
+                        executionOutcomeId="outcome-1",
+                        environment="okx_demo",
+                        sourceRecordId="record-1",
+                        releaseId="release-1",
+                        releaseHash="release-hash",
+                        strategyCandidateId="strategy-1",
+                        dataSnapshotId="snapshot-1",
+                        outcome={"trade": {"netPnl": 2.5, "feePaid": 0.2, "slippagePaid": 0.1}},
+                        contentHash="outcome-hash",
+                        createdAt="2026-07-11T00:00:00+00:00",
+                    )
+                ]
+
+            def close(self) -> None:
+                return None
+
+        with tempfile.TemporaryDirectory() as directory, patch.object(
+            service, "STORE_PATH", Path(directory) / "demo.sqlite"
+        ), patch.object(service, "_contract_paths", return_value=[]), patch.object(
+            service, "ExecutionOutcomeStore", return_value=FakeOutcomeStore(), create=True
+        ), patch.dict(os.environ, {}, clear=True):
+            status = service.build_evolution_demo_status()
+
+        self.assertEqual(status["summary"]["closedOutcomeCount"], 1)
+        self.assertEqual(status["summary"]["realizedNetPnl"], 2.5)
+        self.assertEqual(status["recentOutcomes"][0]["strategyCandidateId"], "strategy-1")
+        self.assertNotIn("exchangeResponse", status["recentOutcomes"][0])
 
 
 if __name__ == "__main__":

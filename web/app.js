@@ -222,6 +222,9 @@ let latestTestnetPermissionPayload = {};
 let latestTestnetSmallOrderPayload = {};
 let latestExchangeDemoPayload = {};
 let latestExchangeDemoCandidate = null;
+let latestDemoWorkflowPayload = { summary: {}, queues: {} };
+let demoWorkflowLoading = null;
+let demoWorkflowPollTimer = null;
 let latestNoKeyPreLivePayload = {};
 let latestNoKeyPreLiveCandidate = null;
 let latestAutoExecutionEnginePayload = {};
@@ -267,7 +270,7 @@ const emptyStrategyLifecycle = {
   sourceWarnings: [],
 };
 const emptyWorkflow = {
-  version: "V13.27.1.2",
+  version: "V13.27.1.3",
   summary: {},
   items: [],
   archivedItems: [],
@@ -1414,6 +1417,8 @@ function renderLifecycleCards(targetId, items, allowedStages, emptyText) {
   const rows = (Array.isArray(items) ? items : []).filter((item) => allowedStages.includes(item.currentStage));
   target.innerHTML = rows.map((item) => {
     const metrics = item.metrics || {};
+    const progress = item.progress || {};
+    const progressPercent = Math.max(0, Math.min(100, Number(progress.percent || 0)));
     const blockers = Array.isArray(item.blockers) ? item.blockers.slice(0, 3) : [];
     const history = Array.isArray(item.history) ? item.history : [];
     const stageTone = lifecycleStageTones[item.currentStage] || "neutral";
@@ -1445,6 +1450,11 @@ function renderLifecycleCards(targetId, items, allowedStages, emptyText) {
             <span class="badge ${stageTone}">${escapeHtml(item.stageLabel || item.currentStage || "--")}</span>
             ${reviewFlag}
           </div>
+        </div>
+        <div class="lifecycle-progress">
+          <div><span>当前步骤</span><strong>${escapeHtml(progress.label || "等待阶段任务")}</strong></div>
+          <div class="lifecycle-progress-track"><i style="width:${progressPercent}%"></i></div>
+          <small>${Number(progress.completed ?? 0)}/${Number(progress.required ?? 0)} · ${escapeHtml(progress.note || "等待可追溯证据。")}</small>
         </div>
         <div class="lifecycle-card-metrics">${metricRows.map((row) => `<span>${escapeHtml(row)}</span>`).join("") || "<span>等待阶段指标</span>"}</div>
         <p>${escapeHtml(item.evidenceSummary || "等待生命周期证据。")}</p>
@@ -1506,6 +1516,191 @@ function renderStrategyLifecycle(payload = emptyStrategyLifecycle) {
   if (badge) {
     badge.className = "status-pill ok";
     badge.textContent = "单一阶段";
+  }
+}
+
+function demoWorkflowValue(value, formatter = null) {
+  if (value === null || value === undefined || value === "") return "--";
+  return formatter ? formatter(value) : String(value);
+}
+
+function demoWorkflowStatusLabel(value) {
+  const labels = {
+    not_started: "尚未开始",
+    prepared: "订单已准备",
+    submitted: "订单已提交",
+    live: "订单挂单中",
+    partially_filled: "部分成交",
+    filled: "已成交 / 持仓跟踪",
+    canceled: "已取消",
+    rejected: "已拒绝",
+    unknown: "状态待对账",
+    pending: "等待处理",
+    completed: "已完成",
+    blocked: "已阻塞",
+    running: "运行中",
+  };
+  return labels[value] || translateExchangeDemoStatus(value);
+}
+
+function demoWorkflowReasonLabel(value) {
+  const labels = {
+    immutable_demo_release_missing: "缺少不可变 Demo Release",
+    formal_strategy_candidate_not_registered: "尚未登记正式策略候选",
+    formal_backtest_evidence_missing: "缺少正式回测证据",
+    local_forward_evidence_incomplete: "本地前向闭合样本不足",
+    target_r_below_2r: "目标盈亏比低于 2R",
+    demo_strategy_not_found: "找不到策略",
+    unsupported_demo_workflow_action: "不支持的工作流动作",
+  };
+  return labels[value] || translateExchangeDemoBlocker(value);
+}
+
+function renderDemoProcessSteps(steps) {
+  return `<div class="demo-process-steps">${(Array.isArray(steps) ? steps : []).map((step, index) => `
+    <div class="demo-process-step ${escapeHtml(step.status || "pending")}">
+      <span>${index + 1}</span>
+      <div><strong>${escapeHtml(step.label || "等待步骤")}</strong><small>${escapeHtml(demoWorkflowStatusLabel(step.status || "pending"))}</small></div>
+    </div>
+  `).join("")}</div>`;
+}
+
+function renderDemoWorkflowCard(item) {
+  const progress = item.progress || {};
+  const market = item.market || {};
+  const position = item.position || {};
+  const performance = item.performance || {};
+  const failure = item.failure || {};
+  const nextAction = item.nextAction || {};
+  const percent = Math.max(0, Math.min(100, Number(progress.percent || 0)));
+  const pnlTone = Number(performance.realizedPnl || 0) > 0
+    ? "positive"
+    : Number(performance.realizedPnl || 0) < 0 ? "negative" : "neutral";
+  const blockers = Array.isArray(failure.blockers) ? failure.blockers : [];
+  const suggestions = Array.isArray(failure.suggestions) ? failure.suggestions : [];
+  const canRun = Boolean(nextAction.enabled);
+  const retryVisible = failure.status === "failed" && failure.canRetrySameVersion;
+  const optimizeVisible = Boolean(failure.canOptimize);
+  return `
+    <article class="demo-workflow-card" data-demo-strategy-id="${escapeHtml(item.strategyId || "")}">
+      <div class="workflow-card-head">
+        <div><h5>${escapeHtml(item.displayName || item.strategyId || "--")}</h5><small>${escapeHtml(item.timeframe || "--")} · ${escapeHtml(item.direction || "方向待定")}</small></div>
+        <span class="badge ${item.queue === "passed" ? "ok" : item.queue === "validating" ? "warn" : "neutral"}">${escapeHtml(item.queueLabel || "Demo")}</span>
+      </div>
+      <div class="demo-workflow-progress-head"><span>当前步骤</span><strong>${escapeHtml(progress.label || "等待处理")}</strong><em>${percent}%</em></div>
+      <div class="lifecycle-progress-track"><i style="width:${percent}%"></i></div>
+      <small class="demo-workflow-progress-note">${Number(progress.completed ?? 0)}/${Number(progress.required ?? 0)} 个流程步骤</small>
+      ${renderDemoProcessSteps(item.processSteps)}
+      <div class="demo-workflow-trade-grid">
+        <div><span>交易币种</span><strong>${escapeHtml(demoWorkflowValue(market.instrumentId))}</strong></div>
+        <div><span>持仓状态</span><strong>${escapeHtml(demoWorkflowStatusLabel(position.status || "not_started"))}</strong></div>
+        <div><span>买入 / 开仓价</span><strong>${escapeHtml(demoWorkflowValue(position.entryPrice, (value) => formatNumber(value, 6)))}</strong></div>
+        <div><span>当前价格</span><strong>${escapeHtml(demoWorkflowValue(position.markPrice ?? market.markPrice, (value) => formatNumber(value, 6)))}</strong></div>
+        <div><span>目标盈利价</span><strong>${escapeHtml(demoWorkflowValue(position.takeProfitPrice, (value) => formatNumber(value, 6)))}</strong></div>
+        <div><span>止损价</span><strong>${escapeHtml(demoWorkflowValue(position.stopLossPrice, (value) => formatNumber(value, 6)))}</strong></div>
+        <div><span>持仓数量</span><strong>${escapeHtml(demoWorkflowValue(position.quantity, (value) => formatNumber(value, 6)))}</strong></div>
+        <div><span>浮动盈亏</span><strong class="${performance.unrealizedPnl > 0 ? "positive" : performance.unrealizedPnl < 0 ? "negative" : ""}">${escapeHtml(demoWorkflowValue(performance.unrealizedPnl, (value) => formatUsd(value, 2)))}</strong></div>
+        <div><span>已实现盈亏</span><strong class="${pnlTone}">${escapeHtml(demoWorkflowValue(performance.realizedPnl, (value) => formatUsd(value, 2)))}</strong></div>
+        <div><span>手续费</span><strong>${escapeHtml(demoWorkflowValue(performance.fees, (value) => formatUsd(value, 2)))}</strong></div>
+        <div><span>滑点</span><strong>${escapeHtml(demoWorkflowValue(performance.slippage, (value) => formatUsd(value, 2)))}</strong></div>
+        <div><span>闭合交易</span><strong>${Number(performance.closedTradeCount || 0)}</strong></div>
+      </div>
+      ${failure.status && failure.status !== "none" ? `
+        <div class="demo-workflow-failure">
+          <span>失败原因 / 当前阻塞</span>
+          <strong>${escapeHtml(demoWorkflowReasonLabel(failure.reason))}</strong>
+          <p>${escapeHtml(failure.analysis || "等待失败分析。")}</p>
+          ${blockers.length ? `<div>${blockers.slice(0, 5).map((row) => `<em>${escapeHtml(demoWorkflowReasonLabel(row))}</em>`).join("")}</div>` : ""}
+          <span>改善建议</span>
+          <ul>${suggestions.map((row) => `<li>${escapeHtml(row)}</li>`).join("") || "<li>先完成当前步骤，再重新复核。</li>"}</ul>
+        </div>
+      ` : ""}
+      <div class="lifecycle-next"><span>下一步</span><strong>${escapeHtml(nextAction.description || "等待正式阶段决定。")}</strong></div>
+      ${nextAction.command ? `<div class="demo-workflow-command"><span>启动命令</span><code>${escapeHtml(nextAction.command)}</code></div>` : ""}
+      <div class="workflow-actions">
+        ${canRun ? `<button type="button" data-demo-workflow-action="${escapeHtml(nextAction.actionId || "")}" data-strategy-id="${escapeHtml(item.strategyId || "")}">${escapeHtml(nextAction.label || "执行下一步")}</button>` : ""}
+        ${retryVisible ? `<button type="button" class="secondary" data-demo-workflow-action="retry_demo_cycle" data-strategy-id="${escapeHtml(item.strategyId || "")}">重新验证</button>` : ""}
+        ${optimizeVisible ? `<button type="button" class="secondary" data-demo-workflow-action="optimize" data-strategy-id="${escapeHtml(item.strategyId || "")}">改善优化</button>` : ""}
+      </div>
+      <details class="workflow-details"><summary>高级详情</summary><div><span>策略 ID</span><code>${escapeHtml(item.strategyId || "--")}</code><span>Demo Release</span><code>${escapeHtml(item.release?.demoReleaseId || "尚未生成")}</code><span>对账状态</span><code>${escapeHtml(demoWorkflowStatusLabel(item.reconciliation?.status || "not_started"))}</code></div></details>
+    </article>
+  `;
+}
+
+function renderDemoWorkflowLane(targetId, countId, rows, emptyText) {
+  const target = el(targetId);
+  const count = el(countId);
+  const items = Array.isArray(rows) ? rows : [];
+  if (count) count.textContent = String(items.length);
+  if (target) target.innerHTML = items.length
+    ? items.map(renderDemoWorkflowCard).join("")
+    : `<div class="workflow-empty">${escapeHtml(emptyText)}</div>`;
+}
+
+function renderDemoWorkflow(payload = { summary: {}, queues: {} }) {
+  latestDemoWorkflowPayload = payload || { summary: {}, queues: {} };
+  const summary = payload?.summary || {};
+  const queues = payload?.queues || {};
+  setText("demoWorkflowWaitingCount", String(summary.waitingCount ?? 0));
+  setText("demoWorkflowValidatingCount", String(summary.validatingCount ?? 0));
+  setText("demoWorkflowPassedCount", String(summary.passedCount ?? 0));
+  setText("demoWorkflowLiveCandidateCount", String(summary.liveCandidateCount ?? 0));
+  renderDemoWorkflowLane("demoWorkflowWaitingList", "demoWorkflowWaitingLaneCount", queues.waiting, "没有等待进入 Demo 的策略。");
+  renderDemoWorkflowLane("demoWorkflowValidatingList", "demoWorkflowValidatingLaneCount", queues.validating, "当前没有策略在 OKX Demo 验证中。");
+  renderDemoWorkflowLane("demoWorkflowPassedList", "demoWorkflowPassedLaneCount", queues.passed, "还没有策略通过 Demo 模拟。");
+  renderDemoWorkflowLane("demoWorkflowLiveCandidateList", "demoWorkflowLiveCandidateLaneCount", queues.liveCandidate, "还没有形成实盘候选包。");
+  const waiting = Number(summary.waitingCount || 0);
+  const validating = Number(summary.validatingCount || 0);
+  setText(
+    "demoWorkflowMeta",
+    validating
+      ? `${validating} 条策略正在 OKX Demo 验证；${waiting} 条等待前置条件。`
+      : `${waiting} 条策略待 Demo；当前没有策略在交易所 Demo 下单或持仓。`,
+  );
+  if (demoWorkflowPollTimer) window.clearTimeout(demoWorkflowPollTimer);
+  if (validating > 0) {
+    demoWorkflowPollTimer = window.setTimeout(() => {
+      if (window.location.hash === "#exchangeDemo") void loadDemoWorkflow(true);
+    }, 15000);
+  }
+}
+
+async function loadDemoWorkflow(force = false) {
+  if (demoWorkflowLoading && !force) return demoWorkflowLoading;
+  demoWorkflowLoading = getJsonSafe(
+    `/api/demo-workflow${force ? "?fresh=1" : ""}`,
+    { summary: {}, queues: {}, loadError: "无法读取 Demo 工作流" },
+    30000,
+  ).then((payload) => {
+    renderDemoWorkflow(payload);
+    return payload;
+  }).finally(() => {
+    demoWorkflowLoading = null;
+  });
+  return demoWorkflowLoading;
+}
+
+async function runDemoWorkflowAction(action, strategyId) {
+  if (action === "optimize") {
+    const item = (latestStrategyLifecyclePayload?.items || []).find((row) => row.strategyId === strategyId);
+    if (item) openStrategyOptimizationDialog(item);
+    return;
+  }
+  setText("demoWorkflowActionStatus", "正在执行当前合法步骤，请稍候。");
+  try {
+    const response = await postJson("/api/demo-workflow/action", { action, strategyId });
+    renderDemoWorkflow(response.workflow || { summary: {}, queues: {} });
+    const blockers = Array.isArray(response.blockers) ? response.blockers : [];
+    setText(
+      "demoWorkflowActionStatus",
+      response.ok
+        ? (response.message || "当前步骤已完成。")
+        : `${response.message || "当前步骤被阻塞。"}${blockers.length ? ` 缺项：${blockers.map(demoWorkflowReasonLabel).join("；")}` : ""}`,
+    );
+    const exchangeDemo = await getJsonSafe("/api/exchange-demo/simulation?fresh=1", latestExchangeDemoPayload || {}, 12000);
+    renderExchangeDemoSimulation(exchangeDemo);
+  } catch (error) {
+    setText("demoWorkflowActionStatus", `操作失败：${error.message}`);
   }
 }
 
@@ -6332,6 +6527,9 @@ function loadDataForSection(sectionId) {
   if (sectionId === "mobileConsole") {
     void loadMobileStatusIfNeeded();
   }
+  if (sectionId === "exchangeDemo") {
+    void loadDemoWorkflow();
+  }
   if (document.body.classList.contains("show-advanced")) {
     void loadAdvancedDataIfNeeded();
   }
@@ -6820,6 +7018,17 @@ el("localLabRunSandboxButton")?.addEventListener("click", runLocalLabSandboxFrom
 el("localLabDailyReportButton")?.addEventListener("click", buildLocalLabDailyReport);
 el("localLabRefreshButton")?.addEventListener("click", refreshAll);
 el("exchangeDemoReadOnlyButton")?.addEventListener("click", runExchangeDemoReadOnlyCheck);
+el("demoWorkflowRefreshButton")?.addEventListener("click", () => loadDemoWorkflow(true));
+el("exchangeDemo")?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-demo-workflow-action]");
+  if (!button) return;
+  const action = button.dataset.demoWorkflowAction || "";
+  const strategyId = button.dataset.strategyId || "";
+  button.disabled = true;
+  void runDemoWorkflowAction(action, strategyId).finally(() => {
+    button.disabled = false;
+  });
+});
 el("exchangeDemoScanButton")?.addEventListener("click", scanExchangeDemoCandidates);
 el("exchangeDemoFillTicketButton")?.addEventListener("click", () => fillExchangeDemoTicketFromCandidate());
 el("noKeyScanButton")?.addEventListener("click", scanNoKeyPreLiveCandidates);

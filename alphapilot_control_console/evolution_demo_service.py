@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from dataclasses import asdict
+from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +17,7 @@ from .demo_execution_store import DemoExecutionStore
 from .demo_release_scanner import scan_immutable_demo_release
 from .demo_runtime_guard import evaluate_demo_runtime_guard
 from .exchange_connectors.okx_demo_client import OkxDemoClient
+from .execution_outcome_store import ExecutionOutcomeStore
 from .portfolio_risk import normalize_risk_profile
 from .risk_profile_store import RISK_PROFILE_STORE_PATH, RiskProfileStore
 
@@ -186,6 +187,12 @@ def _record_payload(record: Any) -> dict[str, Any]:
     return payload
 
 
+def _outcome_payload(outcome: Any) -> dict[str, Any]:
+    payload = asdict(outcome) if is_dataclass(outcome) else dict(vars(outcome))
+    payload.pop("exchangeResponse", None)
+    return payload
+
+
 def build_evolution_demo_status() -> dict[str, Any]:
     contracts, rejected = discover_demo_contracts()
     store = DemoExecutionStore(STORE_PATH)
@@ -195,6 +202,19 @@ def build_evolution_demo_status() -> dict[str, Any]:
         kill_switch = bool(store.get_runtime_flag("killSwitch", False))
     finally:
         store.close()
+    outcome_store = ExecutionOutcomeStore()
+    try:
+        outcomes = [
+            outcome
+            for outcome in outcome_store.list_outcomes()
+            if outcome.environment == "okx_demo"
+        ]
+    finally:
+        outcome_store.close()
+    realized_net_pnl = sum(
+        float(((outcome.outcome or {}).get("trade") or {}).get("netPnl") or 0.0)
+        for outcome in outcomes
+    )
     credential_status = runtime_credential_status()
     risk_store = RiskProfileStore(RISK_PROFILE_STORE_PATH)
     try:
@@ -239,6 +259,8 @@ def build_evolution_demo_status() -> dict[str, Any]:
             "rejectedContractCount": len(rejected),
             "executionRecordCount": len(records),
             "activeRecordCount": sum(record.status not in {"filled", "canceled", "rejected", "mmp_canceled"} for record in records),
+            "closedOutcomeCount": len(outcomes),
+            "realizedNetPnl": realized_net_pnl,
             "paused": paused,
             "killSwitch": kill_switch,
             "ready": not blockers,
@@ -262,6 +284,7 @@ def build_evolution_demo_status() -> dict[str, Any]:
         ],
         "activeRiskProfile": active_risk_profile,
         "recentRecords": [_record_payload(record) for record in records[-10:]],
+        "recentOutcomes": [_outcome_payload(outcome) for outcome in outcomes[-50:]],
         "rejectedContracts": rejected,
         "credentialStatus": credential_status,
         "runtimeGates": {
