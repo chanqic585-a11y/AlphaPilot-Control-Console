@@ -2010,3 +2010,25 @@ workflow state from Quant Engine.
 Release checks passed with 76 Console tests and Node syntax validation. The
 bounded public-data integration result is documented in
 `docs/V13.27.1.1-dual-data-one-click-backtest.md`.
+
+## V13.27.1.2 Targeted Strategy Optimization Actions
+
+V13.27.1.2 completes the actionable failure path on the Strategy, Local
+Simulation, and Demo pages.
+
+- Failed or blocked backtests now show `重新回测`, `改善优化`, and `归档`.
+- Data-integrity blockers use the same immutable strategy version and restart
+  the official-data preparation path; strategy-performance failures require a
+  changed version.
+- `改善优化` shows the recorded current parameters, stage evidence, proposed
+  values, and a reason for each suggested change. It adjusts only existing
+  parameters and keeps all target-R fields locked at `2R` or higher.
+- Local Simulation and Demo cards expose the same optimization dialog. An
+  optimized legacy strategy is imported into the canonical workflow, while its
+  original samples remain attached to the original strategy.
+- Confirming an optimization creates an immutable version and starts it again
+  at backtesting. It never edits a running Local/Demo strategy in place.
+
+The suggestions are deterministic research heuristics, not AI promises or
+profit guarantees. This patch adds no API key storage, Trade API, Withdraw API,
+Demo order, real order, or automatic Live activation.
