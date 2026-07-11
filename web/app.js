@@ -1805,6 +1805,8 @@ function collectDemoIssues(payload = { queues: {} }, exchangePayload = {}) {
 }
 
 function refreshDemoPageIssues() {
+  const exchangePayloadReady = Boolean(latestExchangeDemoPayload?.summary || latestExchangeDemoPayload?.loadError);
+  if (!exchangePayloadReady) return;
   registerPageIssues("exchangeDemo", collectDemoIssues(latestDemoWorkflowPayload, latestExchangeDemoPayload));
 }
 

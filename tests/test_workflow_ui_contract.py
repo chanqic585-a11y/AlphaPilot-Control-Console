@@ -103,6 +103,8 @@ class WorkflowUiContractTests(unittest.TestCase):
         self.assertIn("refreshDemoPageIssues", self.js)
         self.assertIn('version: "readonly-preflight-v1"', self.js)
         self.assertIn("issueController.presentHighestPriority", self.js)
+        self.assertIn("const exchangePayloadReady", self.js)
+        self.assertIn("if (!exchangePayloadReady) return", self.js)
 
     def test_demo_preflight_final_status_is_set_before_workflow_refresh(self) -> None:
         branch_start = self.js.index('if (action === "run_demo_preflight")')
