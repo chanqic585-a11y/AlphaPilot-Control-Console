@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import threading
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -51,7 +52,8 @@ class UnifiedAutoExecutionStore:
     def __init__(self, path: Path | str):
         target = Path(path)
         target.parent.mkdir(parents=True, exist_ok=True)
-        self.connection = sqlite3.connect(target)
+        self._lock = threading.RLock()
+        self.connection = sqlite3.connect(target, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA busy_timeout = 5000")
         self.connection.executescript(
@@ -89,91 +91,97 @@ class UnifiedAutoExecutionStore:
         self.connection.commit()
 
     def close(self) -> None:
-        self.connection.close()
+        with self._lock:
+            self.connection.close()
 
     def _ensure_runtime(self, environment: str) -> None:
         environment = _environment(environment)
-        with self.connection:
-            self.connection.execute(
-                """
-                INSERT OR IGNORE INTO AutoExecutionRuntime(environment, updatedAt)
-                VALUES (?, ?)
-                """,
-                (environment, _now()),
-            )
+        with self._lock:
+            with self.connection:
+                self.connection.execute(
+                    """
+                    INSERT OR IGNORE INTO AutoExecutionRuntime(environment, updatedAt)
+                    VALUES (?, ?)
+                    """,
+                    (environment, _now()),
+                )
 
     def runtime(self, environment: str, *, current_process_id: str | None = None) -> dict[str, Any]:
         environment = _environment(environment)
-        self._ensure_runtime(environment)
-        row = self.connection.execute(
-            "SELECT * FROM AutoExecutionRuntime WHERE environment = ?",
-            (environment,),
-        ).fetchone()
-        assert row is not None
-        current = str(current_process_id if current_process_id is not None else os.getpid())
-        armed_process = str(row["armedProcessId"] or "")
-        return {
-            "environment": row["environment"],
-            "desiredEnabled": bool(row["desiredEnabled"]),
-            "armedProcessId": armed_process or None,
-            "armedForCurrentProcess": bool(armed_process and armed_process == current),
-            "status": row["status"],
-            "lastHeartbeatAt": row["lastHeartbeatAt"],
-            "nextEvaluationAt": row["nextEvaluationAt"],
-            "pauseReason": row["pauseReason"],
-            "lastError": row["lastError"],
-            "updatedAt": row["updatedAt"],
-        }
+        with self._lock:
+            self._ensure_runtime(environment)
+            row = self.connection.execute(
+                "SELECT * FROM AutoExecutionRuntime WHERE environment = ?",
+                (environment,),
+            ).fetchone()
+            assert row is not None
+            current = str(current_process_id if current_process_id is not None else os.getpid())
+            armed_process = str(row["armedProcessId"] or "")
+            return {
+                "environment": row["environment"],
+                "desiredEnabled": bool(row["desiredEnabled"]),
+                "armedProcessId": armed_process or None,
+                "armedForCurrentProcess": bool(armed_process and armed_process == current),
+                "status": row["status"],
+                "lastHeartbeatAt": row["lastHeartbeatAt"],
+                "nextEvaluationAt": row["nextEvaluationAt"],
+                "pauseReason": row["pauseReason"],
+                "lastError": row["lastError"],
+                "updatedAt": row["updatedAt"],
+            }
 
     def set_desired_enabled(self, environment: str, enabled: bool) -> dict[str, Any]:
         environment = _environment(environment)
-        self._ensure_runtime(environment)
-        status = "waiting_for_arm" if enabled else "disabled"
-        with self.connection:
-            self.connection.execute(
-                """
-                UPDATE AutoExecutionRuntime
-                SET desiredEnabled = ?, status = ?, pauseReason = NULL,
-                    lastError = NULL, updatedAt = ?
-                WHERE environment = ?
-                """,
-                (1 if enabled else 0, status, _now(), environment),
-            )
-        self.append_event(environment, "desired_state_changed", {"enabled": bool(enabled)})
-        return self.runtime(environment)
+        with self._lock:
+            self._ensure_runtime(environment)
+            status = "waiting_for_arm" if enabled else "disabled"
+            with self.connection:
+                self.connection.execute(
+                    """
+                    UPDATE AutoExecutionRuntime
+                    SET desiredEnabled = ?, status = ?, pauseReason = NULL,
+                        lastError = NULL, updatedAt = ?
+                    WHERE environment = ?
+                    """,
+                    (1 if enabled else 0, status, _now(), environment),
+                )
+            self.append_event(environment, "desired_state_changed", {"enabled": bool(enabled)})
+            return self.runtime(environment)
 
     def record_arm(self, environment: str, *, process_id: str) -> dict[str, Any]:
         environment = _environment(environment)
         if not str(process_id).strip():
             raise ValueError("A process identity is required to arm automatic execution")
-        self._ensure_runtime(environment)
-        with self.connection:
-            self.connection.execute(
-                """
-                UPDATE AutoExecutionRuntime
-                SET armedProcessId = ?, status = 'armed', pauseReason = NULL,
-                    lastError = NULL, updatedAt = ?
-                WHERE environment = ?
-                """,
-                (str(process_id), _now(), environment),
-            )
-        self.append_event(environment, "armed", {"processId": str(process_id)})
-        return self.runtime(environment, current_process_id=str(process_id))
+        with self._lock:
+            self._ensure_runtime(environment)
+            with self.connection:
+                self.connection.execute(
+                    """
+                    UPDATE AutoExecutionRuntime
+                    SET armedProcessId = ?, status = 'armed', pauseReason = NULL,
+                        lastError = NULL, updatedAt = ?
+                    WHERE environment = ?
+                    """,
+                    (str(process_id), _now(), environment),
+                )
+            self.append_event(environment, "armed", {"processId": str(process_id)})
+            return self.runtime(environment, current_process_id=str(process_id))
 
     def disarm(self, environment: str, *, reason: str = "operator_request") -> dict[str, Any]:
         environment = _environment(environment)
-        self._ensure_runtime(environment)
-        with self.connection:
-            self.connection.execute(
-                """
-                UPDATE AutoExecutionRuntime
-                SET armedProcessId = NULL, status = 'disarmed', pauseReason = ?, updatedAt = ?
-                WHERE environment = ?
-                """,
-                (str(reason), _now(), environment),
-            )
-        self.append_event(environment, "disarmed", {"reason": str(reason)})
-        return self.runtime(environment)
+        with self._lock:
+            self._ensure_runtime(environment)
+            with self.connection:
+                self.connection.execute(
+                    """
+                    UPDATE AutoExecutionRuntime
+                    SET armedProcessId = NULL, status = 'disarmed', pauseReason = ?, updatedAt = ?
+                    WHERE environment = ?
+                    """,
+                    (str(reason), _now(), environment),
+                )
+            self.append_event(environment, "disarmed", {"reason": str(reason)})
+            return self.runtime(environment)
 
     def update_runtime(self, environment: str, **changes: Any) -> dict[str, Any]:
         environment = _environment(environment)
@@ -181,17 +189,18 @@ class UnifiedAutoExecutionStore:
         if unknown:
             raise ValueError("Unsupported runtime fields: " + ",".join(sorted(unknown)))
         _reject_sensitive(changes)
-        self._ensure_runtime(environment)
-        if not changes:
+        with self._lock:
+            self._ensure_runtime(environment)
+            if not changes:
+                return self.runtime(environment)
+            assignments = ", ".join(f"{key} = ?" for key in changes)
+            values = [changes[key] for key in changes]
+            with self.connection:
+                self.connection.execute(
+                    f"UPDATE AutoExecutionRuntime SET {assignments}, updatedAt = ? WHERE environment = ?",
+                    (*values, _now(), environment),
+                )
             return self.runtime(environment)
-        assignments = ", ".join(f"{key} = ?" for key in changes)
-        values = [changes[key] for key in changes]
-        with self.connection:
-            self.connection.execute(
-                f"UPDATE AutoExecutionRuntime SET {assignments}, updatedAt = ? WHERE environment = ?",
-                (*values, _now(), environment),
-            )
-        return self.runtime(environment)
 
     def save_checkpoint(
         self,
@@ -203,60 +212,64 @@ class UnifiedAutoExecutionStore:
         environment = _environment(environment)
         if not release_id or not timeframe or not candle_key:
             raise ValueError("Checkpoint identity is incomplete")
-        with self.connection:
-            self.connection.execute(
-                """
-                INSERT INTO AutoExecutionCheckpoints(
-                  environment, releaseId, timeframe, closedCandleKey, evaluatedAt
-                ) VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(environment, releaseId, timeframe) DO UPDATE SET
-                  closedCandleKey = excluded.closedCandleKey,
-                  evaluatedAt = excluded.evaluatedAt
-                """,
-                (environment, release_id, timeframe, candle_key, _now()),
-            )
+        with self._lock:
+            with self.connection:
+                self.connection.execute(
+                    """
+                    INSERT INTO AutoExecutionCheckpoints(
+                      environment, releaseId, timeframe, closedCandleKey, evaluatedAt
+                    ) VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(environment, releaseId, timeframe) DO UPDATE SET
+                      closedCandleKey = excluded.closedCandleKey,
+                      evaluatedAt = excluded.evaluatedAt
+                    """,
+                    (environment, release_id, timeframe, candle_key, _now()),
+                )
 
     def checkpoint(self, environment: str, release_id: str, timeframe: str) -> str | None:
         environment = _environment(environment)
-        row = self.connection.execute(
-            """
-            SELECT closedCandleKey FROM AutoExecutionCheckpoints
-            WHERE environment = ? AND releaseId = ? AND timeframe = ?
-            """,
-            (environment, release_id, timeframe),
-        ).fetchone()
-        return str(row["closedCandleKey"]) if row else None
+        with self._lock:
+            row = self.connection.execute(
+                """
+                SELECT closedCandleKey FROM AutoExecutionCheckpoints
+                WHERE environment = ? AND releaseId = ? AND timeframe = ?
+                """,
+                (environment, release_id, timeframe),
+            ).fetchone()
+            return str(row["closedCandleKey"]) if row else None
 
     def append_event(self, environment: str, event_type: str, payload: dict[str, Any]) -> None:
         environment = _environment(environment)
         _reject_sensitive(payload)
-        with self.connection:
-            self.connection.execute(
-                """
-                INSERT INTO AutoExecutionEvents(environment, eventType, payloadJson, createdAt)
-                VALUES (?, ?, ?, ?)
-                """,
-                (environment, str(event_type), _json(payload), _now()),
-            )
+        with self._lock:
+            with self.connection:
+                self.connection.execute(
+                    """
+                    INSERT INTO AutoExecutionEvents(environment, eventType, payloadJson, createdAt)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (environment, str(event_type), _json(payload), _now()),
+                )
 
     def list_events(self, environment: str, limit: int = 50) -> list[dict[str, Any]]:
         environment = _environment(environment)
-        rows = self.connection.execute(
-            """
-            SELECT eventId, eventType, payloadJson, createdAt
-            FROM AutoExecutionEvents
-            WHERE environment = ?
-            ORDER BY eventId DESC LIMIT ?
-            """,
-            (environment, max(1, min(int(limit), 500))),
-        ).fetchall()
-        return [
-            {
-                "eventId": int(row["eventId"]),
-                "environment": environment,
-                "eventType": row["eventType"],
-                "payload": json.loads(row["payloadJson"]),
-                "createdAt": row["createdAt"],
-            }
-            for row in rows
-        ]
+        with self._lock:
+            rows = self.connection.execute(
+                """
+                SELECT eventId, eventType, payloadJson, createdAt
+                FROM AutoExecutionEvents
+                WHERE environment = ?
+                ORDER BY eventId DESC LIMIT ?
+                """,
+                (environment, max(1, min(int(limit), 500))),
+            ).fetchall()
+            return [
+                {
+                    "eventId": int(row["eventId"]),
+                    "environment": environment,
+                    "eventType": row["eventType"],
+                    "payload": json.loads(row["payloadJson"]),
+                    "createdAt": row["createdAt"],
+                }
+                for row in rows
+            ]

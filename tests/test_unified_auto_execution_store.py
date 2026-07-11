@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 
@@ -65,6 +66,24 @@ class UnifiedAutoExecutionStoreTests(unittest.TestCase):
             self.store.runtime("production")
         with self.assertRaises(ValueError):
             self.store.set_desired_enabled("paper", True)
+
+    def test_store_is_safe_across_runner_and_http_threads(self) -> None:
+        failures: list[BaseException] = []
+        results: list[dict[str, object]] = []
+
+        def read_runtime() -> None:
+            try:
+                results.append(self.store.runtime("okx_demo"))
+            except BaseException as error:  # pragma: no cover - asserted below
+                failures.append(error)
+
+        thread = threading.Thread(target=read_runtime)
+        thread.start()
+        thread.join(timeout=2.0)
+
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(failures, [])
+        self.assertEqual(results[0]["status"], "disabled")
 
 
 if __name__ == "__main__":

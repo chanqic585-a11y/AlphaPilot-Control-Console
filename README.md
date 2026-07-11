@@ -3,12 +3,37 @@
 Current version:
 
 ```text
-AlphaPilot V13.27.1.8 - Demo Preflight Guidance
+AlphaPilot V13.27.2 - Unified Automatic Execution
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
 AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
+
+## What V13.27.2 Adds
+
+- Adds one restart-safe backend controller for Demo and Live automatic
+  execution. Closing the browser does not stop the runner.
+- Evaluates each immutable strategy only once per newly closed candle, while a
+  15-second heartbeat continues order, position, and reconciliation checks.
+- Lets eligible Demo releases scan the full configured OKX USDT perpetual
+  universe, arbitrate competing signals, and place protected Demo orders
+  without per-order confirmation.
+- Gives Live the same operational controls, but keeps its credentials, request
+  headers, adapter, releases, RiskProfile, ledger, ARM state, and kill switch
+  isolated from Demo. Live remains disabled until all five runtime gates and a
+  current-process ARM pass.
+- Adds shared Chinese controls for start, pause new entries, stop, and emergency
+  stop on desktop and mobile-width layouts. The mobile page is read-only and
+  cannot initiate an order.
+- Persists only runtime state, closed-candle checkpoints, and redacted events.
+  Raw credentials remain process-only; Withdraw and key-management endpoints
+  remain absent.
+- Keeps immutable release checks, idempotency, isolated margin, attached TP/SL,
+  and `rewardRiskRatio >= 2` as hard execution requirements.
+
+See `docs/V13.27.2-unified-auto-execution.md` for the Unified Automatic
+Execution lifecycle, launch gates, restart behavior, and safety boundary.
 
 ## What V13.27.1.8 Adds
 

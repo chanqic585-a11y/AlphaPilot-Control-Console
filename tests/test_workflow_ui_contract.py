@@ -15,7 +15,7 @@ class WorkflowUiContractTests(unittest.TestCase):
         cls.css = (ROOT / "web" / "styles.css").read_text(encoding="utf-8")
         cls.http_app = (ROOT / "alphapilot_control_console" / "http_app.py").read_text(encoding="utf-8")
         cls.readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        patch_doc = ROOT / "docs" / "V13.27.1.8-demo-preflight-guidance.md"
+        patch_doc = ROOT / "docs" / "V13.27.2-unified-auto-execution.md"
         cls.patch_doc = patch_doc.read_text(encoding="utf-8") if patch_doc.exists() else ""
         issue_guidance_path = ROOT / "web" / "issue-guidance.js"
         cls.issue_js = issue_guidance_path.read_text(encoding="utf-8") if issue_guidance_path.exists() else ""
@@ -40,15 +40,15 @@ class WorkflowUiContractTests(unittest.TestCase):
         self.assertIn("strategy-optimization-dialog", self.css)
 
     def test_static_asset_cachebuster_matches_patch(self) -> None:
-        self.assertIn("v13-27-1-8-demo-alert", self.html)
+        self.assertIn("v13-27-2-unified-auto-execution", self.html)
 
     def test_patch_version_and_documentation_are_consistent(self) -> None:
-        self.assertIn('version: "V13.27.1.8"', self.js)
-        self.assertIn('"version": "V13.27.1.8"', self.http_app)
-        self.assertIn("AlphaPilot V13.27.1.8", self.readme)
-        self.assertIn("Read-only preflight", self.patch_doc)
-        self.assertIn("50110", self.patch_doc)
+        self.assertIn('version: "V13.27.2"', self.js)
+        self.assertIn('"version": "V13.27.2"', self.http_app)
+        self.assertIn("AlphaPilot V13.27.2", self.readme)
+        self.assertIn("Unified Automatic Execution", self.patch_doc)
         self.assertIn("process-only", self.patch_doc)
+        self.assertIn("rewardRiskRatio >= 2", self.patch_doc)
 
     def test_back_to_strategy_control_is_compact_and_named(self) -> None:
         self.assertIn('title="回到策略页"', self.html)
@@ -162,8 +162,8 @@ class WorkflowUiContractTests(unittest.TestCase):
     def test_one_time_issue_guidance_has_persistent_and_session_fallbacks(self) -> None:
         self.assertIn('id="issueGuidanceDialog"', self.html)
         self.assertIn('id="issueGuidanceNextAction"', self.html)
-        self.assertIn('/issue-guidance.js?v=20260712-v13-27-1-8-demo-alert-ack4', self.html)
-        self.assertIn('/app.js?v=20260712-v13-27-1-8-demo-alert-ack4', self.html)
+        self.assertIn('/issue-guidance.js?v=20260712-v13-27-2-unified-auto-execution', self.html)
+        self.assertIn('/app.js?v=20260712-v13-27-2-unified-auto-execution', self.html)
         self.assertIn("ALPHAPILOT_ISSUE_ACK_V1", self.issue_js)
         self.assertIn("function issueFingerprint", self.issue_js)
         self.assertIn("localStorage", self.issue_js)

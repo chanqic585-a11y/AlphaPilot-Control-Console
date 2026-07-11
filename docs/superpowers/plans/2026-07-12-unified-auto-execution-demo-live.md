@@ -1,6 +1,6 @@
 # AlphaPilot Unified Demo and Live Auto Execution Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Build one restart-safe automatic execution controller that continuously runs eligible immutable strategies in OKX Demo or an explicitly armed OKX Live Canary environment without per-order confirmation.
 
@@ -37,7 +37,7 @@
 - Produces: `UnifiedAutoExecutionStore.runtime(environment) -> dict[str, Any]`
 - Produces: `set_desired_enabled`, `record_arm`, `disarm`, `save_checkpoint`, `checkpoint`, `append_event`, and `list_events`.
 
-- [ ] **Step 1: Write failing scheduler tests**
+- [x] **Step 1: Write failing scheduler tests**
 
 ```python
 def test_hourly_strategy_is_due_once_per_closed_candle():
@@ -50,13 +50,13 @@ def test_invalid_timeframe_fails_closed():
         parse_timeframe_seconds("13m")
 ```
 
-- [ ] **Step 2: Run scheduler tests and verify RED**
+- [x] **Step 2: Run scheduler tests and verify RED**
 
 Run: `python -m unittest tests.test_auto_execution_schedule -v`
 
 Expected: import failure for `auto_execution_schedule`.
 
-- [ ] **Step 3: Implement the minimal pure scheduler**
+- [x] **Step 3: Implement the minimal pure scheduler**
 
 ```python
 TIMEFRAME_SECONDS = {"5m": 300, "15m": 900, "1h": 3600, "4h": 14400, "1d": 86400}
@@ -68,7 +68,7 @@ def closed_candle_key(now: datetime, timeframe: str) -> str:
     return datetime.fromtimestamp(close_epoch, UTC).isoformat()
 ```
 
-- [ ] **Step 4: Write failing store tests**
+- [x] **Step 4: Write failing store tests**
 
 ```python
 def test_runtime_state_never_persists_credentials():
@@ -84,13 +84,13 @@ def test_checkpoint_is_scoped_by_environment_release_and_timeframe():
     self.assertIsNone(store.checkpoint("okx_live", "release-1", "1h"))
 ```
 
-- [ ] **Step 5: Run store tests and verify RED**
+- [x] **Step 5: Run store tests and verify RED**
 
 Run: `python -m unittest tests.test_unified_auto_execution_store -v`
 
 Expected: import failure for `unified_auto_execution_store`.
 
-- [ ] **Step 6: Implement SQLite runtime, checkpoint, and event tables**
+- [x] **Step 6: Implement SQLite runtime, checkpoint, and event tables**
 
 Use three append-safe tables:
 
@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS AutoExecutionEvents (... eventId INTEGER PRIMARY KEY 
 
 The runtime row contains only booleans, status, timestamps, process ARM identity, and reason codes.
 
-- [ ] **Step 7: Run both test files and commit**
+- [x] **Step 7: Run both test files and commit**
 
 Run: `python -m unittest tests.test_auto_execution_schedule tests.test_unified_auto_execution_store -v`
 
@@ -124,7 +124,7 @@ Commit: `git commit -m "Add persistent auto execution schedule state"`
 - Produces: `ExecutionEnvironmentAdapter` protocol with `preflight`, `reconcile`, `list_releases`, `run_batch`, `pause`, and `emergency_stop`.
 - Produces: `UnifiedAutoExecutionController.heartbeat(environment, now=None) -> dict[str, Any]`.
 
-- [ ] **Step 1: Write failing controller tests with a fake adapter**
+- [x] **Step 1: Write failing controller tests with a fake adapter**
 
 ```python
 def test_heartbeat_runs_each_release_only_once_per_closed_candle():
@@ -149,13 +149,13 @@ def test_preflight_or_reconciliation_failure_pauses_before_batch():
     self.assertEqual(adapter.batch_calls, [])
 ```
 
-- [ ] **Step 2: Run the tests and verify RED**
+- [x] **Step 2: Run the tests and verify RED**
 
 Run: `python -m unittest tests.test_unified_auto_execution_controller -v`
 
 Expected: import failure for the controller.
 
-- [ ] **Step 3: Implement the controller without exchange logic**
+- [x] **Step 3: Implement the controller without exchange logic**
 
 ```python
 class ExecutionEnvironmentAdapter(Protocol):
@@ -170,11 +170,11 @@ class ExecutionEnvironmentAdapter(Protocol):
 
 Heartbeat order is fixed: desired state -> current-process ARM -> preflight -> reconciliation -> due releases -> one batch -> checkpoints -> projection.
 
-- [ ] **Step 4: Add fail-closed exception and process-restart tests**
+- [x] **Step 4: Add fail-closed exception and process-restart tests**
 
 Verify an exception pauses new entries, and a persisted desired state does not restore a previous process ARM token.
 
-- [ ] **Step 5: Run tests and commit**
+- [x] **Step 5: Run tests and commit**
 
 Run: `python -m unittest tests.test_unified_auto_execution_controller -v`
 
@@ -198,7 +198,7 @@ Commit: `git commit -m "Add shared fail closed auto execution controller"`
 - Produces: `run_evolution_demo_batch_cycle(release_ids: list[str]) -> dict[str, Any]`.
 - Produces: `OkxDemoAutoExecutionAdapter`.
 
-- [ ] **Step 1: Write a failing multi-release Demo test**
+- [x] **Step 1: Write a failing multi-release Demo test**
 
 ```python
 def test_batch_scans_all_due_releases_and_arbitrates_before_ordering():
@@ -211,13 +211,13 @@ def test_batch_scans_all_due_releases_and_arbitrates_before_ordering():
 
 Patch contract discovery, scanners, risk store, and client construction with deterministic fakes. Do not call OKX.
 
-- [ ] **Step 2: Run the test and verify RED**
+- [x] **Step 2: Run the test and verify RED**
 
 Run: `python -m unittest tests.test_demo_automatic_batch -v`
 
 Expected: missing batch function.
 
-- [ ] **Step 3: Refactor the existing one-release cycle into a batch path**
+- [x] **Step 3: Refactor the existing one-release cycle into a batch path**
 
 The batch path must:
 
@@ -231,11 +231,11 @@ The batch path must:
 
 Keep `run_evolution_demo_cycle` as a compatibility wrapper calling the batch function with one release ID.
 
-- [ ] **Step 4: Write the adapter tests**
+- [x] **Step 4: Write the adapter tests**
 
 Verify release schedule extraction, Demo preflight, reconciliation, pause, emergency stop, and that the adapter cannot expose Live credentials or headers.
 
-- [ ] **Step 5: Run Demo regressions and commit**
+- [x] **Step 5: Run Demo regressions and commit**
 
 Run: `python -m unittest tests.test_demo_automatic_batch tests.test_unified_auto_execution_adapters tests.test_evolution_demo_service tests.test_demo_execution_engine tests.test_demo_arbitrator -v`
 
@@ -262,7 +262,7 @@ Commit: `git commit -m "Automate checksum bound Demo execution batches"`
 - Produces: `run_live_auto_execution_batch(release_ids, client=None, store_path=...) -> dict[str, Any]`.
 - Produces: `OkxLiveAutoExecutionAdapter`.
 
-- [ ] **Step 1: Write failing Live scan and execution tests**
+- [x] **Step 1: Write failing Live scan and execution tests**
 
 ```python
 def test_live_release_without_frozen_strategy_definition_fails_before_order():
@@ -279,25 +279,25 @@ def test_armed_live_batch_uses_same_signal_rules_and_submits_protected_order():
 
 The valid fixture includes strategy definition, `>= 2R`, matching RiskProfile hashes, current-process ARM, and successful reconciliation.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run: `python -m unittest tests.test_live_auto_execution_service -v`
 
 Expected: import failure.
 
-- [ ] **Step 3: Implement a Live scanner wrapper and portfolio snapshot**
+- [x] **Step 3: Implement a Live scanner wrapper and portfolio snapshot**
 
 Map only checksum-validated Live release strategy fields into the existing immutable strategy-family scanner. Replace Demo identity fields with Live identities before execution. Reject missing strategy, profile, data freshness, sizing, or protection evidence before calling the Live client.
 
-- [ ] **Step 4: Add an explicit Live automation process gate**
+- [x] **Step 4: Add an explicit Live automation process gate**
 
 Add `ALPHAPILOT_OKX_LIVE_AUTOMATION_ENABLED`. It requires read, canary, and order gates. The launcher requires the exact existing process confirmation and never writes credentials.
 
-- [ ] **Step 5: Bind ARM to the current process, not persisted startup state**
+- [x] **Step 5: Bind ARM to the current process, not persisted startup state**
 
 `arm_live_canary` keeps its manual once-per-process confirmation. The controller receives the current process ID after successful reconciliation and ARM. Restart clears effective ARM even when desired automatic execution remains persisted.
 
-- [ ] **Step 6: Run Live regressions and commit**
+- [x] **Step 6: Run Live regressions and commit**
 
 Run: `python -m unittest tests.test_live_auto_execution_service tests.test_live_canary_service tests.test_live_execution_engine tests.test_okx_live_client tests.test_okx_live_launcher_script -v`
 
@@ -321,21 +321,21 @@ Commit: `git commit -m "Add armed automatic Live Canary execution"`
 - Adds: `GET /api/auto-execution/runtime`.
 - Adds: `POST /api/auto-execution/action` with `start`, `pause`, `stop`, `arm`, and `emergency_stop`.
 
-- [ ] **Step 1: Write failing runner tests**
+- [x] **Step 1: Write failing runner tests**
 
 Verify a daemon runner wakes immediately on start, uses a 15-second position heartbeat, does not create duplicate worker threads, and stops cleanly.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run: `python -m unittest tests.test_unified_auto_execution_runner -v`
 
 Expected: import failure.
 
-- [ ] **Step 3: Implement the runner with dependency-injected sleep and clock**
+- [x] **Step 3: Implement the runner with dependency-injected sleep and clock**
 
 The HTTP server starts one runner after binding. It never restarts the current server and never owns credentials. On shutdown, it signals the runner and joins with a bounded timeout.
 
-- [ ] **Step 4: Write failing HTTP action tests**
+- [x] **Step 4: Write failing HTTP action tests**
 
 ```python
 def test_demo_start_enables_and_arms_demo_without_order_confirmation(): ...
@@ -343,11 +343,11 @@ def test_live_start_is_rejected_until_live_canary_arm_succeeds(): ...
 def test_emergency_stop_routes_only_to_the_selected_environment(): ...
 ```
 
-- [ ] **Step 5: Implement endpoint routing and compatibility actions**
+- [x] **Step 5: Implement endpoint routing and compatibility actions**
 
 Keep `run_demo_cycle` available as a diagnostic action, but return the automatic runner as the primary `nextAction`. Merge runner status into `/api/demo-workflow`, `/api/live-canary`, and `/api/mobile/status` projections.
 
-- [ ] **Step 6: Run startup and HTTP regressions and commit**
+- [x] **Step 6: Run startup and HTTP regressions and commit**
 
 Run: `python -m unittest tests.test_unified_auto_execution_runner tests.test_unified_auto_execution_http tests.test_workflow_startup_recovery tests.test_demo_workflow_actions -v`
 
@@ -371,7 +371,7 @@ Commit: `git commit -m "Run automatic execution independently of the browser"`
 - Consumes: Task 5 runtime projection.
 - Produces: shared controls and status IDs for Demo and Live pages.
 
-- [ ] **Step 1: Add failing static contract tests**
+- [x] **Step 1: Add failing static contract tests**
 
 Require the following stable IDs or data attributes:
 
@@ -387,23 +387,23 @@ data-auto-execution-action
 
 Also require the Chinese states `等待策略条件匹配`, `自动运行中`, `暂停新开仓`, and `紧急停止`.
 
-- [ ] **Step 2: Run UI contract tests and verify RED**
+- [x] **Step 2: Run UI contract tests and verify RED**
 
 Run: `python -m unittest tests.test_workflow_ui_contract -v`
 
 Expected: missing stable IDs.
 
-- [ ] **Step 3: Implement one reusable renderer for both pages**
+- [x] **Step 3: Implement one reusable renderer for both pages**
 
 The first viewport shows environment, runner state, enabled strategies, scan/match counts, current positions, realized/unrealized PnL, last heartbeat, next evaluation, and pause/stop controls. Hide hashes and raw payloads in advanced details.
 
 When match count is zero and no order exists, show `等待策略条件匹配`; never show `正在收集闭合交易` as if execution had begun.
 
-- [ ] **Step 4: Merge the same state into the phone read-only payload**
+- [x] **Step 4: Merge the same state into the phone read-only payload**
 
 Phone status includes signals, orders, positions, PnL, runner state, and exception events. It cannot submit orders or contain credentials.
 
-- [ ] **Step 5: Run Python and JavaScript checks and commit**
+- [x] **Step 5: Run Python and JavaScript checks and commit**
 
 Run:
 
@@ -428,17 +428,17 @@ Commit: `git commit -m "Unify automatic Demo and Live console controls"`
 **Interfaces:**
 - Documents operator start, ARM, stop, restart, and recovery behavior.
 
-- [ ] **Step 1: Document exact operator flows**
+- [x] **Step 1: Document exact operator flows**
 
 Document Demo automatic start, Live launcher plus once-per-process ARM, environment banners, no per-order confirmation, restart recovery, emergency stop, raw-key boundary, and no Withdraw.
 
-- [ ] **Step 2: Run the complete test suite**
+- [x] **Step 2: Run the complete test suite**
 
 Run: `python -m unittest discover -s tests -v`
 
 Expected: all tests pass and no real exchange order is attempted.
 
-- [ ] **Step 3: Run static and safety checks**
+- [x] **Step 3: Run static and safety checks**
 
 Run:
 
@@ -452,14 +452,14 @@ rg -n "withdraw|apiSecret|passphrase|createOrder|automaticTradingAllowed" alphap
 
 Expected: syntax and diff checks pass; safety scan hits are restricted to credential plumbing, explicit negative boundaries, and allowlisted Demo/Live Trade code. No Withdraw client method exists.
 
-- [ ] **Step 4: Verify runtime behavior without credentials**
+- [x] **Step 4: Verify runtime behavior without credentials**
 
 Start a temporary console on an unused port. Confirm both environments fail closed, the runtime endpoint is readable, and no order record is created.
 
-- [ ] **Step 5: Commit the completed implementation**
+- [x] **Step 5: Commit the completed implementation**
 
 Commit: `git commit -m "Complete V13.27.2 unified automatic execution"`
 
-- [ ] **Step 6: Final branch review**
+- [x] **Step 6: Final branch review**
 
 Verify only intended source, tests, docs, and web files are tracked. Preserve `data/demo_release_contracts/` and `data/workflow_jobs/` as untracked runtime data.
