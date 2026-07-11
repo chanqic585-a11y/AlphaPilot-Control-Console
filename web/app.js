@@ -226,6 +226,7 @@ let latestDemoWorkflowPayload = { summary: {}, queues: {} };
 let demoWorkflowLoading = null;
 let demoWorkflowPollTimer = null;
 let activeDemoOverrideStrategyId = null;
+let demoRuntimeLaunchInProgress = false;
 let latestNoKeyPreLivePayload = {};
 let latestNoKeyPreLiveCandidate = null;
 let latestAutoExecutionEnginePayload = {};
@@ -233,6 +234,7 @@ let latestAutoExecutionLifecyclePayload = {};
 let latestAutoExecutionReviewPayload = {};
 let latestAutoExecutionLearningPayload = {};
 let latestLiveCandidatePayload = {};
+let latestLiveCanaryPayload = {};
 let selectedLiveCandidatePackageId = null;
 let latestRiskProfilePayload = {};
 let selectedRiskProfileId = null;
@@ -299,6 +301,8 @@ const weaknessActionStatusLabels = {
 function el(id) {
   return document.getElementById(id);
 }
+
+const issueController = window.AlphaPilotIssueGuidance?.createController() || null;
 
 async function getJson(url) {
   const response = await fetch(url, { cache: "no-store" });
@@ -1152,6 +1156,7 @@ function renderDualLayerCard(item, archived = false) {
   const statusLabel = archived ? "已归档" : dualLayerStatusLabels[item.status] || item.status || "--";
   const tone = item.status === "passed" ? "ok" : ["failed", "blocked"].includes(item.status) ? "danger" : item.status === "running" ? "warn" : "neutral";
   const runProgress = dualLayerProgressModel(item);
+  const issueKey = archived ? "" : strategyIssueKey(item);
   return `
     <article class="workflow-card" data-workflow-run-id="${escapeHtml(item.workflowRunId || "")}">
       <div class="workflow-card-head">
@@ -1165,7 +1170,7 @@ function renderDualLayerCard(item, archived = false) {
       ${metrics.length ? `<div class="workflow-metrics">${metrics.map((row) => `<span>${escapeHtml(row)}</span>`).join("")}</div>` : ""}
       ${failure && failure !== "--" ? `<div class="workflow-failure"><strong>${escapeHtml(failure)}</strong></div>` : ""}
       <p class="workflow-next-step">${escapeHtml(dualLayerNextStep(item))}</p>
-      ${actions.length ? `<div class="workflow-actions">${actions.map((action) => `<button type="button" class="${action.primary ? "" : "secondary"}" data-workflow-action="${escapeHtml(action.action)}" data-workflow-run-id="${escapeHtml(item.workflowRunId || "")}" data-strategy-version-id="${escapeHtml(item.strategyVersionId || "")}">${escapeHtml(action.label)}</button>`).join("")}</div>` : ""}
+      ${actions.length || issueKey ? `<div class="workflow-actions">${actions.map((action) => `<button type="button" class="${action.primary ? "" : "secondary"}" data-workflow-action="${escapeHtml(action.action)}" data-workflow-run-id="${escapeHtml(item.workflowRunId || "")}" data-strategy-version-id="${escapeHtml(item.strategyVersionId || "")}">${escapeHtml(action.label)}</button>`).join("")}${issueKey ? `<button type="button" class="secondary" data-issue-guidance-key="${escapeHtml(issueKey)}">查看处理办法</button>` : ""}</div>` : ""}
       <details class="workflow-details"><summary>高级详情</summary><div>
         <span>策略版本 ID</span><code>${escapeHtml(item.strategyVersionId || "--")}</code>
         <span>运行 ID</span><code>${escapeHtml(item.workflowRunId || "--")}</code>
@@ -1223,6 +1228,7 @@ function renderDualLayerWorkflow(payload = emptyWorkflow) {
     ? "Quant Engine 工作流暂不可用，请检查本地服务。"
     : `待回测 ${awaiting.length} · 运行中 ${running.length} · 正式通过 ${passed.length} · 未通过或阻塞 ${failed.length}`);
   scheduleWorkflowPoll(items);
+  registerPageIssues("simpleConsole", collectStrategyIssues(payload));
 }
 
 async function runDualLayerWorkflowAction(action, item = {}) {
@@ -1475,6 +1481,7 @@ function renderLifecycleCards(targetId, items, allowedStages, emptyText) {
       "demo_validation_running",
       "demo_validated",
     ].includes(item.currentStage);
+    const issueKey = lifecycleIssueKey(item);
     return `
       <article class="lifecycle-card">
         <div class="lifecycle-card-head">
@@ -1496,7 +1503,7 @@ function renderLifecycleCards(targetId, items, allowedStages, emptyText) {
         <p>${escapeHtml(item.evidenceSummary || "等待生命周期证据。")}</p>
         ${blockers.length ? `<div class="lifecycle-blockers">${blockers.map((row) => `<span>${escapeHtml(lifecycleBlockerLabel(row))}</span>`).join("")}</div>` : ""}
         <div class="lifecycle-next"><span>下一道门槛</span><strong>${escapeHtml(item.nextGate || "等待正式阶段决定。")}</strong></div>
-        ${optimizationAvailable ? `<div class="workflow-actions"><button type="button" class="secondary" data-lifecycle-action="optimize" data-strategy-id="${escapeHtml(item.strategyId || "")}">改善优化</button></div>` : ""}
+        ${optimizationAvailable || issueKey ? `<div class="workflow-actions">${optimizationAvailable ? `<button type="button" class="secondary" data-lifecycle-action="optimize" data-strategy-id="${escapeHtml(item.strategyId || "")}">改善优化</button>` : ""}${issueKey ? `<button type="button" class="secondary" data-issue-guidance-key="${escapeHtml(issueKey)}">查看处理办法</button>` : ""}</div>` : ""}
         <small class="lifecycle-history">已保留 ${history.length} 条阶段证据 · 最近 ${formatDate(item.stageEnteredAt)}</small>
       </article>
     `;
@@ -1553,6 +1560,7 @@ function renderStrategyLifecycle(payload = emptyStrategyLifecycle) {
     badge.className = "status-pill ok";
     badge.textContent = "单一阶段";
   }
+  registerPageIssues("localLab", collectLocalIssues(payload));
 }
 
 function demoWorkflowValue(value, formatter = null) {
@@ -1594,6 +1602,186 @@ function demoWorkflowReasonLabel(value) {
     unsupported_demo_workflow_action: "不支持的工作流动作",
   };
   return labels[value] || translateExchangeDemoBlocker(value);
+}
+
+function uniqueIssueCodes(values) {
+  return [...new Set((Array.isArray(values) ? values : []).filter(Boolean).map(String))].sort();
+}
+
+function issueGroupKey(pageId, stage, blockers) {
+  const signature = uniqueIssueCodes(blockers).map((value) => encodeURIComponent(value)).join("|") || "unknown";
+  return `issue::${pageId}::${stage}::${signature}`;
+}
+
+function groupIssueItems(items, keyBuilder) {
+  const groups = new Map();
+  for (const item of Array.isArray(items) ? items : []) {
+    const key = keyBuilder(item);
+    if (!key) continue;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(item);
+  }
+  return groups;
+}
+
+function currentPrimaryPageId() {
+  const raw = (window.location.hash || "#simpleConsole").replace("#", "");
+  return hashAliases[raw] || (primaryPageIds.includes(raw) ? raw : "simpleConsole");
+}
+
+function registerPageIssues(pageId, issues) {
+  if (!issueController) return;
+  issueController.replacePageIssues(pageId, issues);
+  if (currentPrimaryPageId() === pageId) {
+    window.setTimeout(() => issueController.presentHighestPriority(pageId), 0);
+  }
+}
+
+function isLocalConsoleHost() {
+  return ["127.0.0.1", "localhost", "::1", "[::1]"].includes(window.location.hostname);
+}
+
+function strategyIssueCodes(item) {
+  const failure = item?.failure || {};
+  const summaryCodes = String(failure.summary || item?.result?.blocker || "")
+    .split("; ")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  return uniqueIssueCodes([failure.category, failure.retryDisposition, ...summaryCodes]);
+}
+
+function strategyIssueKey(item) {
+  const codes = strategyIssueCodes(item);
+  return codes.length ? issueGroupKey("simpleConsole", "formal_backtest", codes) : "";
+}
+
+function collectStrategyIssues(payload = emptyWorkflow) {
+  const rows = (Array.isArray(payload?.items) ? payload.items : [])
+    .filter((item) => item.stage === "backtest" && ["failed", "blocked", "cancelled"].includes(item.status));
+  return [...groupIssueItems(rows, strategyIssueKey).entries()].map(([key, group]) => {
+    const first = group[0];
+    const blockers = strategyIssueCodes(first);
+    return {
+      key,
+      pageId: "simpleConsole",
+      stage: "formal_backtest",
+      stageLabel: "策略 · 正式回测",
+      priority: first.status === "blocked" ? 85 : 75,
+      blockers,
+      title: group.length > 1 ? `${group.length} 条策略需要回测处理` : `${first.displayName || "策略"} 需要回测处理`,
+      summary: dualLayerReadableFailure(first),
+      completed: ["不可变策略版本已登记", "失败或阻塞证据已保存", "目标盈亏比仍锁定不低于 2R"],
+      nextAction: dualLayerNextStep(first),
+      safety: "重新回测只使用研究与公共市场数据；参数变化必须创建新版本。",
+      version: group.length > 1 ? "aggregate-1" : (first.strategyVersionId || first.workflowRunId || "1"),
+    };
+  });
+}
+
+function lifecycleIssueCodes(item) {
+  return uniqueIssueCodes(item?.blockers || []);
+}
+
+function lifecycleIssueKey(item) {
+  const codes = lifecycleIssueCodes(item);
+  const pageId = String(item?.currentStage || "").startsWith("local_") ? "localLab" : "";
+  return pageId && codes.length ? issueGroupKey(pageId, "local_forward", codes) : "";
+}
+
+function collectLocalIssues(payload = emptyStrategyLifecycle) {
+  const rows = (Array.isArray(payload?.items) ? payload.items : [])
+    .filter((item) => String(item.currentStage || "").startsWith("local_") && lifecycleIssueCodes(item).length);
+  return [...groupIssueItems(rows, lifecycleIssueKey).entries()].map(([key, group]) => {
+    const first = group[0];
+    const blockers = lifecycleIssueCodes(first);
+    return {
+      key,
+      pageId: "localLab",
+      stage: "local_forward",
+      stageLabel: "本地模拟 · 前向证据",
+      priority: 70,
+      blockers,
+      title: group.length > 1 ? `${group.length} 条策略需要前向处理` : `${first.displayName || "策略"} 需要前向处理`,
+      summary: blockers.map(lifecycleBlockerLabel).join("；"),
+      completed: [first.evidenceSummary || "本地阶段证据已保存", `当前闭合样本 ${Number(first.metrics?.closedSamples || 0)}`],
+      nextAction: first.nextGate || first.progress?.note || "继续收集真实时间闭合样本并复核风险记录。",
+      safety: "本地前向不会连接交易所或创建订单；策略逻辑变化必须回到正式回测。",
+      version: group.length > 1 ? "aggregate-1" : (first.strategyId || "1"),
+    };
+  });
+}
+
+function demoIssueCodes(item) {
+  const failure = item?.failure || {};
+  const evidenceRows = Array.isArray(item?.evidenceChecklist?.items) ? item.evidenceChecklist.items : [];
+  const missingEvidence = evidenceRows
+    .filter((row) => row.status === "missing" || (row.evidenceId === "okx_demo_runtime" && !["passed", "bypassed"].includes(row.status)))
+    .map((row) => row.evidenceId);
+  const actionId = item?.nextAction?.actionId;
+  return uniqueIssueCodes([
+    ...(Array.isArray(failure.blockers) ? failure.blockers : []),
+    failure.reason && failure.reason !== "none" ? failure.reason : "",
+    actionId === "start_with_demo_credentials" ? "okx_demo_runtime" : "",
+    ...missingEvidence,
+  ]);
+}
+
+function demoIssueKey(item) {
+  const codes = demoIssueCodes(item);
+  return codes.length ? issueGroupKey("exchangeDemo", "okx_demo", codes) : "";
+}
+
+function collectDemoIssues(payload = { queues: {} }) {
+  const queues = payload?.queues || {};
+  const rows = [
+    ...(Array.isArray(queues.waiting) ? queues.waiting : []),
+    ...(Array.isArray(queues.validating) ? queues.validating : []),
+  ].filter((item) => demoIssueCodes(item).length);
+  return [...groupIssueItems(rows, demoIssueKey).entries()].map(([key, group]) => {
+    const first = group[0];
+    const blockers = demoIssueCodes(first);
+    const runtimeBlocked = blockers.includes("okx_demo_runtime");
+    const completed = (Array.isArray(first.processSteps) ? first.processSteps : [])
+      .filter((step) => step.status === "completed")
+      .map((step) => step.label);
+    return {
+      key,
+      pageId: "exchangeDemo",
+      stage: "okx_demo",
+      stageLabel: runtimeBlocked ? "Demo 模拟 · 运行前检查" : "Demo 模拟 · 证据闸门",
+      priority: runtimeBlocked ? 100 : 80,
+      blockers,
+      title: runtimeBlocked ? "OKX Demo Runtime 未就绪" : (group.length > 1 ? `${group.length} 条策略等待 Demo 证据` : `${first.displayName || "策略"} 等待 Demo 证据`),
+      summary: runtimeBlocked
+        ? "凭据、只读、订单、自动化或风险闸门尚未全部通过。"
+        : blockers.map(demoWorkflowReasonLabel).join("；"),
+      completed,
+      nextAction: runtimeBlocked
+        ? (isLocalConsoleHost() ? "点击页面顶部“启动 OKX Demo”，在 PowerShell 中一次输入三项 Demo 凭据。" : "请在控制台电脑上打开 http://127.0.0.1:8766，再点击“启动 OKX Demo”。")
+        : (first.nextAction?.description || "完成证据清单中的当前缺项后重新验证。"),
+      safety: "凭据只进入本次 OKX Demo 进程；全部合格策略共享账户连接，但订单与盈亏按策略隔离。",
+      version: group.length > 1 ? "aggregate-1" : (first.release?.demoReleaseId || first.strategyId || "1"),
+    };
+  });
+}
+
+function collectLiveIssues(payload = {}) {
+  const blockers = uniqueIssueCodes(payload?.blockers || []);
+  if (!blockers.length) return [];
+  return [{
+    key: issueGroupKey("liveTradingPage", "live_canary", blockers),
+    pageId: "liveTradingPage",
+    stage: "live_canary",
+    stageLabel: "实盘交易 · Canary 安全闸门",
+    priority: 90,
+    blockers,
+    title: "实盘仍处于安全锁定",
+    summary: blockers.map(translateLiveCanaryBlocker).join("；"),
+    completed: ["Live 适配器状态已审计", "账户级与策略级风险闸门已分离", "Withdraw 权限保持关闭"],
+    nextAction: "先完成只读对账和不可变候选复核；账户凭据输入一次，每条策略仍需逐条批准启用。",
+    safety: "本问题说明不会启用实盘连接、创建订单或绕过人工策略批准。",
+    version: payload?.version || "1",
+  }];
 }
 
 function renderDemoProcessSteps(steps) {
@@ -1718,6 +1906,7 @@ function renderDemoWorkflowCard(item) {
   const canRun = Boolean(nextAction.enabled);
   const retryVisible = failure.status === "failed" && failure.canRetrySameVersion;
   const optimizeVisible = Boolean(failure.canOptimize);
+  const issueKey = demoIssueKey(item);
   return `
     <article class="demo-workflow-card" data-demo-strategy-id="${escapeHtml(item.strategyId || "")}">
       <div class="workflow-card-head">
@@ -1760,12 +1949,13 @@ function renderDemoWorkflowCard(item) {
         </div>
       ` : ""}
       <div class="lifecycle-next"><span>下一步</span><strong>${escapeHtml(nextAction.description || "等待正式阶段决定。")}</strong></div>
-      ${nextAction.command ? `<div class="demo-workflow-command"><span>启动命令</span><code>${escapeHtml(nextAction.command)}</code></div>` : ""}
+      ${nextAction.command ? `<details class="demo-workflow-command"><summary>备用手动启动命令</summary><code>${escapeHtml(nextAction.command)}</code></details>` : ""}
       <div class="workflow-actions">
         ${canRun ? `<button type="button" data-demo-workflow-action="${escapeHtml(nextAction.actionId || "")}" data-strategy-id="${escapeHtml(item.strategyId || "")}">${escapeHtml(nextAction.label || "执行下一步")}</button>` : ""}
         ${canDemoOverride ? `<button type="button" class="secondary" data-demo-workflow-action="open_demo_override" data-strategy-id="${escapeHtml(item.strategyId || "")}">受控放行到 Demo</button>` : ""}
         ${retryVisible ? `<button type="button" class="secondary" data-demo-workflow-action="retry_demo_cycle" data-strategy-id="${escapeHtml(item.strategyId || "")}">重新验证</button>` : ""}
         ${optimizeVisible ? `<button type="button" class="secondary" data-demo-workflow-action="optimize" data-strategy-id="${escapeHtml(item.strategyId || "")}">改善优化</button>` : ""}
+        ${issueKey ? `<button type="button" class="secondary" data-issue-guidance-key="${escapeHtml(issueKey)}">查看处理办法</button>` : ""}
       </div>
       <details class="workflow-details"><summary>高级详情</summary><div><span>策略 ID</span><code>${escapeHtml(item.strategyId || "--")}</code><span>Demo Release</span><code>${escapeHtml(item.release?.demoReleaseId || "尚未生成")}</code><span>对账状态</span><code>${escapeHtml(demoWorkflowStatusLabel(item.reconciliation?.status || "not_started"))}</code></div></details>
     </article>
@@ -1808,6 +1998,8 @@ function renderDemoWorkflow(payload = { summary: {}, queues: {} }) {
       if (window.location.hash === "#exchangeDemo") void loadDemoWorkflow(true);
     }, 15000);
   }
+  updateDemoRuntimeLauncher(payload);
+  registerPageIssues("exchangeDemo", collectDemoIssues(payload));
 }
 
 async function loadDemoWorkflow(force = false) {
@@ -1823,6 +2015,95 @@ async function loadDemoWorkflow(force = false) {
     demoWorkflowLoading = null;
   });
   return demoWorkflowLoading;
+}
+
+function demoWorkflowRows(payload = { queues: {} }) {
+  const queues = payload?.queues || {};
+  return ["waiting", "validating", "passed", "liveCandidate"]
+    .flatMap((key) => Array.isArray(queues[key]) ? queues[key] : []);
+}
+
+function demoRuntimeIsBlocked(payload = { queues: {} }) {
+  return demoWorkflowRows(payload).some((item) => demoIssueCodes(item).includes("okx_demo_runtime"));
+}
+
+function updateDemoRuntimeLauncher(payload = { queues: {} }) {
+  const button = el("demoRuntimeLauncherButton");
+  if (!button) return;
+  const blocked = demoRuntimeIsBlocked(payload);
+  button.hidden = !blocked;
+  if (!blocked) {
+    button.disabled = false;
+    button.title = "OKX Demo Runtime 已就绪或当前策略尚未进入运行前检查。";
+    return;
+  }
+  const local = isLocalConsoleHost();
+  button.disabled = demoRuntimeLaunchInProgress || !local;
+  button.textContent = demoRuntimeLaunchInProgress ? "等待启动器" : "启动 OKX Demo";
+  button.title = local
+    ? "一键打开本机安全启动器；三项凭据只输入一次且不会保存。"
+    : "请在运行控制台的电脑上打开 127.0.0.1:8766 完成启动。";
+  if (!local) {
+    setText("demoWorkflowActionStatus", "请在运行控制台的电脑上打开 http://127.0.0.1:8766；手机或局域网页面不能拉起本机进程。");
+  }
+}
+
+function waitMilliseconds(milliseconds) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+async function waitForOkxDemoRuntime() {
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    await waitMilliseconds(1000);
+    const payload = await getJsonSafe(
+      "/api/exchange-demo/simulation?fresh=1",
+      { summary: {}, evolutionDemo: {}, loadError: "runtime_restarting" },
+      2500,
+    );
+    if (payload.loadError) continue;
+    latestExchangeDemoPayload = payload;
+    renderExchangeDemoSimulation(payload);
+    const summary = payload.summary || {};
+    const runtimeGates = payload.evolutionDemo?.runtimeGates || {};
+    const credentialsReady = Boolean(summary.credentialsConfigured);
+    const privateReady = Boolean(summary.demoPrivateEnabled);
+    const orderReady = Boolean(summary.demoOrderEnabled);
+    const automationReady = Boolean(runtimeGates.automationEnabled);
+    if (credentialsReady && privateReady && orderReady && automationReady) {
+      await loadDemoWorkflow(true);
+      const riskReady = Boolean(payload.evolutionDemo?.summary?.ready || summary.strategyAutomationReady);
+      setText(
+        "demoWorkflowActionStatus",
+        riskReady
+          ? "OKX Demo Runtime 已就绪；全部合格策略共用本次账户连接，订单和盈亏仍按策略分别记录。"
+          : "Demo 凭据、只读、订单和自动化进程门已就绪；策略仍会按不可变 Release 与风险闸门逐条复核。",
+      );
+      return true;
+    }
+  }
+  throw new Error("等待 Demo Runtime 超时。请查看 PowerShell 窗口中的凭据、白名单或端口提示后重试。");
+}
+
+async function launchOkxDemoRuntime() {
+  const button = el("demoRuntimeLauncherButton");
+  if (!isLocalConsoleHost()) {
+    setText("demoWorkflowActionStatus", "请在控制台电脑上打开 http://127.0.0.1:8766，再点击“启动 OKX Demo”。");
+    return;
+  }
+  if (demoRuntimeLaunchInProgress) return;
+  demoRuntimeLaunchInProgress = true;
+  if (button) button.disabled = true;
+  setText("demoWorkflowActionStatus", "Demo 凭据每次运行只输入一次，全部合格策略共用；正在打开本机安全启动器，网页不会读取或保存 API Key。");
+  try {
+    const response = await postJson("/api/local-control/open-okx-demo-launcher", {});
+    setText("demoWorkflowActionStatus", response.message || "启动器已打开，请在 PowerShell 窗口输入三项 Demo 凭据。");
+    await waitForOkxDemoRuntime();
+  } catch (error) {
+    setText("demoWorkflowActionStatus", `启动未完成：${error.message}`);
+  } finally {
+    demoRuntimeLaunchInProgress = false;
+    updateDemoRuntimeLauncher(latestDemoWorkflowPayload);
+  }
 }
 
 function openDemoOverrideDialog(strategyId) {
@@ -3913,6 +4194,7 @@ function translateLiveCanaryBlocker(value) {
 
 function renderLiveCanary(payload = {}) {
   if (!el("liveCanaryHeaderBadge")) return;
+  latestLiveCanaryPayload = payload || {};
   const summary = payload.summary || {};
   const gates = payload.runtimeGates || {};
   const runtime = payload.runtime || {};
@@ -3940,8 +4222,10 @@ function renderLiveCanary(payload = {}) {
   setText("liveCanaryKillState", runtime.killSwitchActive ? "已停止" : (runtime.paused ? "已暂停" : "未激活"));
   setText("liveCanaryOrderReady", ready ? "是" : "否");
   setText("liveAdapterCount", payload.safetyBoundary?.liveAdapterPresent ? 1 : 0);
+  const liveIssues = collectLiveIssues(payload);
+  const liveIssueKey = liveIssues[0]?.key || "";
   el("liveCanaryBlockers").innerHTML = blockers.length
-    ? blockers.map((item) => `<span>${escapeHtml(translateLiveCanaryBlocker(item))}</span>`).join("")
+    ? `${blockers.map((item) => `<span>${escapeHtml(translateLiveCanaryBlocker(item))}</span>`).join("")}${liveIssueKey ? `<button type="button" class="secondary" data-issue-guidance-key="${escapeHtml(liveIssueKey)}">查看处理办法</button>` : ""}`
     : '<span class="ok">全部运行门已通过</span>';
   if (el("liveCompactExecutionPositions")) {
     el("liveCompactExecutionPositions").innerHTML = renderCompactExecutionPositions(livePositions, {
@@ -3949,6 +4233,7 @@ function renderLiveCanary(payload = {}) {
       emptyText: "当前没有实盘持仓；实盘执行仍由 Canary 闸门控制。",
     });
   }
+  registerPageIssues("liveTradingPage", liveIssues);
 }
 
 function translateExecutionOutcomeQuarantine(reason) {
@@ -7170,6 +7455,11 @@ function toggleAdvancedMode() {
 }
 
 el("refreshButton").addEventListener("click", refreshAll);
+document.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-issue-guidance-key]");
+  if (!button || !issueController) return;
+  issueController.open(button.dataset.issueGuidanceKey || "");
+});
 el("simpleRefreshButton")?.addEventListener("click", refreshAll);
 el("workflowRefreshButton")?.addEventListener("click", refreshWorkflow);
 el("workflowRunAllButton")?.addEventListener("click", () => runDualLayerWorkflowAction("run-all-awaiting"));
@@ -7220,6 +7510,7 @@ el("localLabRunSandboxButton")?.addEventListener("click", runLocalLabSandboxFrom
 el("localLabDailyReportButton")?.addEventListener("click", buildLocalLabDailyReport);
 el("localLabRefreshButton")?.addEventListener("click", refreshAll);
 el("exchangeDemoReadOnlyButton")?.addEventListener("click", runExchangeDemoReadOnlyCheck);
+el("demoRuntimeLauncherButton")?.addEventListener("click", launchOkxDemoRuntime);
 el("demoWorkflowRefreshButton")?.addEventListener("click", () => loadDemoWorkflow(true));
 el("exchangeDemo")?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-demo-workflow-action]");
@@ -7360,6 +7651,7 @@ window.addEventListener("scroll", updateCurrentSection, { passive: true });
 window.addEventListener("hashchange", () => {
   updateCurrentSection();
   loadCurrentSectionData();
+  window.setTimeout(() => issueController?.presentHighestPriority(currentPrimaryPageId()), 0);
 });
 
 try {

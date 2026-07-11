@@ -115,6 +115,7 @@
       const issue = issues.get(issueKey);
       if (!issue || !dialog) return false;
       if (!options.manual && isAcknowledged(issue)) return false;
+      if (dialog.open) return false;
       currentIssueKey = issueKey;
       render(issue);
       if (typeof dialog.showModal === "function") dialog.showModal();

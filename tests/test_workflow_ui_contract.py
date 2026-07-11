@@ -128,11 +128,36 @@ class WorkflowUiContractTests(unittest.TestCase):
         self.assertIn("localStorage", self.issue_js)
         self.assertIn("sessionStorage", self.issue_js)
         self.assertIn("presentHighestPriority", self.issue_js)
+        self.assertIn("if (dialog.open) return false", self.issue_js)
 
     def test_demo_evidence_is_collapsed_by_default(self) -> None:
         self.assertIn('<details class="demo-evidence-section">', self.js)
         self.assertIn('<summary class="demo-section-head">', self.js)
         self.assertNotIn('<details class="demo-evidence-section" open', self.js)
+
+    def test_primary_pages_map_blockers_to_actionable_guidance(self) -> None:
+        for name in (
+            "collectStrategyIssues",
+            "collectLocalIssues",
+            "collectDemoIssues",
+            "collectLiveIssues",
+        ):
+            self.assertIn(f"function {name}", self.js)
+        self.assertIn("data-issue-guidance-key", self.js)
+        self.assertIn("查看处理办法", self.js)
+        self.assertIn("presentHighestPriority", self.js)
+
+    def test_demo_runtime_has_one_click_local_launcher_and_shared_account_copy(self) -> None:
+        self.assertIn('id="demoRuntimeLauncherButton"', self.html)
+        self.assertIn("启动 OKX Demo", self.html)
+        self.assertIn("/api/local-control/open-okx-demo-launcher", self.js)
+        self.assertIn("启动器已打开，请在 PowerShell 窗口输入三项 Demo 凭据", self.js)
+        self.assertIn("Demo 凭据每次运行只输入一次，全部合格策略共用", self.js)
+        self.assertIn("实盘账户凭据输入一次；每条策略仍需逐条批准启用", self.html)
+        self.assertIn("window.location.hostname", self.js)
+        self.assertIn("127.0.0.1:8766", self.js)
+        self.assertIn("备用手动启动命令", self.js)
+        self.assertIn('<details class="demo-workflow-command"', self.js)
 
     def test_demo_symbol_limit_and_override_have_explicit_controls(self) -> None:
         self.assertIn("每策略最多同时开仓", self.js)

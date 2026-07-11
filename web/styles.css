@@ -4858,7 +4858,8 @@ body:not(.show-advanced) .legacy-demo-ticket {
   background: #070c11;
 }
 
-.demo-workflow-command span {
+.demo-workflow-command summary {
+  cursor: pointer;
   color: var(--muted);
   font-size: 10px;
 }

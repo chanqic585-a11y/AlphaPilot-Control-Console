@@ -623,9 +623,12 @@
                 <h3>Demo 模拟工作流</h3>
                 <span id="demoWorkflowMeta" aria-live="polite">正在读取策略、Release、OKX Demo 执行和闭合交易证据。</span>
               </div>
-              <button id="demoWorkflowRefreshButton" class="secondary" type="button">刷新进度</button>
+              <div class="workflow-toolbar">
+                <button id="demoRuntimeLauncherButton" type="button">启动 OKX Demo</button>
+                <button id="demoWorkflowRefreshButton" class="secondary" type="button">刷新进度</button>
+              </div>
             </div>
-            <div id="demoWorkflowActionStatus" class="workflow-action-status">每条策略会显示当前步骤、阻塞原因和唯一下一步；没有真实订单时不会显示虚构盈亏。</div>
+            <div id="demoWorkflowActionStatus" class="workflow-action-status">Demo 凭据每次运行只输入一次，全部合格策略共用；订单、持仓和盈亏仍按策略分别记录。</div>
             <div class="lifecycle-summary-grid demo-workflow-summary">
               <div class="lifecycle-summary-card"><span>待 Demo 模拟</span><strong id="demoWorkflowWaitingCount">0</strong><small>尚未生成可执行 Release</small></div>
               <div class="lifecycle-summary-card"><span>Demo 验证中</span><strong id="demoWorkflowValidatingCount">0</strong><small>已进入 OKX Demo 执行周期</small></div>
@@ -877,6 +880,7 @@
             <span id="liveCanaryHeaderBadge" class="status-pill danger">Canary 未就绪</span>
           </div>
           <div class="exchange-demo-warning"><strong>当前状态：</strong><span id="liveCanaryHeadline">Live 适配器已安装但默认关闭；缺任一 release、配置 hash、对账或进程门都会阻止下单。</span></div>
+          <div class="workflow-action-status">实盘账户凭据输入一次；每条策略仍需逐条批准启用，并分别绑定不可变 Release 与 RiskProfile。</div>
           <div class="exchange-demo-section live-canary-panel">
             <div class="simple-section-title">
               <div><strong>OKX Live Canary 控制</strong><span id="liveCanaryMeta">只读、Canary、订单和人工 ARM 是四层独立门。</span></div>
