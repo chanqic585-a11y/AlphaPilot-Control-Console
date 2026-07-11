@@ -12,8 +12,8 @@ from .demo_market_scan_service import get_demo_strategy_market_scan
 from .demo_strategy_runtime_settings import get_demo_strategy_runtime_settings
 
 
-VERSION = "V13.27.1.5"
-SOURCE = "demo_workflow_projection_v13_27_1_5"
+VERSION = "V13.27.1.7"
+SOURCE = "demo_workflow_projection_v13_27_1_7"
 
 QUEUE_BY_STAGE = {
     "demo_trial": "waiting",
@@ -141,10 +141,7 @@ def _market_view(
         latest_position.get("instId")
         or signal.get("instId")
     ) or None
-    current_top_candidate = _text(
-        market_scan.get("currentTopCandidate")
-        or candidate.get("instId")
-    ) or None
+    current_top_candidate = _market_scan_top_candidate(market_scan)
     return {
         "instrumentId": instrument_id,
         "currentTopCandidate": current_top_candidate,
@@ -154,6 +151,14 @@ def _market_view(
         "markPrice": _number(latest_position.get("markPrice") or latest_position.get("markPx")),
         "updatedAt": latest_position.get("updatedAt") or latest_record.get("updatedAt") or market_scan.get("updatedAt") or None,
     }
+
+
+def _market_scan_top_candidate(market_scan: dict[str, Any]) -> str | None:
+    match_status = _text(market_scan.get("matchStatus"))
+    total_instruments = int(_number(market_scan.get("totalInstrumentCount")) or 0)
+    if match_status == "not_started" or total_instruments <= 0:
+        return None
+    return _text(market_scan.get("currentTopCandidate")) or None
 
 
 def _position_view(latest_record: dict[str, Any], latest_position: dict[str, Any]) -> dict[str, Any]:
@@ -232,9 +237,15 @@ def _process_steps(
     records: list[dict[str, Any]],
     outcomes: list[dict[str, Any]],
     runtime_ready: bool,
+    readonly_status: str,
 ) -> list[dict[str, Any]]:
     market_ready = _text(candidate.get("screeningStatus")) == "market_ready"
     release_ready = bool(contract) or stage in {"demo_validation_running", "demo_validated", "live_candidate"}
+    readonly_passed = readonly_status == "passed"
+    preflight_complete = runtime_ready and readonly_passed
+    preflight_status = "completed" if preflight_complete else (
+        "blocked" if release_ready and readonly_passed else "pending"
+    )
     return [
         {"stepId": "strategy_loaded", "label": "策略进入 Demo 队列", "status": "completed"},
         {
@@ -250,7 +261,7 @@ def _process_steps(
         {
             "stepId": "runtime_preflight",
             "label": "凭据、只读和风险闸门检查",
-            "status": "completed" if runtime_ready else ("blocked" if release_ready else "pending"),
+            "status": preflight_status,
         },
         {
             "stepId": "demo_execution",
@@ -355,6 +366,7 @@ def _progress(
     records: list[dict[str, Any]],
     outcomes: list[dict[str, Any]],
     runtime_ready: bool,
+    readonly_status: str,
 ) -> dict[str, Any]:
     if stage == "demo_trial":
         market_ready = _text(candidate.get("screeningStatus")) == "market_ready"
@@ -366,10 +378,11 @@ def _progress(
             "percent": 33 if market_ready else 17,
         }
     if stage == "demo_validation_running":
-        completed = 3 + int(runtime_ready) + int(bool(records))
+        preflight_complete = runtime_ready and readonly_status == "passed"
+        completed = 3 + int(preflight_complete) + int(bool(records) and preflight_complete)
         return {
-            "phase": "demo_execution" if runtime_ready else "runtime_preflight",
-            "label": "正在收集 Demo 闭合交易" if runtime_ready else "等待 Demo 运行前检查",
+            "phase": "demo_execution" if preflight_complete else "runtime_preflight",
+            "label": "正在收集 Demo 闭合交易" if preflight_complete else "等待 Demo 运行前检查",
             "completed": completed,
             "required": 6,
             "percent": min(83, round(completed / 6 * 100)),
@@ -504,7 +517,7 @@ def _build_item(
             "liquidityEligibleCount": int(_number(market_scan.get("liquidityEligibleCount")) or 0),
             "deepScreenedCount": int(_number(market_scan.get("deepScreenedCount")) or 0),
             "strategyMatchedCount": market_scan.get("strategyMatchedCount"),
-            "currentTopCandidate": market_scan.get("currentTopCandidate") or candidate.get("instId"),
+            "currentTopCandidate": _market_scan_top_candidate(market_scan),
             "rankedCandidates": list(market_scan.get("rankedCandidates") or []),
             "progress": _mapping(market_scan.get("progress")),
             "matchStatus": market_scan.get("matchStatus") or "not_started",
@@ -531,6 +544,7 @@ def _build_item(
             records=records,
             outcomes=outcomes,
             runtime_ready=runtime_ready,
+            readonly_status=readonly_status,
         ),
         "processSteps": _process_steps(
             stage=stage,
@@ -539,6 +553,7 @@ def _build_item(
             records=records,
             outcomes=outcomes,
             runtime_ready=runtime_ready,
+            readonly_status=readonly_status,
         ),
         "market": _market_view(effective_candidate, latest_record, latest_position, market_scan),
         "position": _position_view(latest_record, latest_position),

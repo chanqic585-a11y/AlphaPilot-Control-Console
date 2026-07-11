@@ -3,12 +3,28 @@
 Current version:
 
 ```text
-AlphaPilot V13.27.1.6 - Workflow Checkpoint Resume
+AlphaPilot V13.27.1.7 - Demo Validation State Accuracy
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
 AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
+
+## What V13.27.1.7 Adds
+
+- Makes the Demo workflow runtime-preflight step complete only after runtime
+  gates are ready and the OKX Demo read-only check has passed.
+- Corrects a preflight-pending strategy from the misleading 4/6 display to
+  3/6 (50%) and exposes `运行 Demo 前检查` directly on its card.
+- Hides legacy single-symbol fallbacks until an actual OKX USDT perpetual
+  full-market scan produces a ranked candidate.
+- Adds a frontend compatibility normalization so the current process-only
+  credential session renders the corrected state without a forced restart.
+- Does not place orders, start a Demo cycle automatically, persist credentials,
+  or change portfolio and per-strategy risk limits.
+
+See `docs/V13.27.1.7-demo-state-accuracy.md` for the projection, compatibility,
+and safety contracts.
 
 ## What V13.27.1.6 Adds
 

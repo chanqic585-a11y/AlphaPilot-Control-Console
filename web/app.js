@@ -273,7 +273,7 @@ const emptyStrategyLifecycle = {
   sourceWarnings: [],
 };
 const emptyWorkflow = {
-  version: "V13.27.1.6",
+  version: "V13.27.1.7",
   summary: {},
   items: [],
   archivedItems: [],
@@ -1845,7 +1845,7 @@ function renderDemoMarketUniverse(universe = {}) {
   const scanPercent = Math.max(0, Math.min(100, Number(progress.percent || 0)));
   return `
     <section class="demo-market-universe">
-      <div class="demo-section-head"><strong>OKX USDT 永续全市场</strong><small>${escapeHtml(universe.matchStatus || "尚未扫描")}</small></div>
+      <div class="demo-section-head"><strong>OKX USDT 永续全市场</strong><small>${escapeHtml(demoMarketScanStatusLabel(universe.matchStatus))}</small></div>
       <div class="demo-market-metrics">
         <div><span>市场合约</span><strong>${Number(universe.liveUsdtLinearSwapCount || universe.totalInstrumentCount || 0)}</strong></div>
         <div><span>流动性合格</span><strong>${Number(universe.liquidityEligibleCount || 0)}</strong></div>
@@ -1858,6 +1858,62 @@ function renderDemoMarketUniverse(universe = {}) {
       </div>
     </section>
   `;
+}
+
+function demoMarketScanStatusLabel(status) {
+  const labels = {
+    not_started: "尚未扫描",
+    scanning: "扫描中",
+    completed: "扫描完成",
+    matched: "已找到匹配候选",
+    no_match: "暂未匹配",
+    failed: "扫描失败",
+  };
+  return labels[status] || status || "尚未扫描";
+}
+
+function normalizeDemoWorkflowItem(rawItem = {}) {
+  const nextAction = rawItem.nextAction || {};
+  const normalizedMarketUniverse = { ...(rawItem.marketUniverse || {}) };
+  const normalizedMarket = { ...(rawItem.market || {}) };
+  const matchStatus = normalizedMarketUniverse.matchStatus || "not_started";
+  const totalInstruments = Number(normalizedMarketUniverse.totalInstrumentCount || 0);
+
+  if (matchStatus === "not_started" && totalInstruments <= 0) {
+    normalizedMarketUniverse.currentTopCandidate = null;
+    normalizedMarketUniverse.rankedCandidates = [];
+    normalizedMarket.currentTopCandidate = null;
+  }
+
+  let processSteps = Array.isArray(rawItem.processSteps)
+    ? rawItem.processSteps.map((row) => ({ ...row }))
+    : [];
+  let progress = { ...(rawItem.progress || {}) };
+  if (nextAction.actionId === "run_demo_preflight") {
+    const preflightIndex = processSteps.findIndex((row) => row.stepId === "runtime_preflight");
+    if (preflightIndex >= 0) {
+      processSteps[preflightIndex] = { ...processSteps[preflightIndex], status: "pending" };
+    }
+    const completedBeforePreflight = (preflightIndex >= 0 ? processSteps.slice(0, preflightIndex) : processSteps)
+      .filter((row) => row.status === "completed").length;
+    const required = Math.max(6, Number(progress.required || processSteps.length || 6));
+    progress = {
+      ...progress,
+      phase: "runtime_preflight",
+      label: "等待 Demo 运行前检查",
+      completed: completedBeforePreflight,
+      required,
+      percent: Math.round(completedBeforePreflight / required * 100),
+    };
+  }
+
+  return {
+    ...rawItem,
+    progress,
+    processSteps,
+    marketUniverse: normalizedMarketUniverse,
+    market: normalizedMarket,
+  };
 }
 
 function renderCompactExecutionPositions(positions, options = {}) {
@@ -1881,7 +1937,8 @@ function renderCompactExecutionPositions(positions, options = {}) {
   `;
 }
 
-function renderDemoWorkflowCard(item) {
+function renderDemoWorkflowCard(rawItem) {
+  const item = normalizeDemoWorkflowItem(rawItem);
   const progress = item.progress || {};
   const market = item.market || {};
   const position = item.position || {};
@@ -1919,7 +1976,7 @@ function renderDemoWorkflowCard(item) {
       ${renderDemoProcessSteps(item.processSteps)}
       ${renderDemoMarketUniverse(item.marketUniverse || {})}
       <div class="demo-workflow-trade-grid">
-        <div><span>当前首选候选</span><strong>${escapeHtml(demoWorkflowValue(market.currentTopCandidate))}</strong></div>
+        <div><span>当前首选候选</span><strong>${escapeHtml(market.currentTopCandidate || (item.marketUniverse?.matchStatus === "not_started" ? "待扫描" : "--"))}</strong></div>
         <div><span>实际持仓币种</span><strong>${escapeHtml(demoWorkflowValue(market.instrumentId))}</strong></div>
         <div><span>持仓状态</span><strong>${escapeHtml(positions.length ? `${positions.length} 个进行中` : demoWorkflowStatusLabel(position.status || "not_started"))}</strong></div>
         <div><span>已实现盈亏</span><strong class="${pnlTone}">${escapeHtml(demoWorkflowValue(performance.realizedPnl, (value) => formatUsd(value, 2)))}</strong></div>
@@ -2152,6 +2209,16 @@ async function runDemoWorkflowAction(action, strategyId, extra = {}) {
   if (action === "optimize") {
     const item = (latestStrategyLifecyclePayload?.items || []).find((row) => row.strategyId === strategyId);
     if (item) openStrategyOptimizationDialog(item);
+    return;
+  }
+  if (action === "run_demo_preflight") {
+    setText("demoWorkflowActionStatus", "正在运行 OKX Demo 前检查；只读取模拟账户配置、余额和持仓，不会下单。");
+    const response = await runExchangeDemoReadOnlyCheck();
+    await loadDemoWorkflow(true);
+    setText(
+      "demoWorkflowActionStatus",
+      response?.ok ? "Demo 前检查已通过，可以继续全市场扫描与 Demo 验证。" : "Demo 前检查尚未通过，请查看页面提示后重试。",
+    );
     return;
   }
   setText("demoWorkflowActionStatus", "正在执行当前合法步骤，请稍候。");
@@ -7344,8 +7411,10 @@ async function runExchangeDemoReadOnlyCheck() {
     setText("exchangeDemoActionStatus", response.ok
       ? "OKX Demo 账户配置、模拟余额和模拟持仓只读检查通过。连接烟测与正式策略自动化仍是两道独立闸门。"
       : `只读检查被阻塞或失败：${(response.event?.blockers || response.rejectionReasons || []).map(translateExchangeDemoBlocker).join(" · ") || "请查看最近事件"}`);
+    return response;
   } catch (error) {
     setText("exchangeDemoActionStatus", `只读检查失败：${error.message}`);
+    return null;
   } finally {
     if (button) button.disabled = false;
   }

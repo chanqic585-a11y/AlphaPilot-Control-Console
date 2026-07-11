@@ -146,7 +146,8 @@ class DemoWorkflowProjectionTests(unittest.TestCase):
 
         waiting = result["queues"]["waiting"][0]
         self.assertIsNone(waiting["market"]["instrumentId"])
-        self.assertEqual(waiting["market"]["currentTopCandidate"], "BTC-USDT-SWAP")
+        self.assertIsNone(waiting["market"]["currentTopCandidate"])
+        self.assertIsNone(waiting["marketUniverse"]["currentTopCandidate"])
         self.assertIsNone(waiting["position"]["entryPrice"])
         self.assertIsNone(waiting["performance"]["unrealizedPnl"])
         self.assertEqual(waiting["nextAction"]["actionId"], "scan_public_market")
@@ -257,6 +258,78 @@ class DemoWorkflowProjectionTests(unittest.TestCase):
         self.assertEqual(item["executionLimits"]["profileMaxPositionsPerStrategy"], 2)
         self.assertEqual(item["executionLimits"]["effectiveConfiguredMaximum"], 2)
         self.assertEqual(item["nextAction"]["actionId"], "prepare_demo_release")
+
+    def test_runtime_preflight_stays_pending_until_readonly_check_passes(self) -> None:
+        result = build_demo_workflow_projection(
+            lifecycle={"items": [lifecycle_item("running-1", "demo_validation_running")]},
+            exchange_demo={
+                "summary": {
+                    "credentialsConfigured": True,
+                    "demoPrivateEnabled": True,
+                    "demoOrderEnabled": True,
+                },
+                "readonlySummary": {"status": "not_run"},
+                "automationPipeline": {"summary": {}, "candidates": []},
+                "evolutionDemo": {
+                    "summary": {"ready": True},
+                    "runtimeGates": {
+                        "privateEnabled": True,
+                        "orderEnabled": True,
+                        "automationEnabled": True,
+                    },
+                    "contracts": [
+                        {"demoReleaseId": "release-running", "strategyCandidateId": "running-1"}
+                    ],
+                    "recentRecords": [],
+                    "recentOutcomes": [],
+                    "blockers": [],
+                },
+            },
+        )
+
+        item = result["queues"]["validating"][0]
+        preflight = next(row for row in item["processSteps"] if row["stepId"] == "runtime_preflight")
+        self.assertEqual(preflight["status"], "pending")
+        self.assertEqual(item["progress"]["completed"], 3)
+        self.assertEqual(item["progress"]["percent"], 50)
+        self.assertEqual(item["progress"]["phase"], "runtime_preflight")
+        self.assertEqual(item["nextAction"]["actionId"], "run_demo_preflight")
+
+    def test_runtime_preflight_completes_after_readonly_check_passes(self) -> None:
+        result = build_demo_workflow_projection(
+            lifecycle={"items": [lifecycle_item("running-1", "demo_validation_running")]},
+            exchange_demo={
+                "summary": {
+                    "credentialsConfigured": True,
+                    "demoPrivateEnabled": True,
+                    "demoOrderEnabled": True,
+                },
+                "readonlySummary": {"status": "passed"},
+                "automationPipeline": {"summary": {}, "candidates": []},
+                "evolutionDemo": {
+                    "summary": {"ready": True},
+                    "runtimeGates": {
+                        "privateEnabled": True,
+                        "orderEnabled": True,
+                        "automationEnabled": True,
+                    },
+                    "contracts": [
+                        {"demoReleaseId": "release-running", "strategyCandidateId": "running-1"}
+                    ],
+                    "recentRecords": [],
+                    "recentOutcomes": [],
+                    "blockers": [],
+                },
+            },
+        )
+
+        item = result["queues"]["validating"][0]
+        preflight = next(row for row in item["processSteps"] if row["stepId"] == "runtime_preflight")
+        self.assertEqual(preflight["status"], "completed")
+        self.assertEqual(item["progress"]["completed"], 4)
+        self.assertEqual(item["progress"]["percent"], 67)
+        self.assertEqual(item["progress"]["phase"], "demo_execution")
+        self.assertEqual(item["nextAction"]["actionId"], "run_demo_cycle")
 
     def test_projection_exposes_all_open_positions_for_multi_symbol_demo(self) -> None:
         lifecycle = {
