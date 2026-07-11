@@ -3,6 +3,8 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from alphapilot_control_console.risk_profile_store import (
     LIVE_ACTIVATION_CONFIRMATION,
@@ -29,17 +31,24 @@ class RiskProfileStoreTests(unittest.TestCase):
                 "maxDirectionOpenRiskPercent": 1.5,
             }
             created = store.create_profile(profile)
-            activated = store.activate(
-                created["riskProfileId"],
-                actor="user_manual",
-                confirmation=LIVE_ACTIVATION_CONFIRMATION,
-                reason="unit_test",
-            )
-            rolled_back = store.rollback(
-                "live_canary",
-                actor="user_manual",
-                confirmation=LIVE_ACTIVATION_CONFIRMATION,
-            )
+            with patch(
+                "alphapilot_control_console.risk_profile_store._now",
+                return_value="2099-01-01T00:00:00+00:00",
+            ), patch(
+                "alphapilot_control_console.risk_profile_store.uuid.uuid4",
+                side_effect=[SimpleNamespace(hex="z" * 32), SimpleNamespace(hex="a" * 32)],
+            ):
+                activated = store.activate(
+                    created["riskProfileId"],
+                    actor="user_manual",
+                    confirmation=LIVE_ACTIVATION_CONFIRMATION,
+                    reason="unit_test",
+                )
+                rolled_back = store.rollback(
+                    "live_canary",
+                    actor="user_manual",
+                    confirmation=LIVE_ACTIVATION_CONFIRMATION,
+                )
             current = store.get_active_profile("live_canary")
             store.close()
 

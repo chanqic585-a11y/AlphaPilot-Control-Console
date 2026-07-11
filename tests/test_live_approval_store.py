@@ -3,6 +3,8 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from alphapilot_control_console.live_approval_store import (
     LIVE_APPROVAL_CONFIRMATION,
@@ -48,14 +50,21 @@ class LiveApprovalStoreTests(unittest.TestCase):
     def test_revocation_is_append_only(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             store = LiveApprovalStore(Path(directory) / "approval.sqlite")
-            store.approve(
-                packageId="package-1",
-                packageHash="hash-1",
-                riskBudget={"capitalLimitUsdt": 1000.0},
-                confirmation=LIVE_APPROVAL_CONFIRMATION,
-                actor="user_manual",
-            )
-            store.revoke(packageId="package-1", packageHash="hash-1", actor="user_manual")
+            with patch(
+                "alphapilot_control_console.live_approval_store._now",
+                return_value="2099-01-01T00:00:00+00:00",
+            ), patch(
+                "alphapilot_control_console.live_approval_store.uuid.uuid4",
+                side_effect=[SimpleNamespace(hex="z" * 32), SimpleNamespace(hex="a" * 32)],
+            ):
+                store.approve(
+                    packageId="package-1",
+                    packageHash="hash-1",
+                    riskBudget={"capitalLimitUsdt": 1000.0},
+                    confirmation=LIVE_APPROVAL_CONFIRMATION,
+                    actor="user_manual",
+                )
+                store.revoke(packageId="package-1", packageHash="hash-1", actor="user_manual")
 
             self.assertEqual(store.get_state("package-1", "hash-1")["status"], "revoked")
             self.assertEqual(len(store.list_actions()), 2)

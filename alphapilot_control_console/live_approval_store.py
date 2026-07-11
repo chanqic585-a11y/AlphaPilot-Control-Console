@@ -117,7 +117,7 @@ class LiveApprovalStore:
                 "executionEnabled": False,
             }
         latest = self.connection.execute(
-            "SELECT * FROM LiveApprovalActions WHERE packageId = ? ORDER BY createdAt DESC, actionId DESC LIMIT 1",
+            "SELECT * FROM LiveApprovalActions WHERE packageId = ? ORDER BY createdAt DESC, rowid DESC LIMIT 1",
             (packageId,),
         ).fetchone()
         if latest:
@@ -140,7 +140,7 @@ class LiveApprovalStore:
 
     def list_actions(self) -> list[LiveApprovalAction]:
         rows = self.connection.execute(
-            "SELECT * FROM LiveApprovalActions ORDER BY createdAt, actionId"
+            "SELECT * FROM LiveApprovalActions ORDER BY createdAt, rowid"
         ).fetchall()
         return [self._from_row(row) for row in rows]
 
@@ -196,7 +196,7 @@ class LiveApprovalStore:
             """
             SELECT * FROM LiveApprovalActions
             WHERE packageId = ? AND packageHash = ?
-            ORDER BY createdAt DESC, actionId DESC LIMIT 1
+            ORDER BY createdAt DESC, rowid DESC LIMIT 1
             """,
             (packageId, packageHash),
         ).fetchone()

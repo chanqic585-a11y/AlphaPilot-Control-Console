@@ -358,7 +358,7 @@ class RiskProfileStore:
             SELECT p.* FROM RiskProfileActivations a
             JOIN RiskProfiles p ON p.riskProfileId = a.riskProfileId
             WHERE a.environment = ?
-            ORDER BY a.createdAt DESC, a.activationId DESC LIMIT 1
+            ORDER BY a.createdAt DESC, a.rowid DESC LIMIT 1
             """,
             (environment,),
         ).fetchone()
@@ -370,7 +370,7 @@ class RiskProfileStore:
         if environment:
             query += " WHERE environment = ?"
             values = (environment,)
-        query += " ORDER BY createdAt, activationId"
+        query += " ORDER BY createdAt, rowid"
         return [dict(row) for row in self.connection.execute(query, values).fetchall()]
 
     @staticmethod
