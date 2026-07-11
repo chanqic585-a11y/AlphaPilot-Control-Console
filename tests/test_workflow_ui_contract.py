@@ -162,7 +162,7 @@ class WorkflowUiContractTests(unittest.TestCase):
     def test_one_time_issue_guidance_has_persistent_and_session_fallbacks(self) -> None:
         self.assertIn('id="issueGuidanceDialog"', self.html)
         self.assertIn('id="issueGuidanceNextAction"', self.html)
-        self.assertIn('/issue-guidance.js?v=20260712-v13-27-1-8-demo-alert', self.html)
+        self.assertIn('/issue-guidance.js?v=20260712-v13-27-1-8-demo-alert-ack', self.html)
         self.assertIn("ALPHAPILOT_ISSUE_ACK_V1", self.issue_js)
         self.assertIn("function issueFingerprint", self.issue_js)
         self.assertIn("localStorage", self.issue_js)
