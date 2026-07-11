@@ -234,25 +234,22 @@ class WorkflowClientTests(unittest.TestCase):
         }
         with patch.object(
             client, "build_workflow_projection", return_value=projection
-        ), patch.object(client, "spawn_workflow_run") as spawn:
-            spawn.side_effect = [
-                {"started": True, "workflowRunId": "run-running"},
-                {"started": True, "workflowRunId": "run-queued"},
-            ]
+        ), patch.object(client, "spawn_workflow_batch") as spawn:
+            spawn.return_value = {"started": True, "alreadyRunning": False}
 
             result = client.resume_incomplete_workflow_runs(
                 quant_root=self.quant_root
             )
 
-        self.assertEqual(
-            [call.args[0] for call in spawn.call_args_list],
+        spawn.assert_called_once_with(
             ["run-running", "run-queued"],
+            quant_root=self.quant_root,
         )
         self.assertEqual(result["candidateCount"], 2)
         self.assertEqual(result["startedCount"], 2)
         self.assertEqual(result["errorCount"], 0)
 
-    def test_startup_recovery_records_errors_without_aborting_other_runs(self) -> None:
+    def test_startup_recovery_records_serial_batch_error(self) -> None:
         projection = {
             "items": [
                 {"workflowRunId": "run-1", "stage": "backtest", "status": "running"},
@@ -263,17 +260,17 @@ class WorkflowClientTests(unittest.TestCase):
             client, "build_workflow_projection", return_value=projection
         ), patch.object(
             client,
-            "spawn_workflow_run",
-            side_effect=[RuntimeError("worker unavailable"), {"started": True}],
+            "spawn_workflow_batch",
+            side_effect=RuntimeError("worker unavailable"),
         ):
             result = client.resume_incomplete_workflow_runs(
                 quant_root=self.quant_root
             )
 
         self.assertEqual(result["candidateCount"], 2)
-        self.assertEqual(result["startedCount"], 1)
+        self.assertEqual(result["startedCount"], 0)
         self.assertEqual(result["errorCount"], 1)
-        self.assertEqual(result["errors"][0]["workflowRunId"], "run-1")
+        self.assertEqual(result["errors"][0]["workflowRunId"], "run-1,run-2")
 
     def test_import_optimized_action_whitelists_fields_and_starts_new_backtest(self) -> None:
         created = {
