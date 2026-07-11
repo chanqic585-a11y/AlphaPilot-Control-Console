@@ -318,38 +318,103 @@ def build_evolution_demo_status() -> dict[str, Any]:
     }
 
 
-def run_evolution_demo_cycle(payload: dict[str, Any]) -> dict[str, Any]:
+def _increment_demo_portfolio(portfolio: dict[str, Any], signal: dict[str, Any]) -> None:
+    strategy_id = str(signal.get("strategyCandidateId") or signal.get("candidateId") or "unknown")
+    symbol = str(signal.get("instId") or "unknown")
+    direction = "long" if str(signal.get("side") or "").lower() == "buy" else "short"
+    correlation = str(signal.get("correlationGroup") or "")
+    risk = float(signal.get("riskPercent") or 0.0)
+    portfolio["openPositionCount"] = int(portfolio.get("openPositionCount") or 0) + 1
+    portfolio["openRiskPercent"] = float(portfolio.get("openRiskPercent") or 0.0) + risk
+    active = set(str(value) for value in (portfolio.get("activeStrategyIds") or []))
+    active.add(strategy_id)
+    portfolio["activeStrategyIds"] = sorted(active)
+    for key, identity in (
+        ("positionsByStrategy", strategy_id),
+        ("positionsBySymbol", symbol),
+    ):
+        values = dict(portfolio.get(key) or {})
+        values[identity] = int(values.get(identity, 0)) + 1
+        portfolio[key] = values
+    for key, identity in (
+        ("openRiskByStrategy", strategy_id),
+        ("openRiskBySymbol", symbol),
+        ("openRiskByDirection", direction),
+    ):
+        values = dict(portfolio.get(key) or {})
+        values[identity] = float(values.get(identity, 0.0)) + risk
+        portfolio[key] = values
+    if correlation:
+        values = dict(portfolio.get("openRiskByCorrelationGroup") or {})
+        values[correlation] = float(values.get(correlation, 0.0)) + risk
+        portfolio["openRiskByCorrelationGroup"] = values
+
+
+def run_evolution_demo_batch_cycle(release_ids: list[str]) -> dict[str, Any]:
     status = build_evolution_demo_status()
     if status["blockers"]:
         return {"ok": False, "blockers": status["blockers"], "status": status}
     contracts, _ = discover_demo_contracts()
-    release_id = str(payload.get("demoReleaseId") or "")
-    contract = next((item for item in contracts if item.get("demoReleaseId") == release_id), None)
-    if contract is None:
-        return {"ok": False, "blockers": ["demo_release_not_found"], "status": status}
-    externally_supplied_signal_count = len(payload.get("signals", [])) if isinstance(payload.get("signals"), list) else 0
-    scan = scan_immutable_demo_release(contract)
-    if scan.get("blockers"):
+    requested = [str(value) for value in release_ids if str(value)]
+    selected_contracts = [
+        contract
+        for release_id in requested
+        for contract in contracts
+        if str(contract.get("demoReleaseId") or "") == release_id
+    ]
+    found_ids = {str(contract.get("demoReleaseId") or "") for contract in selected_contracts}
+    missing = [release_id for release_id in requested if release_id not in found_ids]
+    if not selected_contracts or missing:
         return {
             "ok": False,
-            "blockers": list(scan["blockers"]),
-            "externalSignalsIgnored": externally_supplied_signal_count,
-            "scan": scan,
+            "blockers": ["demo_release_not_found"],
+            "missingReleaseIds": missing or requested,
             "status": status,
         }
-    scan_strategy_id = str(contract.get("strategyCandidateId") or "")
-    if scan_strategy_id:
-        try:
-            save_demo_release_scan(scan_strategy_id, scan)
-        except (OSError, ValueError):
+
+    scans: dict[str, dict[str, Any]] = {}
+    all_signals: list[dict[str, Any]] = []
+    scan_rejections: list[dict[str, Any]] = []
+    for contract in selected_contracts:
+        release_id = str(contract.get("demoReleaseId") or "")
+        scan = scan_immutable_demo_release(contract)
+        scans[release_id] = scan
+        if scan.get("blockers"):
             return {
                 "ok": False,
-                "blockers": ["demo_market_scan_persistence_failed"],
-                "externalSignalsIgnored": externally_supplied_signal_count,
-                "scan": scan,
+                "blockers": [
+                    f"{release_id}:{reason}"
+                    for reason in scan.get("blockers", [])
+                ],
+                "scans": scans,
                 "status": status,
             }
-    signals = scan.get("signals") if isinstance(scan.get("signals"), list) else []
+        strategy_id = str(contract.get("strategyCandidateId") or "")
+        if strategy_id:
+            try:
+                save_demo_release_scan(strategy_id, scan)
+            except (OSError, ValueError):
+                return {
+                    "ok": False,
+                    "blockers": ["demo_market_scan_persistence_failed"],
+                    "scans": scans,
+                    "status": build_evolution_demo_status(),
+                }
+        signals = scan.get("signals") if isinstance(scan.get("signals"), list) else []
+        for signal in signals:
+            if isinstance(signal, dict):
+                all_signals.append({
+                    **signal,
+                    "demoReleaseId": signal.get("demoReleaseId") or release_id,
+                    "strategyCandidateId": signal.get("strategyCandidateId") or strategy_id,
+                })
+        scan_rejections.extend(
+            {**row, "demoReleaseId": release_id}
+            for row in scan.get("rejections", [])
+            if isinstance(row, dict)
+        )
+
+    first_contract = selected_contracts[0]
     store = DemoExecutionStore(STORE_PATH)
     try:
         client = OkxDemoClient(load_okx_demo_credentials())
@@ -359,19 +424,20 @@ def run_evolution_demo_cycle(payload: dict[str, Any]) -> dict[str, Any]:
             portfolio = _portfolio_from_demo_account(
                 client,
                 store,
-                contract.get("riskEnvelope") if isinstance(contract.get("riskEnvelope"), dict) else {},
+                first_contract.get("riskEnvelope")
+                if isinstance(first_contract.get("riskEnvelope"), dict)
+                else {},
             )
         except RuntimeError as error:
             engine.pause("demo_private_read_failed")
             return {
                 "ok": False,
                 "blockers": [str(error)],
-                "externalSignalsIgnored": externally_supplied_signal_count,
-                "scan": scan,
+                "scans": scans,
                 "status": build_evolution_demo_status(),
             }
-        portfolio["dataFresh"] = all(bool(item.get("dataFresh")) for item in signals)
-        portfolio["liquidityPassed"] = all(bool(item.get("liquidityPassed")) for item in signals)
+        portfolio["dataFresh"] = all(bool(item.get("dataFresh")) for item in all_signals)
+        portfolio["liquidityPassed"] = all(bool(item.get("liquidityPassed")) for item in all_signals)
         guard = evaluate_demo_runtime_guard(
             portfolio,
             recovered_statuses=[record.status for record in recovered],
@@ -382,91 +448,143 @@ def run_evolution_demo_cycle(payload: dict[str, Any]) -> dict[str, Any]:
             return {
                 "ok": False,
                 "blockers": list(guard.reasonCodes),
-                "externalSignalsIgnored": externally_supplied_signal_count,
-                "scan": scan,
+                "scans": scans,
                 "status": build_evolution_demo_status(),
             }
-        if not signals:
+        base_result = {
+            "scannedReleaseCount": len(selected_contracts),
+            "matchedSignalCount": len(all_signals),
+            "scans": scans,
+            "recovered": [_record_payload(record) for record in recovered],
+        }
+        if not all_signals:
             return {
                 "ok": True,
+                **base_result,
+                "createdOrderCount": 0,
                 "created": [],
-                "recovered": [_record_payload(record) for record in recovered],
-                "rejectedSignals": list(scan.get("rejections") or []),
-                "externalSignalsIgnored": externally_supplied_signal_count,
-                "scan": scan,
+                "rejectedSignals": scan_rejections,
                 "status": build_evolution_demo_status(),
             }
-        limits = contract.get("riskEnvelope") if isinstance(contract.get("riskEnvelope"), dict) else {}
-        max_positions = int(limits.get("maxConcurrentPositions") or 3)
-        max_positions_per_strategy = int(limits.get("maxPositionsPerStrategy") or max_positions)
+
+        envelopes = [
+            contract.get("riskEnvelope")
+            for contract in selected_contracts
+            if isinstance(contract.get("riskEnvelope"), dict)
+        ]
+        max_positions = min(
+            int(envelope.get("maxConcurrentPositions") or 3)
+            for envelope in envelopes
+        ) if envelopes else 3
         current_positions = int(portfolio.get("openPositionCount") or 0)
         available_slots = max_positions - current_positions
         if available_slots <= 0:
             return {
-                "ok": False,
-                "blockers": ["max_concurrent_positions"],
+                "ok": True,
+                **base_result,
+                "createdOrderCount": 0,
+                "created": [],
                 "rejectedSignals": [
                     {**item, "reason": "portfolio_position_limit"}
-                    for item in signals
+                    for item in all_signals
                     if isinstance(item, dict)
                 ],
-                "externalSignalsIgnored": externally_supplied_signal_count,
-                "scan": scan,
                 "status": status,
             }
-        strategy_id = str(contract.get("strategyCandidateId") or "")
-        current_strategy_positions = int(
-            (portfolio.get("positionsByStrategy") or {}).get(strategy_id, 0)
-            if isinstance(portfolio.get("positionsByStrategy"), dict)
-            else 0
-        )
-        strategy_settings = get_demo_strategy_runtime_settings(strategy_id)
-        requested_slots = max(
-            0,
-            int(strategy_settings.get("maxConcurrentSymbols") or 1) - current_strategy_positions,
-        )
-        profile_strategy_slots = max(0, max_positions_per_strategy - current_strategy_positions)
-        risk_per_trade = float(limits.get("riskPerTradePercent") or 0.25)
-        remaining_risk = max(
-            0.0,
-            float(limits.get("maxOpenRiskPercent") or 1.0) - float(portfolio.get("openRiskPercent") or 0.0),
-        )
-        risk_slots = int(remaining_risk // risk_per_trade) if risk_per_trade > 0 else 0
-        symbol_limit = effective_symbol_limit(
-            requested=requested_slots,
-            portfolio_limit=profile_strategy_slots,
-            remaining_slots=available_slots,
-            risk_slots=risk_slots,
-            matched_count=len(signals),
-        )
-        if symbol_limit["effective"] <= 0:
-            return {
-                "ok": False,
-                "blockers": ["strategy_symbol_limit_reached"],
-                "symbolLimit": symbol_limit,
-                "rejectedSignals": [
-                    {**item, "reason": "strategy_symbol_limit_reached"}
-                    for item in signals
-                    if isinstance(item, dict)
-                ],
-                "externalSignalsIgnored": externally_supplied_signal_count,
-                "scan": scan,
-                "status": status,
-            }
-        arbitration = arbitrate_demo_signals(
-            [item for item in signals if isinstance(item, dict)],
-            maxPositions=int(symbol_limit["effective"]),
-            allowSameFamilyMultipleSymbols=True,
-        )
-        created = []
-        execution_rejections = []
+
+        contract_by_release = {
+            str(contract.get("demoReleaseId") or ""): contract
+            for contract in selected_contracts
+        }
+        contract_by_strategy = {
+            str(contract.get("strategyCandidateId") or ""): contract
+            for contract in selected_contracts
+        }
+        preliminarily_selected: list[dict[str, Any]] = []
+        arbitration_rejections: list[dict[str, Any]] = list(scan_rejections)
+        symbol_limits: dict[str, dict[str, Any]] = {}
+        for contract in selected_contracts:
+            strategy_id = str(contract.get("strategyCandidateId") or "")
+            strategy_signals = [
+                signal
+                for signal in all_signals
+                if str(signal.get("strategyCandidateId") or "") == strategy_id
+            ]
+            if not strategy_signals:
+                continue
+            limits = contract.get("riskEnvelope") if isinstance(contract.get("riskEnvelope"), dict) else {}
+            current_strategy_positions = int(
+                (portfolio.get("positionsByStrategy") or {}).get(strategy_id, 0)
+                if isinstance(portfolio.get("positionsByStrategy"), dict)
+                else 0
+            )
+            max_positions_per_strategy = int(limits.get("maxPositionsPerStrategy") or max_positions)
+            settings = get_demo_strategy_runtime_settings(strategy_id)
+            requested_slots = max(
+                0,
+                int(settings.get("maxConcurrentSymbols") or 1) - current_strategy_positions,
+            )
+            profile_slots = max(0, max_positions_per_strategy - current_strategy_positions)
+            risk_per_trade = float(limits.get("riskPerTradePercent") or 0.25)
+            remaining_risk = max(
+                0.0,
+                float(limits.get("maxOpenRiskPercent") or 1.0)
+                - float(portfolio.get("openRiskPercent") or 0.0),
+            )
+            risk_slots = int(remaining_risk // risk_per_trade) if risk_per_trade > 0 else 0
+            symbol_limit = effective_symbol_limit(
+                requested=requested_slots,
+                portfolio_limit=profile_slots,
+                remaining_slots=available_slots,
+                risk_slots=risk_slots,
+                matched_count=len(strategy_signals),
+            )
+            symbol_limits[strategy_id] = symbol_limit
+            if int(symbol_limit["effective"]) <= 0:
+                arbitration_rejections.extend(
+                    {**signal, "reason": "strategy_symbol_limit_reached"}
+                    for signal in strategy_signals
+                )
+                continue
+            per_strategy = arbitrate_demo_signals(
+                strategy_signals,
+                maxPositions=int(symbol_limit["effective"]),
+                allowSameFamilyMultipleSymbols=True,
+            )
+            preliminarily_selected.extend(per_strategy.selected)
+            arbitration_rejections.extend(per_strategy.rejected)
+
+        if len(selected_contracts) == 1:
+            globally_selected = tuple(preliminarily_selected)
+        elif preliminarily_selected:
+            global_arbitration = arbitrate_demo_signals(
+                preliminarily_selected,
+                maxPositions=available_slots,
+                allowSameFamilyMultipleSymbols=True,
+            )
+            globally_selected = global_arbitration.selected
+            arbitration_rejections.extend(global_arbitration.rejected)
+        else:
+            globally_selected = ()
+
+        created: list[Any] = []
+        execution_rejections: list[dict[str, Any]] = []
         rolling_portfolio = dict(portfolio)
-        for signal in arbitration.selected:
+        for signal in globally_selected:
+            contract = contract_by_release.get(str(signal.get("demoReleaseId") or ""))
+            if contract is None:
+                contract = contract_by_strategy.get(str(signal.get("strategyCandidateId") or ""))
+            if contract is None:
+                execution_rejections.append({
+                    "candidateId": signal.get("candidateId"),
+                    "instId": signal.get("instId"),
+                    "reason": "signal_release_binding_missing",
+                })
+                continue
             try:
                 record = engine.execute(contract=contract, signal=signal, portfolio=rolling_portfolio)
                 created.append(record)
-                rolling_portfolio["openPositionCount"] = int(rolling_portfolio.get("openPositionCount") or 0) + 1
-                rolling_portfolio["openRiskPercent"] = float(rolling_portfolio.get("openRiskPercent") or 0) + float(signal.get("riskPercent") or 0)
+                _increment_demo_portfolio(rolling_portfolio, signal)
             except (RuntimeError, ValueError) as error:
                 execution_rejections.append({
                     "candidateId": signal.get("candidateId"),
@@ -475,16 +593,101 @@ def run_evolution_demo_cycle(payload: dict[str, Any]) -> dict[str, Any]:
                 })
                 if store.get_runtime_flag("paused", False):
                     break
+        paused = bool(store.get_runtime_flag("paused", False))
         return {
-            "ok": bool(created) and not store.get_runtime_flag("paused", False),
+            "ok": not paused,
+            **base_result,
+            "createdOrderCount": len(created),
             "created": [_record_payload(record) for record in created],
-            "recovered": [_record_payload(record) for record in recovered],
-            "rejectedSignals": [*arbitration.rejected, *execution_rejections],
-            "externalSignalsIgnored": externally_supplied_signal_count,
-            "scan": scan,
-            "symbolLimit": symbol_limit,
+            "rejectedSignals": [*arbitration_rejections, *execution_rejections],
+            "symbolLimits": symbol_limits,
             "status": build_evolution_demo_status(),
         }
+    finally:
+        store.close()
+
+
+def run_evolution_demo_cycle(payload: dict[str, Any]) -> dict[str, Any]:
+    release_id = str(payload.get("demoReleaseId") or "")
+    external_count = len(payload.get("signals", [])) if isinstance(payload.get("signals"), list) else 0
+    result = run_evolution_demo_batch_cycle([release_id])
+    scans = result.get("scans") if isinstance(result.get("scans"), dict) else {}
+    symbol_limits = result.get("symbolLimits") if isinstance(result.get("symbolLimits"), dict) else {}
+    contracts, _ = discover_demo_contracts()
+    contract = next(
+        (row for row in contracts if str(row.get("demoReleaseId") or "") == release_id),
+        {},
+    )
+    strategy_id = str(contract.get("strategyCandidateId") or "")
+    return {
+        **result,
+        "externalSignalsIgnored": external_count,
+        "scan": scans.get(release_id, {}),
+        "symbolLimit": symbol_limits.get(strategy_id),
+    }
+
+
+def reconcile_evolution_demo_runtime() -> dict[str, Any]:
+    """Reconcile existing Demo orders and positions without creating entries."""
+    status = build_evolution_demo_status()
+    if status["blockers"]:
+        return {"ok": False, "blockers": status["blockers"], "status": status}
+    contracts, _ = discover_demo_contracts()
+    if not contracts:
+        return {"ok": False, "blockers": ["no_eligible_demo_release"], "status": status}
+
+    store = DemoExecutionStore(STORE_PATH)
+    try:
+        client = OkxDemoClient(load_okx_demo_credentials())
+        engine = DemoExecutionEngine(client=client, store=store)
+        recovered = engine.recover_open_records()
+        try:
+            portfolio = _portfolio_from_demo_account(
+                client,
+                store,
+                contracts[0].get("riskEnvelope")
+                if isinstance(contracts[0].get("riskEnvelope"), dict)
+                else {},
+            )
+        except RuntimeError as error:
+            engine.pause("demo_private_read_failed")
+            return {
+                "ok": False,
+                "blockers": [str(error)],
+                "recoveredCount": len(recovered),
+                "status": build_evolution_demo_status(),
+            }
+        guard = evaluate_demo_runtime_guard(
+            portfolio,
+            recovered_statuses=[record.status for record in recovered],
+            checksums_match=True,
+        )
+        if guard.pauseRequired:
+            engine.pause(";".join(guard.reasonCodes))
+            return {
+                "ok": False,
+                "blockers": list(guard.reasonCodes),
+                "recoveredCount": len(recovered),
+                "openPositionCount": int(portfolio.get("openPositionCount") or 0),
+                "status": build_evolution_demo_status(),
+            }
+        return {
+            "ok": True,
+            "blockers": [],
+            "recoveredCount": len(recovered),
+            "openPositionCount": int(portfolio.get("openPositionCount") or 0),
+            "status": build_evolution_demo_status(),
+        }
+    finally:
+        store.close()
+
+
+def pause_evolution_demo_runtime(reason: str) -> None:
+    store = DemoExecutionStore(STORE_PATH)
+    try:
+        store.set_runtime_flag("paused", True)
+        store.set_runtime_flag("pauseReason", reason or "automatic_execution_paused")
+        store.append_event(None, "demo_paused", {"reason": reason or "automatic_execution_paused"})
     finally:
         store.close()
 
