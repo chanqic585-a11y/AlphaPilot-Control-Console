@@ -5734,3 +5734,140 @@ body.show-advanced .hero-grid.advanced-section {
     grid-template-columns: 1fr;
   }
 }
+
+.strategy-optimization-dialog {
+  width: min(760px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  padding: 0;
+  overflow: auto;
+  color: var(--text);
+  background: #101720;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  box-shadow: 0 24px 80px rgb(0 0 0 / 55%);
+}
+
+.strategy-optimization-dialog::backdrop {
+  background: rgb(2 6 12 / 78%);
+}
+
+.strategy-optimization-dialog form {
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+}
+
+.strategy-optimization-head,
+.strategy-optimization-actions,
+.strategy-optimization-parameter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.strategy-optimization-head h2,
+.strategy-optimization-recommendations h3 {
+  margin: 0;
+}
+
+.dialog-close-button {
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  padding: 0;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.strategy-optimization-stage,
+.strategy-optimization-status {
+  margin: 0;
+  color: var(--muted);
+}
+
+.strategy-optimization-notice {
+  padding: 12px 14px;
+  color: #dbeafe;
+  background: #142236;
+  border-left: 3px solid #60a5fa;
+}
+
+.strategy-optimization-name,
+.strategy-optimization-recommendations,
+.strategy-optimization-parameters {
+  display: grid;
+  gap: 10px;
+}
+
+.strategy-optimization-recommendations ul {
+  margin: 0;
+  padding-left: 20px;
+  color: #cbd5e1;
+}
+
+.strategy-optimization-parameter {
+  align-items: start;
+  padding: 12px;
+  background: #0b1119;
+  border: 1px solid #263244;
+  border-radius: 6px;
+}
+
+.strategy-optimization-parameter.is-suggested {
+  border-color: #d4a72c;
+  background: #17180f;
+}
+
+.strategy-optimization-parameter > span,
+.strategy-optimization-parameter em {
+  display: grid;
+  gap: 4px;
+}
+
+.strategy-optimization-parameter small,
+.strategy-optimization-parameter em {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.strategy-optimization-parameter input,
+.strategy-optimization-parameter select {
+  width: 180px;
+  min-width: 180px;
+}
+
+.strategy-optimization-parameter em {
+  grid-column: 1 / -1;
+}
+
+.strategy-optimization-actions {
+  justify-content: flex-end;
+}
+
+@media (max-width: 640px) {
+  .strategy-optimization-dialog {
+    width: calc(100vw - 16px);
+    max-height: calc(100vh - 16px);
+  }
+
+  .strategy-optimization-dialog form {
+    padding: 16px;
+  }
+
+  .strategy-optimization-parameter {
+    display: grid;
+  }
+
+  .strategy-optimization-parameter input,
+  .strategy-optimization-parameter select,
+  .strategy-optimization-actions button {
+    width: 100%;
+  }
+
+  .strategy-optimization-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}

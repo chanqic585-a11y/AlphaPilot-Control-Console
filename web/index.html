@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#080c0f" />
     <title>AlphaPilot 控制台</title>
-    <link rel="stylesheet" href="/styles.css?v=20260711-v13-27-1-1-dual-data" />
+    <link rel="stylesheet" href="/styles.css?v=20260711-v13-27-1-2-targeted-optimization" />
   </head>
   <body>
     <a class="skip-link" href="#mainContent">跳到主要内容</a>
@@ -2617,6 +2617,35 @@
         <button class="back-home-button" id="backHomeButton" type="button" aria-label="回到策略页" hidden>回到策略</button>
       </main>
     </div>
-    <script src="/app.js?v=20260711-v13-27-1-1-dual-data"></script>
+    <dialog id="strategyOptimizationDialog" class="strategy-optimization-dialog" aria-labelledby="strategyOptimizationTitle">
+      <form id="strategyOptimizationForm">
+        <div class="strategy-optimization-head">
+          <div>
+            <p class="panel-eyebrow">TARGETED PARAMETER REVIEW</p>
+            <h2 id="strategyOptimizationTitle">改善优化</h2>
+          </div>
+          <button id="strategyOptimizationCloseButton" class="dialog-close-button" type="button" aria-label="关闭参数优化窗口" title="关闭">&times;</button>
+        </div>
+        <p id="strategyOptimizationStage" class="strategy-optimization-stage">正在读取策略证据。</p>
+        <div class="strategy-optimization-notice">
+          参数改变后会创建新版本，并从正式回测重新验证；原版本和历史样本不会被覆盖。目标盈亏比固定不低于 2R。
+        </div>
+        <label class="strategy-optimization-name">
+          <span>新版本名称</span>
+          <input id="strategyOptimizationName" name="strategyOptimizationName" autocomplete="off" required />
+        </label>
+        <section class="strategy-optimization-recommendations" aria-labelledby="strategyOptimizationRecommendationTitle">
+          <h3 id="strategyOptimizationRecommendationTitle">针对性建议</h3>
+          <ul id="strategyOptimizationRecommendations"></ul>
+        </section>
+        <div id="strategyOptimizationParameterList" class="strategy-optimization-parameters"></div>
+        <div id="strategyOptimizationStatus" class="strategy-optimization-status" aria-live="polite"></div>
+        <div class="strategy-optimization-actions">
+          <button id="strategyOptimizationCancelButton" class="secondary" type="button">取消</button>
+          <button id="strategyOptimizationSubmitButton" type="submit">创建优化版本并重新回测</button>
+        </div>
+      </form>
+    </dialog>
+    <script src="/app.js?v=20260711-v13-27-1-2-targeted-optimization"></script>
   </body>
 </html>

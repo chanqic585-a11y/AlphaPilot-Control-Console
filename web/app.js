@@ -244,7 +244,9 @@ let advancedDataLoaded = false;
 let mobileStatusLoaded = false;
 let latestAdvancedPayload = {};
 let latestWorkflowPayload = {};
+let latestStrategyLifecyclePayload = {};
 let workflowPollTimer = null;
+let activeOptimizationContext = null;
 
 const emptyMobileStatus = {
   commandSummary: {},
@@ -340,8 +342,12 @@ async function postJson(url, payload) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  if (!response.ok) throw new Error(`${url} failed: ${response.status}`);
-  return response.json();
+  const responsePayload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const payload = responsePayload || {};
+    throw new Error(payload.message || payload.error || `${url} failed: ${response.status}`);
+  }
+  return responsePayload;
 }
 
 function formatNumber(value, digits = 2) {
@@ -1077,8 +1083,16 @@ function dualLayerCardActions(item) {
     { action: "cancel", label: "取消" },
   ];
   if (item.status === "paused") return [{ action: "run-dual-layer", label: "继续运行", primary: true }];
-  if (["failed", "blocked"].includes(item.status) && item.failure?.retryDisposition === "same_version_retry") {
-    return [{ action: "retry", label: "补齐数据并重试", primary: true }, { action: "archive", label: "归档" }];
+  if (["failed", "blocked"].includes(item.status)) {
+    return [
+      {
+        action: "rerun",
+        label: "重新回测",
+        primary: item.failure?.category === "data_integrity" || item.failure?.retryDisposition === "same_version_retry",
+      },
+      { action: "optimize", label: "改善优化" },
+      { action: "archive", label: "归档" },
+    ];
   }
   if (!["running", "queued"].includes(item.status)) return [{ action: "archive", label: "归档" }];
   return [];
@@ -1173,6 +1187,28 @@ function renderDualLayerWorkflow(payload = emptyWorkflow) {
 }
 
 async function runDualLayerWorkflowAction(action, item = {}) {
+  const currentItem = (latestWorkflowPayload?.items || []).find((row) => (
+    row.workflowRunId === item.workflowRunId || row.strategyVersionId === item.strategyVersionId
+  )) || item;
+  if (action === "optimize") {
+    openStrategyOptimizationDialog(currentItem);
+    return;
+  }
+  if (action === "rerun") {
+    const failure = currentItem.failure || {};
+    if (failure.category === "data_integrity" && currentItem.status === "blocked") {
+      await runDualLayerWorkflowAction("run-dual-layer", currentItem);
+      return;
+    }
+    if (failure.retryDisposition === "same_version_retry") {
+      await runDualLayerWorkflowAction("retry", currentItem);
+      return;
+    }
+    const rerunStatus = el("workflowActionStatus");
+    if (rerunStatus) rerunStatus.textContent = "该失败不能原版本重复回测；请先改善参数并创建新版本。";
+    openStrategyOptimizationDialog(currentItem);
+    return;
+  }
   const status = el("workflowActionStatus");
   if (status) status.textContent = action === "run-all-awaiting"
     ? "正在启动全部待回测策略..."
@@ -1189,6 +1225,118 @@ async function runDualLayerWorkflowAction(action, item = {}) {
       : "动作已提交，阶段状态会自动刷新。";
   } catch (error) {
     if (status) status.textContent = `操作失败：${error.message}`;
+  }
+}
+
+function closeStrategyOptimizationDialog() {
+  const dialog = el("strategyOptimizationDialog");
+  activeOptimizationContext = null;
+  if (!dialog) return;
+  if (typeof dialog.close === "function" && dialog.open) dialog.close();
+  else dialog.removeAttribute("open");
+}
+
+function optimizationInputMarkup(field, changedByKey) {
+  const key = String(field.key || "");
+  const current = field.currentValue;
+  const proposed = field.proposedValue;
+  const change = changedByKey.get(key);
+  const locked = Boolean(field.locked);
+  const inputType = typeof current === "number" ? "number" : "text";
+  const value = typeof current === "boolean" ? String(Boolean(proposed)) : String(proposed ?? "");
+  const control = typeof current === "boolean"
+    ? `<select data-optimization-param-key="${escapeHtml(key)}" ${locked ? "disabled" : ""}><option value="true" ${proposed ? "selected" : ""}>是</option><option value="false" ${!proposed ? "selected" : ""}>否</option></select>`
+    : `<input data-optimization-param-key="${escapeHtml(key)}" type="${inputType}" ${inputType === "number" ? 'step="any"' : ""} value="${escapeHtml(value)}" ${locked ? "disabled" : ""} />`;
+  return `
+    <label class="strategy-optimization-parameter ${change ? "is-suggested" : ""}">
+      <span><strong>${escapeHtml(field.label || key)}</strong><small>当前：${escapeHtml(String(current ?? "--"))}${locked ? " · 固定" : ""}</small></span>
+      ${control}
+      <em>${escapeHtml(change?.reason || (locked ? "安全边界：目标盈亏比不得低于 2R。" : "可人工调整；保存后必须重新回测。"))}</em>
+    </label>
+  `;
+}
+
+function openStrategyOptimizationDialog(item) {
+  const context = item?.optimizationContext || {};
+  const dialog = el("strategyOptimizationDialog");
+  if (!dialog) return;
+  activeOptimizationContext = { item, context };
+  setText("strategyOptimizationTitle", `${context.displayName || item?.displayName || "策略"} · 改善优化`);
+  setText("strategyOptimizationStage", `当前阶段：${item?.stageLabel || item?.currentStage || item?.stage || "--"}。只调整已有参数，优化版本会回到策略页重新回测。`);
+  const nameInput = el("strategyOptimizationName");
+  if (nameInput) nameInput.value = `${context.displayName || item?.displayName || "策略"} 优化版`;
+  const recommendations = Array.isArray(context.recommendations) ? context.recommendations : [];
+  const recommendationTarget = el("strategyOptimizationRecommendations");
+  if (recommendationTarget) recommendationTarget.innerHTML = recommendations.length
+    ? recommendations.map((row) => `<li>${escapeHtml(row)}</li>`).join("")
+    : "<li>暂无自动建议；请按阶段证据人工调整已登记参数。</li>";
+  const changedByKey = new Map((context.changedFields || []).map((row) => [String(row.key || ""), row]));
+  const fields = Array.isArray(context.parameterFields) ? context.parameterFields : [];
+  const fieldTarget = el("strategyOptimizationParameterList");
+  if (fieldTarget) fieldTarget.innerHTML = fields.length
+    ? fields.map((field) => optimizationInputMarkup(field, changedByKey)).join("")
+    : '<div class="workflow-empty">这条遗留策略没有可追溯参数，不能自动优化。请先补齐参数定义。</div>';
+  setText("strategyOptimizationStatus", context.recommendationMode === "data_repair"
+    ? "当前是数据证据阻塞，推荐先关闭本窗口并点击“重新回测”补齐数据。"
+    : "请核对建议值；提交后会创建新版本并立即启动正式回测。");
+  if (typeof dialog.showModal === "function") dialog.showModal();
+  else dialog.setAttribute("open", "");
+}
+
+function parseOptimizationValue(rawValue, originalValue) {
+  if (typeof originalValue === "number") {
+    const parsed = Number(rawValue);
+    if (!Number.isFinite(parsed)) throw new Error("参数必须是有效数字");
+    return parsed;
+  }
+  if (typeof originalValue === "boolean") return rawValue === "true";
+  return rawValue;
+}
+
+function collectOptimizationParameters(context) {
+  const parameters = { ...(context.baseParameters || context.parameters || {}) };
+  el("strategyOptimizationParameterList")?.querySelectorAll("[data-optimization-param-key]").forEach((input) => {
+    if (input.disabled) return;
+    const key = input.dataset.optimizationParamKey || "";
+    parameters[key] = parseOptimizationValue(input.value, parameters[key]);
+  });
+  return parameters;
+}
+
+async function submitStrategyOptimization(event) {
+  event.preventDefault();
+  if (!activeOptimizationContext) return;
+  const { context } = activeOptimizationContext;
+  const submit = el("strategyOptimizationSubmitButton");
+  const displayName = String(el("strategyOptimizationName")?.value || "").trim();
+  if (!displayName) {
+    setText("strategyOptimizationStatus", "请输入新版本名称。");
+    return;
+  }
+  submit.disabled = true;
+  setText("strategyOptimizationStatus", "正在创建不可变优化版本并启动回测...");
+  try {
+    const parameters = collectOptimizationParameters(context);
+    const action = context.sourceKind === "workflow_version" ? "challenger" : "import-optimized";
+    const payload = {
+      action,
+      displayName,
+      definition: context.definition || {},
+      baseParameters: context.baseParameters || context.parameters || {},
+      parameters,
+      startBacktest: true,
+    };
+    if (action === "challenger") payload.parentStrategyVersionId = context.parentStrategyVersionId;
+    else payload.legacyStrategyId = context.legacyStrategyId;
+    const response = await postJson("/api/workflow/action", payload);
+    renderDualLayerWorkflow(response.workflow || emptyWorkflow);
+    closeStrategyOptimizationDialog();
+    window.location.hash = "#simpleConsole";
+    setText("workflowActionStatus", "优化版本已创建并开始回测；原版本和历史样本保持不变。");
+  } catch (error) {
+    setText("strategyOptimizationStatus", `优化失败：${error.message}`);
+  } finally {
+    submit.disabled = false;
   }
 }
 
@@ -1279,6 +1427,13 @@ function renderLifecycleCards(targetId, items, allowedStages, emptyText) {
       metrics.healthScore !== undefined && metrics.healthScore !== null ? `质量 ${formatNumber(metrics.healthScore, 0)}` : "",
       item.timeframe ? `周期 ${item.timeframe}` : "",
     ].filter(Boolean);
+    const optimizationAvailable = [
+      "local_simulation_running",
+      "local_simulation_passed",
+      "demo_trial",
+      "demo_validation_running",
+      "demo_validated",
+    ].includes(item.currentStage);
     return `
       <article class="lifecycle-card">
         <div class="lifecycle-card-head">
@@ -1295,6 +1450,7 @@ function renderLifecycleCards(targetId, items, allowedStages, emptyText) {
         <p>${escapeHtml(item.evidenceSummary || "等待生命周期证据。")}</p>
         ${blockers.length ? `<div class="lifecycle-blockers">${blockers.map((row) => `<span>${escapeHtml(lifecycleBlockerLabel(row))}</span>`).join("")}</div>` : ""}
         <div class="lifecycle-next"><span>下一道门槛</span><strong>${escapeHtml(item.nextGate || "等待正式阶段决定。")}</strong></div>
+        ${optimizationAvailable ? `<div class="workflow-actions"><button type="button" class="secondary" data-lifecycle-action="optimize" data-strategy-id="${escapeHtml(item.strategyId || "")}">改善优化</button></div>` : ""}
         <small class="lifecycle-history">已保留 ${history.length} 条阶段证据 · 最近 ${formatDate(item.stageEnteredAt)}</small>
       </article>
     `;
@@ -1302,6 +1458,7 @@ function renderLifecycleCards(targetId, items, allowedStages, emptyText) {
 }
 
 function renderStrategyLifecycle(payload = emptyStrategyLifecycle) {
+  latestStrategyLifecyclePayload = payload || emptyStrategyLifecycle;
   const summary = payload?.summary || {};
   const items = Array.isArray(payload?.items) ? payload.items : [];
   const loadFailed = Boolean(payload?.loadError);
@@ -6632,6 +6789,21 @@ el("simpleConsole")?.addEventListener("click", (event) => {
   void runDualLayerWorkflowAction(action, { workflowRunId, strategyVersionId }).finally(() => {
     button.disabled = false;
   });
+});
+["localLifecycleList", "demoLifecycleList"].forEach((targetId) => {
+  el(targetId)?.addEventListener("click", (event) => {
+    const button = event.target.closest('[data-lifecycle-action="optimize"]');
+    if (!button) return;
+    const strategyId = button.dataset.strategyId || "";
+    const item = (latestStrategyLifecyclePayload?.items || []).find((row) => row.strategyId === strategyId);
+    if (item) openStrategyOptimizationDialog(item);
+  });
+});
+el("strategyOptimizationForm")?.addEventListener("submit", submitStrategyOptimization);
+el("strategyOptimizationCloseButton")?.addEventListener("click", closeStrategyOptimizationDialog);
+el("strategyOptimizationCancelButton")?.addEventListener("click", closeStrategyOptimizationDialog);
+el("strategyOptimizationDialog")?.addEventListener("click", (event) => {
+  if (event.target === event.currentTarget) closeStrategyOptimizationDialog();
 });
 el("weaknessActionStatusFilter")?.addEventListener("change", (event) => {
   weaknessActionFilters.status = event.target.value || "active";
