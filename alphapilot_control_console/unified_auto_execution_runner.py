@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .config import DATA_DIR
+from .evolution_demo_service import resume_evolution_demo_runtime
 from .live_canary_service import arm_live_canary
 from .unified_auto_execution_adapters import (
     OkxDemoAutoExecutionAdapter,
@@ -27,10 +28,12 @@ class UnifiedAutoExecutionRunner:
         controller: Any,
         interval_seconds: float = 15.0,
         live_arm: Callable[[dict[str, Any]], dict[str, Any]] = arm_live_canary,
+        demo_resume: Callable[[], None] = resume_evolution_demo_runtime,
     ):
         self.controller = controller
         self.interval_seconds = max(0.01, float(interval_seconds))
         self.live_arm = live_arm
+        self.demo_resume = demo_resume
         self._lock = threading.Lock()
         self._stop_event = threading.Event()
         self._wake_event = threading.Event()
@@ -131,6 +134,7 @@ class UnifiedAutoExecutionRunner:
             return {"ok": False, "blockers": ["unsupported_auto_execution_environment"]}
         if action == "start":
             if environment == "okx_demo":
+                self.demo_resume()
                 self.controller.arm(environment)
             elif not self.controller.status(environment).get("armedForCurrentProcess"):
                 return {"ok": False, "blockers": ["live_process_arm_required"], "runtime": self.status()}

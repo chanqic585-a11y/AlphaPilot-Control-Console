@@ -65,13 +65,18 @@ class UnifiedAutoExecutionRunnerTests(unittest.TestCase):
         self.assertIn("okx_demo", controller.heartbeat_calls)
         self.assertIn("okx_live", controller.heartbeat_calls)
 
-    def test_demo_start_arms_without_order_confirmation(self) -> None:
+    def test_demo_start_resumes_then_arms_without_order_confirmation(self) -> None:
         controller = FakeController()
-        runner = UnifiedAutoExecutionRunner(controller=controller)
+        resume_calls: list[str] = []
+        runner = UnifiedAutoExecutionRunner(
+            controller=controller,
+            demo_resume=lambda: resume_calls.append("resume"),
+        )
 
         result = runner.action("okx_demo", "start", {})
 
         self.assertTrue(result["ok"])
+        self.assertEqual(resume_calls, ["resume"])
         self.assertEqual(controller.actions[:2], [("okx_demo", "arm"), ("okx_demo", "start")])
 
     def test_status_exposes_each_environments_last_heartbeat_result(self) -> None:

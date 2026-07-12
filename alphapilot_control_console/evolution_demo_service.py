@@ -692,6 +692,20 @@ def pause_evolution_demo_runtime(reason: str) -> None:
         store.close()
 
 
+def resume_evolution_demo_runtime(store_path: Path | str = STORE_PATH) -> None:
+    store = DemoExecutionStore(store_path)
+    try:
+        if store.get_runtime_flag("killSwitch", False):
+            raise RuntimeError(
+                "Demo kill switch must be cleared by a separate reviewed operation"
+            )
+        store.set_runtime_flag("paused", False)
+        store.set_runtime_flag("pauseReason", None)
+        store.append_event(None, "demo_resumed", {})
+    finally:
+        store.close()
+
+
 def activate_evolution_demo_kill_switch(reason: str) -> dict[str, Any]:
     if not _enabled("ALPHAPILOT_OKX_DEMO_ENABLED"):
         return {"ok": False, "blockers": ["okx_demo_private_connection_disabled"]}

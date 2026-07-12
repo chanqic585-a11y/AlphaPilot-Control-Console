@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -9,9 +10,47 @@ from unittest.mock import patch
 
 import alphapilot_control_console.evolution_demo_service as service
 from alphapilot_control_console.demo_arbitrator import DemoArbitrationResult
+from alphapilot_control_console.demo_execution_store import DemoExecutionStore
 
 
 class EvolutionDemoServiceTests(unittest.TestCase):
+    def test_resume_clears_ordinary_pause_and_records_event(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "demo.sqlite"
+            store = DemoExecutionStore(path)
+            store.set_runtime_flag("paused", True)
+            store.set_runtime_flag("pauseReason", "private_connection_disabled")
+            store.close()
+
+            service.resume_evolution_demo_runtime(path)
+
+            reopened = DemoExecutionStore(path)
+            self.assertFalse(reopened.get_runtime_flag("paused", True))
+            self.assertIsNone(reopened.get_runtime_flag("pauseReason", "missing"))
+            reopened.close()
+            connection = sqlite3.connect(path)
+            events = connection.execute(
+                "SELECT eventType FROM DemoExecutionEvents ORDER BY eventId DESC LIMIT 1"
+            ).fetchone()
+            connection.close()
+        self.assertEqual(events[0], "demo_resumed")
+
+    def test_resume_does_not_clear_kill_switch(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "demo.sqlite"
+            store = DemoExecutionStore(path)
+            store.set_runtime_flag("paused", True)
+            store.set_runtime_flag("killSwitch", True)
+            store.close()
+
+            with self.assertRaisesRegex(RuntimeError, "kill switch"):
+                service.resume_evolution_demo_runtime(path)
+
+            reopened = DemoExecutionStore(path)
+            self.assertTrue(reopened.get_runtime_flag("paused", False))
+            self.assertTrue(reopened.get_runtime_flag("killSwitch", False))
+            reopened.close()
+
     def test_default_status_is_blocked_without_release_or_credentials(self) -> None:
         with tempfile.TemporaryDirectory() as directory, patch.object(
             service, "STORE_PATH", Path(directory) / "demo.sqlite"
