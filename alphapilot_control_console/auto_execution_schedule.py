@@ -13,6 +13,9 @@ TIMEFRAME_SECONDS = {
     "1d": 24 * 60 * 60,
 }
 
+# OKX `1D` candles close at UTC+8 midnight, which is 16:00 UTC.
+TIMEFRAME_CLOSE_OFFSET_SECONDS = {"1d": 16 * 60 * 60}
+
 
 def parse_timeframe_seconds(timeframe: str) -> int:
     if timeframe not in TIMEFRAME_SECONDS:
@@ -29,12 +32,14 @@ def _utc(value: datetime) -> datetime:
 def closed_candle_key(now: datetime, timeframe: str) -> str:
     seconds = parse_timeframe_seconds(timeframe)
     epoch = int(_utc(now).timestamp())
-    closed_at = epoch - epoch % seconds
+    offset = TIMEFRAME_CLOSE_OFFSET_SECONDS.get(timeframe, 0)
+    closed_at = epoch - (epoch - offset) % seconds
     return datetime.fromtimestamp(closed_at, UTC).isoformat()
 
 
 def next_candle_close(now: datetime, timeframe: str) -> datetime:
     seconds = parse_timeframe_seconds(timeframe)
     epoch = int(_utc(now).timestamp())
-    next_close = epoch - epoch % seconds + seconds
+    offset = TIMEFRAME_CLOSE_OFFSET_SECONDS.get(timeframe, 0)
+    next_close = epoch - (epoch - offset) % seconds + seconds
     return datetime.fromtimestamp(next_close, UTC)

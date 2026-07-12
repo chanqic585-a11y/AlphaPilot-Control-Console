@@ -23,16 +23,25 @@ class AutoExecutionScheduleTests(unittest.TestCase):
             datetime(2026, 7, 12, 11, 0, tzinfo=UTC),
         )
 
-    def test_daily_strategy_uses_utc_boundaries(self) -> None:
-        now = datetime(2026, 7, 12, 23, 59, tzinfo=UTC)
+    def test_daily_strategy_uses_okx_beijing_midnight_boundaries(self) -> None:
+        before_midnight = datetime(2026, 7, 12, 15, 59, tzinfo=UTC)
+        at_midnight = datetime(2026, 7, 12, 16, 0, tzinfo=UTC)
 
         self.assertEqual(
-            closed_candle_key(now, "1d"),
-            "2026-07-12T00:00:00+00:00",
+            closed_candle_key(before_midnight, "1d"),
+            "2026-07-11T16:00:00+00:00",
         )
         self.assertEqual(
-            next_candle_close(now, "1d"),
-            datetime(2026, 7, 13, 0, 0, tzinfo=UTC),
+            next_candle_close(before_midnight, "1d"),
+            at_midnight,
+        )
+        self.assertEqual(
+            closed_candle_key(at_midnight, "1d"),
+            "2026-07-12T16:00:00+00:00",
+        )
+        self.assertEqual(
+            next_candle_close(at_midnight, "1d"),
+            datetime(2026, 7, 13, 16, 0, tzinfo=UTC),
         )
 
     def test_supported_timeframes_are_explicit_and_invalid_values_fail_closed(self) -> None:
