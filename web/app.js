@@ -281,7 +281,7 @@ const emptyStrategyLifecycle = {
   sourceWarnings: [],
 };
 const emptyWorkflow = {
-  version: "V13.27.5",
+  version: "V13.27.6",
   summary: {},
   items: [],
   archivedItems: [],
@@ -1227,6 +1227,34 @@ function dualLayerProgressModel(item) {
   };
 }
 
+function renderOfficialDownloadProgress(item) {
+  const active = item?.downloadProgress?.active;
+  if (!active) return "";
+  const requestCount = Math.max(0, Number(active.requestCount || 0));
+  const rowCount = Math.max(0, Number(active.rowCount || 0));
+  const maxPages = Math.max(0, Number(active.maxPages || 0));
+  const projectedPercent = maxPages > 0 ? (requestCount / maxPages) * 100 : 0;
+  const percentValue = Number.isFinite(Number(active.percent))
+    ? Number(active.percent)
+    : projectedPercent;
+  const percent = Math.max(0, Math.min(100, percentValue));
+  const partition = [active.instrumentId, active.timeframe].filter(Boolean).join(" · ") || "当前数据分区";
+  const pageText = maxPages > 0
+    ? `${requestCount.toLocaleString("zh-CN")} / ${maxPages.toLocaleString("zh-CN")} 页`
+    : `${requestCount.toLocaleString("zh-CN")} 页`;
+  const updatedText = active.updatedAt ? `更新 ${formatDate(active.updatedAt)}（北京时间）` : "正在等待首个页级检查点";
+  return `
+    <div class="official-download-progress">
+      <div class="official-download-progress-head">
+        <strong>正在下载 ${escapeHtml(partition)}</strong>
+        <span>${escapeHtml(pageText)} · ${rowCount.toLocaleString("zh-CN")} 根 K 线</span>
+      </div>
+      <div class="official-download-progress-track"><i style="width:${percent.toFixed(1)}%"></i></div>
+      <small>${escapeHtml(updatedText)} · 分区进度 ${percent.toFixed(1)}%</small>
+    </div>
+  `;
+}
+
 function dualLayerEvidenceText(item) {
   if (item?.evidenceClass === "formal_backtest") return "正式证据：OKX 官方公共数据";
   if (item?.evidenceClass === "research_smoke") return "研究烟测：本地旧数据，不参与晋级";
@@ -1300,6 +1328,7 @@ function renderDualLayerCard(item, archived = false) {
       <div class="workflow-run-progress-head"><span>${escapeHtml(runProgress.label)}</span><strong>${runProgress.percent}%</strong></div>
       <div class="workflow-run-progress-track ${escapeHtml(runProgress.status)}"><i style="width:${runProgress.percent}%"></i></div>
       ${runProgress.required > 0 ? `<small class="workflow-run-progress-note">${runProgress.completed}/${runProgress.required} 个可核验步骤</small>` : ""}
+      ${renderOfficialDownloadProgress(item)}
       <div class="workflow-evidence-row"><span>${escapeHtml(dualLayerEvidenceText(item))}</span><small>目标 ≥ 2R</small></div>
       ${metrics.length ? `<div class="workflow-metrics">${metrics.map((row) => `<span>${escapeHtml(row)}</span>`).join("")}</div>` : ""}
       ${failure && failure !== "--" ? `<div class="workflow-failure"><strong>${escapeHtml(failure)}</strong></div>` : ""}
@@ -1328,7 +1357,7 @@ function renderDualLayerLane(targetId, countId, rows, emptyText) {
 
 function renderDualLayerWorkflow(payload = emptyWorkflow) {
   latestWorkflowPayload = payload || emptyWorkflow;
-  workflowBatchBackendReady = payload?.controlConsoleVersion === "V13.27.5";
+  workflowBatchBackendReady = payload?.controlConsoleVersion === "V13.27.6";
   const items = Array.isArray(payload?.items) ? payload.items.filter((item) => item.stage === "backtest") : [];
   const archived = Array.isArray(payload?.archivedItems) ? payload.archivedItems.filter((item) => item.stage === "backtest") : [];
   const awaiting = items.filter((item) => item.status === "awaiting");
@@ -1342,7 +1371,7 @@ function renderDualLayerWorkflow(payload = emptyWorkflow) {
   updateWorkflowSelectionButton("workflowRunSelectedButton", workflowSelection.backtest);
   if (el("workflowRunAllButton")) {
     el("workflowRunAllButton").disabled = !workflowBatchBackendReady || !items.some((item) => ["awaiting", "paused"].includes(item.status));
-    el("workflowRunAllButton").title = workflowBatchBackendReady ? "按所选顺序使用一个串行 worker" : "下次正常重启控制台后启用 V13.27.5 批量能力";
+    el("workflowRunAllButton").title = workflowBatchBackendReady ? "按所选顺序使用一个串行 worker" : "下次正常重启控制台后启用 V13.27.6 批量能力";
   }
   const summaryTarget = el("workflowBacktestSummary");
   if (summaryTarget) {
@@ -1434,7 +1463,7 @@ function renderFormalLocalForward(payload = emptyWorkflow) {
   updateWorkflowSelectionButton("localForwardRunSelectedButton", workflowSelection.localForward);
   if (el("localForwardRunAllButton")) {
     el("localForwardRunAllButton").disabled = !workflowBatchBackendReady || running.length === 0;
-    el("localForwardRunAllButton").title = workflowBatchBackendReady ? "串行运行最新闭合公共 K 线周期" : "下次正常重启控制台后启用 V13.27.5 批量能力";
+    el("localForwardRunAllButton").title = workflowBatchBackendReady ? "串行运行最新闭合公共 K 线周期" : "下次正常重启控制台后启用 V13.27.6 批量能力";
   }
   const summary = el("formalLocalForwardSummary");
   if (summary) {
@@ -2341,7 +2370,7 @@ function renderDemoWorkflowLane(targetId, countId, rows, emptyText) {
 
 function renderDemoWorkflow(payload = { summary: {}, queues: {} }) {
   latestDemoWorkflowPayload = payload || { summary: {}, queues: {} };
-  demoWorkflowBatchBackendReady = payload?.version === "V13.27.5";
+  demoWorkflowBatchBackendReady = payload?.version === "V13.27.6";
   const summary = payload?.summary || {};
   const queues = payload?.queues || {};
   const batchEligibleIds = demoWorkflowRows(payload)
@@ -2351,7 +2380,7 @@ function renderDemoWorkflow(payload = { summary: {}, queues: {} }) {
   updateWorkflowSelectionButton("demoWorkflowRunSelectedButton", workflowSelection.demo);
   if (el("demoWorkflowRunAllButton")) {
     el("demoWorkflowRunAllButton").disabled = !demoWorkflowBatchBackendReady || batchEligibleIds.length === 0;
-    el("demoWorkflowRunAllButton").title = demoWorkflowBatchBackendReady ? "每条策略只执行当前一道合法步骤" : "下次正常重启并重新输入 Demo 凭据后启用 V13.27.5 批量能力";
+    el("demoWorkflowRunAllButton").title = demoWorkflowBatchBackendReady ? "每条策略只执行当前一道合法步骤" : "下次正常重启并重新输入 Demo 凭据后启用 V13.27.6 批量能力";
   }
   setText("demoWorkflowWaitingCount", String(summary.waitingCount ?? 0));
   setText("demoWorkflowValidatingCount", String(summary.validatingCount ?? 0));

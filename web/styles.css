@@ -6338,6 +6338,55 @@ body.show-advanced .hero-grid.advanced-section {
   background: #ef8d62;
 }
 
+.official-download-progress {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #31506b;
+  border-radius: 6px;
+  background: #0d1722;
+}
+
+.official-download-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.official-download-progress-head strong {
+  color: #dcecff;
+}
+
+.official-download-progress-head span,
+.official-download-progress small {
+  color: var(--muted);
+}
+
+.official-download-progress-track {
+  width: 100%;
+  height: 6px;
+  margin: 9px 0 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: #1b2532;
+}
+
+.official-download-progress-track i {
+  display: block;
+  min-width: 2px;
+  height: 100%;
+  background: #5bbce8;
+  transition: width 180ms ease;
+}
+
+@media (max-width: 720px) {
+  .official-download-progress-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+}
+
 .demo-evidence-section,
 .demo-market-universe,
 .compact-execution-positions {

@@ -3,12 +3,26 @@
 Current version:
 
 ```text
-AlphaPilot V13.27.5 - Cancelled Attempt Resume
+AlphaPilot V13.27.6 - Runtime Resume and Official Data Progress
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
 AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
+
+## What V13.27.6 Adds
+
+- Lets an explicit Demo start clear an ordinary paused state while preserving a
+  separate kill switch.
+- Re-runs credentials, read-only reconciliation, account, and risk gates after
+  the resume; any real blocker pauses Demo again.
+- Shows the active OKX official-data partition, downloaded page count, K-line
+  count, and partition percentage below the workflow phase progress.
+- Keeps page progress in a durable checkpoint so restarts preserve operator
+  visibility without treating partial rows as completed data.
+- Keeps raw credentials process-only and does not add Withdraw or Live resume.
+
+See `docs/V13.27.6-runtime-resume-official-progress.md`.
 
 ## What V13.27.5 Adds
 
