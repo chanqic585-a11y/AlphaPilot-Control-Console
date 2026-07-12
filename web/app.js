@@ -281,7 +281,7 @@ const emptyStrategyLifecycle = {
   sourceWarnings: [],
 };
 const emptyWorkflow = {
-  version: "V13.27.4",
+  version: "V13.27.5",
   summary: {},
   items: [],
   archivedItems: [],
@@ -1017,12 +1017,13 @@ function workflowMetricText(item) {
 function workflowCardActions(item) {
   const actions = [];
   if (item.status === "awaiting") actions.push({ action: "run-selected", label: "运行回测", primary: true });
-  if (item.status === "queued") actions.push({ action: "cancel", label: "取消排队" });
+  if (item.status === "queued") actions.push({ action: "pause", label: "暂停排队" });
   if (item.status === "running") {
     actions.push({ action: "pause", label: "暂停" });
-    actions.push({ action: "cancel", label: "取消" });
+    actions.push({ action: "cancel", label: "终止本次尝试" });
   }
   if (item.status === "paused") actions.push({ action: "run-selected", label: "继续回测", primary: true });
+  if (item.status === "cancelled") actions.push({ action: "retry", label: "从检查点重新开始", primary: true });
   if (["failed", "blocked"].includes(item.status) && item.failure?.retryDisposition === "same_version_retry") {
     actions.push({ action: "retry", label: "按检查点重试", primary: true });
   }
@@ -1327,7 +1328,7 @@ function renderDualLayerLane(targetId, countId, rows, emptyText) {
 
 function renderDualLayerWorkflow(payload = emptyWorkflow) {
   latestWorkflowPayload = payload || emptyWorkflow;
-  workflowBatchBackendReady = payload?.controlConsoleVersion === "V13.27.4";
+  workflowBatchBackendReady = payload?.controlConsoleVersion === "V13.27.5";
   const items = Array.isArray(payload?.items) ? payload.items.filter((item) => item.stage === "backtest") : [];
   const archived = Array.isArray(payload?.archivedItems) ? payload.archivedItems.filter((item) => item.stage === "backtest") : [];
   const awaiting = items.filter((item) => item.status === "awaiting");
@@ -1341,7 +1342,7 @@ function renderDualLayerWorkflow(payload = emptyWorkflow) {
   updateWorkflowSelectionButton("workflowRunSelectedButton", workflowSelection.backtest);
   if (el("workflowRunAllButton")) {
     el("workflowRunAllButton").disabled = !workflowBatchBackendReady || !items.some((item) => ["awaiting", "paused"].includes(item.status));
-    el("workflowRunAllButton").title = workflowBatchBackendReady ? "按所选顺序使用一个串行 worker" : "下次正常重启控制台后启用 V13.27.4 批量能力";
+    el("workflowRunAllButton").title = workflowBatchBackendReady ? "按所选顺序使用一个串行 worker" : "下次正常重启控制台后启用 V13.27.5 批量能力";
   }
   const summaryTarget = el("workflowBacktestSummary");
   if (summaryTarget) {
@@ -1433,7 +1434,7 @@ function renderFormalLocalForward(payload = emptyWorkflow) {
   updateWorkflowSelectionButton("localForwardRunSelectedButton", workflowSelection.localForward);
   if (el("localForwardRunAllButton")) {
     el("localForwardRunAllButton").disabled = !workflowBatchBackendReady || running.length === 0;
-    el("localForwardRunAllButton").title = workflowBatchBackendReady ? "串行运行最新闭合公共 K 线周期" : "下次正常重启控制台后启用 V13.27.4 批量能力";
+    el("localForwardRunAllButton").title = workflowBatchBackendReady ? "串行运行最新闭合公共 K 线周期" : "下次正常重启控制台后启用 V13.27.5 批量能力";
   }
   const summary = el("formalLocalForwardSummary");
   if (summary) {
@@ -1489,6 +1490,9 @@ async function runDualLayerWorkflowAction(action, item = {}) {
     const rerunStatus = el("workflowActionStatus");
     if (rerunStatus) rerunStatus.textContent = "该失败不能原版本重复回测；请先改善参数并创建新版本。";
     openStrategyOptimizationDialog(currentItem);
+    return;
+  }
+  if (action === "cancel" && !window.confirm("取消会结束本次尝试；如需稍后继续，请使用暂停。确定终止吗？")) {
     return;
   }
   const status = el("workflowActionStatus");
@@ -2337,7 +2341,7 @@ function renderDemoWorkflowLane(targetId, countId, rows, emptyText) {
 
 function renderDemoWorkflow(payload = { summary: {}, queues: {} }) {
   latestDemoWorkflowPayload = payload || { summary: {}, queues: {} };
-  demoWorkflowBatchBackendReady = payload?.version === "V13.27.4";
+  demoWorkflowBatchBackendReady = payload?.version === "V13.27.5";
   const summary = payload?.summary || {};
   const queues = payload?.queues || {};
   const batchEligibleIds = demoWorkflowRows(payload)
@@ -2347,7 +2351,7 @@ function renderDemoWorkflow(payload = { summary: {}, queues: {} }) {
   updateWorkflowSelectionButton("demoWorkflowRunSelectedButton", workflowSelection.demo);
   if (el("demoWorkflowRunAllButton")) {
     el("demoWorkflowRunAllButton").disabled = !demoWorkflowBatchBackendReady || batchEligibleIds.length === 0;
-    el("demoWorkflowRunAllButton").title = demoWorkflowBatchBackendReady ? "每条策略只执行当前一道合法步骤" : "下次正常重启并重新输入 Demo 凭据后启用 V13.27.4 批量能力";
+    el("demoWorkflowRunAllButton").title = demoWorkflowBatchBackendReady ? "每条策略只执行当前一道合法步骤" : "下次正常重启并重新输入 Demo 凭据后启用 V13.27.5 批量能力";
   }
   setText("demoWorkflowWaitingCount", String(summary.waitingCount ?? 0));
   setText("demoWorkflowValidatingCount", String(summary.validatingCount ?? 0));

@@ -3,12 +3,24 @@
 Current version:
 
 ```text
-AlphaPilot V13.27.4 - Workflow Recovery and Demo Release
+AlphaPilot V13.27.5 - Cancelled Attempt Resume
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
 AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
+
+## What V13.27.5 Adds
+
+- Replaces terminal Cancel Queue with reversible Pause Queue.
+- Adds Restart From Checkpoint for cancelled backtest attempts.
+- Keeps cancelled attempts immutable while creating one audited successor.
+- Routes restart actions through the serial batch worker instead of a competing
+  one-off worker.
+- Confirms before a running attempt is permanently cancelled.
+- Keeps process-only credentials, Live gates, and Withdraw boundaries unchanged.
+
+See docs/V13.27.5-cancelled-attempt-resume.md.
 
 ## What V13.27.4 Adds
 

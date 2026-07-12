@@ -104,7 +104,7 @@ class UnifiedAutoExecutionRunner:
                     "blockers": [f"status_exception:{type(error).__name__}"],
                 }
         return {
-            "version": "V13.27.4",
+            "version": "V13.27.5",
             "source": "unified_auto_execution_runner_v1",
             "running": self.is_running(),
             "heartbeatIntervalSeconds": self.interval_seconds,

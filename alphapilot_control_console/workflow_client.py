@@ -17,7 +17,7 @@ from .strategy_optimization import (
 )
 
 
-CONTROL_CONSOLE_VERSION = "V13.27.4"
+CONTROL_CONSOLE_VERSION = "V13.27.5"
 WORKFLOW_MODULE = "alphapilot.evolution.workflow.cli"
 APPROVED_WAREHOUSE_ROOT = Path(r"D:\Codex-Workspace\回测数据")
 ALLOWED_COMMANDS = {
@@ -498,7 +498,10 @@ def request_workflow_action(
         retry_run_id = _safe_run_id(str(retry.get("workflowRunId") or ""))
         return {
             "retry": retry,
-            "worker": spawn_workflow_run(retry_run_id, quant_root=quant_root),
+            "worker": spawn_workflow_batch(
+                [retry_run_id],
+                quant_root=quant_root,
+            ),
         }
     if normalized == "archive":
         version_id = str(payload.get("strategyVersionId") or "").strip()

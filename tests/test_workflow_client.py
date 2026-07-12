@@ -41,11 +41,11 @@ class WorkflowClientTests(unittest.TestCase):
         with patch.object(
             client,
             "run_workflow_cli",
-            return_value={"version": "V13.27.4", "items": [], "archivedItems": []},
+            return_value={"version": "V13.27.5", "items": [], "archivedItems": []},
         ):
             projection = client.build_workflow_projection(quant_root=self.quant_root)
 
-        self.assertEqual(projection["controlConsoleVersion"], "V13.27.4")
+        self.assertEqual(projection["controlConsoleVersion"], "V13.27.5")
         self.assertTrue(projection["capabilities"]["selectedBacktests"])
         self.assertTrue(projection["capabilities"]["selectedForwardCycles"])
 
@@ -175,6 +175,36 @@ class WorkflowClientTests(unittest.TestCase):
             quant_root=self.quant_root,
         )
         self.assertEqual(result["requestedCount"], 2)
+
+    def test_retry_action_restarts_through_the_serial_batch_worker(self) -> None:
+        with patch.object(client, "run_workflow_cli") as run_cli, patch.object(
+            client, "spawn_workflow_batch"
+        ) as spawn_batch, patch.object(client, "spawn_workflow_run") as spawn_one:
+            run_cli.return_value = {
+                "workflowRunId": "run-restarted",
+                "status": "queued",
+            }
+            spawn_batch.return_value = {
+                "started": True,
+                "workflowRunIds": ["run-restarted"],
+            }
+
+            result = client.request_workflow_action(
+                "retry",
+                {"workflowRunId": "run-cancelled"},
+                quant_root=self.quant_root,
+            )
+
+        run_cli.assert_called_once_with(
+            ["retry", "--run-id", "run-cancelled"],
+            quant_root=self.quant_root,
+        )
+        spawn_batch.assert_called_once_with(
+            ["run-restarted"],
+            quant_root=self.quant_root,
+        )
+        spawn_one.assert_not_called()
+        self.assertEqual(result["worker"]["workflowRunIds"], ["run-restarted"])
 
     def test_run_selected_forward_cycles_accepts_only_running_local_runs(self) -> None:
         projection = {

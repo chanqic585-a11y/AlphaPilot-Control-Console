@@ -15,7 +15,7 @@ class WorkflowUiContractTests(unittest.TestCase):
         cls.css = (ROOT / "web" / "styles.css").read_text(encoding="utf-8")
         cls.http_app = (ROOT / "alphapilot_control_console" / "http_app.py").read_text(encoding="utf-8")
         cls.readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        patch_doc = ROOT / "docs" / "V13.27.4-workflow-recovery-demo-release.md"
+        patch_doc = ROOT / "docs" / "V13.27.5-cancelled-attempt-resume.md"
         cls.patch_doc = patch_doc.read_text(encoding="utf-8") if patch_doc.exists() else ""
         issue_guidance_path = ROOT / "web" / "issue-guidance.js"
         cls.issue_js = issue_guidance_path.read_text(encoding="utf-8") if issue_guidance_path.exists() else ""
@@ -50,13 +50,13 @@ class WorkflowUiContractTests(unittest.TestCase):
         self.assertIn("strategy-optimization-dialog", self.css)
 
     def test_static_asset_cachebuster_matches_patch(self) -> None:
-        self.assertIn("v13-27-4-workflow-recovery", self.html)
+        self.assertIn("v13-27-5-cancel-resume", self.html)
 
     def test_patch_version_and_documentation_are_consistent(self) -> None:
-        self.assertIn('version: "V13.27.4"', self.js)
-        self.assertIn('"version": "V13.27.4"', self.http_app)
-        self.assertIn("AlphaPilot V13.27.4", self.readme)
-        self.assertIn("Workflow Recovery and Demo Release", self.patch_doc)
+        self.assertIn('version: "V13.27.5"', self.js)
+        self.assertIn('"version": "V13.27.5"', self.http_app)
+        self.assertIn("AlphaPilot V13.27.5", self.readme)
+        self.assertIn("Cancelled Attempt Resume", self.patch_doc)
         self.assertIn("process-only", self.patch_doc)
         self.assertIn("targetR >= 2", self.patch_doc)
 
@@ -172,8 +172,8 @@ class WorkflowUiContractTests(unittest.TestCase):
     def test_one_time_issue_guidance_has_persistent_and_session_fallbacks(self) -> None:
         self.assertIn('id="issueGuidanceDialog"', self.html)
         self.assertIn('id="issueGuidanceNextAction"', self.html)
-        self.assertIn('/issue-guidance.js?v=20260712-v13-27-4-workflow-recovery', self.html)
-        self.assertIn('/app.js?v=20260712-v13-27-4-workflow-recovery', self.html)
+        self.assertIn('/issue-guidance.js?v=20260712-v13-27-5-cancel-resume', self.html)
+        self.assertIn('/app.js?v=20260712-v13-27-5-cancel-resume', self.html)
         self.assertIn("ALPHAPILOT_ISSUE_ACK_V1", self.issue_js)
         self.assertIn("function issueFingerprint", self.issue_js)
         self.assertIn("localStorage", self.issue_js)
@@ -283,13 +283,28 @@ class WorkflowUiContractTests(unittest.TestCase):
         self.assertIn("workflowRunIds", self.js)
         self.assertIn("strategyIds", self.js)
 
+    def test_backtest_cards_pause_queued_work_and_restart_cancelled_attempts(self) -> None:
+        self.assertIn(
+            'item.status === "queued") actions.push({ action: "pause", label: "暂停排队" })',
+            self.js,
+        )
+        self.assertIn(
+            'item.status === "cancelled") actions.push({ action: "retry", label: "从检查点重新开始", primary: true })',
+            self.js,
+        )
+        self.assertNotIn(
+            'item.status === "queued") actions.push({ action: "cancel", label: "取消排队" })',
+            self.js,
+        )
+        self.assertIn("取消会结束本次尝试", self.js)
+
     def test_only_eligible_cards_receive_selection_checkboxes(self) -> None:
         self.assertIn("data-workflow-select", self.js)
         self.assertIn("data-local-forward-select", self.js)
         self.assertIn("data-demo-workflow-select", self.js)
         self.assertIn("pruneWorkflowSelection", self.js)
         self.assertIn("demoBatchActionEligible", self.js)
-        self.assertIn('payload?.controlConsoleVersion === "V13.27.4"', self.js)
+        self.assertIn('payload?.controlConsoleVersion === "V13.27.5"', self.js)
 
     def test_live_gate_copy_includes_automation_and_mobile_copy_stays_read_only(self) -> None:
         self.assertIn("五层独立门", self.html)
