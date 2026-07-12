@@ -253,7 +253,7 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             except (FileNotFoundError, RuntimeError, ValueError) as error:
                 self._send_json(
                     {
-                        "version": "V13.27.6",
+                        "version": "V13.27.7",
                         "source": "quant_workflow_unavailable",
                         "loadError": str(error),
                         "summary": {},
@@ -1236,7 +1236,7 @@ class ConsoleHandler(BaseHTTPRequestHandler):
 def build_health_payload() -> dict[str, object]:
     return {
         "ok": True,
-        "version": "V13.27.6",
+        "version": "V13.27.7",
         "source": "alphapilot_control_console_v13_27_1_8",
         "workflowRecovery": get_startup_workflow_recovery_status(),
         "safetyBoundary": SAFETY_BOUNDARY,

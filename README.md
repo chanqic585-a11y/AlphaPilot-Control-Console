@@ -3,12 +3,25 @@
 Current version:
 
 ```text
-AlphaPilot V13.27.6 - Runtime Resume and Official Data Progress
+AlphaPilot V13.27.7 - Canonical OKX Instrument Fix
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
 AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
+
+## What V13.27.7 Adds
+
+- Makes OKX instrument normalization idempotent for symbols such as
+  `ETH-USDT-SWAP`.
+- Prevents full-market Demo scans from accidentally requesting malformed IDs
+  such as `ETH-USDT-SWAP-USDT-SWAP`.
+- Restores real ticker, candle, spread, metadata, strategy-rule, sizing, and
+  risk evaluation before a Demo signal can be created.
+- Does not relax any strategy rule or risk gate and does not persist raw
+  credentials.
+
+See `docs/V13.27.7-canonical-okx-instrument-fix.md`.
 
 ## What V13.27.6 Adds
 

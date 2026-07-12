@@ -258,12 +258,18 @@ def _summarize_payload(data: Any) -> dict[str, Any]:
 
 def _normalize_symbol(symbol: str) -> dict[str, str]:
     value = (symbol or DEFAULT_EXCHANGE_PROBE_SYMBOL).upper().replace(":USDT", "").strip()
-    if "/" in value:
+    if value.endswith("-SWAP") and "-" in value[:-5]:
+        base, quote = value[:-5].rsplit("-", 1)
+    elif "/" in value:
         base, quote = value.split("/", 1)
+    elif "-" in value:
+        base, quote = value.rsplit("-", 1)
     elif value.endswith("USDT"):
         base, quote = value[:-4], "USDT"
     else:
         base, quote = value, "USDT"
+    base = base.strip("-")
+    quote = quote.strip("-")
     compact = f"{base}{quote}".replace("-", "")
     return {
         "base": base,
