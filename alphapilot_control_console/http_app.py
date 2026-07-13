@@ -31,6 +31,7 @@ from .evolution_demo_service import (
 )
 from .demo_workflow_service import build_demo_workflow_status, run_demo_workflow_action
 from .demo_market_runtime_registry import start_demo_market_runtime, stop_demo_market_runtime
+from .demo_startup_arm import arm_okx_demo_runtime_on_startup
 from .execution_outcome_export import (
     build_execution_outcome_status,
     write_execution_outcome_export,
@@ -1258,6 +1259,9 @@ def run_server(host: str, port: int) -> None:
             + ",".join(str(value) for value in market_runtime.get("blockers", []))
         )
     start_unified_auto_execution_runner()
+    startup_arm = arm_okx_demo_runtime_on_startup()
+    if startup_arm.get("status") == "blocked":
+        print("OKX Demo startup ARM was blocked: startup_arm_failed")
     print(f"AlphaPilot Control Console running at http://{host}:{port}")
     print("Research, OKX Demo, and gated Live Canary control. Credentials are process-only; Withdraw is absent.")
     try:

@@ -548,6 +548,8 @@ def run_evolution_demo_batch_cycle(
             },
             "expiredSignals": [],
             "conditionalLateEntries": [],
+            "orderAttemptCount": 0,
+            "orderOutcomes": [],
         }
         if not all_signals:
             return {
@@ -671,6 +673,8 @@ def run_evolution_demo_batch_cycle(
         )
 
         created: list[Any] = []
+        order_attempt_count = 0
+        order_outcomes: list[dict[str, Any]] = []
         execution_rejections: list[dict[str, Any]] = []
         selected_latency: list[dict[str, Any]] = []
         expired_signals: list[dict[str, Any]] = []
@@ -725,12 +729,23 @@ def run_evolution_demo_batch_cycle(
                 "latencyAudit": timing_payload,
             }
             try:
+                order_attempt_count += 1
                 record = engine.execute(
                     contract=contract,
                     signal=executable_signal,
                     portfolio=rolling_portfolio,
                 )
                 exchange_response = getattr(record, "exchangeResponse", None)
+                exchange_code = (
+                    str(exchange_response.get("code"))
+                    if isinstance(exchange_response, dict)
+                    and exchange_response.get("code") is not None
+                    else None
+                )
+                order_outcomes.append({
+                    "status": str(getattr(record, "status", "") or "unknown"),
+                    "exchangeCode": exchange_code,
+                })
                 exchange_timing = (
                     exchange_response.get("_alphaPilotTiming")
                     if isinstance(exchange_response, dict)
@@ -759,6 +774,10 @@ def run_evolution_demo_batch_cycle(
                 created.append(record)
                 _increment_demo_portfolio(rolling_portfolio, executable_signal)
             except (RuntimeError, ValueError) as error:
+                order_outcomes.append({
+                    "status": "failed",
+                    "failureCode": type(error).__name__,
+                })
                 execution_rejections.append({
                     "candidateId": signal.get("candidateId"),
                     "instId": signal.get("instId"),
@@ -771,6 +790,8 @@ def run_evolution_demo_batch_cycle(
             "ok": not paused,
             **base_result,
             "createdOrderCount": len(created),
+            "orderAttemptCount": order_attempt_count,
+            "orderOutcomes": order_outcomes,
             "created": [_record_payload(record) for record in created],
             "rejectedSignals": [*arbitration_rejections, *execution_rejections],
             "symbolLimits": symbol_limits,

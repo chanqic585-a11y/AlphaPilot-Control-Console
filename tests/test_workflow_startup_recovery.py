@@ -70,6 +70,10 @@ class WorkflowStartupRecoveryTests(unittest.TestCase):
         ) as start_auto, patch.object(
             http_app, "stop_unified_auto_execution_runner"
         ) as stop_auto, patch.object(
+            http_app,
+            "arm_okx_demo_runtime_on_startup",
+            side_effect=lambda: lifecycle.append("startup_arm") or {"status": "requested"},
+        ) as startup_arm, patch.object(
             http_app, "resume_incomplete_workflow_runs"
         ) as resume, patch.object(
             http_app,
@@ -86,13 +90,14 @@ class WorkflowStartupRecoveryTests(unittest.TestCase):
 
         resume.assert_called_once_with()
         start_auto.assert_called_once_with()
+        startup_arm.assert_called_once_with()
         stop_auto.assert_called_once_with()
         start_market.assert_called_once()
         stop_market.assert_called_once_with()
         server.serve_forever.assert_called_once_with()
         self.assertEqual(
             lifecycle,
-            ["market_start", "auto_start", "serve", "auto_stop", "market_stop"],
+            ["market_start", "auto_start", "startup_arm", "serve", "auto_stop", "market_stop"],
         )
 
     def test_health_payload_reports_startup_recovery_state(self) -> None:

@@ -112,6 +112,10 @@ class UnifiedAutoExecutionControllerTests(unittest.TestCase):
                 "latencyMetrics": {"selected": [{"closeToReadyMs": 4000}]},
                 "expiredSignals": [],
                 "conditionalLateEntries": [{"candidateId": "late-1"}],
+                "evaluationAudit": {
+                    "state": "evaluated_zero_matches",
+                    "evaluatedReleaseCount": 1,
+                },
             }
         )
         self._start_and_arm("okx_demo")
@@ -141,6 +145,12 @@ class UnifiedAutoExecutionControllerTests(unittest.TestCase):
         self.assertEqual(heartbeat_event["payload"]["closeSequenceId"], close_event.sequenceId)
         self.assertEqual(heartbeat_event["payload"]["closeReceivedAt"], close_event.receivedAt)
         self.assertEqual(heartbeat_event["payload"]["conditionalLateEntryCount"], 1)
+        self.assertEqual(
+            heartbeat_event["payload"]["evaluationAudit"]["state"],
+            "evaluated_zero_matches",
+        )
+        status = self.controller.status("okx_demo")
+        self.assertEqual(status["lastEvaluation"]["state"], "evaluated_zero_matches")
 
     def test_live_cannot_run_without_current_process_arm(self) -> None:
         self.controller.start("okx_live")

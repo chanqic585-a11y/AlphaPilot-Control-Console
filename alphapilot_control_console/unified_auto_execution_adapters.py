@@ -15,6 +15,7 @@ from .evolution_demo_service import (
 )
 from .exchange_demo_simulation import build_exchange_demo_simulation
 from .demo_market_runtime_registry import get_demo_market_runtime_status
+from .demo_evaluation_audit import build_demo_evaluation_audit
 from .live_auto_execution_service import (
     pause_live_auto_execution_runtime,
     reconcile_live_auto_execution_runtime,
@@ -83,10 +84,14 @@ class OkxDemoAutoExecutionAdapter:
         close_event: Any | None = None,
     ) -> dict[str, Any]:
         del candle_keys
-        return run_evolution_demo_batch_cycle(
+        result = run_evolution_demo_batch_cycle(
             [release.releaseId for release in releases],
             close_event=close_event,
         )
+        return {
+            **result,
+            "evaluationAudit": build_demo_evaluation_audit(result, releases=releases),
+        }
 
     def pause(self, reason: str) -> None:
         pause_evolution_demo_runtime(reason)

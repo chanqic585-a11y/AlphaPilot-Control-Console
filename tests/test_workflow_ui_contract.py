@@ -274,7 +274,14 @@ class WorkflowUiContractTests(unittest.TestCase):
         self.assertIn("data-auto-execution-action", self.html)
         self.assertIn("function renderAutomaticExecution", self.js)
         self.assertIn("function runAutomaticExecutionAction", self.js)
-        for label in ("等待策略条件匹配", "自动运行中", "暂停新开仓", "紧急停止"):
+        for label in (
+            "等待下一根闭合 K 线",
+            "最近已评估但零匹配",
+            "匹配后被风控或执行拒绝",
+            "已提交 Demo 订单",
+            "暂停新开仓",
+            "紧急停止",
+        ):
             self.assertIn(label, self.js)
         self.assertIn("auto-execution-control", self.css)
 

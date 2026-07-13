@@ -219,6 +219,8 @@ class DemoAutomaticBatchTests(unittest.TestCase):
         self.assertEqual(result["scannedReleaseCount"], 2)
         self.assertEqual(result["matchedSignalCount"], 2)
         self.assertEqual(result["createdOrderCount"], 1)
+        self.assertEqual(result["orderAttemptCount"], 1)
+        self.assertEqual(result["orderOutcomes"], [{"status": "submitted", "exchangeCode": "0"}])
         self.assertEqual(FakeEngine.executed, [("release-a", "signal-a")])
         reasons = [row.get("reason") for row in result["rejectedSignals"]]
         self.assertIn("duplicate_symbol_signal", reasons)

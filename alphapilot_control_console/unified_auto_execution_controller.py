@@ -106,6 +106,17 @@ class UnifiedAutoExecutionController:
         adapter = self._adapter(environment)
         runtime = self.store.runtime(environment, current_process_id=self.process_id)
         releases = adapter.list_releases()
+        recent_events = self.store.list_events(environment, 20)
+        last_evaluation = next(
+            (
+                event["payload"].get("evaluationAudit")
+                for event in recent_events
+                if event.get("eventType") in {"heartbeat_completed", "heartbeat_blocked"}
+                and isinstance(event.get("payload"), dict)
+                and isinstance(event["payload"].get("evaluationAudit"), dict)
+            ),
+            {},
+        )
         return {
             **runtime,
             "releaseCount": len(releases),
@@ -122,7 +133,8 @@ class UnifiedAutoExecutionController:
                 }
                 for release in releases
             ],
-            "recentEvents": self.store.list_events(environment, 20),
+            "recentEvents": recent_events,
+            "lastEvaluation": dict(last_evaluation),
         }
 
     def heartbeat(
@@ -249,6 +261,13 @@ class UnifiedAutoExecutionController:
                 pauseReason=None,
                 lastError=None,
             )
+            evaluation_audit = dict(batch.get("evaluationAudit") or {})
+            if evaluation_audit:
+                evaluation_audit.update({
+                    "processId": self.process_id,
+                    "closeSequenceId": event_sequence or None,
+                })
+                batch = {**batch, "evaluationAudit": evaluation_audit}
             self.store.append_event(
                 environment,
                 "heartbeat_completed",
@@ -265,6 +284,7 @@ class UnifiedAutoExecutionController:
                     "latencyMetrics": dict(batch.get("latencyMetrics") or {}),
                     "expiredSignalCount": len(batch.get("expiredSignals") or []),
                     "conditionalLateEntryCount": len(batch.get("conditionalLateEntries") or []),
+                    "evaluationAudit": evaluation_audit,
                 },
             )
             return self._heartbeat_result(
@@ -303,8 +323,26 @@ class UnifiedAutoExecutionController:
             pauseReason=reason,
             lastError=None,
         )
-        self.store.append_event(environment, "heartbeat_blocked", {"blockers": blockers or [reason]})
-        return self._heartbeat_result(environment, "paused", 0, blockers=blockers or [reason])
+        evaluation_audit = (
+            dict(result.get("evaluationAudit") or {})
+            if isinstance(result.get("evaluationAudit"), dict)
+            else {}
+        )
+        self.store.append_event(
+            environment,
+            "heartbeat_blocked",
+            {
+                "blockers": blockers or [reason],
+                "evaluationAudit": evaluation_audit,
+            },
+        )
+        return self._heartbeat_result(
+            environment,
+            "paused",
+            int(evaluation_audit.get("evaluatedReleaseCount") or 0),
+            blockers=blockers or [reason],
+            batch={"evaluationAudit": evaluation_audit} if evaluation_audit else None,
+        )
 
     def _heartbeat_result(
         self,

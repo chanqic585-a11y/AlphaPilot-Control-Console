@@ -125,6 +125,11 @@ $env:ALPHAPILOT_OKX_DEMO_PASSPHRASE = $passphrase
 $env:ALPHAPILOT_OKX_DEMO_ORDER_ENABLED = if ($EnableOrder) { "1" } else { "0" }
 $env:ALPHAPILOT_OKX_DEMO_AUTOMATION_ENABLED = if ($EnableAutomation) { "1" } else { "0" }
 $env:ALPHAPILOT_OKX_DEMO_CANCEL_ENABLED = if ($EnableCancel) { "1" } else { "0" }
+if ($EnableAutomation) {
+  $env:ALPHAPILOT_OKX_DEMO_LAUNCHER_CONFIRMED = "1"
+} else {
+  Remove-Item Env:\ALPHAPILOT_OKX_DEMO_LAUNCHER_CONFIRMED -ErrorAction SilentlyContinue
+}
 
 try {
   Write-Host ""
@@ -155,4 +160,5 @@ try {
   Remove-Item Env:\ALPHAPILOT_OKX_DEMO_ORDER_ENABLED -ErrorAction SilentlyContinue
   Remove-Item Env:\ALPHAPILOT_OKX_DEMO_AUTOMATION_ENABLED -ErrorAction SilentlyContinue
   Remove-Item Env:\ALPHAPILOT_OKX_DEMO_CANCEL_ENABLED -ErrorAction SilentlyContinue
+  Remove-Item Env:\ALPHAPILOT_OKX_DEMO_LAUNCHER_CONFIRMED -ErrorAction SilentlyContinue
 }

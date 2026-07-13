@@ -421,13 +421,19 @@ function formatDate(value) {
 
 function automaticExecutionStateLabel(runtime = {}) {
   const status = runtime.status || runtime.lastHeartbeatResult?.status || "disabled";
-  if (status === "running") {
-    const matched = Number(runtime.lastHeartbeatResult?.batch?.matchedSignalCount || 0);
-    const created = Number(runtime.lastHeartbeatResult?.batch?.createdOrderCount || 0);
-    return matched > 0 || created > 0 ? "自动运行中" : "等待策略条件匹配";
+  const audit = runtime.lastEvaluation || runtime.lastHeartbeatResult?.batch?.evaluationAudit || {};
+  const auditLabels = {
+    evaluated_zero_matches: "最近已评估但零匹配",
+    matched_rejected: "匹配后被风控或执行拒绝",
+    order_submitted: "已提交 Demo 订单",
+    order_failed: "订单提交失败",
+  };
+  if (["running", "waiting"].includes(status) && auditLabels[audit.state]) {
+    return auditLabels[audit.state];
   }
   const labels = {
-    waiting: "等待策略条件匹配",
+    waiting: "等待下一根闭合 K 线",
+    running: "自动运行中",
     paused: "暂停新开仓",
     disarmed: "等待本进程 ARM",
     disabled: "未启动",
@@ -442,9 +448,20 @@ function automaticExecutionResultLabel(runtime = {}) {
   const batch = heartbeat.batch || {};
   const blockers = Array.isArray(heartbeat.blockers) ? heartbeat.blockers : [];
   if (blockers.length) return `阻塞 ${blockers.length} 项`;
+  const audit = runtime.lastEvaluation || batch.evaluationAudit || {};
+  if (audit.state) {
+    const evaluated = Number(audit.evaluatedReleaseCount || 0);
+    const scanned = Number(audit.marketSummary?.deepScreenCount || 0);
+    const matched = Number(audit.matchedSignalCount || 0);
+    const created = Number(audit.createdOrderCount || 0);
+    if (audit.state === "evaluated_zero_matches") {
+      return `最近评估 ${evaluated} 条策略 · 深扫 ${scanned} 个合约 · 0 匹配`;
+    }
+    return `最近评估 ${evaluated} 条策略 · 匹配 ${matched} · 下单 ${created}`;
+  }
   const matched = Number(batch.matchedSignalCount || 0);
   const created = Number(batch.createdOrderCount || 0);
-  if (!matched && !created) return "等待策略条件匹配";
+  if (!matched && !created) return "等待下一根闭合 K 线";
   return `匹配 ${matched} · 下单 ${created}`;
 }
 

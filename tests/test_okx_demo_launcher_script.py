@@ -42,8 +42,12 @@ class OkxDemoLauncherScriptTests(unittest.TestCase):
             "ALPHAPILOT_OKX_DEMO_API_KEY",
             "ALPHAPILOT_OKX_DEMO_SECRET_KEY",
             "ALPHAPILOT_OKX_DEMO_PASSPHRASE",
+            "ALPHAPILOT_OKX_DEMO_LAUNCHER_CONFIRMED",
         ):
             self.assertIn(f"Remove-Item Env:\\{variable}", self.script)
+
+    def test_launcher_marks_explicit_automation_confirmation_for_startup_arm(self) -> None:
+        self.assertIn('$env:ALPHAPILOT_OKX_DEMO_LAUNCHER_CONFIRMED = "1"', self.script)
 
     def test_replacement_waits_for_port_release(self) -> None:
         self.assertIn("port did not become available", self.script.lower())
