@@ -49,6 +49,12 @@ class OkxDemoLauncherScriptTests(unittest.TestCase):
         self.assertIn("port did not become available", self.script.lower())
         self.assertIn("Start-Sleep -Milliseconds 250", self.script)
 
+    def test_launcher_requires_the_workspace_virtual_environment(self) -> None:
+        self.assertIn('.venv\\Scripts\\python.exe', self.script)
+        self.assertIn('scripts\\setup_console_runtime.ps1', self.script)
+        self.assertIn('import websocket', self.script)
+        self.assertNotIn('$python = "python"', self.script)
+
 
 if __name__ == "__main__":
     unittest.main()

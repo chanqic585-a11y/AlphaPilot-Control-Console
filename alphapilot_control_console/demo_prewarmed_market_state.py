@@ -323,6 +323,33 @@ class DemoPrewarmedMarketState:
         with self._lock:
             return copy.deepcopy(self._status_locked())
 
+    def required_instruments(self) -> tuple[str, ...]:
+        with self._lock:
+            return tuple(self._required_instruments)
+
+    def timeframes(self) -> tuple[str, ...]:
+        with self._lock:
+            return tuple(self._timeframes)
+
+    def confirmed_coverage(self, timeframe: str, candle_start_ms: int) -> dict[str, int | bool]:
+        normalized_timeframe = str(timeframe or "").strip().lower()
+        target = max(0, int(candle_start_ms))
+        with self._lock:
+            confirmed = sum(
+                1
+                for instrument in self._required_instruments
+                if any(
+                    _timestamp(row.get("timestamp")) == target
+                    for row in self._candles.get((instrument, normalized_timeframe)) or ()
+                )
+            )
+            required = len(self._required_instruments)
+            return {
+                "confirmed": confirmed,
+                "required": required,
+                "complete": required > 0 and confirmed == required,
+            }
+
     def _snapshot_payload_locked(self, instrument: str, timeframe: str) -> dict[str, Any]:
         key = (instrument, timeframe)
         candles = [copy.deepcopy(row) for row in self._candles.get(key) or ()]

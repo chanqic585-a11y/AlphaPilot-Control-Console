@@ -33,12 +33,17 @@ function Read-SecretText {
   return ConvertTo-PlainText -SecureValue $secure
 }
 
-$python = Join-Path $env:USERPROFILE ".cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
-if (-not (Test-Path $python)) {
-  $python = "python"
+$repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
+$python = Join-Path $repoRoot.Path ".venv\Scripts\python.exe"
+$setupCommand = "powershell -ExecutionPolicy Bypass -File scripts\setup_console_runtime.ps1"
+if (-not (Test-Path -LiteralPath $python)) {
+  throw "AlphaPilot console .venv is missing. From $($repoRoot.Path), run: $setupCommand"
+}
+& $python -c "import websocket; assert websocket.__version__ == '1.8.0'" | Out-Null
+if ($LASTEXITCODE -ne 0) {
+  throw "Pinned websocket-client 1.8.0 is unavailable. From $($repoRoot.Path), run: $setupCommand"
 }
 
-$repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $env:PYTHONPATH = $repoRoot.Path
 
 if ($Mobile) {

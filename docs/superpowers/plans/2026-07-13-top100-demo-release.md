@@ -224,11 +224,11 @@ git commit -m "Add immutable prewarmed Demo market snapshots"
 **Interfaces:**
 - Produces: `OkxPublicMarketRuntime(state, universe_loader, snapshot_loader, metadata_loader, websocket_factory)`.
 - Produces: `start()`, `stop()`, `refresh_subscriptions(releases)`, `add_close_listener(callback)`, and `status()`.
-- Consumes: `websocket-client==1.8.0` only for the public `wss://ws.okx.com:8443/ws/v5/public` connection.
+- Consumes: `websocket-client==1.8.0` for unauthenticated ticker `wss://ws.okx.com:8443/ws/v5/public` and candlestick `wss://ws.okx.com:8443/ws/v5/business` connections.
 
 - [ ] **Step 1: Write failing parser and lifecycle tests**
 
-With a fake WebSocket, verify subscription payloads contain only public ticker/candle channels for the active Top100 and active timeframes. Verify `confirm=0` stays provisional, `confirm=1` emits a normalized close, ping/pong keeps the connection alive, reconnect clears readiness until REST seed and subscriptions recover, and payloads containing credential-like fields are rejected.
+With fake WebSockets, verify ticker subscriptions use `/public`, candlestick subscriptions use `/business`, and both contain only unauthenticated channels for the active Top100 and active timeframes. Verify `confirm=0` stays provisional, `confirm=1` emits a normalized close, ping/pong keeps each connection alive, reconnect clears readiness until REST seed and subscriptions recover, and payloads containing credential-like fields are rejected.
 
 - [ ] **Step 2: Run tests and verify RED**
 

@@ -74,6 +74,8 @@ Activation is idempotent. Re-running it returns the existing successor set witho
 
 On-demand REST scanning after a candle closes cannot reliably meet the latency target. Add a process-local public market runtime that continuously maintains the active Top100 universe, instrument metadata, confirmed candles, current quotes, spread, liquidity state, and incremental indicator inputs for every active Demo timeframe.
 
+The runtime uses two unauthenticated OKX WebSocket connections: ticker subscriptions use `wss://ws.okx.com:8443/ws/v5/public`, while candlestick subscriptions use `wss://ws.okx.com:8443/ws/v5/business`. Neither connection accepts a login payload or credential fields.
+
 The runtime has four responsibilities:
 
 1. refresh the public OKX USDT perpetual universe and liquidity ranking before a strategy is due;
