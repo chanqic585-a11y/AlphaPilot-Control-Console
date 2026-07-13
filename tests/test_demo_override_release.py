@@ -8,6 +8,9 @@ from alphapilot_control_console.demo_override_release import (
     DEMO_OVERRIDE_CONFIRMATION,
     authorize_demo_override,
 )
+from alphapilot_control_console.demo_universe_policy import (
+    build_demo_universe_policy,
+)
 from alphapilot_control_console.evolution_demo_service import validate_demo_contract
 from alphapilot_control_console.risk_profile_store import default_profile
 
@@ -47,6 +50,18 @@ def risk_record() -> dict:
 
 
 class DemoOverrideReleaseTests(unittest.TestCase):
+    def test_top100_policy_factory_returns_independent_values(self) -> None:
+        first = build_demo_universe_policy()
+        second = build_demo_universe_policy()
+
+        first["screeningLimit"] = 1
+
+        self.assertEqual(second["screeningLimit"], 100)
+        self.assertEqual(
+            second["policyVersion"],
+            "okx_full_market_policy_v2_top100",
+        )
+
     def test_override_requires_reason_and_exact_confirmation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             missing_reason = authorize_demo_override(
@@ -141,6 +156,11 @@ class DemoOverrideReleaseTests(unittest.TestCase):
         self.assertFalse(first["contract"]["executionBoundary"]["liveExecutionAllowed"])
         market = first["contract"]["strategy"]["marketDefinition"]
         self.assertEqual(market["universePolicy"]["mode"], "okx_usdt_linear_perpetual_full_market")
+        self.assertEqual(market["universePolicy"]["screeningLimit"], 100)
+        self.assertEqual(
+            market["universePolicy"]["policyVersion"],
+            "okx_full_market_policy_v2_top100",
+        )
         self.assertEqual(audits[0][0], "demo_override_release_authorized")
         self.assertEqual(
             audits[0][1]["postDemoPromotionPolicy"],

@@ -16,6 +16,7 @@ from .evolution_demo_service import (
 from .portfolio_risk import normalize_risk_profile
 from .risk_profile_store import RISK_PROFILE_STORE_PATH, RiskProfileStore
 from .state_store import append_audit
+from .demo_universe_policy import build_demo_universe_policy
 
 
 DEMO_OVERRIDE_CONFIRMATION = "仅放行到OKX DEMO"
@@ -121,12 +122,7 @@ def _build_strategy(
             "instrumentType": "SWAP",
             "settleCurrency": "USDT",
             "timeframe": timeframe,
-            "universePolicy": {
-                "mode": "okx_usdt_linear_perpetual_full_market",
-                "screeningLimit": 20,
-                "ranking": "public_quote_volume_proxy_then_spread",
-                "policyVersion": "okx_full_market_policy_v1",
-            },
+            "universePolicy": build_demo_universe_policy(),
         },
         "forwardSignalPolicy": {
             "policyType": "strategy_family_params_v1",
