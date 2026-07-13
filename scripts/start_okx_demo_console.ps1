@@ -89,30 +89,31 @@ if ($ReplaceExistingConsole) {
     throw "A verified AlphaPilot console process id is required for replacement mode."
   }
   $listener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
-  if ($null -eq $listener) {
-    throw "No listener exists on the requested AlphaPilot port."
-  }
-  $listenerProcessId = [int]$listener.OwningProcess
-  if ($listenerProcessId -ne $ExpectedConsoleProcessId) {
-    throw "The port owner changed; refusing to stop an unverified process."
-  }
-  $processInfo = Get-CimInstance Win32_Process -Filter "ProcessId = $listenerProcessId"
-  if ($null -eq $processInfo -or $processInfo.CommandLine -notmatch "alphapilot_control_console\.http_app") {
-    throw "The listener is not the AlphaPilot Control Console; refusing process handoff."
-  }
-
-  Write-Host "Verified AlphaPilot console PID $listenerProcessId. Replacing the local runtime." -ForegroundColor Cyan
-  Stop-Process -Id $listenerProcessId
-  $releaseDeadline = (Get-Date).AddSeconds(10)
-  do {
-    $remainingListener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($null -eq $remainingListener) {
-      break
+  if ($null -ne $listener) {
+    $listenerProcessId = [int]$listener.OwningProcess
+    if ($listenerProcessId -ne $ExpectedConsoleProcessId) {
+      throw "The port owner changed; refusing to stop an unverified process."
     }
-    Start-Sleep -Milliseconds 250
-  } while ((Get-Date) -lt $releaseDeadline)
-  if ($null -ne $remainingListener) {
-    throw "Port did not become available after the verified AlphaPilot process stopped."
+    $processInfo = Get-CimInstance Win32_Process -Filter "ProcessId = $listenerProcessId"
+    if ($null -eq $processInfo -or $processInfo.CommandLine -notmatch "alphapilot_control_console\.http_app") {
+      throw "The listener is not the AlphaPilot Control Console; refusing process handoff."
+    }
+
+    Write-Host "Verified AlphaPilot console PID $listenerProcessId. Replacing the local runtime." -ForegroundColor Cyan
+    Stop-Process -Id $listenerProcessId
+    $releaseDeadline = (Get-Date).AddSeconds(10)
+    do {
+      $remainingListener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
+      if ($null -eq $remainingListener) {
+        break
+      }
+      Start-Sleep -Milliseconds 250
+    } while ((Get-Date) -lt $releaseDeadline)
+    if ($null -ne $remainingListener) {
+      throw "Port did not become available after the verified AlphaPilot process stopped."
+    }
+  } else {
+    Write-Host "The verified previous console has already stopped; the requested port is free." -ForegroundColor Cyan
   }
 }
 
