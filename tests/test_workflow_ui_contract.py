@@ -32,6 +32,13 @@ class WorkflowUiContractTests(unittest.TestCase):
         self.assertIn("自动优化已审查", self.js)
         self.assertIn("结构性弱势", self.js)
 
+    def test_auto_optimization_requires_explicit_backend_capability(self) -> None:
+        self.assertIn(
+            "payload?.capabilities?.boundedOptimizationRecovery === true",
+            self.js,
+        )
+        self.assertIn("当前控制台后端未加载自动优化", self.js)
+
     def test_local_and_demo_lifecycle_cards_expose_optimization_action(self) -> None:
         self.assertIn('data-lifecycle-action="optimize"', self.js)
         self.assertIn("openStrategyOptimizationDialog", self.js)

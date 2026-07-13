@@ -255,6 +255,7 @@ let latestStrategyLifecyclePayload = {};
 let workflowPollTimer = null;
 let activeOptimizationContext = null;
 let workflowBatchBackendReady = false;
+let workflowOptimizationBackendReady = false;
 let demoWorkflowBatchBackendReady = false;
 const workflowSelection = {
   backtest: new Set(),
@@ -1355,7 +1356,7 @@ function dualLayerCardActions(item) {
       { action: "optimize", label: "改善优化" },
       { action: "archive", label: "归档" },
     ];
-    if (!item?.optimizationCampaign?.reviewed) {
+    if (!item?.optimizationCampaign?.reviewed && workflowOptimizationBackendReady) {
       actions.unshift({
         action: "auto-optimize",
         label: "自动优化（最多3次）",
@@ -1391,6 +1392,7 @@ function dualLayerNextStep(item) {
     if (campaign.status === "challenger_queued") return "自动 Challenger 已创建，等待新版本回测结果。";
     if (campaign.status === "structural_redesign_required") return "结构性弱势不是小幅调参可修复；请重设计信号逻辑，或归档该策略。";
     if (campaign.reviewed) return "自动优化已停止且不会强制放行；仍可人工改善逻辑后创建新版本。";
+    if (!workflowOptimizationBackendReady) return "当前控制台后端未加载自动优化；请使用安全启动器正常重启后再试。";
     return "先运行最多 3 次的受控自动优化；仍未通过时再重设计或归档。";
   }
   if (item.status === "blocked") return item.failure?.retryDisposition === "same_version_retry"
@@ -1453,6 +1455,7 @@ function renderDualLayerLane(targetId, countId, rows, emptyText) {
 function renderDualLayerWorkflow(payload = emptyWorkflow) {
   latestWorkflowPayload = payload || emptyWorkflow;
   workflowBatchBackendReady = payload?.controlConsoleVersion === "V13.27.9";
+  workflowOptimizationBackendReady = payload?.capabilities?.boundedOptimizationRecovery === true;
   const items = Array.isArray(payload?.items) ? payload.items.filter((item) => item.stage === "backtest") : [];
   const archived = Array.isArray(payload?.archivedItems) ? payload.archivedItems.filter((item) => item.stage === "backtest") : [];
   const awaiting = items.filter((item) => item.status === "awaiting");

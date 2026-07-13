@@ -48,23 +48,24 @@ class WorkflowClientTests(unittest.TestCase):
         self.assertEqual(projection["controlConsoleVersion"], "V13.27.9")
         self.assertTrue(projection["capabilities"]["selectedBacktests"])
         self.assertTrue(projection["capabilities"]["selectedForwardCycles"])
+        self.assertTrue(projection["capabilities"]["boundedOptimizationRecovery"])
+        self.assertTrue(projection["capabilities"]["serialBacktestDrain"])
 
-    def test_request_run_queues_then_starts_one_background_worker(self) -> None:
-        with patch.object(client, "run_workflow_cli") as run_cli, patch.object(
+    def test_request_run_uses_serial_batch_worker_that_drains_queued_runs(self) -> None:
+        with patch.object(client, "spawn_workflow_batch") as spawn_batch, patch.object(
             client, "spawn_workflow_run"
-        ) as spawn:
-            run_cli.return_value = {
-                "workflowRunId": "run-1",
-                "status": "queued",
+        ) as spawn_one:
+            spawn_batch.return_value = {
+                "started": True,
+                "workflowRunIds": ["run-1"],
             }
-            spawn.return_value = {"started": True, "workflowRunId": "run-1"}
 
             result = client.request_dual_layer_backtest(
                 "run-1", quant_root=self.quant_root
             )
 
-        run_cli.assert_not_called()
-        spawn.assert_called_once_with("run-1", quant_root=self.quant_root)
+        spawn_batch.assert_called_once_with(["run-1"], quant_root=self.quant_root)
+        spawn_one.assert_not_called()
         self.assertTrue(result["worker"]["started"])
 
     def test_dual_layer_action_ignores_endpoint_module_and_credentials_payload(self) -> None:

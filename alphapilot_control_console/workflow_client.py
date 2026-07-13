@@ -128,6 +128,8 @@ def build_workflow_projection(
     projection["capabilities"] = {
         "selectedBacktests": True,
         "selectedForwardCycles": True,
+        "boundedOptimizationRecovery": True,
+        "serialBacktestDrain": True,
     }
     for bucket in ("items", "archivedItems"):
         for item in projection.get(bucket) or []:
@@ -302,7 +304,7 @@ def request_dual_layer_backtest(
     quant_root: Path | None = None,
 ) -> dict[str, Any]:
     run_id = _safe_run_id(workflow_run_id)
-    worker = spawn_workflow_run(run_id, quant_root=quant_root)
+    worker = spawn_workflow_batch([run_id], quant_root=quant_root)
     return {"workflowRunId": run_id, "worker": worker}
 
 
