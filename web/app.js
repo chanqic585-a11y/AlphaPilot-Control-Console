@@ -1346,7 +1346,7 @@ function dualLayerCardActions(item) {
   ];
   if (item.status === "paused") return [{ action: "run-dual-layer", label: "启动这一条", primary: true }];
   if (["failed", "blocked"].includes(item.status)) {
-    return [
+    const actions = [
       {
         action: "rerun",
         label: "重新回测",
@@ -1355,14 +1355,44 @@ function dualLayerCardActions(item) {
       { action: "optimize", label: "改善优化" },
       { action: "archive", label: "归档" },
     ];
+    if (!item?.optimizationCampaign?.reviewed) {
+      actions.unshift({
+        action: "auto-optimize",
+        label: "自动优化（最多3次）",
+        primary: item.failure?.category === "strategy_performance",
+      });
+    }
+    return actions;
   }
   if (!["running", "queued"].includes(item.status)) return [{ action: "archive", label: "归档" }];
   return [];
 }
 
+function dualLayerOptimizationStatus(item) {
+  const campaign = item?.optimizationCampaign || {};
+  if (!campaign.reviewed) return "";
+  const status = String(campaign.status || "reviewed");
+  const messages = {
+    structural_redesign_required: "自动优化已审查：结构性弱势，已停止自动尝试；需要重设计，不会强制通过。",
+    budget_exhausted: "自动优化已审查：最多 3 次尝试已用完，策略继续保持未通过。",
+    data_evidence_blocked: "自动优化已审查：当前是数据或工程证据阻塞，不应通过调参掩盖。",
+    formal_validation_failed: "自动优化已审查：一次性正式锁定验证未通过，已停止继续调参。",
+    challenger_queued: "自动优化已审查：已创建不可变 Challenger，并已加入自动回测队列。",
+    passed: "自动优化已审查：正式门槛通过。",
+    reviewed: "自动优化已审查，结论已写入审计记录。",
+  };
+  return messages[status] || messages.reviewed;
+}
+
 function dualLayerNextStep(item) {
   if (item.status === "passed") return "正式门槛已通过，系统将自动进入本地前向。";
-  if (item.status === "failed") return "策略表现未通过。调整参数或逻辑后创建新版本，再重新回测。";
+  if (item.status === "failed") {
+    const campaign = item?.optimizationCampaign || {};
+    if (campaign.status === "challenger_queued") return "自动 Challenger 已创建，等待新版本回测结果。";
+    if (campaign.status === "structural_redesign_required") return "结构性弱势不是小幅调参可修复；请重设计信号逻辑，或归档该策略。";
+    if (campaign.reviewed) return "自动优化已停止且不会强制放行；仍可人工改善逻辑后创建新版本。";
+    return "先运行最多 3 次的受控自动优化；仍未通过时再重设计或归档。";
+  }
   if (item.status === "blocked") return item.failure?.retryDisposition === "same_version_retry"
     ? "这是数据或工程阻塞，不改策略版本即可从检查点重试。"
     : "先补齐缺失证据，再继续。";
@@ -1379,6 +1409,7 @@ function renderDualLayerCard(item, archived = false) {
   const tone = item.status === "passed" ? "ok" : ["failed", "blocked"].includes(item.status) ? "danger" : item.status === "running" ? "warn" : "neutral";
   const runProgress = dualLayerProgressModel(item);
   const issueKey = archived ? "" : strategyIssueKey(item);
+  const optimizationStatus = dualLayerOptimizationStatus(item);
   const selectable = workflowBatchBackendReady && !archived && ["awaiting", "paused"].includes(item.status);
   const selected = selectable && workflowSelection.backtest.has(item.workflowRunId);
   return `
@@ -1395,6 +1426,7 @@ function renderDualLayerCard(item, archived = false) {
       <div class="workflow-evidence-row"><span>${escapeHtml(dualLayerEvidenceText(item))}</span><small>目标 ≥ 2R</small></div>
       ${metrics.length ? `<div class="workflow-metrics">${metrics.map((row) => `<span>${escapeHtml(row)}</span>`).join("")}</div>` : ""}
       ${failure && failure !== "--" ? `<div class="workflow-failure"><strong>${escapeHtml(failure)}</strong></div>` : ""}
+      ${optimizationStatus ? `<div class="workflow-optimization-status">${escapeHtml(optimizationStatus)}</div>` : ""}
       <p class="workflow-next-step">${escapeHtml(dualLayerNextStep(item))}</p>
       ${actions.length || issueKey ? `<div class="workflow-actions">${actions.map((action) => `<button type="button" class="${action.primary ? "" : "secondary"}" data-workflow-action="${escapeHtml(action.action)}" data-workflow-run-id="${escapeHtml(item.workflowRunId || "")}" data-strategy-version-id="${escapeHtml(item.strategyVersionId || "")}">${escapeHtml(action.label)}</button>`).join("")}${issueKey ? `<button type="button" class="secondary" data-issue-guidance-key="${escapeHtml(issueKey)}">查看处理办法</button>` : ""}</div>` : ""}
       <details class="workflow-details"><summary>高级详情</summary><div>
@@ -1602,9 +1634,18 @@ async function runDualLayerWorkflowAction(action, item = {}) {
       workflowSelection.backtest.clear();
     }
     renderDualLayerWorkflow(response.workflow || emptyWorkflow);
-    if (status) status.textContent = ["run-all-awaiting", "run-selected"].includes(action)
-      ? `已请求 ${Number(response.result?.requestedCount || 0)} 条待回测策略，系统将串行执行。`
-      : "动作已提交，阶段状态会自动刷新。";
+    if (status) {
+      if (["run-all-awaiting", "run-selected"].includes(action)) {
+        status.textContent = `已请求 ${Number(response.result?.requestedCount || 0)} 条待回测策略，系统将串行执行。`;
+      } else if (action === "auto-optimize") {
+        const recovery = response.result?.recovery || {};
+        status.textContent = Number(recovery.createdChallengerCount || 0) > 0
+          ? `已创建 ${Number(recovery.createdChallengerCount)} 条不可变 Challenger，并启动自动回测。`
+          : "自动优化已审查；该策略未生成 Challenger，停止原因已显示在卡片中。";
+      } else {
+        status.textContent = "动作已提交，阶段状态会自动刷新。";
+      }
+    }
   } catch (error) {
     if (status) status.textContent = `操作失败：${error.message}`;
   }

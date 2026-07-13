@@ -35,6 +35,7 @@ ALLOWED_COMMANDS = {
     "run",
     "one-click-backtest",
     "research-smoke",
+    "recover-bounded-optimizations",
     "run-selected-backtests",
     "run-selected-forward-cycles",
 }
@@ -503,6 +504,28 @@ def request_workflow_action(
                 quant_root=quant_root,
             ),
         }
+    if normalized == "auto-optimize":
+        version_id = str(payload.get("strategyVersionId") or "").strip()
+        if not version_id:
+            raise ValueError("strategy_version_id_required")
+        recovery = run_workflow_cli(
+            [
+                "recover-bounded-optimizations",
+                "--strategy-version-id",
+                version_id,
+            ],
+            quant_root=quant_root,
+        )
+        run_ids = [
+            _safe_run_id(str(value or ""))
+            for value in recovery.get("challengerWorkflowRunIds") or []
+        ]
+        worker = (
+            spawn_workflow_batch(run_ids, quant_root=quant_root)
+            if run_ids
+            else None
+        )
+        return {"recovery": recovery, "worker": worker}
     if normalized == "archive":
         version_id = str(payload.get("strategyVersionId") or "").strip()
         if not version_id:

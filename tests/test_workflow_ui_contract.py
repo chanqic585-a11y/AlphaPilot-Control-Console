@@ -26,6 +26,12 @@ class WorkflowUiContractTests(unittest.TestCase):
         self.assertIn('action: "rerun"', self.js)
         self.assertIn('action: "optimize"', self.js)
 
+    def test_failed_workflow_exposes_bounded_auto_optimization_state(self) -> None:
+        self.assertIn('action: "auto-optimize"', self.js)
+        self.assertIn('label: "自动优化（最多3次）"', self.js)
+        self.assertIn("自动优化已审查", self.js)
+        self.assertIn("结构性弱势", self.js)
+
     def test_local_and_demo_lifecycle_cards_expose_optimization_action(self) -> None:
         self.assertIn('data-lifecycle-action="optimize"', self.js)
         self.assertIn("openStrategyOptimizationDialog", self.js)

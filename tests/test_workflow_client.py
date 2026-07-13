@@ -206,6 +206,41 @@ class WorkflowClientTests(unittest.TestCase):
         spawn_one.assert_not_called()
         self.assertEqual(result["worker"]["workflowRunIds"], ["run-restarted"])
 
+    def test_auto_optimize_recovers_terminal_result_and_starts_challenger_batch(self) -> None:
+        with patch.object(client, "run_workflow_cli") as run_cli, patch.object(
+            client, "spawn_workflow_batch"
+        ) as spawn_batch:
+            run_cli.return_value = {
+                "reviewedCount": 1,
+                "createdChallengerCount": 1,
+                "challengerWorkflowRunIds": ["run-challenger"],
+            }
+            spawn_batch.return_value = {
+                "started": True,
+                "workflowRunIds": ["run-challenger"],
+            }
+
+            result = client.request_workflow_action(
+                "auto-optimize",
+                {"strategyVersionId": "strategy-root", "apiKey": "must-not-flow"},
+                quant_root=self.quant_root,
+            )
+
+        run_cli.assert_called_once_with(
+            [
+                "recover-bounded-optimizations",
+                "--strategy-version-id",
+                "strategy-root",
+            ],
+            quant_root=self.quant_root,
+        )
+        spawn_batch.assert_called_once_with(
+            ["run-challenger"],
+            quant_root=self.quant_root,
+        )
+        self.assertEqual(result["recovery"]["reviewedCount"], 1)
+        self.assertNotIn("apiKey", repr(result))
+
     def test_run_selected_forward_cycles_accepts_only_running_local_runs(self) -> None:
         projection = {
             "items": [
