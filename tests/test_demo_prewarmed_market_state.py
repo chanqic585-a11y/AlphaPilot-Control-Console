@@ -157,14 +157,22 @@ class DemoPrewarmedMarketStateTests(unittest.TestCase):
         self.assertFalse(incomplete.status()["warm"])
         self.assertIn("ETH-USDT-SWAP", incomplete.status()["missingMetadata"])
 
-    def test_stale_quote_makes_state_not_ready(self) -> None:
+    def test_stale_quote_excludes_instrument_without_blocking_runtime(self) -> None:
         state = self.build_state()
         state.set_clock(lambda: NOW + timedelta(seconds=6))
 
         status = state.status()
+        frozen = state.freeze_for_timeframe(
+            "1h",
+            received_at=NOW + timedelta(seconds=6),
+        )
 
-        self.assertFalse(status["warm"])
+        self.assertTrue(status["warm"])
+        self.assertEqual(status["readyInstrumentCount"], 0)
         self.assertIn("BTC-USDT-SWAP", status["staleQuotes"])
+        self.assertFalse(
+            frozen.load_snapshot("BTC-USDT-SWAP", "1h", 260)["quoteFresh"]
+        )
 
     def test_short_history_is_individually_ineligible_without_blocking_runtime(self) -> None:
         state = self.build_state()

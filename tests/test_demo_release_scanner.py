@@ -151,6 +151,21 @@ class DemoReleaseScannerTests(unittest.TestCase):
         self.assertEqual(result["signals"], [])
         self.assertEqual(result["rejections"][0]["reason"], "insufficient_confirmed_history")
 
+    def test_stale_quote_is_rejected_without_blocking_other_instruments(self) -> None:
+        stale = snapshot("BTC-USDT-SWAP", "1h", 100)
+        stale["quoteFresh"] = False
+
+        result = scan_immutable_demo_release(
+            contract(),
+            snapshot_loader=lambda *_args: stale,
+            metadata_loader=metadata,
+        )
+
+        self.assertEqual(result["blockers"], [])
+        self.assertEqual(result["signals"], [])
+        self.assertEqual(result["rejections"][0]["reason"], "public_market_or_liquidity_gate_failed")
+        self.assertFalse(result["rejections"][0]["quoteFresh"])
+
     def test_scanner_binds_signal_to_release_and_sizes_from_public_metadata(self) -> None:
         result = scan_immutable_demo_release(
             contract(), snapshot_loader=snapshot, metadata_loader=metadata

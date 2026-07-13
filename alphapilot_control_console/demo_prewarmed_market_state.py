@@ -402,6 +402,13 @@ class DemoPrewarmedMarketState:
         quote = dict(self._quotes.get(instrument) or {})
         extras = copy.deepcopy(self._snapshot_extras.get(key) or {})
         latest = candles[-1] if candles else {}
+        quote_received_at = _as_utc(quote.get("receivedAt"))
+        quote_age_seconds = (
+            (self._clock().astimezone(UTC) - quote_received_at).total_seconds()
+            if quote_received_at is not None
+            else math.inf
+        )
+        quote_fresh = 0 <= quote_age_seconds <= self.max_quote_age_seconds
         return {
             **extras,
             "ok": True,
@@ -414,6 +421,8 @@ class DemoPrewarmedMarketState:
             "askPrice": quote.get("askPrice"),
             "spreadPct": quote.get("spreadPct"),
             "receivedAt": quote.get("receivedAt"),
+            "quoteFresh": quote_fresh,
+            "quoteAgeSeconds": quote_age_seconds,
             "latestCandleAt": latest.get("timestamp"),
             "confirmedCandleCount": len(candles),
             "historyReady": len(candles) >= self.minimum_history,
@@ -463,7 +472,7 @@ class DemoPrewarmedMarketState:
             and not missing_metadata
             and not missing_snapshots
         )
-        warm = synchronized and not stale_quotes and len(self._universe_instruments) == self.screening_limit
+        warm = synchronized and len(self._universe_instruments) == self.screening_limit
         return {
             "source": "demo_prewarmed_market_state_v1",
             "warm": warm,

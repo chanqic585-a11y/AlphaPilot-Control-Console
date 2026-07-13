@@ -486,13 +486,14 @@ def scan_immutable_demo_release(
             }
         latest_ms = int(snapshot.get("latestCandleAt") or 0)
         fresh = latest_ms > 0 and now_ms - latest_ms <= _TIMEFRAME_MS.get(timeframe, 0) * 2
+        quote_fresh = snapshot.get("quoteFresh") is not False
         spread = snapshot.get("spreadPct")
         liquid = bool(
             metadata.get("ok")
             and spread is not None
             and 0 <= float(spread) <= 0.002
         )
-        if not snapshot.get("ok") or not fresh or not liquid:
+        if not snapshot.get("ok") or not fresh or not quote_fresh or not liquid:
             if instrument in candidate_by_id:
                 candidate_by_id[instrument]["scanStatus"] = "rejected"
                 candidate_by_id[instrument]["reason"] = "public_market_or_liquidity_gate_failed"
@@ -501,6 +502,7 @@ def scan_immutable_demo_release(
                     "instId": instrument,
                     "reason": "public_market_or_liquidity_gate_failed",
                     "dataFresh": fresh,
+                    "quoteFresh": quote_fresh,
                     "liquidityPassed": liquid,
                 }
             )
