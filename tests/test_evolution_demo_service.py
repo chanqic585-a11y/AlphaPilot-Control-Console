@@ -17,7 +17,10 @@ def confirmed_close() -> dict:
     return {
         "sequenceId": "1h:1783900800000",
         "timeframe": "1h",
+        "candleStartMs": 1783900800000,
         "receivedAt": "2026-07-13T00:00:00+00:00",
+        "confirmedInstrumentIds": ["BTC-USDT-SWAP"],
+        "excludedInstrumentIds": ["ETH-USDT-SWAP"],
     }
 
 
@@ -33,10 +36,14 @@ class FakeFrozenMarket:
 
 
 class FakeMarketRuntime:
+    def __init__(self) -> None:
+        self.freeze_calls: list[dict[str, object]] = []
+
     def status(self) -> dict:
         return {"warm": True}
 
     def freeze_for_timeframe(self, _timeframe: str, **_kwargs: object) -> FakeFrozenMarket:
+        self.freeze_calls.append(dict(_kwargs))
         return FakeFrozenMarket()
 
     def quote(self, _instrument: str) -> dict:
@@ -152,6 +159,7 @@ class EvolutionDemoServiceTests(unittest.TestCase):
 
     def test_cycle_ignores_external_signals_and_uses_internal_scanner(self) -> None:
         ready_status = {"blockers": [], "summary": {"ready": True}}
+        market_runtime = FakeMarketRuntime()
         contract = {
             "demoReleaseId": "release-1",
             "strategy": {"marketDefinition": {"timeframe": "1h"}},
@@ -190,7 +198,7 @@ class EvolutionDemoServiceTests(unittest.TestCase):
                 "reconciliationMatched": True,
             },
         ), patch.object(
-            service, "get_demo_market_runtime", return_value=FakeMarketRuntime()
+            service, "get_demo_market_runtime", return_value=market_runtime
         ):
             result = service.run_evolution_demo_cycle(
                 {
@@ -203,6 +211,14 @@ class EvolutionDemoServiceTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(result["externalSignalsIgnored"], 1)
         self.assertEqual(result["created"], [])
+        self.assertEqual(
+            market_runtime.freeze_calls,
+            [{
+                "received_at": unittest.mock.ANY,
+                "candle_start_ms": 1783900800000,
+                "allowed_instruments": ("BTC-USDT-SWAP",),
+            }],
+        )
 
     def test_status_exposes_redacted_demo_closed_outcomes_for_operator_pnl(self) -> None:
         class FakeOutcomeStore:

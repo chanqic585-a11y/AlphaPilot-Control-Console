@@ -77,6 +77,8 @@ class OkxPublicMarketRuntime:
         clock: Callable[[], datetime] = _now,
         subscription_batch_size: int = 50,
         seed_workers: int = 8,
+        close_batch_wait_seconds: float = 5.0,
+        timer_factory: Callable[[float, Callable[[], None]], Any] | None = None,
     ) -> None:
         self.state = state
         self.universe_loader = universe_loader
@@ -86,6 +88,8 @@ class OkxPublicMarketRuntime:
         self.clock = clock
         self.subscription_batch_size = max(1, int(subscription_batch_size))
         self.seed_workers = max(1, min(int(seed_workers), 16))
+        self.close_batch_wait_seconds = max(0.0, float(close_batch_wait_seconds))
+        self.timer_factory = timer_factory or threading.Timer
         self._lock = threading.RLock()
         self._refresh_lock = threading.Lock()
         self._listeners: list[Callable[[ConfirmedCloseEvent], None]] = []
@@ -95,6 +99,7 @@ class OkxPublicMarketRuntime:
         self._seeded = False
         self._last_error: str | None = None
         self._emitted_batch_closes: set[tuple[str, int]] = set()
+        self._pending_batch_closes: dict[tuple[str, int], dict[str, Any]] = {}
         self._last_confirmed_close: dict[str, Any] | None = None
         self._stop = threading.Event()
         self._threads: list[threading.Thread] = []
@@ -303,29 +308,77 @@ class OkxPublicMarketRuntime:
             )
             if event is None:
                 continue
-            coverage = self.state.confirmed_coverage(timeframe, event.candleStartMs)
-            batch_key = (timeframe, event.candleStartMs)
-            with self._lock:
-                if not coverage["complete"] or batch_key in self._emitted_batch_closes:
-                    continue
-                self._emitted_batch_closes.add(batch_key)
-                listeners = tuple(self._listeners)
-            batch_event = ConfirmedCloseEvent(
-                instrumentId="*",
-                timeframe=timeframe,
-                candleStartMs=event.candleStartMs,
-                receivedAt=event.receivedAt,
-                sequenceId=f"{timeframe}:{event.candleStartMs}",
-            )
-            with self._lock:
-                self._last_confirmed_close = {
-                    "timeframe": batch_event.timeframe,
-                    "candleStartMs": batch_event.candleStartMs,
-                    "receivedAt": batch_event.receivedAt,
-                    "sequenceId": batch_event.sequenceId,
-                }
-            for listener in listeners:
-                listener(batch_event)
+            self._register_close_confirmation(event)
+
+    def _register_close_confirmation(self, event: ConfirmedCloseEvent) -> None:
+        coverage = self.state.confirmed_coverage(event.timeframe, event.candleStartMs)
+        if int(coverage.get("confirmed") or 0) <= 0:
+            return
+        batch_key = (event.timeframe, event.candleStartMs)
+        timer_to_start = None
+        emit_now = False
+        with self._lock:
+            if batch_key in self._emitted_batch_closes:
+                return
+            pending = self._pending_batch_closes.get(batch_key)
+            if pending is None:
+                pending = {"firstEvent": event, "timer": None}
+                self._pending_batch_closes[batch_key] = pending
+            if bool(coverage.get("complete")) or self.close_batch_wait_seconds == 0:
+                emit_now = True
+            elif pending.get("timer") is None:
+                timer_to_start = self.timer_factory(
+                    self.close_batch_wait_seconds,
+                    lambda key=batch_key: self._emit_close_batch(key),
+                )
+                if hasattr(timer_to_start, "daemon"):
+                    timer_to_start.daemon = True
+                pending["timer"] = timer_to_start
+        if emit_now:
+            self._emit_close_batch(batch_key)
+        elif timer_to_start is not None:
+            timer_to_start.start()
+
+    def _emit_close_batch(self, batch_key: tuple[str, int]) -> None:
+        timeframe, candle_start_ms = batch_key
+        coverage = self.state.confirmed_coverage(timeframe, candle_start_ms)
+        if int(coverage.get("confirmed") or 0) <= 0:
+            return
+        with self._lock:
+            if batch_key in self._emitted_batch_closes:
+                return
+            pending = self._pending_batch_closes.pop(batch_key, None) or {}
+            first_event = pending.get("firstEvent")
+            timer = pending.get("timer")
+            self._emitted_batch_closes.add(batch_key)
+            listeners = tuple(self._listeners)
+        if timer is not None:
+            timer.cancel()
+        received_at = (
+            first_event.receivedAt
+            if isinstance(first_event, ConfirmedCloseEvent)
+            else self.clock().astimezone(UTC).isoformat()
+        )
+        batch_event = ConfirmedCloseEvent(
+            instrumentId="*",
+            timeframe=timeframe,
+            candleStartMs=candle_start_ms,
+            receivedAt=received_at,
+            sequenceId=f"{timeframe}:{candle_start_ms}",
+            confirmedInstrumentIds=tuple(coverage.get("confirmedInstrumentIds") or ()),
+            excludedInstrumentIds=tuple(coverage.get("excludedInstrumentIds") or ()),
+        )
+        with self._lock:
+            self._last_confirmed_close = {
+                "timeframe": batch_event.timeframe,
+                "candleStartMs": batch_event.candleStartMs,
+                "receivedAt": batch_event.receivedAt,
+                "sequenceId": batch_event.sequenceId,
+                "confirmedInstrumentCount": len(batch_event.confirmedInstrumentIds),
+                "excludedInstrumentCount": len(batch_event.excludedInstrumentIds),
+            }
+        for listener in listeners:
+            listener(batch_event)
 
     def status(self) -> dict[str, Any]:
         with self._lock:
@@ -334,6 +387,7 @@ class OkxPublicMarketRuntime:
             error = self._last_error
             running = bool(self._threads) and not self._stop.is_set()
             last_confirmed_close = copy.deepcopy(self._last_confirmed_close)
+            pending_close_batch_count = len(self._pending_batch_closes)
         blockers: list[str] = []
         if not seeded:
             blockers.append("okx_public_market_seed_incomplete")
@@ -353,6 +407,8 @@ class OkxPublicMarketRuntime:
             "connections": connections,
             "marketState": market_status,
             "lastConfirmedClose": last_confirmed_close,
+            "pendingCloseBatchCount": pending_close_batch_count,
+            "closeBatchWaitSeconds": self.close_batch_wait_seconds,
             "blockers": list(dict.fromkeys(blockers)),
             "lastError": error,
             "publicOnly": True,
@@ -364,8 +420,15 @@ class OkxPublicMarketRuntime:
         timeframe: str,
         *,
         received_at: datetime | None = None,
+        candle_start_ms: int | None = None,
+        allowed_instruments: Iterable[str] | None = None,
     ) -> Any:
-        return self.state.freeze_for_timeframe(timeframe, received_at=received_at)
+        return self.state.freeze_for_timeframe(
+            timeframe,
+            received_at=received_at,
+            candle_start_ms=candle_start_ms,
+            allowed_instruments=allowed_instruments,
+        )
 
     def quote(self, instrument: str) -> dict[str, Any]:
         return self.state.quote(instrument)
@@ -438,8 +501,16 @@ class OkxPublicMarketRuntime:
         with self._lock:
             apps = tuple(self._apps.values())
             threads = tuple(self._threads)
+            pending_timers = tuple(
+                pending.get("timer")
+                for pending in self._pending_batch_closes.values()
+                if pending.get("timer") is not None
+            )
+            self._pending_batch_closes = {}
             self._threads = []
             self._apps = {}
+        for timer in pending_timers:
+            timer.cancel()
         for app in apps:
             try:
                 app.close()

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import unittest
 from datetime import UTC, datetime
+from typing import Callable
 
 from alphapilot_control_console.demo_prewarmed_market_state import (
     DemoPrewarmedMarketState,
@@ -69,7 +70,11 @@ def snapshot_loader(instrument: str, timeframe: str, _limit: int) -> dict:
 
 
 class OkxPublicMarketRuntimeTests(unittest.TestCase):
-    def build_runtime(self) -> OkxPublicMarketRuntime:
+    def build_runtime(
+        self,
+        *,
+        timer_factory: Callable[..., object] | None = None,
+    ) -> OkxPublicMarketRuntime:
         state = DemoPrewarmedMarketState(
             screening_limit=2,
             minimum_history=2,
@@ -83,6 +88,8 @@ class OkxPublicMarketRuntimeTests(unittest.TestCase):
             metadata_loader=metadata_loader,
             clock=lambda: NOW,
             subscription_batch_size=50,
+            close_batch_wait_seconds=5.0,
+            timer_factory=timer_factory,
         )
 
     def test_refresh_seeds_state_and_builds_separate_public_subscriptions(self) -> None:
@@ -225,6 +232,68 @@ class OkxPublicMarketRuntimeTests(unittest.TestCase):
         self.assertEqual(events[0].candleStartMs, 3_000)
         self.assertEqual(events[0].sequenceId, "1h:3000")
         self.assertEqual(runtime.status()["lastConfirmedClose"]["sequenceId"], "1h:3000")
+
+    def test_partial_close_batch_flushes_after_bound_and_excludes_late_instruments(self) -> None:
+        timers = []
+
+        class FakeTimer:
+            def __init__(self, seconds: float, callback: Callable[[], None]) -> None:
+                self.seconds = seconds
+                self.callback = callback
+                self.cancelled = False
+                timers.append(self)
+
+            def start(self) -> None:
+                pass
+
+            def cancel(self) -> None:
+                self.cancelled = True
+
+            def fire(self) -> None:
+                if not self.cancelled:
+                    self.callback()
+
+        runtime = self.build_runtime(timer_factory=FakeTimer)
+        runtime.refresh_subscriptions([{"timeframe": "1h"}])
+        events = []
+        runtime.add_close_listener(events.append)
+
+        runtime.handle_message(
+            "business",
+            {
+                "arg": {"channel": "candle1H", "instId": "BTC-USDT-SWAP"},
+                "data": [["3000", "1", "2", "0.5", "1.5", "10", "", "", "1"]],
+            },
+        )
+
+        self.assertEqual(events, [])
+        self.assertEqual(len(timers), 1)
+        self.assertEqual(timers[0].seconds, 5.0)
+
+        timers[0].fire()
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].confirmedInstrumentIds, ("BTC-USDT-SWAP",))
+        self.assertEqual(events[0].excludedInstrumentIds, ("ETH-USDT-SWAP",))
+        frozen = runtime.freeze_for_timeframe(
+            "1h",
+            candle_start_ms=3_000,
+            allowed_instruments=events[0].confirmedInstrumentIds,
+            received_at=NOW,
+        )
+        pool = frozen.load_universe(100)["screeningPool"]
+        self.assertEqual([row["instId"] for row in pool], ["BTC-USDT-SWAP"])
+        self.assertTrue(frozen.load_snapshot("BTC-USDT-SWAP", "1h", 20)["ok"])
+        self.assertFalse(frozen.load_snapshot("ETH-USDT-SWAP", "1h", 20)["ok"])
+
+        runtime.handle_message(
+            "business",
+            {
+                "arg": {"channel": "candle1H", "instId": "ETH-USDT-SWAP"},
+                "data": [["3000", "1", "2", "0.5", "1.5", "10", "", "", "1"]],
+            },
+        )
+        self.assertEqual(len(events), 1)
 
     def test_ticker_message_updates_executable_quote(self) -> None:
         runtime = self.build_runtime()

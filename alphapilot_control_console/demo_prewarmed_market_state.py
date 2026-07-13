@@ -100,6 +100,8 @@ class ConfirmedCloseEvent:
     candleStartMs: int
     receivedAt: str
     sequenceId: str
+    confirmedInstrumentIds: tuple[str, ...] = ()
+    excludedInstrumentIds: tuple[str, ...] = ()
 
 
 class FrozenDemoMarketSnapshot:
@@ -341,22 +343,50 @@ class DemoPrewarmedMarketState:
         timeframe: str,
         *,
         received_at: datetime | None = None,
+        candle_start_ms: int | None = None,
+        allowed_instruments: Iterable[str] | None = None,
     ) -> FrozenDemoMarketSnapshot:
         normalized_timeframe = str(timeframe or "").strip().lower()
+        target = max(0, int(candle_start_ms or 0))
+        allowed = (
+            {_instrument(value) for value in allowed_instruments if _instrument(value)}
+            if allowed_instruments is not None
+            else None
+        )
         with self._lock:
             status = self._status_locked()
             if not status["warm"] or normalized_timeframe not in self._timeframes:
                 raise RuntimeError("prewarmed market state is not ready")
+            selected = {
+                instrument
+                for instrument in self._required_instruments
+                if (allowed is None or instrument in allowed)
+                and (
+                    target == 0
+                    or any(
+                        _timestamp(row.get("timestamp")) == target
+                        for row in self._candles.get((instrument, normalized_timeframe)) or ()
+                    )
+                )
+            }
             snapshots = {
                 key: self._snapshot_payload_locked(*key)
                 for key in self._candles
-                if key[1] == normalized_timeframe and key[0] in self._required_instruments
+                if key[1] == normalized_timeframe and key[0] in selected
             }
+            universe = copy.deepcopy(self._universe)
+            pool = universe.get("screeningPool") if isinstance(universe.get("screeningPool"), list) else []
+            universe["screeningPool"] = [
+                copy.deepcopy(row)
+                for row in pool
+                if isinstance(row, dict) and _instrument(row.get("instId")) in selected
+            ]
+            universe["screeningPoolCount"] = len(universe["screeningPool"])
             return FrozenDemoMarketSnapshot(
-                universe=self._universe,
-                metadata=self._metadata,
+                universe=universe,
+                metadata={key: value for key, value in self._metadata.items() if key in selected},
                 snapshots=snapshots,
-                quotes=self._quotes,
+                quotes={key: value for key, value in self._quotes.items() if key in selected},
                 timeframe=normalized_timeframe,
                 frozen_at=(received_at or self._clock()).astimezone(UTC).isoformat(),
             )
@@ -377,23 +407,37 @@ class DemoPrewarmedMarketState:
         with self._lock:
             return copy.deepcopy(self._quotes.get(_instrument(instrument)) or {})
 
-    def confirmed_coverage(self, timeframe: str, candle_start_ms: int) -> dict[str, int | bool]:
+    def confirmed_coverage(self, timeframe: str, candle_start_ms: int) -> dict[str, Any]:
         normalized_timeframe = str(timeframe or "").strip().lower()
         target = max(0, int(candle_start_ms))
         with self._lock:
-            confirmed = sum(
-                1
+            eligible = tuple(
+                instrument
                 for instrument in self._required_instruments
+                if len(self._candles.get((instrument, normalized_timeframe)) or ()) >= self.minimum_history
+            )
+            confirmed_instruments = tuple(
+                instrument
+                for instrument in eligible
                 if any(
                     _timestamp(row.get("timestamp")) == target
                     for row in self._candles.get((instrument, normalized_timeframe)) or ()
                 )
             )
-            required = len(self._required_instruments)
+            excluded_instruments = tuple(
+                instrument
+                for instrument in self._required_instruments
+                if instrument not in confirmed_instruments
+            )
+            confirmed = len(confirmed_instruments)
+            required = len(eligible)
             return {
                 "confirmed": confirmed,
                 "required": required,
                 "complete": required > 0 and confirmed == required,
+                "eligibleInstrumentIds": eligible,
+                "confirmedInstrumentIds": confirmed_instruments,
+                "excludedInstrumentIds": excluded_instruments,
             }
 
     def _snapshot_payload_locked(self, instrument: str, timeframe: str) -> dict[str, Any]:

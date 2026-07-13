@@ -393,6 +393,12 @@ def run_evolution_demo_batch_cycle(
     close_received_at = _close_event_value(close_event, "receivedAt")
     close_sequence_id = str(_close_event_value(close_event, "sequenceId") or "")
     close_timeframe = str(_close_event_value(close_event, "timeframe") or "")
+    close_candle_start_ms = int(_close_event_value(close_event, "candleStartMs") or 0)
+    confirmed_instrument_ids = tuple(
+        str(value).strip().upper()
+        for value in (_close_event_value(close_event, "confirmedInstrumentIds") or ())
+        if str(value).strip()
+    )
     if not close_received_at or not close_sequence_id or not close_timeframe:
         return {
             "ok": False,
@@ -422,6 +428,8 @@ def run_evolution_demo_batch_cycle(
         frozen_market = market_runtime.freeze_for_timeframe(
             close_timeframe,
             received_at=_utc_now(),
+            candle_start_ms=close_candle_start_ms or None,
+            allowed_instruments=confirmed_instrument_ids or None,
         )
     except RuntimeError:
         return {
