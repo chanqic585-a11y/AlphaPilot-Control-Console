@@ -23,7 +23,7 @@ status bridge.
 - Does not change immutable research evidence, OKX Demo gates, Live gates,
   process-only credential handling, or the Withdraw boundary.
 
-## What V13.27.9 Adds
+## What AlphaPilot V13.27.9 Adds
 
 - Replaces immutable Top20 Demo releases with rollback-safe Top100 successor
   releases. Strategy rules, direction, target R, and risk envelopes are
