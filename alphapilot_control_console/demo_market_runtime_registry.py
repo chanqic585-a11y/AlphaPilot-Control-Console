@@ -51,6 +51,8 @@ def start_demo_market_runtime(
     close_listener: Callable[[ConfirmedCloseEvent], None] | None = None,
     force: bool = False,
     warm_timeout_seconds: float = 15.0,
+    seed_attempts: int = 5,
+    seed_retry_delay_seconds: float = 0.5,
 ) -> dict[str, Any]:
     global _LAST_STARTUP
     if not force and not _enabled("ALPHAPILOT_OKX_DEMO_AUTOMATION_ENABLED"):
@@ -72,11 +74,19 @@ def start_demo_market_runtime(
             }
             return dict(_LAST_STARTUP)
         runtime = get_demo_market_runtime()
-        refreshed = runtime.refresh_subscriptions(contracts)
+        refreshed: dict[str, Any] = {}
+        attempt_count = 0
+        for attempt_count in range(1, max(1, int(seed_attempts)) + 1):
+            refreshed = runtime.refresh_subscriptions(contracts)
+            if refreshed.get("seeded"):
+                break
+            if attempt_count < max(1, int(seed_attempts)):
+                time.sleep(max(0.0, float(seed_retry_delay_seconds)))
         if not refreshed.get("seeded"):
             _LAST_STARTUP = {
                 "started": False,
                 "blockers": ["demo_market_runtime_seed_failed"],
+                "seedAttemptCount": attempt_count,
                 "refresh": refreshed,
             }
             return dict(_LAST_STARTUP)
@@ -100,6 +110,7 @@ def start_demo_market_runtime(
         _LAST_STARTUP = {
             "started": True,
             "blockers": [],
+            "seedAttemptCount": attempt_count,
             "refresh": refreshed,
             "runtime": runtime_status,
         }

@@ -111,6 +111,84 @@ class OkxPublicMarketRuntimeTests(unittest.TestCase):
         self.assertNotIn("login", json.dumps(batches).lower())
         self.assertNotIn("apikey", json.dumps(batches).lower())
 
+    def test_refresh_requests_one_extra_candle_for_confirmed_history(self) -> None:
+        requested_limits: list[int] = []
+
+        def snapshot_with_open_candle(
+            instrument: str,
+            timeframe: str,
+            limit: int,
+        ) -> dict:
+            requested_limits.append(limit)
+            payload = snapshot_loader(instrument, timeframe, limit)
+            payload["_confirmedCandles"] = [
+                {
+                    "timestamp": index,
+                    "open": 100.0,
+                    "high": 101.0,
+                    "low": 99.0,
+                    "close": 100.0,
+                    "volume": 1_000.0,
+                    "confirmed": True,
+                }
+                for index in range(limit - 1)
+            ]
+            return payload
+
+        state = DemoPrewarmedMarketState(
+            screening_limit=2,
+            minimum_history=260,
+            max_quote_age_seconds=5,
+            clock=lambda: NOW,
+        )
+        runtime = OkxPublicMarketRuntime(
+            state=state,
+            universe_loader=universe_loader,
+            snapshot_loader=snapshot_with_open_candle,
+            metadata_loader=metadata_loader,
+            clock=lambda: NOW,
+        )
+
+        result = runtime.refresh_subscriptions([{"timeframe": "1h"}])
+
+        self.assertEqual(requested_limits, [261, 261])
+        self.assertTrue(result["seeded"])
+
+    def test_refresh_retries_only_missing_seed_inputs(self) -> None:
+        metadata_calls = {instrument: 0 for instrument in INSTRUMENTS}
+        snapshot_calls: list[tuple[str, str]] = []
+
+        def transient_metadata(instrument: str) -> dict:
+            metadata_calls[instrument] += 1
+            if instrument == "ETH-USDT-SWAP" and metadata_calls[instrument] == 1:
+                return {"ok": False, "instId": instrument, "errors": ["temporary"]}
+            return metadata_loader(instrument)
+
+        def counted_snapshot(instrument: str, timeframe: str, limit: int) -> dict:
+            snapshot_calls.append((instrument, timeframe))
+            return snapshot_loader(instrument, timeframe, limit)
+
+        runtime = OkxPublicMarketRuntime(
+            state=DemoPrewarmedMarketState(
+                screening_limit=2,
+                minimum_history=2,
+                max_quote_age_seconds=5,
+                clock=lambda: NOW,
+            ),
+            universe_loader=universe_loader,
+            snapshot_loader=counted_snapshot,
+            metadata_loader=transient_metadata,
+            clock=lambda: NOW,
+        )
+
+        first = runtime.refresh_subscriptions([{"timeframe": "1h"}])
+        second = runtime.refresh_subscriptions([{"timeframe": "1h"}])
+
+        self.assertFalse(first["seeded"])
+        self.assertTrue(second["seeded"])
+        self.assertEqual(metadata_calls, {"BTC-USDT-SWAP": 1, "ETH-USDT-SWAP": 2})
+        self.assertEqual(snapshot_calls, [("BTC-USDT-SWAP", "1h"), ("ETH-USDT-SWAP", "1h")])
+
     def test_confirmed_close_notifies_once_after_every_top_instrument_arrives(self) -> None:
         runtime = self.build_runtime()
         runtime.refresh_subscriptions([{"timeframe": "1h"}])

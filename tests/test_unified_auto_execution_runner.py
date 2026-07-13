@@ -95,16 +95,39 @@ class UnifiedAutoExecutionRunnerTests(unittest.TestCase):
     def test_demo_start_resumes_then_arms_without_order_confirmation(self) -> None:
         controller = FakeController()
         resume_calls: list[str] = []
+        market_start_calls: list[str] = []
         runner = UnifiedAutoExecutionRunner(
             controller=controller,
             demo_resume=lambda: resume_calls.append("resume"),
+            demo_market_start=lambda: market_start_calls.append("start") or {
+                "started": True,
+                "blockers": [],
+            },
         )
 
         result = runner.action("okx_demo", "start", {})
 
         self.assertTrue(result["ok"])
         self.assertEqual(resume_calls, ["resume"])
+        self.assertEqual(market_start_calls, ["start"])
         self.assertEqual(controller.actions[:2], [("okx_demo", "arm"), ("okx_demo", "start")])
+
+    def test_demo_start_does_not_arm_when_public_market_warmup_fails(self) -> None:
+        controller = FakeController()
+        runner = UnifiedAutoExecutionRunner(
+            controller=controller,
+            demo_resume=lambda: None,
+            demo_market_start=lambda: {
+                "started": False,
+                "blockers": ["demo_market_runtime_seed_failed"],
+            },
+        )
+
+        result = runner.action("okx_demo", "start", {})
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["blockers"], ["demo_market_runtime_seed_failed"])
+        self.assertEqual(controller.actions, [])
 
     def test_status_exposes_each_environments_last_heartbeat_result(self) -> None:
         controller = FakeController()

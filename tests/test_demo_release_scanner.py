@@ -136,6 +136,21 @@ class DemoReleaseScannerTests(unittest.TestCase):
         self.assertEqual(result["signals"], [])
         self.assertIn("prewarmed_market_snapshot_missing", result["blockers"])
 
+    def test_instrument_with_short_history_is_rejected_without_blocking_batch(self) -> None:
+        short = snapshot("BTC-USDT-SWAP", "1h", 100)
+        short["historyReady"] = False
+        short["requiredHistoryCount"] = 260
+
+        result = scan_immutable_demo_release(
+            contract(),
+            snapshot_loader=lambda *_args: short,
+            metadata_loader=metadata,
+        )
+
+        self.assertEqual(result["blockers"], [])
+        self.assertEqual(result["signals"], [])
+        self.assertEqual(result["rejections"][0]["reason"], "insufficient_confirmed_history")
+
     def test_scanner_binds_signal_to_release_and_sizes_from_public_metadata(self) -> None:
         result = scan_immutable_demo_release(
             contract(), snapshot_loader=snapshot, metadata_loader=metadata

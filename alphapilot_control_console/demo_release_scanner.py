@@ -444,6 +444,13 @@ def scan_immutable_demo_release(
                 "blockers": ["prewarmed_market_snapshot_missing"],
                 "createsOrder": False,
             }
+        if btc_snapshot.get("historyReady") is False:
+            return {
+                "signals": [],
+                "rejections": [],
+                "blockers": ["btc_context_history_insufficient"],
+                "createsOrder": False,
+            }
         snapshot_cache["BTC-USDT-SWAP"] = btc_snapshot
         btc_context = _btc_context(btc_snapshot) if btc_snapshot.get("ok") else {}
     for instrument in ordered_instruments:
@@ -455,6 +462,20 @@ def scan_immutable_demo_release(
                 "blockers": ["prewarmed_market_snapshot_missing"],
                 "createsOrder": False,
             }
+        if snapshot.get("historyReady") is False:
+            if instrument in candidate_by_id:
+                candidate_by_id[instrument]["scanStatus"] = "rejected"
+                candidate_by_id[instrument]["reason"] = "insufficient_confirmed_history"
+            rejections.append(
+                {
+                    "instId": instrument,
+                    "reason": "insufficient_confirmed_history",
+                    "confirmedCandleCount": int(snapshot.get("confirmedCandleCount") or 0),
+                    "requiredHistoryCount": int(snapshot.get("requiredHistoryCount") or snapshot_limit),
+                }
+            )
+            completed += 1
+            continue
         metadata = metadata_loader(instrument)
         if metadata.get("prewarmedMarketMissing") is True:
             return {

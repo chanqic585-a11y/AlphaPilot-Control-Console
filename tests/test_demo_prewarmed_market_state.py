@@ -166,6 +166,23 @@ class DemoPrewarmedMarketStateTests(unittest.TestCase):
         self.assertFalse(status["warm"])
         self.assertIn("BTC-USDT-SWAP", status["staleQuotes"])
 
+    def test_short_history_is_individually_ineligible_without_blocking_runtime(self) -> None:
+        state = self.build_state()
+        short = snapshot("ETH-USDT-SWAP", 100.0)
+        short["_confirmedCandles"] = short["_confirmedCandles"][:1]
+        state.seed_snapshot("ETH-USDT-SWAP", "1h", short)
+
+        status = state.status()
+        frozen = state.freeze_for_timeframe("1h", received_at=NOW)
+        eth = frozen.load_snapshot("ETH-USDT-SWAP", "1h", 260)
+
+        self.assertTrue(status["warm"])
+        self.assertTrue(status["synchronized"])
+        self.assertEqual(status["readyInstrumentCount"], 1)
+        self.assertIn("ETH-USDT-SWAP:1h", status["insufficientHistory"])
+        self.assertFalse(eth["historyReady"])
+        self.assertEqual(eth["requiredHistoryCount"], 2)
+
     def test_credential_like_fields_are_rejected(self) -> None:
         state = DemoPrewarmedMarketState(screening_limit=1, minimum_history=1)
 

@@ -115,6 +115,27 @@ class OkxPublicMarketRuntime:
         _assert_public_payload(universe)
         self.state.seed_universe(universe, timeframes=timeframes)
         instruments = self.state.required_instruments()
+        seed_status = self.state.status()
+        missing_metadata = {
+            str(value)
+            for value in seed_status.get("missingMetadata", [])
+            if str(value)
+        }
+        missing_snapshots = {
+            tuple(str(value).rsplit(":", 1))
+            for value in seed_status.get("missingSnapshots", [])
+            if ":" in str(value)
+        }
+        metadata_targets = [
+            instrument for instrument in instruments if instrument in missing_metadata
+        ]
+        snapshot_targets = [
+            (instrument, timeframe)
+            for instrument in instruments
+            for timeframe in timeframes
+            if (instrument, timeframe) in missing_snapshots
+        ]
+        seed_candle_limit = min(300, max(20, self.state.minimum_history + 1))
         failures: list[str] = []
 
         def load_metadata(instrument: str) -> tuple[str, dict[str, Any]]:
@@ -124,15 +145,17 @@ class OkxPublicMarketRuntime:
             return instrument, timeframe, self.snapshot_loader(
                 instrument,
                 timeframe,
-                max(260, self.state.minimum_history),
+                seed_candle_limit,
             )
 
         with ThreadPoolExecutor(max_workers=self.seed_workers) as executor:
-            metadata_futures = [executor.submit(load_metadata, instrument) for instrument in instruments]
+            metadata_futures = [
+                executor.submit(load_metadata, instrument)
+                for instrument in metadata_targets
+            ]
             snapshot_futures = [
                 executor.submit(load_snapshot, instrument, timeframe)
-                for instrument in instruments
-                for timeframe in timeframes
+                for instrument, timeframe in snapshot_targets
             ]
             for future in as_completed(metadata_futures):
                 try:

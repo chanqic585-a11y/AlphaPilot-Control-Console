@@ -32,6 +32,18 @@ class FakeRuntime:
         return None
 
 
+class RetryRuntime(FakeRuntime):
+    def __init__(self) -> None:
+        super().__init__()
+        self.refresh_calls = 0
+
+    def refresh_subscriptions(self, _contracts: list[dict]) -> dict:
+        self.refresh_calls += 1
+        if self.refresh_calls == 1:
+            return {"seeded": False, "failures": ["metadata:ETH-USDT-SWAP"]}
+        return {"seeded": True, "failures": []}
+
+
 class DemoMarketRuntimeRegistryTests(unittest.TestCase):
     def test_start_waits_for_warm_public_runtime_before_reporting_ready(self) -> None:
         fake = FakeRuntime()
@@ -52,6 +64,26 @@ class DemoMarketRuntimeRegistryTests(unittest.TestCase):
         self.assertTrue(result["started"])
         self.assertTrue(result["runtime"]["warm"])
         self.assertIs(fake.listener, listener)
+
+    def test_start_retries_transient_public_seed_failures(self) -> None:
+        fake = RetryRuntime()
+        with patch.object(registry, "_RUNTIME", fake), patch.object(
+            registry, "_LAST_STARTUP", {"started": False}
+        ), patch(
+            "alphapilot_control_console.evolution_demo_service.discover_demo_contracts",
+            return_value=([{"demoReleaseId": "release-1"}], []),
+        ), patch.dict(
+            os.environ, {"ALPHAPILOT_OKX_DEMO_AUTOMATION_ENABLED": "1"}, clear=False
+        ):
+            result = registry.start_demo_market_runtime(
+                seed_attempts=2,
+                seed_retry_delay_seconds=0,
+                warm_timeout_seconds=0.2,
+            )
+
+        self.assertTrue(result["started"])
+        self.assertEqual(result["seedAttemptCount"], 2)
+        self.assertEqual(fake.refresh_calls, 2)
 
 
 if __name__ == "__main__":

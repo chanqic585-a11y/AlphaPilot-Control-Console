@@ -416,6 +416,8 @@ class DemoPrewarmedMarketState:
             "receivedAt": quote.get("receivedAt"),
             "latestCandleAt": latest.get("timestamp"),
             "confirmedCandleCount": len(candles),
+            "historyReady": len(candles) >= self.minimum_history,
+            "requiredHistoryCount": self.minimum_history,
             "_confirmedCandles": candles,
             "apiKeyUsed": False,
             "privateEndpointsUsed": False,
@@ -429,11 +431,16 @@ class DemoPrewarmedMarketState:
             for instrument in self._required_instruments
             if not (self._metadata.get(instrument) or {}).get("ok")
         ]
-        missing_history: list[str] = []
+        missing_snapshots: list[str] = []
+        insufficient_history: list[str] = []
         for instrument in self._required_instruments:
             for timeframe in self._timeframes:
-                if len(self._candles.get((instrument, timeframe)) or ()) < self.minimum_history:
-                    missing_history.append(f"{instrument}:{timeframe}")
+                candle_count = len(self._candles.get((instrument, timeframe)) or ())
+                key = f"{instrument}:{timeframe}"
+                if candle_count == 0:
+                    missing_snapshots.append(key)
+                if candle_count < self.minimum_history:
+                    insufficient_history.append(key)
         stale_quotes: list[str] = []
         for instrument in self._required_instruments:
             quote = self._quotes.get(instrument) or {}
@@ -447,11 +454,15 @@ class DemoPrewarmedMarketState:
             if instrument not in missing_metadata
             and instrument not in stale_quotes
             and all(
-                f"{instrument}:{timeframe}" not in missing_history
+                f"{instrument}:{timeframe}" not in insufficient_history
                 for timeframe in self._timeframes
             )
         ]
-        synchronized = bool(self._universe_instruments and self._timeframes) and not missing_metadata and not missing_history
+        synchronized = (
+            bool(self._universe_instruments and self._timeframes)
+            and not missing_metadata
+            and not missing_snapshots
+        )
         warm = synchronized and not stale_quotes and len(self._universe_instruments) == self.screening_limit
         return {
             "source": "demo_prewarmed_market_state_v1",
@@ -463,7 +474,9 @@ class DemoPrewarmedMarketState:
             "readyInstrumentCount": len(ready_instruments),
             "timeframes": list(self._timeframes),
             "missingMetadata": missing_metadata,
-            "missingHistory": missing_history,
+            "missingSnapshots": missing_snapshots,
+            "missingHistory": insufficient_history,
+            "insufficientHistory": insufficient_history,
             "staleQuotes": stale_quotes,
             "generatedAt": now.isoformat(),
             "publicOnly": True,
