@@ -3,12 +3,25 @@
 Current version:
 
 ```text
-AlphaPilot V13.27.9 - Top100 Demo Release and Low-Latency Public Runtime
+AlphaPilot V13.27.11 - Formal Backtest Progress Semantics
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
 AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
+
+## What V13.27.11 Adds
+
+- Distinguishes a first official-data download from a shared-warehouse tail
+  refresh, an existing contract checkpoint check, and fully ready shared data.
+- Shows how many historical K-lines were reused when only the latest public OKX
+  tail is being collected.
+- Separates official-data partition progress from formal backtest computation;
+  a 100% data counter no longer implies that the formal result is complete.
+- Matches the Quant Engine bounded pipeline: one formal compute worker and one
+  next-strategy official-data prefetch worker.
+- Does not change immutable research evidence, OKX Demo gates, Live gates,
+  process-only credential handling, or the Withdraw boundary.
 
 ## What V13.27.9 Adds
 

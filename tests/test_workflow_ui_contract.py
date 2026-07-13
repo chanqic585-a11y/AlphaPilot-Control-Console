@@ -159,6 +159,18 @@ class WorkflowUiContractTests(unittest.TestCase):
         self.assertIn("rowCount", self.js)
         self.assertIn("控制台重启后会从当前检查点自动继续", self.html)
 
+    def test_official_data_progress_distinguishes_reuse_from_download(self) -> None:
+        self.assertIn("function officialPreparationModeLabel", self.js)
+        for label in (
+            "首次下载官方数据",
+            "复用共享仓并补齐最新 K 线",
+            "校验已有正式数据",
+            "共享官方数据已就绪",
+            "正式回测计算中",
+            "根历史 K 线已复用",
+        ):
+            self.assertIn(label, self.js)
+
     def test_demo_cards_show_permanent_evidence_and_full_market_summary(self) -> None:
         for label in (
             "证据清单",

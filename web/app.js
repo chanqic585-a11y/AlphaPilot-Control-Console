@@ -1186,12 +1186,30 @@ function dualLayerReadableFailure(item) {
   }).join("；");
 }
 
+function officialPreparationModeLabel(mode, active = false) {
+  const labels = {
+    initial_download: active ? "首次下载官方数据" : "准备首次下载官方数据",
+    shared_incremental_refresh: "复用共享仓并补齐最新 K 线",
+    contract_checkpoint_reuse: "校验已有正式数据",
+    shared_cache_ready: "共享官方数据已就绪",
+  };
+  return labels[String(mode || "")] || (active ? "准备官方数据" : "官方数据准备中");
+}
+
 function dualLayerProgressText(item) {
   const phase = item?.phase || item?.progress?.phase;
   const label = dualLayerPhaseLabels[phase] || item?.phaseLabel || dualLayerStatusLabels[item?.status] || "等待运行";
   const download = item?.downloadProgress || {};
   const completed = Number(download.completed || 0);
   const required = Number(download.required || 0);
+  if (phase === "formal_backtest_running") {
+    if (item?.status === "queued") return "官方数据已就绪 · 排队等待正式回测";
+    if (item?.status === "paused") return "正式回测已暂停 · 官方数据已就绪";
+    return "正式回测计算中 · 官方数据已就绪";
+  }
+  if (["preparing_official_data", "validating_official_data"].includes(phase) && required > 0) {
+    return `${officialPreparationModeLabel(download.mode)} · 数据分区 ${completed}/${required}`;
+  }
   return required > 0 ? `${label} · 数据分区 ${completed}/${required}` : label;
 }
 
@@ -1204,6 +1222,15 @@ function dualLayerProgressModel(item) {
   let completed = Number(downloadProgress.completed ?? workflowProgress.completed ?? 0);
   let required = Number(downloadProgress.required ?? workflowProgress.required ?? 0);
   let percent = Number(workflowProgress.percent);
+
+  if (phase === "formal_backtest_running") {
+    const completedPhases = Array.isArray(workflowProgress.completedPhases)
+      ? workflowProgress.completedPhases.length
+      : Math.max(0, phases.indexOf(phase));
+    completed = completedPhases;
+    required = Math.max(1, phases.indexOf("evaluating_gate") + 1);
+    percent = (completed / required) * 100;
+  }
 
   if (!Number.isFinite(percent)) {
     percent = required > 0 ? (completed / required) * 100 : 0;
@@ -1228,10 +1255,26 @@ function dualLayerProgressModel(item) {
 }
 
 function renderOfficialDownloadProgress(item) {
-  const active = item?.downloadProgress?.active;
-  if (!active) return "";
+  const progress = item?.downloadProgress || {};
+  const active = progress.active;
+  const phase = item?.phase || item?.progress?.phase;
+  if (!active) {
+    if (!["preparing_official_data", "validating_official_data"].includes(phase)) return "";
+    const completed = Math.max(0, Number(progress.completed || 0));
+    const required = Math.max(completed, Number(progress.required || 0));
+    return `
+      <div class="official-download-progress">
+        <div class="official-download-progress-head">
+          <strong>${escapeHtml(officialPreparationModeLabel(progress.mode))}</strong>
+          <span>${completed.toLocaleString("zh-CN")} / ${required.toLocaleString("zh-CN")} 个数据分区</span>
+        </div>
+        <small>当前策略会复用相同交易所、周期和覆盖范围的共享官方数据。</small>
+      </div>
+    `;
+  }
   const requestCount = Math.max(0, Number(active.requestCount || 0));
   const rowCount = Math.max(0, Number(active.rowCount || 0));
+  const baseRows = Math.max(0, Number(active.baseRows || 0));
   const maxPages = Math.max(0, Number(active.maxPages || 0));
   const projectedPercent = maxPages > 0 ? (requestCount / maxPages) * 100 : 0;
   const percentValue = Number.isFinite(Number(active.percent))
@@ -1242,12 +1285,15 @@ function renderOfficialDownloadProgress(item) {
   const pageText = maxPages > 0
     ? `${requestCount.toLocaleString("zh-CN")} / ${maxPages.toLocaleString("zh-CN")} 页`
     : `${requestCount.toLocaleString("zh-CN")} 页`;
+  const rowText = active.mode === "shared_incremental_refresh"
+    ? `${baseRows.toLocaleString("zh-CN")} 根历史 K 线已复用 · 本次新增 ${rowCount.toLocaleString("zh-CN")} 根`
+    : `${rowCount.toLocaleString("zh-CN")} 根 K 线`;
   const updatedText = active.updatedAt ? `更新 ${formatDate(active.updatedAt)}（北京时间）` : "正在等待首个页级检查点";
   return `
     <div class="official-download-progress">
       <div class="official-download-progress-head">
-        <strong>正在下载 ${escapeHtml(partition)}</strong>
-        <span>${escapeHtml(pageText)} · ${rowCount.toLocaleString("zh-CN")} 根 K 线</span>
+        <strong>${escapeHtml(officialPreparationModeLabel(active.mode, true))} · ${escapeHtml(partition)}</strong>
+        <span>${escapeHtml(pageText)} · ${escapeHtml(rowText)}</span>
       </div>
       <div class="official-download-progress-track"><i style="width:${percent.toFixed(1)}%"></i></div>
       <small>${escapeHtml(updatedText)} · 分区进度 ${percent.toFixed(1)}%</small>
