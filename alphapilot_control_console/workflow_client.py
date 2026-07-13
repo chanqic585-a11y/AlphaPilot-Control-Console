@@ -31,6 +31,7 @@ ALLOWED_COMMANDS = {
     "projection",
     "queue",
     "recover",
+    "recover-structural-redesigns",
     "retry",
     "run",
     "one-click-backtest",
@@ -129,6 +130,7 @@ def build_workflow_projection(
         "selectedBacktests": True,
         "selectedForwardCycles": True,
         "boundedOptimizationRecovery": True,
+        "structuralRedesignRecovery": True,
         "serialBacktestDrain": True,
     }
     for bucket in ("items", "archivedItems"):

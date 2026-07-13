@@ -256,6 +256,7 @@ let workflowPollTimer = null;
 let activeOptimizationContext = null;
 let workflowBatchBackendReady = false;
 let workflowOptimizationBackendReady = false;
+let workflowStructuralRedesignBackendReady = false;
 let demoWorkflowBatchBackendReady = false;
 const workflowSelection = {
   backtest: new Set(),
@@ -1385,6 +1386,37 @@ function dualLayerOptimizationStatus(item) {
   return messages[status] || messages.reviewed;
 }
 
+function dualLayerStructuralRedesignStatus(item) {
+  if (!workflowStructuralRedesignBackendReady) return "";
+  const campaign = item?.structuralRedesignCampaign || {};
+  const generation = Number(campaign.generation || 0);
+  const maxGenerations = Number(campaign.maxGenerations || 3);
+  if (!campaign.campaignId && !campaign.stopReason && generation <= 0) return "";
+  const stoppedMessages = {
+    structural_generation_budget_exhausted: "结构重设计已达到最多 3 代，弱势父版本已归档。",
+    no_novel_structural_recipe: "没有新的受控结构配方可用，弱势父版本已归档。",
+  };
+  if (campaign.stopReason) {
+    return stoppedMessages[campaign.stopReason] || `结构重设计已停止：${campaign.stopReason}`;
+  }
+  const parts = [`自动重设计 ${generation}/${maxGenerations}`];
+  if (campaign.parentStatus === "archived") parts.push("失败父版本已归档");
+  if (campaign.childStrategyVersionId) parts.push("生成子策略");
+  const childStatusLabels = {
+    queued: "子回测已排队",
+    running: "子回测运行中",
+    passed: "子回测已通过",
+    failed: "子回测未通过",
+    blocked: "子回测被阻塞",
+    archived: "子版本已归档",
+  };
+  if (campaign.childStatus) {
+    parts.push(childStatusLabels[campaign.childStatus] || `子版本 ${campaign.childStatus}`);
+  }
+  if (campaign.recipeSummary) parts.push(campaign.recipeSummary);
+  return parts.join(" · ");
+}
+
 function dualLayerNextStep(item) {
   if (item.status === "passed") return "正式门槛已通过，系统将自动进入本地前向。";
   if (item.status === "failed") {
@@ -1412,6 +1444,7 @@ function renderDualLayerCard(item, archived = false) {
   const runProgress = dualLayerProgressModel(item);
   const issueKey = archived ? "" : strategyIssueKey(item);
   const optimizationStatus = dualLayerOptimizationStatus(item);
+  const structuralRedesignStatus = dualLayerStructuralRedesignStatus(item);
   const selectable = workflowBatchBackendReady && !archived && ["awaiting", "paused"].includes(item.status);
   const selected = selectable && workflowSelection.backtest.has(item.workflowRunId);
   return `
@@ -1429,6 +1462,7 @@ function renderDualLayerCard(item, archived = false) {
       ${metrics.length ? `<div class="workflow-metrics">${metrics.map((row) => `<span>${escapeHtml(row)}</span>`).join("")}</div>` : ""}
       ${failure && failure !== "--" ? `<div class="workflow-failure"><strong>${escapeHtml(failure)}</strong></div>` : ""}
       ${optimizationStatus ? `<div class="workflow-optimization-status">${escapeHtml(optimizationStatus)}</div>` : ""}
+      ${structuralRedesignStatus ? `<div class="workflow-optimization-status">${escapeHtml(structuralRedesignStatus)}</div>` : ""}
       <p class="workflow-next-step">${escapeHtml(dualLayerNextStep(item))}</p>
       ${actions.length || issueKey ? `<div class="workflow-actions">${actions.map((action) => `<button type="button" class="${action.primary ? "" : "secondary"}" data-workflow-action="${escapeHtml(action.action)}" data-workflow-run-id="${escapeHtml(item.workflowRunId || "")}" data-strategy-version-id="${escapeHtml(item.strategyVersionId || "")}">${escapeHtml(action.label)}</button>`).join("")}${issueKey ? `<button type="button" class="secondary" data-issue-guidance-key="${escapeHtml(issueKey)}">查看处理办法</button>` : ""}</div>` : ""}
       <details class="workflow-details"><summary>高级详情</summary><div>
@@ -1456,6 +1490,7 @@ function renderDualLayerWorkflow(payload = emptyWorkflow) {
   latestWorkflowPayload = payload || emptyWorkflow;
   workflowBatchBackendReady = payload?.controlConsoleVersion === "V13.27.9";
   workflowOptimizationBackendReady = payload?.capabilities?.boundedOptimizationRecovery === true;
+  workflowStructuralRedesignBackendReady = payload?.capabilities?.structuralRedesignRecovery === true;
   const items = Array.isArray(payload?.items) ? payload.items.filter((item) => item.stage === "backtest") : [];
   const archived = Array.isArray(payload?.archivedItems) ? payload.archivedItems.filter((item) => item.stage === "backtest") : [];
   const awaiting = items.filter((item) => item.status === "awaiting");

@@ -39,6 +39,17 @@ class WorkflowUiContractTests(unittest.TestCase):
         )
         self.assertIn("当前控制台后端未加载自动优化", self.js)
 
+    def test_structural_redesign_lifecycle_requires_explicit_capability(self) -> None:
+        self.assertIn(
+            "payload?.capabilities?.structuralRedesignRecovery === true",
+            self.js,
+        )
+        self.assertIn("自动重设计 ${generation}/${maxGenerations}", self.js)
+        self.assertIn("失败父版本已归档", self.js)
+        self.assertIn("生成子策略", self.js)
+        self.assertIn("结构重设计已达到最多 3 代", self.js)
+        self.assertIn("没有新的受控结构配方可用", self.js)
+
     def test_local_and_demo_lifecycle_cards_expose_optimization_action(self) -> None:
         self.assertIn('data-lifecycle-action="optimize"', self.js)
         self.assertIn("openStrategyOptimizationDialog", self.js)

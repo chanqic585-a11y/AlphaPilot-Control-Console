@@ -49,6 +49,7 @@ class WorkflowClientTests(unittest.TestCase):
         self.assertTrue(projection["capabilities"]["selectedBacktests"])
         self.assertTrue(projection["capabilities"]["selectedForwardCycles"])
         self.assertTrue(projection["capabilities"]["boundedOptimizationRecovery"])
+        self.assertTrue(projection["capabilities"]["structuralRedesignRecovery"])
         self.assertTrue(projection["capabilities"]["serialBacktestDrain"])
 
     def test_request_run_uses_serial_batch_worker_that_drains_queued_runs(self) -> None:
