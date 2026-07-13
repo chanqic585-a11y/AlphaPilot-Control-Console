@@ -70,6 +70,9 @@ def _std(values: list[float]) -> float | None:
 
 
 def _factors(snapshot: dict[str, Any]) -> dict[str, float | None]:
+    precomputed = snapshot.get("_precomputedFactors")
+    if isinstance(precomputed, dict) and precomputed:
+        return dict(precomputed)
     candles = snapshot.get("_confirmedCandles")
     rows = candles if isinstance(candles, list) else []
     closes = [float(row["close"]) for row in rows if isinstance(row, dict) and row.get("close")]
@@ -428,11 +431,32 @@ def scan_immutable_demo_release(
     btc_context: dict[str, Any] = {}
     if family_policy:
         btc_snapshot = snapshot_loader("BTC-USDT-SWAP", timeframe, snapshot_limit)
+        if btc_snapshot.get("prewarmedMarketMissing") is True:
+            return {
+                "signals": [],
+                "rejections": [],
+                "blockers": ["prewarmed_market_snapshot_missing"],
+                "createsOrder": False,
+            }
         snapshot_cache["BTC-USDT-SWAP"] = btc_snapshot
         btc_context = _btc_context(btc_snapshot) if btc_snapshot.get("ok") else {}
     for instrument in ordered_instruments:
         snapshot = snapshot_cache.get(instrument) or snapshot_loader(instrument, timeframe, snapshot_limit)
+        if snapshot.get("prewarmedMarketMissing") is True:
+            return {
+                "signals": [],
+                "rejections": rejections,
+                "blockers": ["prewarmed_market_snapshot_missing"],
+                "createsOrder": False,
+            }
         metadata = metadata_loader(instrument)
+        if metadata.get("prewarmedMarketMissing") is True:
+            return {
+                "signals": [],
+                "rejections": rejections,
+                "blockers": ["prewarmed_market_metadata_missing"],
+                "createsOrder": False,
+            }
         latest_ms = int(snapshot.get("latestCandleAt") or 0)
         fresh = latest_ms > 0 and now_ms - latest_ms <= _TIMEFRAME_MS.get(timeframe, 0) * 2
         spread = snapshot.get("spreadPct")

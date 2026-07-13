@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 import unittest
+from unittest.mock import patch
 
 from alphapilot_control_console.demo_release_scanner import scan_immutable_demo_release
 
@@ -104,6 +105,37 @@ def trending_snapshot(_symbol: str, _timeframe: str, _limit: int) -> dict:
 
 
 class DemoReleaseScannerTests(unittest.TestCase):
+    def test_scanner_uses_prewarmed_precomputed_factors(self) -> None:
+        prewarmed = snapshot("BTC-USDT-SWAP", "1h", 100)
+        prewarmed["_precomputedFactors"] = {"rsi_14": 55.0}
+
+        with patch(
+            "alphapilot_control_console.demo_release_scanner._rsi",
+            side_effect=AssertionError("indicators must not be recomputed"),
+        ):
+            result = scan_immutable_demo_release(
+                contract(),
+                snapshot_loader=lambda *_args: prewarmed,
+                metadata_loader=metadata,
+            )
+
+        self.assertEqual(result["blockers"], [])
+        self.assertEqual(len(result["signals"]), 1)
+
+    def test_missing_prewarmed_snapshot_fails_closed_without_rest_fallback(self) -> None:
+        result = scan_immutable_demo_release(
+            contract(),
+            snapshot_loader=lambda *_args: {
+                "ok": False,
+                "prewarmedMarketMissing": True,
+                "errors": ["prewarmed_market_snapshot_missing"],
+            },
+            metadata_loader=metadata,
+        )
+
+        self.assertEqual(result["signals"], [])
+        self.assertIn("prewarmed_market_snapshot_missing", result["blockers"])
+
     def test_scanner_binds_signal_to_release_and_sizes_from_public_metadata(self) -> None:
         result = scan_immutable_demo_release(
             contract(), snapshot_loader=snapshot, metadata_loader=metadata
