@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import UTC, datetime
 from typing import Any
+from typing import Callable
 
 from .demo_execution_store import DemoExecutionRecord, DemoExecutionStore
 from .demo_risk_envelope import evaluate_demo_order_risk
@@ -13,6 +15,10 @@ from .execution_outcome_store import ExecutionOutcomeStore, FormalExecutionOutco
 
 _TERMINAL = {"filled", "canceled", "rejected", "mmp_canceled"}
 _SENSITIVE_KEY_PARTS = ("apikey", "secretkey", "passphrase", "password", "credential", "accesstoken")
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
 
 
 def _canonical(value: Any) -> str:
@@ -44,10 +50,12 @@ class DemoExecutionEngine:
         client: Any,
         store: DemoExecutionStore,
         outcomeStore: ExecutionOutcomeStore | None = None,
+        clock: Callable[[], datetime] = _utc_now,
     ):
         self.client = client
         self.store = store
         self.outcomeStore = outcomeStore
+        self.clock = clock
 
     def execute(
         self,
@@ -120,8 +128,10 @@ class DemoExecutionEngine:
         )
         if record.status != "prepared":
             return record
+        order_sent_at = self.clock().astimezone(UTC)
         try:
             response = self.client.place_order(order_payload)
+            response_received_at = self.clock().astimezone(UTC)
             order = _first_order(response)
             accepted = str(response.get("code")) == "0" and str(order.get("sCode", "0")) == "0"
             status = "submitted" if accepted else "rejected"
@@ -129,16 +139,30 @@ class DemoExecutionEngine:
                 record.recordId,
                 status=status,
                 exchangeOrderId=str(order.get("ordId") or "") or None,
-                exchangeResponse=response,
+                exchangeResponse={
+                    **response,
+                    "_alphaPilotTiming": {
+                        "orderSentAt": order_sent_at.isoformat(),
+                        "exchangeResponseReceivedAt": response_received_at.isoformat(),
+                    },
+                },
             )
             if not accepted:
                 self.pause("order_rejected")
             return updated
         except Exception as error:
+            response_received_at = self.clock().astimezone(UTC)
             self.store.update_record(
                 record.recordId,
                 status="unknown",
-                exchangeResponse={"errorType": type(error).__name__, "message": "Demo order state is unknown"},
+                exchangeResponse={
+                    "errorType": type(error).__name__,
+                    "message": "Demo order state is unknown",
+                    "_alphaPilotTiming": {
+                        "orderSentAt": order_sent_at.isoformat(),
+                        "exchangeResponseReceivedAt": response_received_at.isoformat(),
+                    },
+                },
             )
             self.pause("order_state_unknown")
             raise

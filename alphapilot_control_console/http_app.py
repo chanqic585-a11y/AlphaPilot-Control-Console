@@ -30,6 +30,7 @@ from .evolution_demo_service import (
     run_evolution_demo_cycle,
 )
 from .demo_workflow_service import build_demo_workflow_status, run_demo_workflow_action
+from .demo_market_runtime_registry import start_demo_market_runtime, stop_demo_market_runtime
 from .execution_outcome_export import (
     build_execution_outcome_status,
     write_execution_outcome_export,
@@ -134,6 +135,7 @@ from .unified_auto_execution_runner import (
     run_unified_auto_execution_action,
     start_unified_auto_execution_runner,
     stop_unified_auto_execution_runner,
+    wake_unified_auto_execution_runner,
 )
 
 
@@ -1247,6 +1249,14 @@ def run_server(host: str, port: int) -> None:
     server = ThreadingHTTPServer((host, port), ConsoleHandler)
     start_local_sandbox_auto_runner()
     resume_incomplete_workflow_runs()
+    market_runtime = start_demo_market_runtime(
+        close_listener=wake_unified_auto_execution_runner,
+    )
+    if market_runtime.get("blockers") and not market_runtime.get("disabled"):
+        print(
+            "OKX public market runtime is not ready; Demo automatic execution remains disabled: "
+            + ",".join(str(value) for value in market_runtime.get("blockers", []))
+        )
     start_unified_auto_execution_runner()
     print(f"AlphaPilot Control Console running at http://{host}:{port}")
     print("Research, OKX Demo, and gated Live Canary control. Credentials are process-only; Withdraw is absent.")
@@ -1254,6 +1264,7 @@ def run_server(host: str, port: int) -> None:
         server.serve_forever()
     finally:
         stop_unified_auto_execution_runner()
+        stop_demo_market_runtime()
         stop_local_sandbox_auto_runner()
 
 

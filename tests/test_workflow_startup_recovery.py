@@ -58,6 +58,8 @@ class WorkflowStartupRecoveryTests(unittest.TestCase):
 
     def test_server_startup_recovers_interrupted_workflows(self) -> None:
         server = Mock()
+        lifecycle: list[str] = []
+        server.serve_forever.side_effect = lambda: lifecycle.append("serve")
 
         with patch.object(
             http_app, "ThreadingHTTPServer", return_value=server
@@ -69,13 +71,29 @@ class WorkflowStartupRecoveryTests(unittest.TestCase):
             http_app, "stop_unified_auto_execution_runner"
         ) as stop_auto, patch.object(
             http_app, "resume_incomplete_workflow_runs"
-        ) as resume:
+        ) as resume, patch.object(
+            http_app,
+            "start_demo_market_runtime",
+            side_effect=lambda **_kwargs: lifecycle.append("market_start") or {"started": True},
+        ) as start_market, patch.object(
+            http_app,
+            "stop_demo_market_runtime",
+            side_effect=lambda: lifecycle.append("market_stop"),
+        ) as stop_market:
+            start_auto.side_effect = lambda: lifecycle.append("auto_start")
+            stop_auto.side_effect = lambda: lifecycle.append("auto_stop")
             http_app.run_server("127.0.0.1", 8877)
 
         resume.assert_called_once_with()
         start_auto.assert_called_once_with()
         stop_auto.assert_called_once_with()
+        start_market.assert_called_once()
+        stop_market.assert_called_once_with()
         server.serve_forever.assert_called_once_with()
+        self.assertEqual(
+            lifecycle,
+            ["market_start", "auto_start", "serve", "auto_stop", "market_stop"],
+        )
 
     def test_health_payload_reports_startup_recovery_state(self) -> None:
         recovery = {

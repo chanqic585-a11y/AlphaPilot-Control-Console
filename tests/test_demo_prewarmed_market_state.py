@@ -116,6 +116,25 @@ class DemoPrewarmedMarketStateTests(unittest.TestCase):
         self.assertEqual(frozen.load_snapshot("ETH-USDT-SWAP", "1h", 260)["price"], 100.0)
         self.assertEqual(frozen.quote("ETH-USDT-SWAP")["askPrice"], 100.01)
 
+    def test_factors_are_precomputed_once_when_confirmed_market_state_changes(self) -> None:
+        state = self.build_state()
+        seeded = state.freeze_for_timeframe("1h", received_at=NOW).load_snapshot(
+            "ETH-USDT-SWAP", "1h", 260
+        )
+
+        state.apply_candle(
+            "ETH-USDT-SWAP",
+            "1h",
+            candle(3_000, 101.0, confirmed=True),
+            received_at=NOW,
+        )
+        updated = state.freeze_for_timeframe("1h", received_at=NOW).load_snapshot(
+            "ETH-USDT-SWAP", "1h", 260
+        )
+
+        self.assertEqual(seeded["_precomputedFactors"]["close"], 100.0)
+        self.assertEqual(updated["_precomputedFactors"]["close"], 101.0)
+
     def test_state_is_warm_only_when_every_required_public_input_exists(self) -> None:
         state = self.build_state()
 

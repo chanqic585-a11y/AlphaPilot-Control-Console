@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Callable, Iterable
 
+from .demo_release_scanner import calculate_demo_factors
+
 
 _SENSITIVE_KEYS = {
     "apikey",
@@ -61,6 +63,34 @@ def _timestamp(value: Any) -> int:
     except (TypeError, ValueError):
         return 0
     return max(0, result)
+
+
+def _atr14(candles: list[dict[str, Any]]) -> float | None:
+    if len(candles) < 15:
+        return None
+    true_ranges: list[float] = []
+    for previous, current in zip(candles[-15:-1], candles[-14:]):
+        try:
+            high = float(current["high"])
+            low = float(current["low"])
+            previous_close = float(previous["close"])
+        except (KeyError, TypeError, ValueError):
+            return None
+        true_ranges.append(max(high - low, abs(high - previous_close), abs(low - previous_close)))
+    return sum(true_ranges) / len(true_ranges) if true_ranges else None
+
+
+def _precomputed_extras(
+    extras: dict[str, Any],
+    candles: list[dict[str, Any]],
+) -> dict[str, Any]:
+    updated = copy.deepcopy(extras)
+    atr = _atr14(candles)
+    if atr is not None:
+        updated["atr14"] = atr
+    factor_input = {**updated, "_confirmedCandles": candles}
+    updated["_precomputedFactors"] = calculate_demo_factors(factor_input)
+    return updated
 
 
 @dataclass(frozen=True)
@@ -230,8 +260,16 @@ class DemoPrewarmedMarketState:
         extras = {
             key: copy.deepcopy(value)
             for key, value in payload.items()
-            if key not in {"_confirmedCandles", "price", "bidPrice", "askPrice", "spreadPct"}
+            if key not in {
+                "_confirmedCandles",
+                "_precomputedFactors",
+                "price",
+                "bidPrice",
+                "askPrice",
+                "spreadPct",
+            }
         }
+        extras = _precomputed_extras(extras, confirmed)
         key = (normalized, normalized_timeframe)
         with self._lock:
             self._candles[key] = deque(confirmed[-max(300, self.minimum_history):], maxlen=max(300, self.minimum_history))
@@ -283,6 +321,10 @@ class DemoPrewarmedMarketState:
             rows.append(copy.deepcopy(payload))
             rows.sort(key=lambda row: _timestamp(row.get("timestamp")))
             self._candles[candle_key] = deque(rows[-max(300, self.minimum_history):], maxlen=max(300, self.minimum_history))
+            self._snapshot_extras[candle_key] = _precomputed_extras(
+                self._snapshot_extras.get(candle_key) or {},
+                list(self._candles[candle_key]),
+            )
             self._provisional.pop(key, None)
             self._emitted_confirmations.add(key)
             observed = (received_at or self._clock()).astimezone(UTC)
@@ -330,6 +372,10 @@ class DemoPrewarmedMarketState:
     def timeframes(self) -> tuple[str, ...]:
         with self._lock:
             return tuple(self._timeframes)
+
+    def quote(self, instrument: str) -> dict[str, Any]:
+        with self._lock:
+            return copy.deepcopy(self._quotes.get(_instrument(instrument)) or {})
 
     def confirmed_coverage(self, timeframe: str, candle_start_ms: int) -> dict[str, int | bool]:
         normalized_timeframe = str(timeframe or "").strip().lower()

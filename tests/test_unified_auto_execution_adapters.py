@@ -40,6 +40,9 @@ class UnifiedAutoExecutionAdapterTests(unittest.TestCase):
         ), patch(
             "alphapilot_control_console.unified_auto_execution_adapters.build_exchange_demo_simulation",
             return_value={"readonlySummary": {"status": "not_run"}},
+        ), patch(
+            "alphapilot_control_console.unified_auto_execution_adapters.get_demo_market_runtime_status",
+            return_value={"runtime": {"warm": True}},
         ):
             blocked = OkxDemoAutoExecutionAdapter().preflight()
 
@@ -52,10 +55,29 @@ class UnifiedAutoExecutionAdapterTests(unittest.TestCase):
         ), patch(
             "alphapilot_control_console.unified_auto_execution_adapters.build_exchange_demo_simulation",
             return_value={"readonlySummary": {"status": "passed"}},
+        ), patch(
+            "alphapilot_control_console.unified_auto_execution_adapters.get_demo_market_runtime_status",
+            return_value={"runtime": {"warm": True}},
         ):
             ready = OkxDemoAutoExecutionAdapter().preflight()
 
         self.assertTrue(ready["ok"])
+
+    def test_demo_preflight_fails_closed_when_public_market_runtime_is_not_warm(self) -> None:
+        with patch(
+            "alphapilot_control_console.unified_auto_execution_adapters.build_evolution_demo_status",
+            return_value={"summary": {"ready": True}, "blockers": []},
+        ), patch(
+            "alphapilot_control_console.unified_auto_execution_adapters.build_exchange_demo_simulation",
+            return_value={"readonlySummary": {"status": "passed"}},
+        ), patch(
+            "alphapilot_control_console.unified_auto_execution_adapters.get_demo_market_runtime_status",
+            return_value={"runtime": {"warm": False, "blockers": ["websocket_disconnected"]}},
+        ):
+            blocked = OkxDemoAutoExecutionAdapter().preflight()
+
+        self.assertFalse(blocked["ok"])
+        self.assertIn("demo_market_runtime_not_warm", blocked["blockers"])
 
     def test_demo_adapter_routes_batch_reconciliation_pause_and_stop(self) -> None:
         adapter = OkxDemoAutoExecutionAdapter()
@@ -80,7 +102,7 @@ class UnifiedAutoExecutionAdapterTests(unittest.TestCase):
             adapter.pause("unit_test")
             self.assertTrue(adapter.emergency_stop("emergency")["ok"])
 
-        batch.assert_called_once_with(["release-1", "release-2"])
+        batch.assert_called_once_with(["release-1", "release-2"], close_event=None)
         reconcile.assert_called_once_with()
         pause.assert_called_once_with("unit_test")
         stop.assert_called_once_with("emergency")

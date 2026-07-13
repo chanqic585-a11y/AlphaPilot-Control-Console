@@ -148,6 +148,12 @@ def _factors(snapshot: dict[str, Any]) -> dict[str, float | None]:
     }
 
 
+def calculate_demo_factors(snapshot: dict[str, Any]) -> dict[str, float | None]:
+    """Compute one trusted factor snapshot without accepting an older cached value."""
+
+    return _factors({key: value for key, value in snapshot.items() if key != "_precomputedFactors"})
+
+
 def _check(check_id: str, matched: bool, value: Any, target: Any) -> dict[str, Any]:
     return {"checkId": check_id, "matched": bool(matched), "value": value, "target": target}
 

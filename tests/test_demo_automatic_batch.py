@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import unittest
 from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import alphapilot_control_console.evolution_demo_service as service
 from alphapilot_control_console.demo_execution_store import DemoExecutionRecord
+
+
+NOW = datetime(2026, 7, 13, 0, 0, tzinfo=UTC)
 
 
 def contract(release_id: str, strategy_id: str) -> dict:
@@ -36,7 +40,57 @@ def signal(release_id: str, strategy_id: str, candidate_id: str, score: float) -
         "dataFresh": True,
         "liquidityPassed": True,
         "correlationGroup": "BTC",
+        "entryPrice": 100.0,
+        "stopLossPrice": 98.0,
+        "takeProfitPrice": 104.5,
+        "signalTime": NOW.isoformat(),
+        "notionalUsdt": 50.0,
+        "leverage": 1,
+        "tdMode": "isolated",
+        "ordType": "market",
+        "sz": "1",
     }
+
+
+def close_event() -> SimpleNamespace:
+    return SimpleNamespace(
+        sequenceId="1h:1783900800000",
+        timeframe="1h",
+        receivedAt=NOW.isoformat(),
+    )
+
+
+class FakeFrozenSnapshot:
+    def __init__(self, quotes: dict[str, dict] | None = None) -> None:
+        self.quotes = quotes or {}
+
+    def load_universe(self, _limit: int) -> dict:
+        return {"screeningPool": []}
+
+    def load_snapshot(self, instrument: str, timeframe: str, _limit: int) -> dict:
+        return {"ok": True, "instId": instrument, "timeframe": timeframe}
+
+    def load_metadata(self, instrument: str) -> dict:
+        return {"ok": True, "instId": instrument}
+
+    def quote(self, instrument: str) -> dict:
+        return dict(self.quotes.get(instrument) or {})
+
+
+class FakeMarketRuntime:
+    def __init__(self) -> None:
+        self.freeze_calls: list[str] = []
+        self.frozen = FakeFrozenSnapshot()
+
+    def status(self) -> dict:
+        return {"warm": True, "source": "fake_prewarmed_runtime"}
+
+    def freeze_for_timeframe(self, timeframe: str, **_kwargs: object) -> FakeFrozenSnapshot:
+        self.freeze_calls.append(timeframe)
+        return self.frozen
+
+    def quote(self, instrument: str) -> dict:
+        return self.frozen.quote(instrument)
 
 
 class FakeStore:
@@ -99,6 +153,7 @@ class DemoAutomaticBatchTests(unittest.TestCase):
             "drawdownPercent": 0.0,
             "reconciliationMatched": True,
         }
+        self.market_runtime = FakeMarketRuntime()
 
     def _patches(self, scans: dict[str, dict]):
         return (
@@ -107,7 +162,7 @@ class DemoAutomaticBatchTests(unittest.TestCase):
             patch.object(
                 service,
                 "scan_immutable_demo_release",
-                side_effect=lambda row: scans[row["demoReleaseId"]],
+                side_effect=lambda row, **_kwargs: scans[row["demoReleaseId"]],
             ),
             patch.object(service, "save_demo_release_scan", return_value={}),
             patch.object(service, "DemoExecutionStore", return_value=self.store),
@@ -125,6 +180,12 @@ class DemoAutomaticBatchTests(unittest.TestCase):
                 "get_demo_strategy_runtime_settings",
                 return_value={"maxConcurrentSymbols": 1},
             ),
+            patch.object(
+                service,
+                "get_demo_market_runtime",
+                return_value=self.market_runtime,
+                create=True,
+            ),
         )
 
     def test_batch_scans_all_due_releases_and_arbitrates_before_ordering(self) -> None:
@@ -141,8 +202,18 @@ class DemoAutomaticBatchTests(unittest.TestCase):
             },
         }
         patches = self._patches(scans)
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10]:
-            result = service.run_evolution_demo_batch_cycle(["release-a", "release-b"])
+        self.market_runtime.frozen.quotes["BTC-USDT-SWAP"] = {
+            "bidPrice": 100.0,
+            "askPrice": 100.01,
+            "receivedAt": NOW.isoformat(),
+            "spreadPct": 0.0001,
+            "liquidityPassed": True,
+        }
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11], patch.object(service, "_utc_now", return_value=NOW + timedelta(seconds=4), create=True):
+            result = service.run_evolution_demo_batch_cycle(
+                ["release-a", "release-b"],
+                close_event=close_event(),
+            )
 
         self.assertTrue(result["ok"])
         self.assertEqual(result["scannedReleaseCount"], 2)
@@ -158,13 +229,82 @@ class DemoAutomaticBatchTests(unittest.TestCase):
             for row in self.contracts
         }
         patches = self._patches(scans)
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10]:
-            result = service.run_evolution_demo_batch_cycle(["release-a", "release-b"])
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11]:
+            result = service.run_evolution_demo_batch_cycle(
+                ["release-a", "release-b"],
+                close_event=close_event(),
+            )
 
         self.assertTrue(result["ok"])
         self.assertEqual(result["createdOrderCount"], 0)
         self.assertEqual(result["matchedSignalCount"], 0)
         self.assertEqual(FakeEngine.executed, [])
+
+    def test_five_releases_share_one_frozen_timeframe_snapshot(self) -> None:
+        self.contracts = [contract(f"release-{index}", f"strategy-{index}") for index in range(5)]
+        scans = {
+            row["demoReleaseId"]: {"signals": [], "rejections": [], "blockers": []}
+            for row in self.contracts
+        }
+        scanner_calls: list[dict] = []
+        patches = self._patches(scans)
+        patches = list(patches)
+        patches[2] = patch.object(
+            service,
+            "scan_immutable_demo_release",
+            side_effect=lambda row, **kwargs: scanner_calls.append(kwargs) or scans[row["demoReleaseId"]],
+        )
+
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11]:
+            result = service.run_evolution_demo_batch_cycle(
+                [row["demoReleaseId"] for row in self.contracts],
+                close_event=close_event(),
+            )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(self.market_runtime.freeze_calls, ["1h"])
+        self.assertEqual(len(scanner_calls), 5)
+        self.assertTrue(all(call["snapshot_loader"].__self__ is self.market_runtime.frozen for call in scanner_calls))
+        self.assertEqual(result["marketRuntimeStatus"]["source"], "fake_prewarmed_runtime")
+
+    def test_latency_policy_allows_target_and_valid_late_but_rejects_drift_and_expiry(self) -> None:
+        scans = {
+            "release-a": {
+                "signals": [signal("release-a", "strategy-a", "signal-a", 90)],
+                "rejections": [],
+                "blockers": [],
+            },
+            "release-b": {"signals": [], "rejections": [], "blockers": []},
+        }
+        cases = (
+            (4, 100.02, 1, "on_target"),
+            (12, 100.02, 1, "conditional"),
+            (12, 100.30, 0, "conditional_price_drift_exceeded"),
+            (31, 100.02, 0, "signal_expired"),
+        )
+        for elapsed, ask, expected_orders, expected_result in cases:
+            with self.subTest(elapsed=elapsed, ask=ask):
+                FakeEngine.executed = []
+                self.market_runtime.frozen.quotes["BTC-USDT-SWAP"] = {
+                    "bidPrice": ask - 0.01,
+                    "askPrice": ask,
+                    "receivedAt": (NOW + timedelta(seconds=max(0, elapsed - 0.5))).isoformat(),
+                    "spreadPct": 0.0001,
+                    "liquidityPassed": True,
+                }
+                patches = self._patches(scans)
+                with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11], patch.object(service, "_utc_now", return_value=NOW + timedelta(seconds=elapsed), create=True):
+                    result = service.run_evolution_demo_batch_cycle(
+                        ["release-a", "release-b"],
+                        close_event=close_event(),
+                    )
+
+                self.assertEqual(result["createdOrderCount"], expected_orders)
+                if expected_orders:
+                    self.assertEqual(result["latencyMetrics"]["selected"][0]["latencyClass"], expected_result)
+                else:
+                    reasons = [row.get("reason") for row in result["rejectedSignals"]]
+                    self.assertIn(expected_result, reasons)
 
 
 if __name__ == "__main__":

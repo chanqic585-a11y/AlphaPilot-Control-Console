@@ -13,6 +13,36 @@ from alphapilot_control_console.demo_arbitrator import DemoArbitrationResult
 from alphapilot_control_console.demo_execution_store import DemoExecutionStore
 
 
+def confirmed_close() -> dict:
+    return {
+        "sequenceId": "1h:1783900800000",
+        "timeframe": "1h",
+        "receivedAt": "2026-07-13T00:00:00+00:00",
+    }
+
+
+class FakeFrozenMarket:
+    def load_universe(self, _limit: int) -> dict:
+        return {"screeningPool": []}
+
+    def load_snapshot(self, instrument: str, timeframe: str, _limit: int) -> dict:
+        return {"ok": True, "instId": instrument, "timeframe": timeframe}
+
+    def load_metadata(self, instrument: str) -> dict:
+        return {"ok": True, "instId": instrument}
+
+
+class FakeMarketRuntime:
+    def status(self) -> dict:
+        return {"warm": True}
+
+    def freeze_for_timeframe(self, _timeframe: str, **_kwargs: object) -> FakeFrozenMarket:
+        return FakeFrozenMarket()
+
+    def quote(self, _instrument: str) -> dict:
+        return {}
+
+
 class EvolutionDemoServiceTests(unittest.TestCase):
     def test_resume_clears_ordinary_pause_and_records_event(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -122,7 +152,10 @@ class EvolutionDemoServiceTests(unittest.TestCase):
 
     def test_cycle_ignores_external_signals_and_uses_internal_scanner(self) -> None:
         ready_status = {"blockers": [], "summary": {"ready": True}}
-        contract = {"demoReleaseId": "release-1"}
+        contract = {
+            "demoReleaseId": "release-1",
+            "strategy": {"marketDefinition": {"timeframe": "1h"}},
+        }
 
         class FakeStore:
             def close(self) -> None:
@@ -156,9 +189,15 @@ class EvolutionDemoServiceTests(unittest.TestCase):
                 "drawdownPercent": 0.0,
                 "reconciliationMatched": True,
             },
+        ), patch.object(
+            service, "get_demo_market_runtime", return_value=FakeMarketRuntime()
         ):
             result = service.run_evolution_demo_cycle(
-                {"demoReleaseId": "release-1", "signals": [{"side": "buy"}]}
+                {
+                    "demoReleaseId": "release-1",
+                    "signals": [{"side": "buy"}],
+                    "closeEvent": confirmed_close(),
+                }
             )
 
         self.assertTrue(result["ok"])
@@ -209,6 +248,7 @@ class EvolutionDemoServiceTests(unittest.TestCase):
                 "maxOpenRiskPercent": 1.0,
                 "riskPerTradePercent": 0.25,
             },
+            "strategy": {"marketDefinition": {"timeframe": "1h"}},
         }
         signals = [
             {
@@ -279,8 +319,12 @@ class EvolutionDemoServiceTests(unittest.TestCase):
             service,
             "arbitrate_demo_signals",
             return_value=DemoArbitrationResult((), ()),
-        ) as arbitrate:
-            service.run_evolution_demo_cycle({"demoReleaseId": "release-1"})
+        ) as arbitrate, patch.object(
+            service, "get_demo_market_runtime", return_value=FakeMarketRuntime()
+        ):
+            service.run_evolution_demo_cycle(
+                {"demoReleaseId": "release-1", "closeEvent": confirmed_close()}
+            )
 
         self.assertEqual(arbitrate.call_args.kwargs["maxPositions"], 1)
         save_scan.assert_called_once()

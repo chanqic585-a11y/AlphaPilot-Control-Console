@@ -31,6 +31,7 @@ class ExecutionEnvironmentAdapter(Protocol):
         self,
         releases: list[ReleaseSchedule],
         candle_keys: dict[str, str],
+        close_event: Any | None = None,
     ) -> dict[str, Any]: ...
 
     def pause(self, reason: str) -> None: ...
@@ -124,7 +125,13 @@ class UnifiedAutoExecutionController:
             "recentEvents": self.store.list_events(environment, 20),
         }
 
-    def heartbeat(self, environment: str, *, now: datetime | None = None) -> dict[str, Any]:
+    def heartbeat(
+        self,
+        environment: str,
+        *,
+        now: datetime | None = None,
+        close_event: Any | None = None,
+    ) -> dict[str, Any]:
         adapter = self._adapter(environment)
         heartbeat_at = (now or datetime.now(UTC)).astimezone(UTC)
         heartbeat_iso = heartbeat_at.isoformat()
@@ -161,12 +168,49 @@ class UnifiedAutoExecutionController:
                 return self._pause_from_failure(environment, adapter, reconciliation, heartbeat_iso)
 
             releases = adapter.list_releases()
+            if environment == "okx_demo" and close_event is None:
+                next_times = [
+                    next_candle_close(heartbeat_at, release.timeframe)
+                    for release in releases
+                ]
+                next_evaluation = min(next_times).isoformat() if next_times else None
+                self.store.update_runtime(
+                    environment,
+                    status="waiting",
+                    lastHeartbeatAt=heartbeat_iso,
+                    nextEvaluationAt=next_evaluation,
+                    pauseReason=None,
+                    lastError=None,
+                )
+                return self._heartbeat_result(environment, "waiting", 0)
             due: list[ReleaseSchedule] = []
             candle_keys: dict[str, str] = {}
             next_times: list[datetime] = []
+            event_timeframe = str(
+                close_event.get("timeframe")
+                if isinstance(close_event, dict)
+                else getattr(close_event, "timeframe", "")
+            ) if close_event is not None else ""
+            event_sequence = str(
+                close_event.get("sequenceId")
+                if isinstance(close_event, dict)
+                else getattr(close_event, "sequenceId", "")
+            ) if close_event is not None else ""
+            if close_event is not None and (not event_timeframe or not event_sequence):
+                return self._pause_from_failure(
+                    environment,
+                    adapter,
+                    {"blockers": ["confirmed_close_event_invalid"]},
+                    heartbeat_iso,
+                )
             for release in releases:
-                candle_key = closed_candle_key(heartbeat_at, release.timeframe)
                 next_times.append(next_candle_close(heartbeat_at, release.timeframe))
+                if close_event is not None and release.timeframe != event_timeframe:
+                    continue
+                candle_key = event_sequence if close_event is not None else closed_candle_key(
+                    heartbeat_at,
+                    release.timeframe,
+                )
                 if self.store.checkpoint(
                     environment,
                     release.releaseId,
@@ -187,7 +231,7 @@ class UnifiedAutoExecutionController:
                 )
                 return self._heartbeat_result(environment, "waiting", 0)
 
-            batch = adapter.run_batch(due, candle_keys)
+            batch = adapter.run_batch(due, candle_keys, close_event)
             if not batch.get("ok"):
                 return self._pause_from_failure(environment, adapter, batch, heartbeat_iso)
             for release in due:
@@ -212,6 +256,15 @@ class UnifiedAutoExecutionController:
                     "evaluatedReleaseCount": len(due),
                     "createdOrderCount": int(batch.get("createdOrderCount") or 0),
                     "matchedSignalCount": int(batch.get("matchedSignalCount") or 0),
+                    "closeSequenceId": event_sequence or None,
+                    "closeReceivedAt": (
+                        close_event.get("receivedAt")
+                        if isinstance(close_event, dict)
+                        else getattr(close_event, "receivedAt", None)
+                    ) if close_event is not None else None,
+                    "latencyMetrics": dict(batch.get("latencyMetrics") or {}),
+                    "expiredSignalCount": len(batch.get("expiredSignals") or []),
+                    "conditionalLateEntryCount": len(batch.get("conditionalLateEntries") or []),
                 },
             )
             return self._heartbeat_result(

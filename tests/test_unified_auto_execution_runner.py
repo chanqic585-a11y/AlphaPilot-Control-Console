@@ -3,6 +3,7 @@ from __future__ import annotations
 import threading
 import time
 import unittest
+from types import SimpleNamespace
 
 from alphapilot_control_console.unified_auto_execution_runner import (
     UnifiedAutoExecutionRunner,
@@ -13,8 +14,10 @@ class FakeController:
     def __init__(self) -> None:
         self.armed = {"okx_demo": False, "okx_live": False}
         self.heartbeat_calls: list[str] = []
+        self.close_events: list[object] = []
         self.actions: list[tuple[str, str]] = []
         self.heartbeat_event = threading.Event()
+        self.close_event_received = threading.Event()
 
     def status(self, environment: str) -> dict:
         return {
@@ -23,8 +26,11 @@ class FakeController:
             "armedForCurrentProcess": self.armed[environment],
         }
 
-    def heartbeat(self, environment: str) -> dict:
+    def heartbeat(self, environment: str, *, close_event: object | None = None) -> dict:
         self.heartbeat_calls.append(environment)
+        if close_event is not None:
+            self.close_events.append(close_event)
+            self.close_event_received.set()
         self.heartbeat_event.set()
         return {"environment": environment, "status": "waiting"}
 
@@ -64,6 +70,27 @@ class UnifiedAutoExecutionRunnerTests(unittest.TestCase):
         self.assertFalse(first_thread.is_alive())
         self.assertIn("okx_demo", controller.heartbeat_calls)
         self.assertIn("okx_live", controller.heartbeat_calls)
+
+    def test_confirmed_close_wakes_demo_once_without_waiting_for_heartbeat(self) -> None:
+        controller = FakeController()
+        runner = UnifiedAutoExecutionRunner(controller=controller, interval_seconds=60)
+        runner.start()
+        self.assertTrue(controller.heartbeat_event.wait(1))
+        controller.heartbeat_event.clear()
+        close_event = SimpleNamespace(
+            sequenceId="1h:1783900800000",
+            timeframe="1h",
+            receivedAt="2026-07-13T00:00:00+00:00",
+        )
+
+        accepted = runner.wake("okx_demo", close_event)
+        duplicate = runner.wake("okx_demo", close_event)
+
+        self.assertTrue(accepted)
+        self.assertFalse(duplicate)
+        self.assertTrue(controller.close_event_received.wait(1))
+        runner.stop()
+        self.assertEqual(controller.close_events, [close_event])
 
     def test_demo_start_resumes_then_arms_without_order_confirmation(self) -> None:
         controller = FakeController()

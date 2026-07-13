@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from datetime import UTC, datetime
 from pathlib import Path
 
 from alphapilot_control_console.demo_execution_engine import DemoExecutionEngine
@@ -67,6 +68,31 @@ def signal() -> dict:
 
 
 class DemoExecutionEngineTests(unittest.TestCase):
+    def test_order_send_and_exchange_response_timestamps_are_persisted(self) -> None:
+        timestamps = iter(
+            (
+                datetime(2026, 7, 13, 0, 0, 4, tzinfo=UTC),
+                datetime(2026, 7, 13, 0, 0, 4, 120000, tzinfo=UTC),
+            )
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            store = DemoExecutionStore(Path(directory) / "demo.sqlite")
+            try:
+                engine = DemoExecutionEngine(
+                    client=FakeDemoClient(),
+                    store=store,
+                    clock=lambda: next(timestamps),
+                )
+
+                record = engine.execute(contract=contract(), signal=signal(), portfolio={})
+
+                timing = record.exchangeResponse["_alphaPilotTiming"]
+                self.assertEqual(timing["orderSentAt"], "2026-07-13T00:00:04+00:00")
+                self.assertEqual(timing["exchangeResponseReceivedAt"], "2026-07-13T00:00:04.120000+00:00")
+                self.assertNotIn("apiKey", str(timing))
+            finally:
+                store.close()
+
     def test_duplicate_signal_places_one_order_and_reconciles_partial_fill(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             store = DemoExecutionStore(Path(directory) / "demo.sqlite")

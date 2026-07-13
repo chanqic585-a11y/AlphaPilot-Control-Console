@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 from alphapilot_control_console.unified_auto_execution_controller import (
     ReleaseSchedule,
@@ -25,6 +26,7 @@ class FakeAdapter:
         self.reconciliation_result = {"ok": True, "blockers": []}
         self.batch_result = {"ok": True, "createdOrderCount": 0, "matchedSignalCount": 0}
         self.batch_calls: list[list[str]] = []
+        self.batch_close_events: list[object | None] = []
         self.pause_reasons: list[str] = []
         self.emergency_reasons: list[str] = []
 
@@ -37,8 +39,14 @@ class FakeAdapter:
     def list_releases(self) -> list[ReleaseSchedule]:
         return list(self.releases)
 
-    def run_batch(self, releases: list[ReleaseSchedule], candle_keys: dict[str, str]) -> dict:
+    def run_batch(
+        self,
+        releases: list[ReleaseSchedule],
+        candle_keys: dict[str, str],
+        close_event: object | None = None,
+    ) -> dict:
         self.batch_calls.append([release.releaseId for release in releases])
+        self.batch_close_events.append(close_event)
         return {**self.batch_result, "candleKeys": dict(candle_keys)}
 
     def pause(self, reason: str) -> None:
@@ -76,16 +84,63 @@ class UnifiedAutoExecutionControllerTests(unittest.TestCase):
         self.controller.arm(environment)
 
     def test_heartbeat_runs_each_release_only_once_per_closed_candle(self) -> None:
-        self._start_and_arm("okx_demo")
+        self._start_and_arm("okx_live")
 
-        first = self.controller.heartbeat("okx_demo", now=NOW)
-        second = self.controller.heartbeat("okx_demo", now=NOW)
+        first = self.controller.heartbeat("okx_live", now=NOW)
+        second = self.controller.heartbeat("okx_live", now=NOW)
 
         self.assertEqual(first["evaluatedReleaseCount"], 1)
         self.assertEqual(first["status"], "running")
         self.assertEqual(second["evaluatedReleaseCount"], 0)
         self.assertEqual(second["status"], "waiting")
+        self.assertEqual(self.live.batch_calls, [["live-1"]])
+
+    def test_demo_recovery_heartbeat_does_not_reconstruct_a_missed_close_event(self) -> None:
+        self._start_and_arm("okx_demo")
+
+        result = self.controller.heartbeat("okx_demo", now=NOW)
+
+        self.assertEqual(result["status"], "waiting")
+        self.assertEqual(result["evaluatedReleaseCount"], 0)
+        self.assertEqual(self.demo.batch_calls, [])
+        self.assertIsNone(self.store.checkpoint("okx_demo", "release-1", "1h"))
+
+    def test_confirmed_close_uses_event_sequence_for_one_matching_timeframe_checkpoint(self) -> None:
+        self.demo.releases.append(ReleaseSchedule("release-5m", "strategy-5m", "5m"))
+        self.demo.batch_result.update(
+            {
+                "latencyMetrics": {"selected": [{"closeToReadyMs": 4000}]},
+                "expiredSignals": [],
+                "conditionalLateEntries": [{"candidateId": "late-1"}],
+            }
+        )
+        self._start_and_arm("okx_demo")
+        close_event = SimpleNamespace(
+            sequenceId="1h:1783900800000",
+            timeframe="1h",
+            receivedAt="2026-07-13T00:00:00+00:00",
+        )
+
+        first = self.controller.heartbeat("okx_demo", now=NOW, close_event=close_event)
+        second = self.controller.heartbeat("okx_demo", now=NOW, close_event=close_event)
+
+        self.assertEqual(first["evaluatedReleaseCount"], 1)
+        self.assertEqual(second["evaluatedReleaseCount"], 0)
         self.assertEqual(self.demo.batch_calls, [["release-1"]])
+        self.assertEqual(self.demo.batch_close_events, [close_event])
+        self.assertEqual(
+            self.store.checkpoint("okx_demo", "release-1", "1h"),
+            "1h:1783900800000",
+        )
+        self.assertIsNone(self.store.checkpoint("okx_demo", "release-5m", "5m"))
+        heartbeat_event = next(
+            row
+            for row in self.store.list_events("okx_demo")
+            if row["eventType"] == "heartbeat_completed"
+        )
+        self.assertEqual(heartbeat_event["payload"]["closeSequenceId"], close_event.sequenceId)
+        self.assertEqual(heartbeat_event["payload"]["closeReceivedAt"], close_event.receivedAt)
+        self.assertEqual(heartbeat_event["payload"]["conditionalLateEntryCount"], 1)
 
     def test_live_cannot_run_without_current_process_arm(self) -> None:
         self.controller.start("okx_live")
@@ -132,8 +187,13 @@ class UnifiedAutoExecutionControllerTests(unittest.TestCase):
     def test_batch_failure_does_not_advance_checkpoint(self) -> None:
         self._start_and_arm("okx_demo")
         self.demo.batch_result = {"ok": False, "blockers": ["order_state_unknown"]}
+        close_event = SimpleNamespace(
+            sequenceId="1h:1783900800000",
+            timeframe="1h",
+            receivedAt="2026-07-13T00:00:00+00:00",
+        )
 
-        first = self.controller.heartbeat("okx_demo", now=NOW)
+        first = self.controller.heartbeat("okx_demo", now=NOW, close_event=close_event)
 
         self.assertEqual(first["status"], "paused")
         self.assertIsNone(self.store.checkpoint("okx_demo", "release-1", "1h"))

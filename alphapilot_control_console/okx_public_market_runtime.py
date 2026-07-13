@@ -326,6 +326,17 @@ class OkxPublicMarketRuntime:
             "rawCredentialsStored": False,
         }
 
+    def freeze_for_timeframe(
+        self,
+        timeframe: str,
+        *,
+        received_at: datetime | None = None,
+    ) -> Any:
+        return self.state.freeze_for_timeframe(timeframe, received_at=received_at)
+
+    def quote(self, instrument: str) -> dict[str, Any]:
+        return self.state.quote(instrument)
+
     def start(self) -> dict[str, Any]:
         if not self._seeded:
             raise RuntimeError("public market runtime must be seeded before start")

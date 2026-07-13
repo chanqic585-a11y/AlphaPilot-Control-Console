@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+from collections import deque
 from pathlib import Path
 from typing import Any, Callable
 
@@ -39,6 +40,10 @@ class UnifiedAutoExecutionRunner:
         self._wake_event = threading.Event()
         self._thread: threading.Thread | None = None
         self._last_results: dict[str, dict[str, Any]] = {}
+        self._pending_close_events: dict[str, deque[Any]] = {
+            environment: deque() for environment in ENVIRONMENTS
+        }
+        self._seen_close_sequences: set[tuple[str, str]] = set()
 
     def start(self) -> threading.Thread:
         with self._lock:
@@ -62,8 +67,25 @@ class UnifiedAutoExecutionRunner:
         if thread is not None and thread is not threading.current_thread():
             thread.join(timeout=max(0.0, float(timeout_seconds)))
 
-    def wake(self) -> None:
+    def wake(self, environment: str | None = None, close_event: Any | None = None) -> bool:
+        if close_event is not None:
+            if environment not in ENVIRONMENTS:
+                return False
+            sequence_id = str(
+                close_event.get("sequenceId")
+                if isinstance(close_event, dict)
+                else getattr(close_event, "sequenceId", "")
+            )
+            if not sequence_id:
+                return False
+            key = (environment, sequence_id)
+            with self._lock:
+                if key in self._seen_close_sequences:
+                    return False
+                self._seen_close_sequences.add(key)
+                self._pending_close_events[environment].append(close_event)
         self._wake_event.set()
+        return True
 
     def is_running(self) -> bool:
         with self._lock:
@@ -74,20 +96,48 @@ class UnifiedAutoExecutionRunner:
             self.run_once()
             self._wake_event.wait(self.interval_seconds)
             self._wake_event.clear()
+            if self._stop_event.is_set():
+                break
+            for environment, close_event in self._drain_close_events():
+                self._run_environment(environment, close_event=close_event)
+
+    def _drain_close_events(self) -> list[tuple[str, Any]]:
+        with self._lock:
+            pending = [
+                (environment, event)
+                for environment in ENVIRONMENTS
+                for event in self._pending_close_events[environment]
+            ]
+            for queue in self._pending_close_events.values():
+                queue.clear()
+        return pending
+
+    def _run_environment(
+        self,
+        environment: str,
+        *,
+        close_event: Any | None = None,
+    ) -> dict[str, Any]:
+        try:
+            result = (
+                self.controller.heartbeat(environment, close_event=close_event)
+                if close_event is not None
+                else self.controller.heartbeat(environment)
+            )
+        except Exception as error:
+            result = {
+                "environment": environment,
+                "status": "runner_error",
+                "blockers": [f"runner_exception:{type(error).__name__}"],
+            }
+        with self._lock:
+            self._last_results[environment] = result
+        return result
 
     def run_once(self) -> dict[str, dict[str, Any]]:
         results: dict[str, dict[str, Any]] = {}
         for environment in ENVIRONMENTS:
-            try:
-                results[environment] = self.controller.heartbeat(environment)
-            except Exception as error:
-                results[environment] = {
-                    "environment": environment,
-                    "status": "runner_error",
-                    "blockers": [f"runner_exception:{type(error).__name__}"],
-                }
-        with self._lock:
-            self._last_results = results
+            results[environment] = self._run_environment(environment)
         return results
 
     def status(self) -> dict[str, Any]:
@@ -207,6 +257,10 @@ def stop_unified_auto_execution_runner() -> None:
 
 def get_unified_auto_execution_status() -> dict[str, Any]:
     return _default_runner().status()
+
+
+def wake_unified_auto_execution_runner(close_event: Any) -> bool:
+    return _default_runner().wake("okx_demo", close_event)
 
 
 def run_unified_auto_execution_action(payload: dict[str, Any] | None = None) -> dict[str, Any]:

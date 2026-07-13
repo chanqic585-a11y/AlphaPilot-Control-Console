@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 from dataclasses import asdict, is_dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,8 @@ from .demo_arbitrator import arbitrate_demo_signals
 from .demo_market_scan_service import save_demo_release_scan
 from .demo_execution_engine import DemoExecutionEngine
 from .demo_execution_store import DemoExecutionStore
+from .demo_entry_latency_policy import evaluate_demo_entry_latency
+from .demo_market_runtime_registry import get_demo_market_runtime
 from .demo_release_scanner import scan_immutable_demo_release
 from .demo_runtime_guard import evaluate_demo_runtime_guard
 from .demo_strategy_runtime_settings import (
@@ -29,6 +32,16 @@ from .risk_profile_store import RISK_PROFILE_STORE_PATH, RiskProfileStore
 
 STORE_PATH = DATA_DIR / "evolution_demo_execution.sqlite"
 LOCAL_CONTRACT_DIR = DATA_DIR / "demo_release_contracts"
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+def _close_event_value(close_event: Any, key: str) -> Any:
+    if isinstance(close_event, dict):
+        return close_event.get(key)
+    return getattr(close_event, key, None)
 
 
 def _enabled(name: str) -> bool:
@@ -350,7 +363,11 @@ def _increment_demo_portfolio(portfolio: dict[str, Any], signal: dict[str, Any])
         portfolio["openRiskByCorrelationGroup"] = values
 
 
-def run_evolution_demo_batch_cycle(release_ids: list[str]) -> dict[str, Any]:
+def run_evolution_demo_batch_cycle(
+    release_ids: list[str],
+    *,
+    close_event: Any | None = None,
+) -> dict[str, Any]:
     status = build_evolution_demo_status()
     if status["blockers"]:
         return {"ok": False, "blockers": status["blockers"], "status": status}
@@ -372,12 +389,58 @@ def run_evolution_demo_batch_cycle(release_ids: list[str]) -> dict[str, Any]:
             "status": status,
         }
 
+    close_received_at = _close_event_value(close_event, "receivedAt")
+    close_sequence_id = str(_close_event_value(close_event, "sequenceId") or "")
+    close_timeframe = str(_close_event_value(close_event, "timeframe") or "")
+    if not close_received_at or not close_sequence_id or not close_timeframe:
+        return {
+            "ok": False,
+            "blockers": ["confirmed_close_event_required"],
+            "status": status,
+        }
+    selected_timeframes = {
+        str(((contract.get("strategy") or {}).get("marketDefinition") or {}).get("timeframe") or "")
+        for contract in selected_contracts
+    }
+    if selected_timeframes != {close_timeframe}:
+        return {
+            "ok": False,
+            "blockers": ["confirmed_close_timeframe_mismatch"],
+            "status": status,
+        }
+    market_runtime = get_demo_market_runtime()
+    market_runtime_status = market_runtime.status()
+    if not market_runtime_status.get("warm"):
+        return {
+            "ok": False,
+            "blockers": ["demo_market_runtime_not_warm"],
+            "marketRuntimeStatus": market_runtime_status,
+            "status": status,
+        }
+    try:
+        frozen_market = market_runtime.freeze_for_timeframe(
+            close_timeframe,
+            received_at=_utc_now(),
+        )
+    except RuntimeError:
+        return {
+            "ok": False,
+            "blockers": ["demo_market_runtime_not_warm"],
+            "marketRuntimeStatus": market_runtime.status(),
+            "status": status,
+        }
+
     scans: dict[str, dict[str, Any]] = {}
     all_signals: list[dict[str, Any]] = []
     scan_rejections: list[dict[str, Any]] = []
     for contract in selected_contracts:
         release_id = str(contract.get("demoReleaseId") or "")
-        scan = scan_immutable_demo_release(contract)
+        scan = scan_immutable_demo_release(
+            contract,
+            snapshot_loader=frozen_market.load_snapshot,
+            metadata_loader=frozen_market.load_metadata,
+            universe_loader=frozen_market.load_universe,
+        )
         scans[release_id] = scan
         if scan.get("blockers"):
             return {
@@ -456,6 +519,12 @@ def run_evolution_demo_batch_cycle(release_ids: list[str]) -> dict[str, Any]:
             "matchedSignalCount": len(all_signals),
             "scans": scans,
             "recovered": [_record_payload(record) for record in recovered],
+            "closeReceivedAt": str(close_received_at),
+            "closeSequenceId": close_sequence_id,
+            "marketRuntimeStatus": market_runtime_status,
+            "latencyMetrics": {"selected": [], "expiredCount": 0},
+            "expiredSignals": [],
+            "conditionalLateEntries": [],
         }
         if not all_signals:
             return {
@@ -569,6 +638,9 @@ def run_evolution_demo_batch_cycle(release_ids: list[str]) -> dict[str, Any]:
 
         created: list[Any] = []
         execution_rejections: list[dict[str, Any]] = []
+        selected_latency: list[dict[str, Any]] = []
+        expired_signals: list[dict[str, Any]] = []
+        conditional_late_entries: list[dict[str, Any]] = []
         rolling_portfolio = dict(portfolio)
         for signal in globally_selected:
             contract = contract_by_release.get(str(signal.get("demoReleaseId") or ""))
@@ -581,10 +653,51 @@ def run_evolution_demo_batch_cycle(release_ids: list[str]) -> dict[str, Any]:
                     "reason": "signal_release_binding_missing",
                 })
                 continue
+            ready_at = _utc_now()
+            quote = market_runtime.quote(str(signal.get("instId") or ""))
+            limits = contract.get("riskEnvelope") if isinstance(contract.get("riskEnvelope"), dict) else {}
+            decision = evaluate_demo_entry_latency(
+                signal,
+                quote,
+                close_received_at=close_received_at,
+                order_ready_at=ready_at,
+                fee_rate=float(limits.get("feeRate") or 0.0005),
+                slippage_rate=float(limits.get("slippageRate") or 0.0002),
+            )
+            decision_payload = asdict(decision)
+            timing_payload = {
+                "candidateId": signal.get("candidateId"),
+                "instId": signal.get("instId"),
+                **decision_payload,
+                "closeReceivedAt": str(close_received_at),
+                "orderReadyAt": ready_at.isoformat(),
+            }
+            if not decision.passed:
+                rejected = {
+                    "candidateId": signal.get("candidateId"),
+                    "instId": signal.get("instId"),
+                    "reason": decision.reasonCode or "entry_latency_gate_failed",
+                    "latency": timing_payload,
+                }
+                execution_rejections.append(rejected)
+                if decision.reasonCode == "signal_expired":
+                    expired_signals.append(rejected)
+                continue
+            selected_latency.append(timing_payload)
+            if decision.latencyClass == "conditional":
+                conditional_late_entries.append(timing_payload)
+            executable_signal = {
+                **signal,
+                "latencyAudit": timing_payload,
+            }
             try:
-                record = engine.execute(contract=contract, signal=signal, portfolio=rolling_portfolio)
+                record = engine.execute(
+                    contract=contract,
+                    signal=executable_signal,
+                    portfolio=rolling_portfolio,
+                )
                 created.append(record)
-                _increment_demo_portfolio(rolling_portfolio, signal)
+                _increment_demo_portfolio(rolling_portfolio, executable_signal)
             except (RuntimeError, ValueError) as error:
                 execution_rejections.append({
                     "candidateId": signal.get("candidateId"),
@@ -601,6 +714,13 @@ def run_evolution_demo_batch_cycle(release_ids: list[str]) -> dict[str, Any]:
             "created": [_record_payload(record) for record in created],
             "rejectedSignals": [*arbitration_rejections, *execution_rejections],
             "symbolLimits": symbol_limits,
+            "latencyMetrics": {
+                "selected": selected_latency,
+                "expiredCount": len(expired_signals),
+            },
+            "expiredSignals": expired_signals,
+            "conditionalLateEntries": conditional_late_entries,
+            "marketRuntimeStatus": market_runtime.status(),
             "status": build_evolution_demo_status(),
         }
     finally:
@@ -610,7 +730,10 @@ def run_evolution_demo_batch_cycle(release_ids: list[str]) -> dict[str, Any]:
 def run_evolution_demo_cycle(payload: dict[str, Any]) -> dict[str, Any]:
     release_id = str(payload.get("demoReleaseId") or "")
     external_count = len(payload.get("signals", [])) if isinstance(payload.get("signals"), list) else 0
-    result = run_evolution_demo_batch_cycle([release_id])
+    result = run_evolution_demo_batch_cycle(
+        [release_id],
+        close_event=payload.get("closeEvent"),
+    )
     scans = result.get("scans") if isinstance(result.get("scans"), dict) else {}
     symbol_limits = result.get("symbolLimits") if isinstance(result.get("symbolLimits"), dict) else {}
     contracts, _ = discover_demo_contracts()
