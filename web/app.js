@@ -281,7 +281,7 @@ const emptyStrategyLifecycle = {
   sourceWarnings: [],
 };
 const emptyWorkflow = {
-  version: "V13.27.7",
+  version: "V13.27.9",
   summary: {},
   items: [],
   archivedItems: [],
@@ -1357,7 +1357,7 @@ function renderDualLayerLane(targetId, countId, rows, emptyText) {
 
 function renderDualLayerWorkflow(payload = emptyWorkflow) {
   latestWorkflowPayload = payload || emptyWorkflow;
-  workflowBatchBackendReady = payload?.controlConsoleVersion === "V13.27.7";
+  workflowBatchBackendReady = payload?.controlConsoleVersion === "V13.27.9";
   const items = Array.isArray(payload?.items) ? payload.items.filter((item) => item.stage === "backtest") : [];
   const archived = Array.isArray(payload?.archivedItems) ? payload.archivedItems.filter((item) => item.stage === "backtest") : [];
   const awaiting = items.filter((item) => item.status === "awaiting");
@@ -1371,7 +1371,7 @@ function renderDualLayerWorkflow(payload = emptyWorkflow) {
   updateWorkflowSelectionButton("workflowRunSelectedButton", workflowSelection.backtest);
   if (el("workflowRunAllButton")) {
     el("workflowRunAllButton").disabled = !workflowBatchBackendReady || !items.some((item) => ["awaiting", "paused"].includes(item.status));
-    el("workflowRunAllButton").title = workflowBatchBackendReady ? "按所选顺序使用一个串行 worker" : "下次正常重启控制台后启用 V13.27.7 批量能力";
+    el("workflowRunAllButton").title = workflowBatchBackendReady ? "按所选顺序使用一个串行 worker" : "下次正常重启控制台后启用 V13.27.9 批量能力";
   }
   const summaryTarget = el("workflowBacktestSummary");
   if (summaryTarget) {
@@ -1463,7 +1463,7 @@ function renderFormalLocalForward(payload = emptyWorkflow) {
   updateWorkflowSelectionButton("localForwardRunSelectedButton", workflowSelection.localForward);
   if (el("localForwardRunAllButton")) {
     el("localForwardRunAllButton").disabled = !workflowBatchBackendReady || running.length === 0;
-    el("localForwardRunAllButton").title = workflowBatchBackendReady ? "串行运行最新闭合公共 K 线周期" : "下次正常重启控制台后启用 V13.27.7 批量能力";
+    el("localForwardRunAllButton").title = workflowBatchBackendReady ? "串行运行最新闭合公共 K 线周期" : "下次正常重启控制台后启用 V13.27.9 批量能力";
   }
   const summary = el("formalLocalForwardSummary");
   if (summary) {
@@ -2174,7 +2174,7 @@ function renderDemoMarketUniverse(universe = {}) {
       <div class="demo-market-metrics">
         <div><span>市场合约</span><strong>${Number(universe.liveUsdtLinearSwapCount || universe.totalInstrumentCount || 0)}</strong></div>
         <div><span>流动性合格</span><strong>${Number(universe.liquidityEligibleCount || 0)}</strong></div>
-        <div><span>深度扫描</span><strong>${Number(universe.deepScreenedCount || 0)}</strong></div>
+        <div><span>Top100 深度扫描</span><strong>${Number(universe.deepScreenedCount || 0)}</strong></div>
         <div><span>策略匹配</span><strong>${escapeHtml(matchedText)}</strong></div>
       </div>
       <div class="workflow-run-progress-track ${escapeHtml(progress.status || "awaiting")}"><i style="width:${scanPercent}%"></i></div>
@@ -2195,6 +2195,56 @@ function demoMarketScanStatusLabel(status) {
     failed: "扫描失败",
   };
   return labels[status] || status || "尚未扫描";
+}
+
+function formatLatencyMs(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric >= 0 ? `${Math.round(numeric)}ms` : "--";
+}
+
+function renderDemoPublicMarketRuntime(publicMarket = {}, automaticExecution = {}) {
+  const ready = Boolean(publicMarket.ready);
+  const warm = Boolean(publicMarket.warm);
+  const synchronized = Boolean(publicMarket.synchronized);
+  const status = ready ? "已预热并同步" : warm ? "已预热，等待同步" : publicMarket.running ? "预热中" : "未启动";
+  setText("demoMarketRuntimeStatus", status);
+  setText(
+    "demoMarketRuntimeUniverse",
+    publicMarket.deepScreeningLimit
+      ? `Top${Number(publicMarket.deepScreeningLimit)} / ${Number(publicMarket.universeCount || 0)}`
+      : "--",
+  );
+  setText(
+    "demoMarketRuntimeTimeframes",
+    Array.isArray(publicMarket.timeframes) && publicMarket.timeframes.length
+      ? publicMarket.timeframes.join(" / ")
+      : "--",
+  );
+  const lastClose = publicMarket.lastConfirmedClose || {};
+  setText(
+    "demoMarketRuntimeClose",
+    lastClose.receivedAt
+      ? `${lastClose.timeframe || "--"} · ${formatDate(lastClose.receivedAt)} 北京时间`
+      : "--",
+  );
+  const batch = automaticExecution.lastHeartbeatResult?.batch || {};
+  const metrics = batch.latencyMetrics || {};
+  const selected = Array.isArray(metrics.selected) ? metrics.selected : [];
+  const latest = selected[selected.length - 1] || {};
+  const stages = metrics.stageDurationsMs || {};
+  const latencyClass = latest.latencyClass || metrics.latencyClass || "尚无闭合周期";
+  setText(
+    "demoMarketRuntimeLatency",
+    selected.length || Object.keys(stages).length
+      ? `${latencyClass} · 收线到评估 ${formatLatencyMs(stages.closeToEvaluationMs ?? latest.closeToEvaluationMs)} · 策略仲裁 ${formatLatencyMs(stages.arbitrationMs)} · 风险检查 ${formatLatencyMs(stages.riskMs)} · 订单发送 ${formatLatencyMs(latest.orderSendMs)} · 交易所响应 ${formatLatencyMs(latest.exchangeResponseMs)}`
+      : latencyClass,
+  );
+  setText(
+    "demoMarketRuntimeBlocker",
+    publicMarket.actionableBlocker
+      ? `当前阻塞：${publicMarket.actionableBlocker}`
+      : ready ? "公共行情已就绪；等待对应周期确认收线。" : "等待公共行情运行态就绪。",
+  );
 }
 
 function normalizeDemoWorkflowItem(rawItem = {}) {
@@ -2370,7 +2420,7 @@ function renderDemoWorkflowLane(targetId, countId, rows, emptyText) {
 
 function renderDemoWorkflow(payload = { summary: {}, queues: {} }) {
   latestDemoWorkflowPayload = payload || { summary: {}, queues: {} };
-  demoWorkflowBatchBackendReady = payload?.version === "V13.27.7";
+  demoWorkflowBatchBackendReady = payload?.version === "V13.27.9";
   const summary = payload?.summary || {};
   const queues = payload?.queues || {};
   const batchEligibleIds = demoWorkflowRows(payload)
@@ -2380,7 +2430,7 @@ function renderDemoWorkflow(payload = { summary: {}, queues: {} }) {
   updateWorkflowSelectionButton("demoWorkflowRunSelectedButton", workflowSelection.demo);
   if (el("demoWorkflowRunAllButton")) {
     el("demoWorkflowRunAllButton").disabled = !demoWorkflowBatchBackendReady || batchEligibleIds.length === 0;
-    el("demoWorkflowRunAllButton").title = demoWorkflowBatchBackendReady ? "每条策略只执行当前一道合法步骤" : "下次正常重启并重新输入 Demo 凭据后启用 V13.27.7 批量能力";
+    el("demoWorkflowRunAllButton").title = demoWorkflowBatchBackendReady ? "每条策略只执行当前一道合法步骤" : "下次正常重启并重新输入 Demo 凭据后启用 V13.27.9 批量能力";
   }
   setText("demoWorkflowWaitingCount", String(summary.waitingCount ?? 0));
   setText("demoWorkflowValidatingCount", String(summary.validatingCount ?? 0));
@@ -2405,6 +2455,7 @@ function renderDemoWorkflow(payload = { summary: {}, queues: {} }) {
     }, 15000);
   }
   updateDemoRuntimeLauncher(payload);
+  renderDemoPublicMarketRuntime(payload?.runtime?.publicMarket || {}, payload?.automaticExecution || {});
   refreshDemoPageIssues();
   if (payload?.automaticExecution) {
     renderAutomaticExecution({

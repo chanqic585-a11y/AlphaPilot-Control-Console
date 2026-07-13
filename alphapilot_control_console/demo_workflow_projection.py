@@ -12,8 +12,8 @@ from .demo_market_scan_service import get_demo_strategy_market_scan
 from .demo_strategy_runtime_settings import get_demo_strategy_runtime_settings
 
 
-VERSION = "V13.27.7"
-SOURCE = "demo_workflow_projection_v13_27_1_8"
+VERSION = "V13.27.9"
+SOURCE = "demo_workflow_projection_v13_27_9"
 
 QUEUE_BY_STAGE = {
     "demo_trial": "waiting",
@@ -619,6 +619,15 @@ def build_demo_workflow_projection(
     for rows in queues.values():
         rows.sort(key=lambda item: (_text(item.get("displayName")), _text(item.get("strategyId"))))
 
+    public_runtime = _mapping(exchange_demo.get("publicMarketRuntime"))
+    public_startup = _mapping(public_runtime.get("startup"))
+    public_status = _mapping(public_runtime.get("runtime"))
+    market_state = _mapping(public_status.get("marketState"))
+    public_blockers = list(public_status.get("blockers") or public_startup.get("blockers") or [])
+    last_confirmed_close = _mapping(
+        public_status.get("lastConfirmedClose") or market_state.get("lastConfirmedClose")
+    )
+
     return {
         "version": VERSION,
         "source": SOURCE,
@@ -637,6 +646,29 @@ def build_demo_workflow_projection(
             "readonlyStatus": _text(_mapping(exchange_demo.get("readonlySummary")).get("status")) or "not_run",
             "automationReady": bool(_mapping(indexes["evolution"].get("summary")).get("ready")),
             "blockers": list(indexes["evolution"].get("blockers") or []),
+            "publicMarket": {
+                "ready": bool(
+                    public_startup.get("started")
+                    and public_status.get("warm")
+                    and public_status.get("synchronized")
+                ),
+                "running": bool(public_status.get("running")),
+                "seeded": bool(public_status.get("seeded")),
+                "warm": bool(public_status.get("warm")),
+                "synchronized": bool(public_status.get("synchronized")),
+                "universeCount": int(
+                    _number(
+                        market_state.get("screeningInstrumentCount")
+                        or market_state.get("universeCount")
+                    )
+                    or 0
+                ),
+                "deepScreeningLimit": int(_number(market_state.get("screeningLimit")) or 0),
+                "timeframes": list(market_state.get("timeframes") or []),
+                "lastConfirmedClose": dict(last_confirmed_close) if last_confirmed_close else None,
+                "actionableBlocker": _text(public_blockers[0]) if public_blockers else None,
+                "publicOnly": bool(public_status.get("publicOnly", True)),
+            },
         },
         "safetyBoundary": {
             "okxDemoOnly": True,

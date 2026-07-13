@@ -19,6 +19,53 @@ def lifecycle_item(strategy_id: str, stage: str, **overrides: object) -> dict:
 
 
 class DemoWorkflowProjectionTests(unittest.TestCase):
+    def test_projection_exposes_compact_public_market_runtime_status(self) -> None:
+        result = build_demo_workflow_projection(
+            lifecycle={"items": []},
+            exchange_demo={
+                "summary": {},
+                "readonlySummary": {},
+                "automationPipeline": {"summary": {}, "candidates": []},
+                "evolutionDemo": {
+                    "summary": {},
+                    "contracts": [],
+                    "recentRecords": [],
+                    "recentOutcomes": [],
+                    "blockers": [],
+                },
+                "publicMarketRuntime": {
+                    "startup": {"started": True, "blockers": []},
+                    "runtime": {
+                        "running": True,
+                        "seeded": True,
+                        "warm": True,
+                        "synchronized": True,
+                        "marketState": {
+                            "universeCount": 405,
+                            "screeningLimit": 100,
+                            "timeframes": ["5m", "15m", "1h", "1d"],
+                            "lastConfirmedClose": {
+                                "timeframe": "15m",
+                                "receivedAt": "2026-07-13T00:15:01+00:00",
+                            },
+                        },
+                        "blockers": [],
+                        "publicOnly": True,
+                    },
+                },
+            },
+        )
+
+        public_market = result["runtime"]["publicMarket"]
+        self.assertTrue(public_market["ready"])
+        self.assertTrue(public_market["warm"])
+        self.assertTrue(public_market["synchronized"])
+        self.assertEqual(public_market["universeCount"], 405)
+        self.assertEqual(public_market["deepScreeningLimit"], 100)
+        self.assertEqual(public_market["timeframes"], ["5m", "15m", "1h", "1d"])
+        self.assertEqual(public_market["lastConfirmedClose"]["timeframe"], "15m")
+        self.assertIsNone(public_market["actionableBlocker"])
+
     def test_readonly_passed_without_order_gates_requires_automation_restart(self) -> None:
         lifecycle = {
             "items": [lifecycle_item("running-1", "demo_validation_running")]

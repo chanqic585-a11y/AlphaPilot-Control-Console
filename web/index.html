@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#080c0f" />
     <title>AlphaPilot 控制台</title>
-    <link rel="stylesheet" href="/styles.css?v=20260712-v13-27-7-okx-symbol-fix" />
+    <link rel="stylesheet" href="/styles.css?v=20260713-v13-27-9-top100-low-latency" />
   </head>
   <body>
     <a class="skip-link" href="#mainContent">跳到主要内容</a>
@@ -662,6 +662,19 @@
                 <button class="danger-action" type="button" data-auto-execution-action="emergency_stop" data-auto-execution-environment="okx_demo">紧急停止</button>
                 <span id="demoAutoExecutionActionStatus" aria-live="polite">等待操作。</span>
               </div>
+            </section>
+            <section class="auto-execution-control demo-public-market-runtime" aria-label="公共行情预热与延迟状态">
+              <div class="auto-execution-head">
+                <div><span>公共行情预热</span><strong id="demoMarketRuntimeStatus">未启动</strong></div>
+                <small id="demoMarketRuntimeBlocker">启动 Demo 自动运行后预热 OKX 公共行情。</small>
+              </div>
+              <div class="auto-execution-metrics">
+                <div><span>Top100 资产池</span><strong id="demoMarketRuntimeUniverse">--</strong></div>
+                <div><span>监听周期</span><strong id="demoMarketRuntimeTimeframes">--</strong></div>
+                <div><span>最近确认收线</span><strong id="demoMarketRuntimeClose">--</strong></div>
+                <div><span>延迟等级</span><strong id="demoMarketRuntimeLatency">尚无闭合周期</strong></div>
+              </div>
+              <small>时序：收线到评估 → 策略仲裁 → 风险检查 → 订单发送 → 交易所响应。只显示摘要，不展示 Top100 原始报价。</small>
             </section>
             <div class="lifecycle-summary-grid demo-workflow-summary">
               <div class="lifecycle-summary-card"><span>待 Demo 模拟</span><strong id="demoWorkflowWaitingCount">0</strong><small>尚未生成可执行 Release</small></div>
@@ -2787,7 +2800,7 @@
         </div>
       </form>
     </dialog>
-    <script src="/issue-guidance.js?v=20260712-v13-27-7-okx-symbol-fix"></script>
-    <script src="/app.js?v=20260712-v13-27-7-okx-symbol-fix"></script>
+    <script src="/issue-guidance.js?v=20260713-v13-27-9-top100-low-latency"></script>
+    <script src="/app.js?v=20260713-v13-27-9-top100-low-latency"></script>
   </body>
 </html>

@@ -113,6 +113,7 @@ class UnifiedAutoExecutionRunnerTests(unittest.TestCase):
         runner.run_once()
         status = runner.status()
 
+        self.assertEqual(status["version"], "V13.27.9")
         self.assertEqual(status["environments"]["okx_demo"]["lastHeartbeatResult"]["status"], "waiting")
 
     def test_live_start_requires_current_process_arm(self) -> None:

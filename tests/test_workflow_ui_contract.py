@@ -15,7 +15,7 @@ class WorkflowUiContractTests(unittest.TestCase):
         cls.css = (ROOT / "web" / "styles.css").read_text(encoding="utf-8")
         cls.http_app = (ROOT / "alphapilot_control_console" / "http_app.py").read_text(encoding="utf-8")
         cls.readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        patch_doc = ROOT / "docs" / "V13.27.7-canonical-okx-instrument-fix.md"
+        patch_doc = ROOT / "docs" / "V13.27.9-top100-demo-release.md"
         cls.patch_doc = patch_doc.read_text(encoding="utf-8") if patch_doc.exists() else ""
         issue_guidance_path = ROOT / "web" / "issue-guidance.js"
         cls.issue_js = issue_guidance_path.read_text(encoding="utf-8") if issue_guidance_path.exists() else ""
@@ -50,15 +50,16 @@ class WorkflowUiContractTests(unittest.TestCase):
         self.assertIn("strategy-optimization-dialog", self.css)
 
     def test_static_asset_cachebuster_matches_patch(self) -> None:
-        self.assertIn("v13-27-7-okx-symbol-fix", self.html)
+        self.assertIn("v13-27-9-top100-low-latency", self.html)
 
     def test_patch_version_and_documentation_are_consistent(self) -> None:
-        self.assertIn('version: "V13.27.7"', self.js)
-        self.assertIn('"version": "V13.27.7"', self.http_app)
-        self.assertIn("AlphaPilot V13.27.7", self.readme)
-        self.assertIn("Canonical OKX Instrument Fix", self.patch_doc)
+        self.assertIn('version: "V13.27.9"', self.js)
+        self.assertIn('"version": "V13.27.9"', self.http_app)
+        self.assertIn("AlphaPilot V13.27.9", self.readme)
+        self.assertIn("Top100 Demo Release", self.patch_doc)
         self.assertIn("process-only", self.patch_doc)
-        self.assertIn("targetR >= 2", self.patch_doc)
+        self.assertIn("Top100", self.patch_doc)
+        self.assertIn("no-order", self.patch_doc)
 
     def test_back_to_strategy_control_is_compact_and_named(self) -> None:
         self.assertIn('title="回到策略页"', self.html)
@@ -168,7 +169,7 @@ class WorkflowUiContractTests(unittest.TestCase):
             "市场合约",
             "流动性合格",
             "策略匹配",
-            "深度扫描",
+            "Top100 深度扫描",
         ):
             self.assertIn(label, self.js)
         self.assertIn("demo-evidence-list", self.css)
@@ -177,8 +178,8 @@ class WorkflowUiContractTests(unittest.TestCase):
     def test_one_time_issue_guidance_has_persistent_and_session_fallbacks(self) -> None:
         self.assertIn('id="issueGuidanceDialog"', self.html)
         self.assertIn('id="issueGuidanceNextAction"', self.html)
-        self.assertIn('/issue-guidance.js?v=20260712-v13-27-7-okx-symbol-fix', self.html)
-        self.assertIn('/app.js?v=20260712-v13-27-7-okx-symbol-fix', self.html)
+        self.assertIn('/issue-guidance.js?v=20260713-v13-27-9-top100-low-latency', self.html)
+        self.assertIn('/app.js?v=20260713-v13-27-9-top100-low-latency', self.html)
         self.assertIn("ALPHAPILOT_ISSUE_ACK_V1", self.issue_js)
         self.assertIn("function issueFingerprint", self.issue_js)
         self.assertIn("localStorage", self.issue_js)
@@ -309,7 +310,31 @@ class WorkflowUiContractTests(unittest.TestCase):
         self.assertIn("data-demo-workflow-select", self.js)
         self.assertIn("pruneWorkflowSelection", self.js)
         self.assertIn("demoBatchActionEligible", self.js)
-        self.assertIn('payload?.controlConsoleVersion === "V13.27.7"', self.js)
+        self.assertIn('payload?.controlConsoleVersion === "V13.27.9"', self.js)
+
+    def test_demo_page_exposes_compact_public_runtime_and_latency_metrics(self) -> None:
+        for target_id in (
+            "demoMarketRuntimeStatus",
+            "demoMarketRuntimeUniverse",
+            "demoMarketRuntimeTimeframes",
+            "demoMarketRuntimeClose",
+            "demoMarketRuntimeLatency",
+            "demoMarketRuntimeBlocker",
+        ):
+            self.assertIn(f'id="{target_id}"', self.html)
+        for label in (
+            "公共行情预热",
+            "最近确认收线",
+            "收线到评估",
+            "策略仲裁",
+            "风险检查",
+            "订单发送",
+            "交易所响应",
+            "延迟等级",
+        ):
+            self.assertIn(label, self.html + self.js)
+        self.assertIn("function renderDemoPublicMarketRuntime", self.js)
+        self.assertIn('payload?.version === "V13.27.9"', self.js)
 
     def test_live_gate_copy_includes_automation_and_mobile_copy_stays_read_only(self) -> None:
         self.assertIn("五层独立门", self.html)

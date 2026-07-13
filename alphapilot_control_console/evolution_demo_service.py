@@ -17,6 +17,7 @@ from .demo_market_scan_service import save_demo_release_scan
 from .demo_execution_engine import DemoExecutionEngine
 from .demo_execution_store import DemoExecutionStore
 from .demo_entry_latency_policy import evaluate_demo_entry_latency
+from .demo_latency_observability import build_latency_stage_metrics
 from .demo_market_runtime_registry import get_demo_market_runtime
 from .demo_release_scanner import scan_immutable_demo_release
 from .demo_runtime_guard import evaluate_demo_runtime_guard
@@ -430,6 +431,7 @@ def run_evolution_demo_batch_cycle(
             "status": status,
         }
 
+    evaluation_started_at = _utc_now()
     scans: dict[str, dict[str, Any]] = {}
     all_signals: list[dict[str, Any]] = []
     scan_rejections: list[dict[str, Any]] = []
@@ -476,6 +478,7 @@ def run_evolution_demo_batch_cycle(
             for row in scan.get("rejections", [])
             if isinstance(row, dict)
         )
+    evaluation_finished_at = _utc_now()
 
     first_contract = selected_contracts[0]
     store = DemoExecutionStore(STORE_PATH)
@@ -501,11 +504,13 @@ def run_evolution_demo_batch_cycle(
             }
         portfolio["dataFresh"] = all(bool(item.get("dataFresh")) for item in all_signals)
         portfolio["liquidityPassed"] = all(bool(item.get("liquidityPassed")) for item in all_signals)
+        risk_started_at = _utc_now()
         guard = evaluate_demo_runtime_guard(
             portfolio,
             recovered_statuses=[record.status for record in recovered],
             checksums_match=True,
         )
+        risk_finished_at = _utc_now()
         if guard.pauseRequired:
             engine.pause(";".join(guard.reasonCodes))
             return {
@@ -522,7 +527,17 @@ def run_evolution_demo_batch_cycle(
             "closeReceivedAt": str(close_received_at),
             "closeSequenceId": close_sequence_id,
             "marketRuntimeStatus": market_runtime_status,
-            "latencyMetrics": {"selected": [], "expiredCount": 0},
+            "latencyMetrics": {
+                "selected": [],
+                "expiredCount": 0,
+                "stageDurationsMs": build_latency_stage_metrics(
+                    close_received_at=close_received_at,
+                    evaluation_started_at=evaluation_started_at,
+                    evaluation_finished_at=evaluation_finished_at,
+                    risk_started_at=risk_started_at,
+                    risk_finished_at=risk_finished_at,
+                ),
+            },
             "expiredSignals": [],
             "conditionalLateEntries": [],
         }
@@ -569,6 +584,7 @@ def run_evolution_demo_batch_cycle(
             str(contract.get("strategyCandidateId") or ""): contract
             for contract in selected_contracts
         }
+        arbitration_started_at = _utc_now()
         preliminarily_selected: list[dict[str, Any]] = []
         arbitration_rejections: list[dict[str, Any]] = list(scan_rejections)
         symbol_limits: dict[str, dict[str, Any]] = {}
@@ -635,6 +651,16 @@ def run_evolution_demo_batch_cycle(
             arbitration_rejections.extend(global_arbitration.rejected)
         else:
             globally_selected = ()
+        arbitration_finished_at = _utc_now()
+        stage_durations = build_latency_stage_metrics(
+            close_received_at=close_received_at,
+            evaluation_started_at=evaluation_started_at,
+            evaluation_finished_at=evaluation_finished_at,
+            arbitration_started_at=arbitration_started_at,
+            arbitration_finished_at=arbitration_finished_at,
+            risk_started_at=risk_started_at,
+            risk_finished_at=risk_finished_at,
+        )
 
         created: list[Any] = []
         execution_rejections: list[dict[str, Any]] = []
@@ -696,6 +722,32 @@ def run_evolution_demo_batch_cycle(
                     signal=executable_signal,
                     portfolio=rolling_portfolio,
                 )
+                exchange_response = getattr(record, "exchangeResponse", None)
+                exchange_timing = (
+                    exchange_response.get("_alphaPilotTiming")
+                    if isinstance(exchange_response, dict)
+                    and isinstance(exchange_response.get("_alphaPilotTiming"), dict)
+                    else {}
+                )
+                order_timing = build_latency_stage_metrics(
+                    close_received_at=close_received_at,
+                    evaluation_started_at=evaluation_started_at,
+                    evaluation_finished_at=evaluation_finished_at,
+                    arbitration_started_at=arbitration_started_at,
+                    arbitration_finished_at=arbitration_finished_at,
+                    risk_started_at=risk_started_at,
+                    risk_finished_at=risk_finished_at,
+                    order_ready_at=ready_at,
+                    order_sent_at=exchange_timing.get("orderSentAt"),
+                    exchange_response_at=exchange_timing.get("exchangeResponseReceivedAt"),
+                )
+                timing_payload.update(
+                    {
+                        key: value
+                        for key, value in order_timing.items()
+                        if value is not None
+                    }
+                )
                 created.append(record)
                 _increment_demo_portfolio(rolling_portfolio, executable_signal)
             except (RuntimeError, ValueError) as error:
@@ -717,6 +769,11 @@ def run_evolution_demo_batch_cycle(
             "latencyMetrics": {
                 "selected": selected_latency,
                 "expiredCount": len(expired_signals),
+                "latencyClass": (
+                    selected_latency[-1].get("latencyClass")
+                    if selected_latency else None
+                ),
+                "stageDurationsMs": stage_durations,
             },
             "expiredSignals": expired_signals,
             "conditionalLateEntries": conditional_late_entries,

@@ -95,6 +95,7 @@ class OkxPublicMarketRuntime:
         self._seeded = False
         self._last_error: str | None = None
         self._emitted_batch_closes: set[tuple[str, int]] = set()
+        self._last_confirmed_close: dict[str, Any] | None = None
         self._stop = threading.Event()
         self._threads: list[threading.Thread] = []
         self._apps: dict[str, Any] = {}
@@ -293,6 +294,13 @@ class OkxPublicMarketRuntime:
                 receivedAt=event.receivedAt,
                 sequenceId=f"{timeframe}:{event.candleStartMs}",
             )
+            with self._lock:
+                self._last_confirmed_close = {
+                    "timeframe": batch_event.timeframe,
+                    "candleStartMs": batch_event.candleStartMs,
+                    "receivedAt": batch_event.receivedAt,
+                    "sequenceId": batch_event.sequenceId,
+                }
             for listener in listeners:
                 listener(batch_event)
 
@@ -302,6 +310,7 @@ class OkxPublicMarketRuntime:
             seeded = self._seeded
             error = self._last_error
             running = bool(self._threads) and not self._stop.is_set()
+            last_confirmed_close = copy.deepcopy(self._last_confirmed_close)
         blockers: list[str] = []
         if not seeded:
             blockers.append("okx_public_market_seed_incomplete")
@@ -320,6 +329,7 @@ class OkxPublicMarketRuntime:
             "synchronized": market_status["synchronized"],
             "connections": connections,
             "marketState": market_status,
+            "lastConfirmedClose": last_confirmed_close,
             "blockers": list(dict.fromkeys(blockers)),
             "lastError": error,
             "publicOnly": True,

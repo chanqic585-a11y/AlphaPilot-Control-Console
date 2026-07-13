@@ -3,12 +3,36 @@
 Current version:
 
 ```text
-AlphaPilot V13.27.7 - Canonical OKX Instrument Fix
+AlphaPilot V13.27.9 - Top100 Demo Release and Low-Latency Public Runtime
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
 AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
+
+## What V13.27.9 Adds
+
+- Replaces immutable Top20 Demo releases with rollback-safe Top100 successor
+  releases. Strategy rules, direction, target R, and risk envelopes are
+  preserved; predecessor files are archived byte-for-byte.
+- Keeps the OKX USDT perpetual Top100 public market state prewarmed in memory
+  through separate public ticker and public candle WebSocket connections.
+- Wakes the Demo execution controller from a confirmed close event instead of
+  reconstructing an order cycle from the 15-second health heartbeat.
+- Shares one frozen market snapshot per timeframe across every due release,
+  arbitrates duplicate symbols, and still applies immutable release and risk
+  gates before an OKX Demo order can be submitted.
+- Targets five seconds from confirmed close to order send. Entries after ten
+  seconds require fresh quotes, acceptable liquidity, limited adverse drift,
+  and recalculated net reward/risk of at least 2R; signals expire after thirty
+  seconds.
+- Shows compact warm/synchronized status, last confirmed close, Top100 pool,
+  and redacted latency stages in the Demo console without rendering all quotes.
+- Adds a public-only no-order latency rehearsal and a separate successor
+  activation command. Runtime credentials remain process-only.
+- Does not add Withdraw, raw credential storage, or any new Live permission.
+
+See `docs/V13.27.9-top100-demo-release.md`.
 
 ## What V13.27.7 Adds
 

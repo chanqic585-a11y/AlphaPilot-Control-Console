@@ -7,6 +7,7 @@ from typing import Any, Callable
 
 from .config import SAFETY_BOUNDARY
 from .credential_runtime import load_okx_demo_credentials, runtime_credential_status
+from .demo_market_runtime_registry import get_demo_market_runtime_status
 from .exchange_connectors.okx_demo_client import (
     OkxDemoClient,
     OkxDemoError,
@@ -19,8 +20,8 @@ from .strategy_stage_service import build_strategy_stage_board
 from .usable_strategy_catalog import build_usable_strategy_catalog
 
 
-CONTROL_CONSOLE_VERSION = "V13.27.7"
-CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_27_1_8"
+CONTROL_CONSOLE_VERSION = "V13.27.9"
+CONTROL_CONSOLE_SOURCE = "alphapilot_control_console_v13_27_9"
 DEFAULT_OKX_SITE = "global"
 MAX_DEMO_NOTIONAL_USDT = 250.0
 
@@ -609,6 +610,7 @@ def build_exchange_demo_simulation() -> dict[str, Any]:
             "notionalUsdt": MAX_DEMO_NOTIONAL_USDT,
         },
         "automationPipeline": automation_pipeline,
+        "publicMarketRuntime": get_demo_market_runtime_status(),
         "evolutionDemo": evolution_demo,
         "recentEvents": recent_events,
         "safetyBoundary": {

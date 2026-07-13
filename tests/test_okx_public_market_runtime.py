@@ -146,6 +146,7 @@ class OkxPublicMarketRuntimeTests(unittest.TestCase):
         self.assertEqual(events[0].timeframe, "1h")
         self.assertEqual(events[0].candleStartMs, 3_000)
         self.assertEqual(events[0].sequenceId, "1h:3000")
+        self.assertEqual(runtime.status()["lastConfirmedClose"]["sequenceId"], "1h:3000")
 
     def test_ticker_message_updates_executable_quote(self) -> None:
         runtime = self.build_runtime()
