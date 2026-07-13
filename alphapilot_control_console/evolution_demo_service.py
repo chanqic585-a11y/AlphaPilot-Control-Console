@@ -25,7 +25,7 @@ from .demo_strategy_runtime_settings import (
     effective_symbol_limit,
     get_demo_strategy_runtime_settings,
 )
-from .exchange_connectors.okx_demo_client import OkxDemoClient
+from .exchange_connectors.okx_demo_client import OkxDemoClient, OkxDemoError
 from .execution_outcome_store import ExecutionOutcomeStore
 from .portfolio_risk import normalize_risk_profile
 from .risk_profile_store import RISK_PROFILE_STORE_PATH, RiskProfileStore
@@ -493,8 +493,9 @@ def run_evolution_demo_batch_cycle(
     try:
         client = OkxDemoClient(load_okx_demo_credentials())
         engine = DemoExecutionEngine(client=client, store=store)
-        recovered = engine.recover_open_records()
+        recovered: list[Any] = []
         try:
+            recovered = engine.recover_open_records()
             portfolio = _portfolio_from_demo_account(
                 client,
                 store,
@@ -502,6 +503,14 @@ def run_evolution_demo_batch_cycle(
                 if isinstance(first_contract.get("riskEnvelope"), dict)
                 else {},
             )
+        except OkxDemoError as error:
+            return {
+                "ok": False,
+                "transient": True,
+                "blockers": [str(error)],
+                "scans": scans,
+                "status": build_evolution_demo_status(),
+            }
         except RuntimeError as error:
             engine.pause("demo_private_read_failed")
             return {
@@ -849,8 +858,9 @@ def reconcile_evolution_demo_runtime() -> dict[str, Any]:
     try:
         client = OkxDemoClient(load_okx_demo_credentials())
         engine = DemoExecutionEngine(client=client, store=store)
-        recovered = engine.recover_open_records()
+        recovered: list[Any] = []
         try:
+            recovered = engine.recover_open_records()
             portfolio = _portfolio_from_demo_account(
                 client,
                 store,
@@ -858,6 +868,14 @@ def reconcile_evolution_demo_runtime() -> dict[str, Any]:
                 if isinstance(contracts[0].get("riskEnvelope"), dict)
                 else {},
             )
+        except OkxDemoError as error:
+            return {
+                "ok": False,
+                "transient": True,
+                "blockers": [str(error)],
+                "recoveredCount": len(recovered),
+                "status": build_evolution_demo_status(),
+            }
         except RuntimeError as error:
             engine.pause("demo_private_read_failed")
             return {

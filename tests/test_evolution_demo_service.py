@@ -11,6 +11,7 @@ from unittest.mock import patch
 import alphapilot_control_console.evolution_demo_service as service
 from alphapilot_control_console.demo_arbitrator import DemoArbitrationResult
 from alphapilot_control_console.demo_execution_store import DemoExecutionStore
+from alphapilot_control_console.exchange_connectors.okx_demo_client import OkxDemoError
 
 
 def confirmed_close() -> dict:
@@ -87,6 +88,52 @@ class EvolutionDemoServiceTests(unittest.TestCase):
             self.assertTrue(reopened.get_runtime_flag("paused", False))
             self.assertTrue(reopened.get_runtime_flag("killSwitch", False))
             reopened.close()
+
+    def test_reconcile_treats_demo_network_timeout_as_transient_without_pausing(self) -> None:
+        pause_reasons: list[str] = []
+
+        class FakeEngine:
+            def __init__(self, **_kwargs: object) -> None:
+                pass
+
+            def recover_open_records(self) -> list[object]:
+                return []
+
+            def pause(self, reason: str) -> None:
+                pause_reasons.append(reason)
+
+        ready_status = {"blockers": []}
+        contract = {
+            "demoReleaseId": "release-1",
+            "riskEnvelope": {"initialEquityUsdt": 1000.0},
+        }
+
+        with tempfile.TemporaryDirectory() as directory, patch.object(
+            service, "STORE_PATH", Path(directory) / "demo.sqlite"
+        ), patch.object(
+            service, "build_evolution_demo_status", return_value=ready_status
+        ), patch.object(
+            service, "discover_demo_contracts", return_value=([contract], [])
+        ), patch.object(
+            service, "OkxDemoClient", return_value=object()
+        ), patch.object(
+            service, "load_okx_demo_credentials", return_value=object()
+        ), patch.object(
+            service, "DemoExecutionEngine", FakeEngine
+        ), patch.object(
+            service,
+            "_portfolio_from_demo_account",
+            side_effect=OkxDemoError("OKX Demo network request failed: TimeoutError"),
+        ):
+            result = service.reconcile_evolution_demo_runtime()
+
+        self.assertFalse(result["ok"])
+        self.assertTrue(result["transient"])
+        self.assertEqual(
+            result["blockers"],
+            ["OKX Demo network request failed: TimeoutError"],
+        )
+        self.assertEqual(pause_reasons, [])
 
     def test_default_status_is_blocked_without_release_or_credentials(self) -> None:
         with tempfile.TemporaryDirectory() as directory, patch.object(

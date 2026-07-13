@@ -174,10 +174,10 @@ class UnifiedAutoExecutionController:
         try:
             preflight = adapter.preflight()
             if not preflight.get("ok"):
-                return self._pause_from_failure(environment, adapter, preflight, heartbeat_iso)
+                return self._handle_failure(environment, adapter, preflight, heartbeat_iso)
             reconciliation = adapter.reconcile()
             if not reconciliation.get("ok"):
-                return self._pause_from_failure(environment, adapter, reconciliation, heartbeat_iso)
+                return self._handle_failure(environment, adapter, reconciliation, heartbeat_iso)
 
             releases = adapter.list_releases()
             if environment == "okx_demo" and close_event is None:
@@ -209,7 +209,7 @@ class UnifiedAutoExecutionController:
                 else getattr(close_event, "sequenceId", "")
             ) if close_event is not None else ""
             if close_event is not None and (not event_timeframe or not event_sequence):
-                return self._pause_from_failure(
+                return self._handle_failure(
                     environment,
                     adapter,
                     {"blockers": ["confirmed_close_event_invalid"]},
@@ -245,7 +245,7 @@ class UnifiedAutoExecutionController:
 
             batch = adapter.run_batch(due, candle_keys, close_event)
             if not batch.get("ok"):
-                return self._pause_from_failure(environment, adapter, batch, heartbeat_iso)
+                return self._handle_failure(environment, adapter, batch, heartbeat_iso)
             for release in due:
                 self.store.save_checkpoint(
                     environment,
@@ -305,6 +305,54 @@ class UnifiedAutoExecutionController:
             )
             self.store.append_event(environment, "heartbeat_failed", {"reason": reason})
             return self._heartbeat_result(environment, "paused", 0, blockers=[reason])
+
+    def _handle_failure(
+        self,
+        environment: str,
+        adapter: ExecutionEnvironmentAdapter,
+        result: dict[str, Any],
+        heartbeat_iso: str,
+    ) -> dict[str, Any]:
+        if environment == "okx_demo" and result.get("transient") is True:
+            return self._degrade_from_failure(environment, result, heartbeat_iso)
+        return self._pause_from_failure(environment, adapter, result, heartbeat_iso)
+
+    def _degrade_from_failure(
+        self,
+        environment: str,
+        result: dict[str, Any],
+        heartbeat_iso: str,
+    ) -> dict[str, Any]:
+        blockers = [str(value) for value in result.get("blockers", []) if str(value)]
+        reason = blockers[0] if blockers else "transient_demo_transport_failure"
+        evaluation_audit = (
+            dict(result.get("evaluationAudit") or {})
+            if isinstance(result.get("evaluationAudit"), dict)
+            else {}
+        )
+        self.store.update_runtime(
+            environment,
+            status="degraded",
+            lastHeartbeatAt=heartbeat_iso,
+            pauseReason=None,
+            lastError=reason,
+        )
+        self.store.append_event(
+            environment,
+            "heartbeat_degraded",
+            {
+                "blockers": blockers or [reason],
+                "retryMode": "next_heartbeat",
+                "evaluationAudit": evaluation_audit,
+            },
+        )
+        return self._heartbeat_result(
+            environment,
+            "degraded",
+            int(evaluation_audit.get("evaluatedReleaseCount") or 0),
+            blockers=blockers or [reason],
+            batch={"evaluationAudit": evaluation_audit} if evaluation_audit else None,
+        )
 
     def _pause_from_failure(
         self,

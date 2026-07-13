@@ -194,6 +194,50 @@ class UnifiedAutoExecutionControllerTests(unittest.TestCase):
         self.assertEqual(self.live.batch_calls, [])
         self.assertEqual(self.live.pause_reasons, ["private_state_mismatch"])
 
+    def test_transient_demo_network_failure_degrades_then_recovers_without_pause(self) -> None:
+        self._start_and_arm("okx_demo")
+        self.demo.reconciliation_result = {
+            "ok": False,
+            "transient": True,
+            "blockers": ["OKX Demo network request failed: TimeoutError"],
+        }
+
+        degraded = self.controller.heartbeat("okx_demo", now=NOW)
+
+        self.assertEqual(degraded["status"], "degraded")
+        self.assertEqual(
+            degraded["blockers"],
+            ["OKX Demo network request failed: TimeoutError"],
+        )
+        self.assertEqual(self.demo.pause_reasons, [])
+        self.assertEqual(self.demo.batch_calls, [])
+        self.assertIsNone(self.store.checkpoint("okx_demo", "release-1", "1h"))
+        runtime = self.store.runtime("okx_demo", current_process_id="process-1")
+        self.assertTrue(runtime["desiredEnabled"])
+        self.assertTrue(runtime["armedForCurrentProcess"])
+        self.assertEqual(runtime["status"], "degraded")
+        self.assertIsNone(runtime["pauseReason"])
+        self.assertEqual(
+            runtime["lastError"],
+            "OKX Demo network request failed: TimeoutError",
+        )
+        self.assertIn(
+            "heartbeat_degraded",
+            [row["eventType"] for row in self.store.list_events("okx_demo")],
+        )
+
+        self.demo.reconciliation_result = {"ok": True, "blockers": []}
+        recovered = self.controller.heartbeat("okx_demo", now=NOW)
+
+        self.assertEqual(recovered["status"], "waiting")
+        recovered_runtime = self.store.runtime(
+            "okx_demo",
+            current_process_id="process-1",
+        )
+        self.assertIsNone(recovered_runtime["pauseReason"])
+        self.assertIsNone(recovered_runtime["lastError"])
+        self.assertEqual(self.demo.pause_reasons, [])
+
     def test_batch_failure_does_not_advance_checkpoint(self) -> None:
         self._start_and_arm("okx_demo")
         self.demo.batch_result = {"ok": False, "blockers": ["order_state_unknown"]}
