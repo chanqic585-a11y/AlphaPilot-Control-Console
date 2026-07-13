@@ -238,6 +238,20 @@ class UnifiedAutoExecutionStore:
             ).fetchone()
             return str(row["closedCandleKey"]) if row else None
 
+    def retire_checkpoints(self, environment: str, release_ids: list[str]) -> int:
+        environment = _environment(environment)
+        selected = list(dict.fromkeys(str(value) for value in release_ids if str(value)))
+        if not selected:
+            return 0
+        placeholders = ",".join("?" for _ in selected)
+        with self._lock:
+            with self.connection:
+                cursor = self.connection.execute(
+                    f"DELETE FROM AutoExecutionCheckpoints WHERE environment = ? AND releaseId IN ({placeholders})",
+                    (environment, *selected),
+                )
+            return int(cursor.rowcount or 0)
+
     def append_event(self, environment: str, event_type: str, payload: dict[str, Any]) -> None:
         environment = _environment(environment)
         _reject_sensitive(payload)

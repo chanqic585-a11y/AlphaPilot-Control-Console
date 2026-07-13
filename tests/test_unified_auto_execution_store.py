@@ -48,6 +48,22 @@ class UnifiedAutoExecutionStoreTests(unittest.TestCase):
         self.assertIsNone(self.store.checkpoint("okx_live", "release-1", "1h"))
         self.assertIsNone(self.store.checkpoint("okx_demo", "release-1", "4h"))
 
+    def test_retire_checkpoints_deletes_only_selected_release_ids(self) -> None:
+        for release_id in ("release-1", "release-2", "release-keep"):
+            self.store.save_checkpoint("okx_demo", release_id, "1h", "closed")
+        self.store.save_checkpoint("okx_live", "release-1", "1h", "live-closed")
+
+        retired = self.store.retire_checkpoints(
+            "okx_demo",
+            ["release-1", "release-2"],
+        )
+
+        self.assertEqual(retired, 2)
+        self.assertIsNone(self.store.checkpoint("okx_demo", "release-1", "1h"))
+        self.assertIsNone(self.store.checkpoint("okx_demo", "release-2", "1h"))
+        self.assertEqual(self.store.checkpoint("okx_demo", "release-keep", "1h"), "closed")
+        self.assertEqual(self.store.checkpoint("okx_live", "release-1", "1h"), "live-closed")
+
     def test_runtime_and_events_survive_reopen_without_restoring_arm_to_new_process(self) -> None:
         self.store.set_desired_enabled("okx_live", True)
         self.store.record_arm("okx_live", process_id="old-process")
