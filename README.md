@@ -11,6 +11,23 @@ AlphaPilot Control Console is a local desktop web console for reviewing
 AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
+## Bounded Structural Redesign Status
+
+The Strategy page reads the Quant workflow's explicit
+`structuralRedesignRecovery` capability before showing structural lifecycle
+status. A generated child is displayed as `自动重设计 n/3` together with the
+archived-parent state, registered recipe summary, and child backtest state.
+Generation-budget exhaustion and the absence of another novel registered recipe
+are shown as terminal stop reasons. Unrelated strategies and older backends do
+not receive a structural-redesign label.
+
+The Console allowlist recognizes the idempotent
+`recover-structural-redesigns` Quant command, but recovery still runs through the
+fixed local Quant CLI and its online-backup boundary. This display does not
+change formal serial-worker concurrency, `targetR >= 2R`, Local Forward, OKX
+Demo Release, Demo risk, or Live approval gates. It stores no raw API key, adds
+no Withdraw capability, and grants no order permission.
+
 ## Current Demo ARM and Evaluation Audit Patch
 
 The secure Demo launcher now hands its explicit process-only automation
