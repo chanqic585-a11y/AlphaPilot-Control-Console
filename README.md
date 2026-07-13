@@ -3,14 +3,41 @@
 Current version:
 
 ```text
-AlphaPilot V13.27.11 - Formal Backtest Progress Semantics
+Control Console runtime: AlphaPilot V13.27.9
+Quant workflow compatibility: V13.27.11 formal-backtest progress semantics
 ```
 
 AlphaPilot Control Console is a local desktop web console for reviewing
 AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
-## What V13.27.11 Adds
+## Current Demo ARM and Evaluation Audit Patch
+
+The secure Demo launcher now hands its explicit process-only automation
+confirmation to the newly started Console process. After the listener, market
+runtime, and runner are ready, startup performs the existing fail-closed Demo
+ARM action for the current PID. A stale PID is never treated as armed, and the
+browser cannot arm Demo by itself.
+
+Every confirmed-close batch now exposes a redacted evaluation audit: evaluated
+Release count, market/liquidity/deep-screen counts, matched signals, bounded
+near misses, rejection and failed-check counts, order attempts/results,
+exchange response-code counts, close sequence, PID, and stage timings. The
+same bounded payload is stored with `heartbeat_completed`; it contains no API
+credentials or private account values.
+
+Historical evidence explains the previous ten-strategy zero-order period: the
+recorded batches evaluated the older five hourly Releases (and all ten only at
+daily boundaries), produced zero matches, and predated a completed Top100
+close batch. The patch does not claim a trade retroactively. The next
+credential-bearing runtime must complete a real confirmed-close Top100 batch;
+the audit will then show whether the blocker is no signal, arbitration,
+latency, risk, or exchange submission.
+
+No raw key is persisted, Withdraw remains absent, immutable Demo Releases are
+not mutated, and Live stays locked.
+
+## V13.27.11 Quant Workflow Compatibility
 
 - Distinguishes a first official-data download from a shared-warehouse tail
   refresh, an existing contract checkpoint check, and fully ready shared data.
