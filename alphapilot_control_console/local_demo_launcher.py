@@ -72,6 +72,7 @@ class LocalDemoLauncher:
 
             command = [
                 "powershell.exe",
+                "-NoExit",
                 "-NoProfile",
                 "-ExecutionPolicy",
                 "Bypass",

@@ -39,6 +39,7 @@ class LocalDemoLauncherTests(unittest.TestCase):
         command, kwargs = self.calls[0]
         command_text = " ".join(map(str, command))
         self.assertIn("start_okx_demo_console.ps1", command_text)
+        self.assertIn("-NoExit", command)
         self.assertIn("-EnableOrder", command)
         self.assertIn("-EnableAutomation", command)
         self.assertIn("-ReplaceExistingConsole", command)
