@@ -17,20 +17,7 @@ if not exist "%ALPHAPILOT_PY%" (
 echo [AlphaPilot] Starting local Control Console...
 echo [AlphaPilot] Repository: %ALPHAPILOT_REPO%
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$ErrorActionPreference = 'Stop';" ^
-  "$repo = $env:ALPHAPILOT_REPO;" ^
-  "$py = $env:ALPHAPILOT_PY;" ^
-  "$url = $env:ALPHAPILOT_URL;" ^
-  "$old = Get-CimInstance Win32_Process | Where-Object { $_.Name -like 'python*' -and $_.CommandLine -like '*alphapilot_control_console.http_app*' };" ^
-  "foreach ($p in $old) { Stop-Process -Id $p.ProcessId -Force };" ^
-  "Start-Sleep -Milliseconds 500;" ^
-  "Start-Process -FilePath $py -ArgumentList '-m','alphapilot_control_console.http_app' -WorkingDirectory $repo -WindowStyle Hidden;" ^
-  "Start-Sleep -Seconds 2;" ^
-  "$health = Invoke-RestMethod -UseBasicParsing ($url + 'api/health') -TimeoutSec 20;" ^
-  "if ($health.ok -ne $true) { throw 'Health check failed.' };" ^
-  "Write-Host ('[AlphaPilot] Control Console is running: ' + $health.version);" ^
-  "Start-Process $url;"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%ALPHAPILOT_REPO%scripts\start_local_console.ps1" -RepositoryPath "%ALPHAPILOT_REPO%." -PythonPath "%ALPHAPILOT_PY%" -ConsoleUrl "%ALPHAPILOT_URL%" %*
 
 if errorlevel 1 (
   echo.

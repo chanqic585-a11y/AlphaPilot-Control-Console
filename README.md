@@ -780,8 +780,12 @@ gone. Run this helper from the repository root:
 Start-Control-Console.cmd
 ```
 
-It will stop any old AlphaPilot Control Console Python process, start the local
-server on `http://127.0.0.1:8766/`, run `/api/health`, and open the browser.
+The launcher first reuses an existing healthy AlphaPilot process, so reopening
+the console does not interrupt active workflow or Demo runtime state. If the
+verified AlphaPilot listener is unhealthy, it replaces only that listener,
+starts the local server on `http://127.0.0.1:8766/`, and polls `/api/health` for
+up to 120 seconds before reporting a real startup failure. It never stops an
+unrelated process that owns the port.
 
 ## What V13.8.4 Adds
 
