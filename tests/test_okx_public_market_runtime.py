@@ -4,6 +4,7 @@ import json
 import unittest
 from datetime import UTC, datetime
 from typing import Callable
+from unittest.mock import patch
 
 from alphapilot_control_console.demo_prewarmed_market_state import (
     DemoPrewarmedMarketState,
@@ -360,6 +361,72 @@ class OkxPublicMarketRuntimeTests(unittest.TestCase):
         runtime._run_connection("public", OKX_PUBLIC_WS_URL)
 
         self.assertEqual(calls, [(20, 10)])
+
+    def test_status_does_not_report_dead_connection_threads_as_running(self) -> None:
+        runtime = self.build_runtime()
+        runtime.refresh_subscriptions([{"timeframe": "1h"}])
+
+        class DeadThread:
+            name = "alphapilot-okx-public-market"
+
+            def is_alive(self) -> bool:
+                return False
+
+        runtime._threads = [DeadThread()]
+
+        status = runtime.status()
+
+        self.assertFalse(status["running"])
+
+    def test_start_replaces_dead_connection_threads(self) -> None:
+        runtime = self.build_runtime()
+        runtime.refresh_subscriptions([{"timeframe": "1h"}])
+        started: list[str] = []
+
+        class DeadThread:
+            name = "alphapilot-okx-public-market"
+
+            def is_alive(self) -> bool:
+                return False
+
+        class LiveThread:
+            def __init__(self, *, name: str, **_kwargs: object) -> None:
+                self.name = name
+                self.daemon = True
+                self._alive = False
+
+            def start(self) -> None:
+                self._alive = True
+                started.append(self.name)
+
+            def is_alive(self) -> bool:
+                return self._alive
+
+        runtime._threads = [DeadThread()]
+
+        with patch(
+            "alphapilot_control_console.okx_public_market_runtime.threading.Thread",
+            LiveThread,
+        ):
+            status = runtime.start()
+
+        self.assertEqual(
+            set(started),
+            {
+                "alphapilot-okx-public-market",
+                "alphapilot-okx-business-market",
+            },
+        )
+        self.assertTrue(status["running"])
+
+    def test_seed_refresh_does_not_hide_connection_dependency_failure(self) -> None:
+        runtime = self.build_runtime()
+        runtime.refresh_subscriptions([{"timeframe": "1h"}])
+        runtime.mark_disconnected("public", "websocket_client_dependency_missing")
+
+        runtime.refresh_subscriptions([{"timeframe": "1h"}])
+
+        self.assertIn("websocket_client_dependency_missing", runtime.status()["lastError"])
 
     def test_credential_like_message_is_rejected(self) -> None:
         runtime = self.build_runtime()

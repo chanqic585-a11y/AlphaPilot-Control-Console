@@ -391,7 +391,17 @@ async function postJson(url, payload) {
   const responsePayload = await response.json().catch(() => ({}));
   if (!response.ok) {
     const payload = responsePayload || {};
-    throw new Error(payload.message || payload.error || `${url} failed: ${response.status}`);
+    const primaryError = payload.message || payload.error;
+    const blockers = Array.isArray(responsePayload.blockers)
+      ? responsePayload.blockers
+          .filter(Boolean)
+          .map((value) => translateExchangeDemoBlocker(value))
+      : [];
+    throw new Error(
+      primaryError
+      || blockers.join(" · ")
+      || `${url} failed: ${response.status}`,
+    );
   }
   return responsePayload;
 }
@@ -3828,6 +3838,11 @@ function translateExchangeDemoBlocker(value) {
     demo_release_not_found: "指定 Demo Release 不存在",
     demo_runtime_paused: "Demo 新开仓已自动暂停",
     demo_kill_switch_active: "Demo kill switch 已启用",
+    demo_market_runtime_warming: "OKX 公共行情连接仍在预热",
+    demo_market_runtime_seed_failed: "OKX 公共行情预热失败",
+    okx_public_websocket_disconnected: "OKX 公共行情 WebSocket 未连接",
+    okx_business_websocket_disconnected: "OKX K 线 WebSocket 未连接",
+    process_arm_required: "当前控制台进程尚未 ARM",
     okx_demo_50110_key_type_ip_or_domain: "OKX 50110：Demo Key 类型、IP 白名单或区域域名不匹配",
     okx_demo_readonly_api_rejected: "OKX Demo 只读 API 业务请求被拒绝",
   };

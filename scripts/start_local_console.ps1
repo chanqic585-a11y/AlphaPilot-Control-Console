@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
-    [string]$RepositoryPath = (Split-Path -Parent $PSScriptRoot),
-    [string]$PythonPath = (Join-Path $env:USERPROFILE ".cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"),
+    [string]$RepositoryPath = "",
+    [string]$PythonPath = "",
     [string]$ConsoleUrl = "http://127.0.0.1:8766/",
     [ValidateRange(10, 300)]
     [int]$StartupTimeoutSeconds = 120,
@@ -9,6 +9,10 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+if ([string]::IsNullOrWhiteSpace($RepositoryPath)) {
+    $RepositoryPath = Split-Path -Parent $PSScriptRoot
+}
 
 function Get-ConsoleHealth {
     param([int]$TimeoutSeconds = 3)
@@ -27,8 +31,17 @@ function Open-ConsoleBrowser {
     }
 }
 
+if ([string]::IsNullOrWhiteSpace($PythonPath)) {
+    $PythonPath = Join-Path $RepositoryPath ".venv\Scripts\python.exe"
+}
+
 if (-not (Test-Path -LiteralPath $PythonPath)) {
-    throw "Bundled Python was not found: $PythonPath"
+    throw "AlphaPilot console Python was not found: $PythonPath. Run scripts\setup_console_runtime.ps1 first."
+}
+
+& $PythonPath -c "import websocket; assert websocket.__version__ == '1.8.0'" | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    throw "Pinned websocket-client 1.8.0 is unavailable. Run scripts\setup_console_runtime.ps1 first."
 }
 
 $existingHealth = Get-ConsoleHealth
@@ -99,4 +112,3 @@ if ($null -eq $health -or $health.ok -ne $true) {
 $version = if ($health.version) { $health.version } elseif ($health.controlConsoleVersion) { $health.controlConsoleVersion } else { "unknown version" }
 Write-Host "[AlphaPilot] Control Console is running: $version"
 Open-ConsoleBrowser
-

@@ -102,6 +102,10 @@ class WorkflowUiContractTests(unittest.TestCase):
         self.assertIn("self.client_address[0]", self.http_app)
         self.assertIn("LOCAL_DEMO_LAUNCHER.open", self.http_app)
 
+    def test_failed_auto_execution_action_shows_backend_blockers(self) -> None:
+        self.assertIn("responsePayload.blockers", self.js)
+        self.assertIn("translateExchangeDemoBlocker(value)", self.js)
+
     def test_lifecycle_cards_show_visible_stage_progress(self) -> None:
         self.assertIn("lifecycle-progress-track", self.js)
         self.assertIn("progress.percent", self.js)
@@ -304,8 +308,8 @@ class WorkflowUiContractTests(unittest.TestCase):
     def test_one_time_issue_guidance_has_persistent_and_session_fallbacks(self) -> None:
         self.assertIn('id="issueGuidanceDialog"', self.html)
         self.assertIn('id="issueGuidanceNextAction"', self.html)
-        self.assertIn('/issue-guidance.js?v=20260715-v13-27-11-family-current', self.html)
-        self.assertIn('/app.js?v=20260715-v13-27-11-family-current', self.html)
+        self.assertIn('/issue-guidance.js?v=20260715-demo-runtime-recovery', self.html)
+        self.assertIn('/app.js?v=20260715-demo-runtime-recovery', self.html)
         self.assertIn("ALPHAPILOT_ISSUE_ACK_V1", self.issue_js)
         self.assertIn("function issueFingerprint", self.issue_js)
         self.assertIn("localStorage", self.issue_js)

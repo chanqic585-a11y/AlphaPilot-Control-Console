@@ -96,6 +96,10 @@ class OkxPublicMarketRuntime:
         self._active_releases: tuple[Any, ...] = ()
         self._subscription_batches: list[dict[str, Any]] = []
         self._connections = {"public": False, "business": False}
+        self._connection_errors: dict[str, str | None] = {
+            "public": None,
+            "business": None,
+        }
         self._seeded = False
         self._last_error: str | None = None
         self._emitted_batch_closes: set[tuple[str, int]] = set()
@@ -240,7 +244,7 @@ class OkxPublicMarketRuntime:
             raise ValueError("unknown public WebSocket connection")
         with self._lock:
             self._connections[connection] = True
-            self._last_error = None
+            self._connection_errors[connection] = None
 
     def mark_disconnected(self, connection: str, reason: str) -> None:
         if connection not in self._connections:
@@ -248,7 +252,7 @@ class OkxPublicMarketRuntime:
         with self._lock:
             self._connections[connection] = False
             self._seeded = False
-            self._last_error = str(reason or "connection_lost")
+            self._connection_errors[connection] = str(reason or "connection_lost")
 
     def handle_message(self, connection: str, message: str | dict[str, Any]) -> None:
         payload = json.loads(message) if isinstance(message, str) else copy.deepcopy(message)
@@ -384,8 +388,29 @@ class OkxPublicMarketRuntime:
         with self._lock:
             connections = dict(self._connections)
             seeded = self._seeded
-            error = self._last_error
-            running = bool(self._threads) and not self._stop.is_set()
+            alive_thread_names = {
+                str(getattr(thread, "name", ""))
+                for thread in self._threads
+                if thread.is_alive()
+            }
+            required_thread_names = {
+                "alphapilot-okx-public-market",
+                "alphapilot-okx-business-market",
+            }
+            running = (
+                required_thread_names.issubset(alive_thread_names)
+                and not self._stop.is_set()
+            )
+            errors = [
+                value
+                for value in (
+                    self._last_error,
+                    self._connection_errors["public"],
+                    self._connection_errors["business"],
+                )
+                if value
+            ]
+            error = ",".join(dict.fromkeys(errors)) or None
             last_confirmed_close = copy.deepcopy(self._last_confirmed_close)
             pending_close_batch_count = len(self._pending_batch_closes)
         blockers: list[str] = []
@@ -436,22 +461,31 @@ class OkxPublicMarketRuntime:
     def start(self) -> dict[str, Any]:
         if not self._seeded:
             raise RuntimeError("public market runtime must be seeded before start")
+        threads_to_start: list[threading.Thread] = []
         with self._lock:
-            if self._threads:
-                return self.status()
+            self._threads = [thread for thread in self._threads if thread.is_alive()]
+            active_names = {
+                str(getattr(thread, "name", ""))
+                for thread in self._threads
+            }
             self._stop.clear()
             for connection, url in (
                 ("public", OKX_PUBLIC_WS_URL),
                 ("business", OKX_BUSINESS_WS_URL),
             ):
+                thread_name = f"alphapilot-okx-{connection}-market"
+                if thread_name in active_names:
+                    continue
                 thread = threading.Thread(
                     target=self._run_connection,
                     args=(connection, url),
-                    name=f"alphapilot-okx-{connection}-market",
+                    name=thread_name,
                     daemon=True,
                 )
                 self._threads.append(thread)
-                thread.start()
+                threads_to_start.append(thread)
+        for thread in threads_to_start:
+            thread.start()
         return self.status()
 
     def _run_connection(self, connection: str, url: str) -> None:
@@ -464,16 +498,22 @@ class OkxPublicMarketRuntime:
                 return
             factory = WebSocketApp
         while not self._stop.is_set():
-            app = factory(
-                url,
-                on_open=lambda socket, name=connection: self._on_open(name, socket),
-                on_message=lambda _socket, message, name=connection: self.handle_message(name, message),
-                on_error=lambda _socket, error, name=connection: self.mark_disconnected(name, type(error).__name__),
-                on_close=lambda _socket, _code, reason, name=connection: self.mark_disconnected(name, str(reason or "closed")),
-            )
-            with self._lock:
-                self._apps[connection] = app
-            app.run_forever(ping_interval=20, ping_timeout=10)
+            try:
+                app = factory(
+                    url,
+                    on_open=lambda socket, name=connection: self._on_open(name, socket),
+                    on_message=lambda _socket, message, name=connection: self.handle_message(name, message),
+                    on_error=lambda _socket, error, name=connection: self.mark_disconnected(name, type(error).__name__),
+                    on_close=lambda _socket, _code, reason, name=connection: self.mark_disconnected(name, str(reason or "closed")),
+                )
+                with self._lock:
+                    self._apps[connection] = app
+                app.run_forever(ping_interval=20, ping_timeout=10)
+            except Exception as error:
+                self.mark_disconnected(
+                    connection,
+                    f"websocket_runtime_exception:{type(error).__name__}",
+                )
             if not self._stop.wait(1.0):
                 continue
 
