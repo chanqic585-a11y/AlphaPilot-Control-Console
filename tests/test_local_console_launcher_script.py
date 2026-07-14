@@ -20,6 +20,11 @@ class LocalConsoleLauncherScriptTests(unittest.TestCase):
         self.assertNotIn("Stop-Process", self.wrapper)
         self.assertNotIn("Invoke-RestMethod", self.wrapper)
 
+    def test_cmd_wrapper_does_not_override_the_console_venv_python(self) -> None:
+        self.assertNotIn("ALPHAPILOT_PY", self.wrapper)
+        self.assertNotIn("-PythonPath", self.wrapper)
+        self.assertNotIn("codex-primary-runtime\\dependencies\\python", self.wrapper)
+
     def test_healthy_existing_console_is_reused_without_restart(self) -> None:
         self.assertIn("function Get-ConsoleHealth", self.script)
         self.assertIn("Control Console is already running", self.script)
