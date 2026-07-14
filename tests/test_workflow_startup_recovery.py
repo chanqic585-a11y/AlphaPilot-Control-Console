@@ -85,6 +85,9 @@ class WorkflowStartupRecoveryTests(unittest.TestCase):
             "arm_okx_demo_runtime_on_startup",
             side_effect=lambda: lifecycle.append("startup_arm") or {"status": "requested"},
         ) as startup_arm, patch.object(
+            http_app,
+            "start_okx_demo_runtime_startup_recovery",
+        ) as startup_recovery, patch.object(
             http_app, "resume_incomplete_workflow_runs"
         ) as resume, patch.object(
             http_app,
@@ -104,6 +107,10 @@ class WorkflowStartupRecoveryTests(unittest.TestCase):
         maybe_prompt.assert_called_once()
         start_auto.assert_called_once_with()
         startup_arm.assert_called_once_with()
+        startup_recovery.assert_called_once_with(
+            initial_result={"status": "requested"},
+            credential_ready=False,
+        )
         stop_auto.assert_called_once_with()
         start_market.assert_called_once()
         stop_market.assert_called_once_with()

@@ -99,10 +99,9 @@ def start_demo_market_runtime(
             time.sleep(0.05)
             runtime_status = runtime.status()
         if not runtime_status.get("warm"):
-            runtime.stop()
             _LAST_STARTUP = {
                 "started": False,
-                "blockers": ["demo_market_runtime_warm_timeout"],
+                "blockers": ["demo_market_runtime_warming"],
                 "refresh": refreshed,
                 "runtime": runtime_status,
             }

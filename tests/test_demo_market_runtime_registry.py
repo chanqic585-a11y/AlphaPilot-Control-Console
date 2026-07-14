@@ -44,6 +44,23 @@ class RetryRuntime(FakeRuntime):
         return {"seeded": True, "failures": []}
 
 
+class WarmingRuntime(FakeRuntime):
+    def __init__(self) -> None:
+        super().__init__()
+        self.stop_calls = 0
+
+    def status(self) -> dict:
+        self.status_calls += 1
+        return {
+            "running": True,
+            "warm": False,
+            "blockers": ["websocket_connecting"],
+        }
+
+    def stop(self) -> None:
+        self.stop_calls += 1
+
+
 class DemoMarketRuntimeRegistryTests(unittest.TestCase):
     def test_start_waits_for_warm_public_runtime_before_reporting_ready(self) -> None:
         fake = FakeRuntime()
@@ -84,6 +101,23 @@ class DemoMarketRuntimeRegistryTests(unittest.TestCase):
         self.assertTrue(result["started"])
         self.assertEqual(result["seedAttemptCount"], 2)
         self.assertEqual(fake.refresh_calls, 2)
+
+    def test_warm_timeout_keeps_public_runtime_alive_for_background_recovery(self) -> None:
+        fake = WarmingRuntime()
+        with patch.object(registry, "_RUNTIME", fake), patch.object(
+            registry, "_LAST_STARTUP", {"started": False}
+        ), patch(
+            "alphapilot_control_console.evolution_demo_service.discover_demo_contracts",
+            return_value=([{"demoReleaseId": "release-1"}], []),
+        ), patch.dict(
+            os.environ, {"ALPHAPILOT_OKX_DEMO_AUTOMATION_ENABLED": "1"}, clear=False
+        ):
+            result = registry.start_demo_market_runtime(warm_timeout_seconds=0)
+
+        self.assertFalse(result["started"])
+        self.assertEqual(result["blockers"], ["demo_market_runtime_warming"])
+        self.assertEqual(fake.stop_calls, 0)
+        self.assertTrue(result["runtime"]["running"])
 
 
 if __name__ == "__main__":

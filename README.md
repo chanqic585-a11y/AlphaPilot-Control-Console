@@ -32,6 +32,10 @@ process-only. Withdraw remains absent, immutable Demo Releases and risk gates
 are unchanged, and restoring credentials does not bypass ARM or grant Live
 permission. After deploying this patch, complete one enrollment and one
 deliberate Console restart to verify recovery on the target Windows account.
+If OKX public WebSocket warmup is temporarily slower than the initial startup
+window, the public-only runtime stays alive and retries startup ARM in the
+background. The Console remains disarmed until market warmup succeeds; no
+credential re-entry or safety-gate bypass is used.
 
 ## Bounded Structural Redesign Status
 

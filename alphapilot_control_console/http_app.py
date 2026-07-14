@@ -36,7 +36,10 @@ from .demo_credential_bootstrap import (
     bootstrap_demo_credentials,
     maybe_open_demo_credential_prompt,
 )
-from .demo_startup_arm import arm_okx_demo_runtime_on_startup
+from .demo_startup_arm import (
+    arm_okx_demo_runtime_on_startup,
+    start_okx_demo_runtime_startup_recovery,
+)
 from .execution_outcome_export import (
     build_execution_outcome_status,
     write_execution_outcome_export,
@@ -1299,7 +1302,13 @@ def run_server(host: str, port: int) -> None:
     start_unified_auto_execution_runner()
     startup_arm = arm_okx_demo_runtime_on_startup()
     if startup_arm.get("status") == "blocked":
-        print("OKX Demo startup ARM was blocked: startup_arm_failed")
+        print(f"OKX Demo startup ARM was blocked: {startup_arm.get('blocker') or 'startup_arm_failed'}")
+    startup_recovery = start_okx_demo_runtime_startup_recovery(
+        initial_result=startup_arm,
+        credential_ready=bool(credential_bootstrap.get("ok")),
+    )
+    if startup_recovery.get("status") == "scheduled":
+        print("OKX Demo public market warmup will continue in the background before ARM.")
     maybe_open_demo_credential_prompt(
         credential_bootstrap,
         get_unified_auto_execution_status(),
