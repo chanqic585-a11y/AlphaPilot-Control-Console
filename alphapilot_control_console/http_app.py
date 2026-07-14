@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import ipaddress
 import json
 import mimetypes
 import os
@@ -55,6 +56,7 @@ from .live_canary_service import (
     run_live_readonly_reconciliation,
 )
 from .local_demo_launcher import LOCAL_DEMO_LAUNCHER
+from .windows_demo_credential_vault import DEMO_CREDENTIAL_VAULT, DemoCredentialVaultError
 from .local_sandbox_concentration_review import build_local_sandbox_concentration_review
 from .local_sandbox_quality_center import build_local_sandbox_quality_center
 from .local_sandbox_result_review import build_local_sandbox_result_review
@@ -124,6 +126,7 @@ from .state_store import (
     ALLOWED_PAPER_OBSERVATION_TASK_STATUSES,
     ALLOWED_WEAKNESS_ACTION_STATUSES,
     add_paper_observation_log,
+    append_audit,
     list_local_sandbox_daily_reports,
     list_manual_execution_tickets,
     list_local_sandbox_runs,
@@ -154,6 +157,13 @@ _RESPONSE_CACHE: dict[str, tuple[float, object]] = {}
 def _is_fresh_query(query: dict[str, list[str]]) -> bool:
     value = (query.get("fresh") or [""])[0].lower()
     return value in {"1", "true", "yes"}
+
+
+def _request_is_loopback(client_host: str) -> bool:
+    try:
+        return ipaddress.ip_address(str(client_host).split("%", 1)[0]).is_loopback
+    except ValueError:
+        return False
 
 
 def _cached_payload(key: str, ttl_seconds: float, builder, *, fresh: bool = False) -> object:
@@ -248,6 +258,12 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         fresh = _is_fresh_query(query)
         if path == "/api/health":
             self._send_json(build_health_payload())
+            return
+        if path == "/api/local-control/okx-demo-credential-vault":
+            if not _request_is_loopback(str(self.client_address[0])):
+                self._send_json({"ok": False, "error": "local_host_required"}, 403)
+                return
+            self._send_json(DEMO_CREDENTIAL_VAULT.metadata())
             return
         if path == "/api/workflow":
             try:
@@ -780,6 +796,23 @@ class ConsoleHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
+        if parsed.path == "/api/local-control/delete-okx-demo-credential-vault":
+            payload = self._read_body_json()
+            if not _request_is_loopback(str(self.client_address[0])):
+                self._send_json({"ok": False, "error": "local_host_required"}, 403)
+                return
+            if payload.get("confirmation") != "DELETE_OKX_DEMO_CREDENTIAL":
+                self._send_json({"ok": False, "error": "confirmation_required"}, 409)
+                return
+            try:
+                deleted = DEMO_CREDENTIAL_VAULT.delete()
+                metadata = DEMO_CREDENTIAL_VAULT.metadata()
+            except DemoCredentialVaultError as error:
+                self._send_json({"ok": False, "error": error.category}, 409)
+                return
+            append_audit("demo_vault_deleted", {"processId": os.getpid(), "deleted": deleted})
+            self._send_json({"ok": True, "status": "deleted", "metadata": metadata})
+            return
         if parsed.path == "/api/local-control/open-okx-demo-launcher":
             self._read_body_json()
             result = LOCAL_DEMO_LAUNCHER.open(

@@ -2633,6 +2633,7 @@ async function runDemoWorkflowSelection(strategyIds) {
 
 async function loadDemoWorkflow(force = false) {
   if (demoWorkflowLoading && !force) return demoWorkflowLoading;
+  void loadDemoCredentialVaultStatus();
   demoWorkflowLoading = getJsonSafe(
     `/api/demo-workflow${force ? "?fresh=1" : ""}`,
     { summary: {}, queues: {}, loadError: "无法读取 Demo 工作流" },
@@ -2674,6 +2675,53 @@ function updateDemoRuntimeLauncher(payload = { queues: {} }) {
     : "请在运行控制台的电脑上打开 127.0.0.1:8766 完成启动。";
   if (!local) {
     setText("demoWorkflowActionStatus", "请在运行控制台的电脑上打开 http://127.0.0.1:8766；手机或局域网页面不能拉起本机进程。");
+  }
+}
+
+function renderDemoCredentialVaultStatus(payload = {}) {
+  const stored = Boolean(payload.stored);
+  const invalid = payload.status === "invalid";
+  setText(
+    "demoCredentialVaultStatus",
+    stored && !invalid
+      ? "Demo 凭据已安全保存（仅本机）"
+      : invalid
+        ? "Demo 凭据需要更新"
+        : "尚未保存 Demo 凭据",
+  );
+  const deleteButton = el("demoCredentialVaultDeleteButton");
+  if (deleteButton) deleteButton.disabled = !stored;
+}
+
+async function loadDemoCredentialVaultStatus() {
+  if (!isLocalConsoleHost()) {
+    renderDemoCredentialVaultStatus({ stored: false, status: "remote" });
+    return;
+  }
+  const payload = await getJsonSafe(
+    "/api/local-control/okx-demo-credential-vault",
+    { stored: false, status: "unavailable" },
+    2500,
+  );
+  renderDemoCredentialVaultStatus(payload);
+}
+
+async function deleteDemoCredentialVault() {
+  if (!isLocalConsoleHost()) return;
+  if (!window.confirm("删除本机保存的 Demo 凭据？下次启动会再次要求输入。")) return;
+  const button = el("demoCredentialVaultDeleteButton");
+  if (button) button.disabled = true;
+  try {
+    const response = await postJson(
+      "/api/local-control/delete-okx-demo-credential-vault",
+      { confirmation: "DELETE_OKX_DEMO_CREDENTIAL" },
+    );
+    renderDemoCredentialVaultStatus(response.metadata || { stored: false, status: "missing" });
+    setText("demoWorkflowActionStatus", "已删除本机保存的 Demo 凭据；当前进程不会被强制停止，下次启动需要重新输入。");
+  } catch (error) {
+    setText("demoWorkflowActionStatus", `删除 Demo 凭据失败：${error.message}`);
+  } finally {
+    if (button) button.disabled = false;
   }
 }
 
@@ -2727,6 +2775,7 @@ async function launchOkxDemoRuntime() {
     const response = await postJson("/api/local-control/open-okx-demo-launcher", {});
     setText("demoWorkflowActionStatus", response.message || "启动器已打开，请在 PowerShell 窗口输入三项 Demo 凭据。");
     await waitForOkxDemoRuntime();
+    await loadDemoCredentialVaultStatus();
   } catch (error) {
     setText("demoWorkflowActionStatus", `启动未完成：${error.message}`);
   } finally {
@@ -8219,6 +8268,8 @@ el("formalLocalForwardList")?.addEventListener("click", (event) => {
 });
 el("exchangeDemoReadOnlyButton")?.addEventListener("click", runExchangeDemoReadOnlyCheck);
 el("demoRuntimeLauncherButton")?.addEventListener("click", launchOkxDemoRuntime);
+el("demoCredentialVaultUpdateButton")?.addEventListener("click", launchOkxDemoRuntime);
+el("demoCredentialVaultDeleteButton")?.addEventListener("click", deleteDemoCredentialVault);
 el("demoWorkflowRefreshButton")?.addEventListener("click", () => loadDemoWorkflow(true));
 el("demoWorkflowRunSelectedButton")?.addEventListener("click", () => {
   void runDemoWorkflowSelection([...workflowSelection.demo]);

@@ -4,6 +4,7 @@ import json
 import threading
 import unittest
 from http.server import ThreadingHTTPServer
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 from unittest.mock import patch
 
@@ -93,6 +94,99 @@ class UnifiedAutoExecutionHttpTests(unittest.TestCase):
             "environment": "okx_live",
             "action": "arm",
         })
+
+    def test_demo_vault_status_returns_redacted_metadata_for_loopback_only(self) -> None:
+        metadata = {
+            "supported": True,
+            "stored": True,
+            "status": "stored",
+            "targetLabel": "AlphaPilot OKX Demo",
+            "persistence": "local_machine",
+        }
+        with patch(
+            "alphapilot_control_console.http_app.DEMO_CREDENTIAL_VAULT.metadata",
+            return_value=metadata,
+        ):
+            with urlopen(
+                self.base_url + "/api/local-control/okx-demo-credential-vault",
+                timeout=2,
+            ) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+
+        self.assertEqual(payload, metadata)
+        self.assertNotIn("apiKey", json.dumps(payload))
+        self.assertNotIn("secretKey", json.dumps(payload))
+        self.assertNotIn("passphrase", json.dumps(payload))
+
+    def test_demo_vault_status_rejects_non_loopback_client(self) -> None:
+        with patch(
+            "alphapilot_control_console.http_app._request_is_loopback",
+            return_value=False,
+        ):
+            with self.assertRaises(HTTPError) as raised:
+                urlopen(
+                    self.base_url + "/api/local-control/okx-demo-credential-vault",
+                    timeout=2,
+                )
+
+        self.assertEqual(raised.exception.code, 403)
+
+    def test_demo_vault_delete_requires_exact_confirmation_and_audits_metadata_only(self) -> None:
+        audit_events: list[tuple[str, dict[str, object]]] = []
+        with patch(
+            "alphapilot_control_console.http_app.DEMO_CREDENTIAL_VAULT.delete",
+            return_value=True,
+        ) as delete, patch(
+            "alphapilot_control_console.http_app.DEMO_CREDENTIAL_VAULT.metadata",
+            return_value={
+                "supported": True,
+                "stored": False,
+                "status": "missing",
+                "targetLabel": "AlphaPilot OKX Demo",
+                "persistence": "local_machine",
+            },
+        ), patch(
+            "alphapilot_control_console.http_app.append_audit",
+            side_effect=lambda event, payload: audit_events.append((event, payload)) or {},
+        ):
+            rejected = Request(
+                self.base_url + "/api/local-control/delete-okx-demo-credential-vault",
+                data=json.dumps({"confirmation": "wrong"}).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with self.assertRaises(HTTPError) as raised:
+                urlopen(rejected, timeout=2)
+            accepted = Request(
+                self.base_url + "/api/local-control/delete-okx-demo-credential-vault",
+                data=json.dumps({"confirmation": "DELETE_OKX_DEMO_CREDENTIAL"}).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urlopen(accepted, timeout=2) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+
+        self.assertEqual(raised.exception.code, 409)
+        delete.assert_called_once_with()
+        self.assertEqual(payload["status"], "deleted")
+        self.assertFalse(payload["metadata"]["stored"])
+        self.assertEqual(audit_events[0][0], "demo_vault_deleted")
+        self.assertNotIn("credential", json.dumps(audit_events[0][1]).lower())
+
+    def test_demo_vault_delete_rejects_non_loopback_client(self) -> None:
+        request = Request(
+            self.base_url + "/api/local-control/delete-okx-demo-credential-vault",
+            data=json.dumps({"confirmation": "DELETE_OKX_DEMO_CREDENTIAL"}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with patch(
+            "alphapilot_control_console.http_app._request_is_loopback",
+            return_value=False,
+        ), self.assertRaises(HTTPError) as raised:
+            urlopen(request, timeout=2)
+
+        self.assertEqual(raised.exception.code, 403)
 
 
 if __name__ == "__main__":

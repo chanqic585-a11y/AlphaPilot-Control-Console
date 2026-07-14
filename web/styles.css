@@ -4227,6 +4227,30 @@ body:not(.show-advanced) .legacy-demo-ticket {
   line-height: 1.5;
 }
 
+.demo-vault-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--line-strong);
+  color: var(--muted);
+}
+
+.demo-vault-controls > div {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 720px) {
+  .demo-vault-controls {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
 .workflow-stage-panel .lifecycle-summary-grid {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
