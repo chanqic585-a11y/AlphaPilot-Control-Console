@@ -14,6 +14,7 @@ from .execution_outcome_store import ExecutionOutcomeStore, FormalExecutionOutco
 
 
 _TERMINAL = {"filled", "canceled", "rejected", "mmp_canceled"}
+_NON_FATAL_REJECTION_CODES = {"51001"}
 _SENSITIVE_KEY_PARTS = ("apikey", "secretkey", "passphrase", "password", "credential", "accesstoken")
 
 
@@ -28,6 +29,10 @@ def _canonical(value: Any) -> str:
 def _first_order(response: dict[str, Any]) -> dict[str, Any]:
     data = response.get("data") if isinstance(response.get("data"), list) else []
     return data[0] if data and isinstance(data[0], dict) else {}
+
+
+def _rejection_code(response: dict[str, Any], order: dict[str, Any]) -> str:
+    return str(order.get("sCode") or response.get("code") or "")
 
 
 def _reject_sensitive_fields(value: Any, path: str) -> None:
@@ -148,7 +153,9 @@ class DemoExecutionEngine:
                 },
             )
             if not accepted:
-                self.pause("order_rejected")
+                rejection_code = _rejection_code(response, order)
+                if rejection_code not in _NON_FATAL_REJECTION_CODES:
+                    self.pause("order_rejected")
             return updated
         except Exception as error:
             response_received_at = self.clock().astimezone(UTC)

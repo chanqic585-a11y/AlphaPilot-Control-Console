@@ -23,6 +23,8 @@ def contract(release_id: str, strategy_id: str) -> dict:
             "maxPositionsPerStrategy": 1,
             "maxOpenRiskPercent": 1.0,
             "riskPerTradePercent": 0.25,
+            "maxLeverage": 5,
+            "defaultMaxLeverage": 5,
         },
     }
 
@@ -93,6 +95,40 @@ class FakeMarketRuntime:
         return self.frozen.quote(instrument)
 
 
+class FakeAccountClient:
+    def __init__(self, instruments: set[str]) -> None:
+        self.instruments = set(instruments)
+        self.leverage_calls: list[dict] = []
+
+    def get_account_instruments(self, instrumentType: str = "SWAP") -> dict:
+        self.instrumentType = instrumentType
+        return {
+            "code": "0",
+            "data": [
+                {"instId": instrument, "state": "live"}
+                for instrument in sorted(self.instruments)
+            ],
+        }
+
+    def set_leverage(
+        self,
+        *,
+        instrumentId: str,
+        leverage: int,
+        marginMode: str,
+        positionSide: str | None = None,
+    ) -> dict:
+        self.leverage_calls.append(
+            {
+                "instrumentId": instrumentId,
+                "leverage": leverage,
+                "marginMode": marginMode,
+                "positionSide": positionSide,
+            }
+        )
+        return {"code": "0", "data": [{"lever": str(leverage), "instId": instrumentId}]}
+
+
 class FakeStore:
     def __init__(self) -> None:
         self.paused = False
@@ -154,6 +190,7 @@ class DemoAutomaticBatchTests(unittest.TestCase):
             "reconciliationMatched": True,
         }
         self.market_runtime = FakeMarketRuntime()
+        self.account_client = FakeAccountClient({"BTC-USDT-SWAP"})
 
     def _patches(self, scans: dict[str, dict]):
         return (
@@ -167,7 +204,7 @@ class DemoAutomaticBatchTests(unittest.TestCase):
             patch.object(service, "save_demo_release_scan", return_value={}),
             patch.object(service, "DemoExecutionStore", return_value=self.store),
             patch.object(service, "DemoExecutionEngine", FakeEngine),
-            patch.object(service, "OkxDemoClient", return_value=object()),
+            patch.object(service, "OkxDemoClient", return_value=self.account_client),
             patch.object(service, "load_okx_demo_credentials", return_value=object()),
             patch.object(service, "_portfolio_from_demo_account", return_value=dict(self.portfolio)),
             patch.object(
@@ -178,7 +215,7 @@ class DemoAutomaticBatchTests(unittest.TestCase):
             patch.object(
                 service,
                 "get_demo_strategy_runtime_settings",
-                return_value={"maxConcurrentSymbols": 1},
+                return_value={"maxConcurrentSymbols": 1, "leverage": 3},
             ),
             patch.object(
                 service,
@@ -222,8 +259,106 @@ class DemoAutomaticBatchTests(unittest.TestCase):
         self.assertEqual(result["orderAttemptCount"], 1)
         self.assertEqual(result["orderOutcomes"], [{"status": "submitted", "exchangeCode": "0"}])
         self.assertEqual(FakeEngine.executed, [("release-a", "signal-a")])
+        self.assertEqual(
+            self.account_client.leverage_calls,
+            [{
+                "instrumentId": "BTC-USDT-SWAP",
+                "leverage": 3,
+                "marginMode": "isolated",
+                "positionSide": None,
+            }],
+        )
         reasons = [row.get("reason") for row in result["rejectedSignals"]]
         self.assertIn("duplicate_symbol_signal", reasons)
+
+    def test_batch_filters_public_matches_not_available_to_demo_account(self) -> None:
+        unavailable = {
+            **signal("release-a", "strategy-a", "signal-unavailable", 95),
+            "instId": "TRUMP-USDT-SWAP",
+        }
+        supported = signal("release-b", "strategy-b", "signal-supported", 90)
+        scans = {
+            "release-a": {"signals": [unavailable], "rejections": [], "blockers": []},
+            "release-b": {"signals": [supported], "rejections": [], "blockers": []},
+        }
+        self.market_runtime.frozen.quotes["BTC-USDT-SWAP"] = {
+            "bidPrice": 100.0,
+            "askPrice": 100.01,
+            "receivedAt": NOW.isoformat(),
+            "spreadPct": 0.0001,
+            "liquidityPassed": True,
+        }
+        patches = self._patches(scans)
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11], patch.object(service, "_utc_now", return_value=NOW + timedelta(seconds=4), create=True):
+            result = service.run_evolution_demo_batch_cycle(
+                ["release-a", "release-b"],
+                close_event=close_event(),
+            )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["matchedSignalCount"], 2)
+        self.assertEqual(result["tradableSignalCount"], 1)
+        self.assertEqual(result["createdOrderCount"], 1)
+        self.assertEqual(FakeEngine.executed, [("release-b", "signal-supported")])
+        rejected = [row for row in result["rejectedSignals"] if row.get("reason") == "demo_instrument_unavailable"]
+        self.assertEqual([row["instId"] for row in rejected], ["TRUMP-USDT-SWAP"])
+
+    def test_51001_race_rejection_does_not_count_exposure_or_stop_later_signal(self) -> None:
+        class RaceAwareEngine(FakeEngine):
+            def execute(self, *, contract: dict, signal: dict, portfolio: dict) -> DemoExecutionRecord:
+                if signal["instId"] == "TRUMP-USDT-SWAP":
+                    self.executed.append((contract["demoReleaseId"], signal["candidateId"]))
+                    return DemoExecutionRecord(
+                        recordId="record-rejected",
+                        idempotencyKey="idempotency-rejected",
+                        demoReleaseId=contract["demoReleaseId"],
+                        status="rejected",
+                        signal=dict(signal),
+                        orderPayload={},
+                        exchangeOrderId=None,
+                        exchangeResponse={"code": "1", "data": [{"sCode": "51001"}]},
+                        createdAt="2026-07-12T00:00:00+00:00",
+                        updatedAt="2026-07-12T00:00:00+00:00",
+                    )
+                return super().execute(contract=contract, signal=signal, portfolio=portfolio)
+
+        first = {
+            **signal("release-a", "strategy-a", "signal-race", 95),
+            "instId": "TRUMP-USDT-SWAP",
+            "correlationGroup": "TRUMP",
+        }
+        second = {
+            **signal("release-b", "strategy-b", "signal-supported", 90),
+            "instId": "ETH-USDT-SWAP",
+            "correlationGroup": "ETH",
+        }
+        scans = {
+            "release-a": {"signals": [first], "rejections": [], "blockers": []},
+            "release-b": {"signals": [second], "rejections": [], "blockers": []},
+        }
+        self.account_client.instruments = {"TRUMP-USDT-SWAP", "ETH-USDT-SWAP"}
+        for instrument in self.account_client.instruments:
+            self.market_runtime.frozen.quotes[instrument] = {
+                "bidPrice": 100.0,
+                "askPrice": 100.01,
+                "receivedAt": NOW.isoformat(),
+                "spreadPct": 0.0001,
+                "liquidityPassed": True,
+            }
+        patches = list(self._patches(scans))
+        patches[5] = patch.object(service, "DemoExecutionEngine", RaceAwareEngine)
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11], patch.object(service, "_utc_now", return_value=NOW + timedelta(seconds=4), create=True):
+            result = service.run_evolution_demo_batch_cycle(
+                ["release-a", "release-b"],
+                close_event=close_event(),
+            )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["orderAttemptCount"], 2)
+        self.assertEqual(result["createdOrderCount"], 1)
+        self.assertEqual([row["status"] for row in result["orderOutcomes"]], ["rejected", "submitted"])
+        reasons = [row.get("reason") for row in result["rejectedSignals"]]
+        self.assertIn("demo_instrument_unavailable", reasons)
 
     def test_no_signal_is_a_successful_evaluation_not_a_runtime_failure(self) -> None:
         scans = {

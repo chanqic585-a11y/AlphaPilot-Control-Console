@@ -6719,3 +6719,31 @@ body.show-advanced .hero-grid.advanced-section {
     grid-column: auto;
   }
 }
+.strategy-timeframe-group {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 18px;
+}
+
+.strategy-timeframe-group > header {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 2px 8px;
+}
+
+.strategy-timeframe-group > header strong {
+  color: var(--gold);
+  font-size: 14px;
+}
+
+.strategy-timeframe-group > header span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.strategy-timeframe-group-list {
+  display: grid;
+  gap: 12px;
+}

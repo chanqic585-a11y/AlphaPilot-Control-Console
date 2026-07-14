@@ -68,6 +68,48 @@ def signal() -> dict:
 
 
 class DemoExecutionEngineTests(unittest.TestCase):
+    def test_demo_unavailable_instrument_rejection_does_not_pause_all_strategies(self) -> None:
+        class UnavailableInstrumentClient(FakeDemoClient):
+            def place_order(self, payload: dict) -> dict:
+                self.placeCalls += 1
+                return {
+                    "code": "1",
+                    "data": [{"ordId": "", "clOrdId": payload["clOrdId"], "sCode": "51001"}],
+                }
+
+        with tempfile.TemporaryDirectory() as directory:
+            store = DemoExecutionStore(Path(directory) / "demo.sqlite")
+            try:
+                engine = DemoExecutionEngine(client=UnavailableInstrumentClient(), store=store)
+
+                record = engine.execute(contract=contract(), signal=signal(), portfolio={})
+
+                self.assertEqual(record.status, "rejected")
+                self.assertFalse(store.get_runtime_flag("paused", False))
+            finally:
+                store.close()
+
+    def test_other_exchange_rejection_remains_fail_closed(self) -> None:
+        class RejectedClient(FakeDemoClient):
+            def place_order(self, payload: dict) -> dict:
+                self.placeCalls += 1
+                return {
+                    "code": "1",
+                    "data": [{"ordId": "", "clOrdId": payload["clOrdId"], "sCode": "51000"}],
+                }
+
+        with tempfile.TemporaryDirectory() as directory:
+            store = DemoExecutionStore(Path(directory) / "demo.sqlite")
+            try:
+                engine = DemoExecutionEngine(client=RejectedClient(), store=store)
+
+                record = engine.execute(contract=contract(), signal=signal(), portfolio={})
+
+                self.assertEqual(record.status, "rejected")
+                self.assertTrue(store.get_runtime_flag("paused", False))
+            finally:
+                store.close()
+
     def test_order_send_and_exchange_response_timestamps_are_persisted(self) -> None:
         timestamps = iter(
             (

@@ -286,6 +286,8 @@ const emptyWorkflow = {
   version: "V13.27.9",
   summary: {},
   items: [],
+  currentFamilyItems: [],
+  historyItems: [],
   archivedItems: [],
   safetyBoundary: { createsOrders: false, usesApiKey: false },
 };
@@ -310,6 +312,12 @@ const weaknessActionStatusLabels = {
 
 function el(id) {
   return document.getElementById(id);
+}
+
+function workflowCurrentFamilyItems(payload = emptyWorkflow) {
+  return Array.isArray(payload?.currentFamilyItems)
+    ? payload.currentFamilyItems
+    : (Array.isArray(payload?.items) ? payload.items : []);
 }
 
 function pruneWorkflowSelection(selection, eligibleIds) {
@@ -445,11 +453,15 @@ function automaticExecutionStateLabel(runtime = {}) {
   return labels[status] || status || "未启动";
 }
 
-function automaticExecutionResultLabel(runtime = {}) {
+function automaticExecutionCurrentResultLabel(runtime = {}) {
+  const status = runtime.status || "disabled";
   const heartbeat = runtime.lastHeartbeatResult || {};
   const batch = heartbeat.batch || {};
-  const blockers = Array.isArray(heartbeat.blockers) ? heartbeat.blockers : [];
-  if (blockers.length) return `阻塞 ${blockers.length} 项`;
+  if (status === "paused") {
+    return runtime.pauseReason ? `当前暂停：${runtime.pauseReason}` : "当前已暂停新开仓";
+  }
+  if (status === "disarmed") return "当前等待本进程 ARM";
+  if (status === "disabled") return "当前未启动";
   const audit = runtime.lastEvaluation || batch.evaluationAudit || {};
   if (audit.state) {
     const evaluated = Number(audit.evaluatedReleaseCount || 0);
@@ -467,6 +479,74 @@ function automaticExecutionResultLabel(runtime = {}) {
   return `匹配 ${matched} · 下单 ${created}`;
 }
 
+const strategyTimeframeGroups = [
+  { key: "5m", label: "5m" },
+  { key: "15m", label: "15m" },
+  { key: "1h", label: "1H" },
+  { key: "4h", label: "4H" },
+  { key: "1d", label: "1D" },
+  { key: "other", label: "其他" },
+];
+
+function strategyTimeframeKey(item = {}) {
+  const raw = String(
+    item.timeframe
+    || item.optimizationContext?.definition?.timeframe
+    || item.strategy?.marketDefinition?.timeframe
+    || item.strategy?.timeframe
+    || item.package?.strategy?.timeframe
+    || item.targetTimeframe
+    || item.sourceTimeframe
+    || item.timeframes?.[0]
+    || "",
+  ).trim().toLowerCase();
+  if (["5m", "15m", "1h", "4h", "1d"].includes(raw)) return raw;
+  const searchable = [
+    item.title,
+    item.name,
+    item.plainName,
+    item.readableName,
+    item.strategyName,
+    item.strategyId,
+    item.taskId,
+    item.candidateId,
+    item.label,
+    item.package?.strategy?.name,
+  ].filter(Boolean).join(" ").toLowerCase();
+  const inferred = searchable.match(/(?:^|[^0-9a-z])(5m|15m|1h|4h|1d)(?=$|[^0-9a-z])/i)?.[1]?.toLowerCase();
+  return inferred || "other";
+}
+
+function groupStrategiesByTimeframe(rows) {
+  const items = Array.isArray(rows) ? rows : [];
+  return strategyTimeframeGroups.map((group) => ({
+    ...group,
+    items: items.filter((item) => strategyTimeframeKey(item) === group.key),
+  })).filter((group) => group.items.length > 0);
+}
+
+function renderStrategyTimeframeGroups(rows, renderer) {
+  return groupStrategiesByTimeframe(rows).map((group) => {
+    return `
+      <section class="strategy-timeframe-group" data-timeframe-group="${group.key}">
+        <header><strong>${group.label}</strong><span>${group.items.length} 条</span></header>
+        <div class="strategy-timeframe-group-list">${group.items.map(renderer).join("")}</div>
+      </section>
+    `;
+  }).join("");
+}
+
+function automaticExecutionLastBlockedLabel(runtime = {}) {
+  const events = Array.isArray(runtime.recentEvents) ? runtime.recentEvents : [];
+  const blocked = events.find((event) => ["heartbeat_blocked", "heartbeat_failed"].includes(event?.eventType));
+  if (!blocked) return "无";
+  const payload = blocked.payload || {};
+  const blockers = Array.isArray(payload.blockers) ? payload.blockers : [];
+  const reason = blockers[0] || payload.reason || "未记录原因";
+  const when = blocked.createdAt ? formatDate(blocked.createdAt) : "时间未知";
+  return `${when} · ${reason}`;
+}
+
 function renderAutomaticExecution(payload = { environments: {} }) {
   latestAutomaticExecutionPayload = payload || { environments: {} };
   const environments = latestAutomaticExecutionPayload.environments || {};
@@ -476,22 +556,25 @@ function renderAutomaticExecution(payload = { environments: {} }) {
       prefix: "demoAutoExecution",
       heartbeatId: "autoExecutionLastHeartbeat",
       nextId: "autoExecutionNextEvaluation",
+      blockedId: "demoAutoExecutionLastBlocked",
     },
     {
       environment: "okx_live",
       prefix: "liveAutoExecution",
       heartbeatId: "liveAutoExecutionLastHeartbeat",
       nextId: "liveAutoExecutionNextEvaluation",
+      blockedId: null,
     },
   ];
-  configurations.forEach(({ environment, prefix, heartbeatId, nextId }) => {
+  configurations.forEach(({ environment, prefix, heartbeatId, nextId, blockedId }) => {
     const runtime = environments[environment] || {};
     const state = automaticExecutionStateLabel(runtime);
     setText(`${prefix}Status`, state);
     setText(`${prefix}ReleaseCount`, String(runtime.releaseCount ?? 0));
     setText(heartbeatId, runtime.lastHeartbeatAt ? `${formatDate(runtime.lastHeartbeatAt)} 北京时间` : "--");
     setText(nextId, runtime.nextEvaluationAt ? `${formatDate(runtime.nextEvaluationAt)} 北京时间` : "--");
-    setText(`${prefix}Result`, automaticExecutionResultLabel(runtime));
+    setText(`${prefix}Result`, automaticExecutionCurrentResultLabel(runtime));
+    if (blockedId) setText(blockedId, automaticExecutionLastBlockedLabel(runtime));
     const toggle = el(`${prefix}Toggle`);
     if (toggle) {
       toggle.textContent = runtime.desiredEnabled ? "保持自动运行" : "启动自动运行";
@@ -658,6 +741,7 @@ function buildStrategyObservationDailyReport(observationTasks, qualityRows) {
     return {
       taskId,
       title: row.title || matchingTask.title || row.candidateId || matchingTask.candidateId || "--",
+      timeframe: row.timeframe || matchingTask.timeframe || matchingTask.observationPlan?.timeframe || "",
       qualityLabel: row.qualityLabelCn || tObservationQuality(row.qualityLabel) || "等待观察",
       qualityScore: row.qualityScore,
       logCount: row.logCount ?? localObservation.logCount ?? 0,
@@ -708,7 +792,7 @@ function renderStrategyObservationDailyReport(observationTasks, qualityRows) {
   el("learningDailyCoverage").textContent = report.coverageText;
   el("learningDailyAction").textContent = report.action;
 
-  el("learningDailyStrategyList").innerHTML = report.strategyRows.slice(0, 8).map((row) => {
+  const renderDailyStrategyRow = (row) => {
     const tone = row.riskWarningCount > 0 || row.invalidatedCount > 0
       ? "danger"
       : row.loggedToday ? "ok" : "warn";
@@ -729,7 +813,10 @@ function renderStrategyObservationDailyReport(observationTasks, qualityRows) {
         <small>下一步：${escapeHtml(row.nextAction)}</small>
       </div>
     `;
-  }).join("") || '<div class="observation-daily-empty">暂无策略观察任务。</div>';
+  };
+  el("learningDailyStrategyList").innerHTML = report.strategyRows.length
+    ? renderStrategyTimeframeGroups(report.strategyRows.slice(0, 8), renderDailyStrategyRow)
+    : '<div class="observation-daily-empty">暂无策略观察任务。</div>';
 
   const recentLogs = report.todayLogs.length ? report.todayLogs : report.allLogs.slice(0, 8);
   el("learningDailyRecentLogs").innerHTML = recentLogs.slice(0, 8).map((log) => `
@@ -858,7 +945,7 @@ function renderUsableStrategyCatalog(payload) {
       ? `已把 ${rows.length} 条策略整理为本地沙盒观察目录：低频 ${summary.lowFrequencyCount ?? 0} 条，短周期 ${summary.shortCycleCount ?? 0} 条。可用不等于可交易。`
       : "未找到可整理策略，请先确认量化仓库报告存在。";
 
-  el("usableStrategyCatalogList").innerHTML = rows.map((row) => {
+  const renderUsableStrategyRow = (row) => {
     const metrics = row.metrics || {};
     const testMetrics = row.testMetrics || {};
     const pairs = Array.isArray(row.selectedPairs) ? row.selectedPairs : [];
@@ -888,7 +975,10 @@ function renderUsableStrategyCatalog(payload) {
         <div class="sandbox-lane-next">${escapeHtml(row.nextAction || "继续本地沙盒持续观察。")}</div>
       </div>
     `;
-  }).join("") || '<div class="sandbox-lane-empty">暂无可用策略目录。</div>';
+  };
+  el("usableStrategyCatalogList").innerHTML = rows.length
+    ? renderStrategyTimeframeGroups(rows, renderUsableStrategyRow)
+    : '<div class="sandbox-lane-empty">暂无可用策略目录。</div>';
 }
 
 function buildUsableCatalogObservationTasks(payload) {
@@ -1083,7 +1173,7 @@ function renderWorkflowLane(targetId, countId, rows, emptyText) {
   if (!target) return;
   setText(countId, String(rows.length));
   target.innerHTML = rows.length
-    ? rows.map((item) => renderWorkflowCard(item)).join("")
+    ? renderStrategyTimeframeGroups(rows, (item) => renderWorkflowCard(item))
     : `<div class="workflow-empty">${escapeHtml(emptyText)}</div>`;
 }
 
@@ -1099,37 +1189,44 @@ function scheduleWorkflowPoll(items) {
 function renderWorkflowBacktest(payload = emptyWorkflow) {
   latestWorkflowPayload = payload || emptyWorkflow;
   const items = Array.isArray(payload?.items) ? payload.items.filter((item) => item.stage === "backtest") : [];
+  const currentItems = workflowCurrentFamilyItems(payload);
+  const currentBacktests = currentItems.filter((item) => item.stage === "backtest");
   const archived = Array.isArray(payload?.archivedItems) ? payload.archivedItems.filter((item) => item.stage === "backtest") : [];
   const awaiting = items.filter((item) => item.status === "awaiting");
-  const running = items.filter((item) => ["queued", "running", "paused"].includes(item.status));
-  const passed = items.filter((item) => item.status === "passed");
-  const failed = items.filter((item) => ["failed", "blocked", "cancelled"].includes(item.status));
+  const queued = items.filter((item) => item.status === "queued");
+  const running = items.filter((item) => item.status === "running");
+  const paused = items.filter((item) => item.status === "paused");
+  const active = [...running, ...queued, ...paused];
+  const passed = currentBacktests.filter((item) => item.status === "passed");
+  const failed = currentBacktests.filter((item) => ["failed", "blocked", "cancelled"].includes(item.status));
   const summary = payload?.summary || {};
   const summaryTarget = el("workflowBacktestSummary");
   if (summaryTarget) {
     const cards = [
       { label: "待回测", value: awaiting.length, meta: "可一键启动真实本地回测" },
-      { label: "回测中", value: running.length, meta: "排队、运行或暂停" },
+      { label: "排队中", value: queued.length, meta: "等待 worker 处理" },
+      { label: "正在执行", value: running.length, meta: "当前真正运行的任务" },
+      { label: "已暂停", value: paused.length, meta: "可从检查点继续" },
       { label: "已通过", value: passed.length, meta: "等待进入本地前向" },
-      { label: "未通过", value: failed.length, meta: "保留原因与改进路径" },
+      { label: "未通过", value: failed.length, meta: "当前策略家族；历史失败尝试保留在审计记录" },
       { label: "已归档", value: archived.length || Number(summary.archivedCount || 0), meta: "默认折叠，不删除证据" },
     ];
     summaryTarget.innerHTML = cards.map((card) => `<div class="lifecycle-summary-card"><span>${escapeHtml(card.label)}</span><strong>${card.value}</strong><small>${escapeHtml(card.meta)}</small></div>`).join("");
   }
   renderWorkflowLane("workflowAwaitingList", "workflowAwaitingCount", awaiting, "没有待回测策略。");
-  renderWorkflowLane("workflowRunningList", "workflowRunningCount", running, "当前没有回测任务运行。");
+  renderWorkflowLane("workflowRunningList", "workflowRunningCount", active, "当前没有排队、执行或暂停的任务。");
   renderWorkflowLane("workflowPassedList", "workflowPassedCount", passed, "还没有策略通过正式回测门槛。");
   renderWorkflowLane("workflowFailedList", "workflowFailedCount", failed, "当前没有未通过或阻塞记录。");
   setText("workflowArchivedCount", String(archived.length));
   const archiveTarget = el("workflowArchivedList");
-  if (archiveTarget) archiveTarget.innerHTML = archived.length ? archived.map((item) => renderWorkflowCard(item, true)).join("") : '<div class="workflow-empty">暂无归档策略。</div>';
+  if (archiveTarget) archiveTarget.innerHTML = archived.length ? renderStrategyTimeframeGroups(archived, (item) => renderWorkflowCard(item, true)) : '<div class="workflow-empty">暂无归档策略。</div>';
   const loadError = payload?.loadError;
   setText("workflowStrategyMeta", loadError
     ? `工作流读取失败：${loadError}`
     : `${items.length} 条策略位于回测阶段；每个版本只显示一次。`);
   setText("simpleConsoleOneLine", loadError
     ? "Quant Engine 工作流暂时不可用，请检查本地服务。"
-    : `当前策略工作流：待回测 ${awaiting.length} · 回测中 ${running.length} · 已通过 ${passed.length} · 未通过 ${failed.length}。`);
+    : `当前策略工作流：待回测 ${awaiting.length} · 排队 ${queued.length} · 执行 ${running.length} · 暂停 ${paused.length} · 已通过 ${passed.length} · 未通过 ${failed.length}。`);
   scheduleWorkflowPoll(items);
 }
 
@@ -1490,7 +1587,7 @@ function renderDualLayerLane(targetId, countId, rows, emptyText) {
   if (!target) return;
   setText(countId, String(rows.length));
   target.innerHTML = rows.length
-    ? rows.map((item) => renderDualLayerCard(item)).join("")
+    ? renderStrategyTimeframeGroups(rows, (item) => renderDualLayerCard(item))
     : `<div class="workflow-empty">${escapeHtml(emptyText)}</div>`;
 }
 
@@ -1500,11 +1597,16 @@ function renderDualLayerWorkflow(payload = emptyWorkflow) {
   workflowOptimizationBackendReady = payload?.capabilities?.boundedOptimizationRecovery === true;
   workflowStructuralRedesignBackendReady = payload?.capabilities?.structuralRedesignRecovery === true;
   const items = Array.isArray(payload?.items) ? payload.items.filter((item) => item.stage === "backtest") : [];
+  const currentItems = workflowCurrentFamilyItems(payload);
+  const currentBacktests = currentItems.filter((item) => item.stage === "backtest");
   const archived = Array.isArray(payload?.archivedItems) ? payload.archivedItems.filter((item) => item.stage === "backtest") : [];
   const awaiting = items.filter((item) => item.status === "awaiting");
-  const running = items.filter((item) => ["queued", "running", "paused"].includes(item.status));
-  const passed = items.filter((item) => item.status === "passed");
-  const failed = items.filter((item) => ["failed", "blocked", "cancelled"].includes(item.status));
+  const queued = items.filter((item) => item.status === "queued");
+  const running = items.filter((item) => item.status === "running");
+  const paused = items.filter((item) => item.status === "paused");
+  const active = [...running, ...queued, ...paused];
+  const passed = currentBacktests.filter((item) => item.status === "passed");
+  const failed = currentBacktests.filter((item) => ["failed", "blocked", "cancelled"].includes(item.status));
   pruneWorkflowSelection(
     workflowSelection.backtest,
     items.filter((item) => ["awaiting", "paused"].includes(item.status)).map((item) => item.workflowRunId),
@@ -1518,36 +1620,38 @@ function renderDualLayerWorkflow(payload = emptyWorkflow) {
   if (summaryTarget) {
     const cards = [
       { label: "待回测", value: awaiting.length, meta: "可启动双层数据回测" },
-      { label: "运行中", value: running.length, meta: "下载、校验或正式回测" },
+      { label: "排队中", value: queued.length, meta: "等待 worker 处理" },
+      { label: "正在执行", value: running.length, meta: "当前真正运行的任务" },
+      { label: "已暂停", value: paused.length, meta: "可从检查点继续" },
       { label: "正式通过", value: passed.length, meta: "自动进入本地前向" },
-      { label: "未通过 / 阻塞", value: failed.length, meta: "显示原因与可操作下一步" },
+      { label: "未通过 / 阻塞", value: failed.length, meta: "当前策略家族；历史失败尝试保留在审计记录" },
       { label: "已归档", value: archived.length, meta: "历史证据仍保留" },
     ];
     summaryTarget.innerHTML = cards.map((card) => `<div class="lifecycle-summary-card"><span>${escapeHtml(card.label)}</span><strong>${card.value}</strong><small>${escapeHtml(card.meta)}</small></div>`).join("");
   }
   renderDualLayerLane("workflowAwaitingList", "workflowAwaitingCount", awaiting, "没有待回测策略。");
-  renderDualLayerLane("workflowRunningList", "workflowRunningCount", running, "当前没有双层回测任务运行。");
+  renderDualLayerLane("workflowRunningList", "workflowRunningCount", active, "当前没有排队、执行或暂停的任务。");
   renderDualLayerLane("workflowPassedList", "workflowPassedCount", passed, "还没有策略通过正式回测门槛。");
   renderDualLayerLane("workflowFailedList", "workflowFailedCount", failed, "当前没有未通过或阻塞记录。");
   setText("workflowArchivedCount", String(archived.length));
   const archiveTarget = el("workflowArchivedList");
   if (archiveTarget) archiveTarget.innerHTML = archived.length
-    ? archived.map((item) => renderDualLayerCard(item, true)).join("")
+    ? renderStrategyTimeframeGroups(archived, (item) => renderDualLayerCard(item, true))
     : '<div class="workflow-empty">暂无归档策略。</div>';
   const loadError = payload?.loadError;
   setText("workflowStrategyMeta", loadError
     ? `工作流读取失败：${loadError}`
-    : `${items.length} 条策略位于正式回测阶段；每个不可变版本只显示一次。`);
+    : `${currentBacktests.length} 个策略家族位于正式回测阶段；${items.length - currentBacktests.length} 个旧版本保留在审计记录。`);
   setText("simpleConsoleOneLine", loadError
     ? "Quant Engine 工作流暂不可用，请检查本地服务。"
-    : `待回测 ${awaiting.length} · 运行中 ${running.length} · 正式通过 ${passed.length} · 未通过或阻塞 ${failed.length}`);
-  scheduleWorkflowPoll(items);
+    : `待回测 ${awaiting.length} · 排队 ${queued.length} · 执行 ${running.length} · 暂停 ${paused.length} · 正式通过 ${passed.length} · 未通过或阻塞 ${failed.length}`);
+  scheduleWorkflowPoll(active);
   registerPageIssues("simpleConsole", collectStrategyIssues(payload));
   renderFormalLocalForward(payload);
 }
 
 function formalLocalForwardItems(payload = emptyWorkflow) {
-  return (Array.isArray(payload?.items) ? payload.items : [])
+  return workflowCurrentFamilyItems(payload)
     .filter((item) => item.stage === "local_forward");
 }
 
@@ -1617,7 +1721,7 @@ function renderFormalLocalForward(payload = emptyWorkflow) {
   }
   const target = el("formalLocalForwardList");
   if (target) target.innerHTML = items.length
-    ? items.map(renderFormalLocalForwardCard).join("")
+    ? renderStrategyTimeframeGroups(items, renderFormalLocalForwardCard)
     : '<div class="lifecycle-empty">还没有正式回测通过并进入本地前向的策略。</div>';
   setText("formalLocalForwardMeta", `${running.length} 条采样中 · ${passed.length} 条通过 · ${blocked.length} 条未通过或阻塞。`);
 }
@@ -1881,7 +1985,7 @@ function renderLifecycleCards(targetId, items, allowedStages, emptyText) {
   const target = el(targetId);
   if (!target) return;
   const rows = (Array.isArray(items) ? items : []).filter((item) => allowedStages.includes(item.currentStage));
-  target.innerHTML = rows.map((item) => {
+  const renderLifecycleCard = (item) => {
     const metrics = item.metrics || {};
     const progress = item.progress || {};
     const progressPercent = Math.max(0, Math.min(100, Number(progress.percent || 0)));
@@ -1931,7 +2035,10 @@ function renderLifecycleCards(targetId, items, allowedStages, emptyText) {
         <small class="lifecycle-history">已保留 ${history.length} 条阶段证据 · 最近 ${formatDate(item.stageEnteredAt)}</small>
       </article>
     `;
-  }).join("") || `<div class="lifecycle-empty">${escapeHtml(emptyText)}</div>`;
+  };
+  target.innerHTML = rows.length
+    ? renderStrategyTimeframeGroups(rows, renderLifecycleCard)
+    : `<div class="lifecycle-empty">${escapeHtml(emptyText)}</div>`;
 }
 
 function renderStrategyLifecycle(payload = emptyStrategyLifecycle) {
@@ -2080,7 +2187,7 @@ function strategyIssueKey(item) {
 }
 
 function collectStrategyIssues(payload = emptyWorkflow) {
-  const rows = (Array.isArray(payload?.items) ? payload.items : [])
+  const rows = workflowCurrentFamilyItems(payload)
     .filter((item) => item.stage === "backtest" && ["failed", "blocked", "cancelled"].includes(item.status));
   return [...groupIssueItems(rows, strategyIssueKey).entries()].map(([key, group]) => {
     const first = group[0];
@@ -2488,6 +2595,7 @@ function renderDemoWorkflowCard(rawItem) {
   const evidenceById = new Map((evidenceChecklist.items || []).map((row) => [row.evidenceId, row]));
   const executionLimits = item.executionLimits || {};
   const requestedSymbolLimit = Math.max(1, Number(executionLimits.requestedMaxConcurrentSymbols || 1));
+  const requestedLeverage = Math.max(1, Math.min(5, Number(executionLimits.requestedLeverage || 1)));
   const canDemoOverride = !item.release?.formal
     && ["formal_backtest", "target_reward_risk", "strategy_definition"].every((evidenceId) => evidenceById.get(evidenceId)?.status === "passed");
   const percent = Math.max(0, Math.min(100, Number(progress.percent || 0)));
@@ -2529,8 +2637,13 @@ function renderDemoWorkflowCard(rawItem) {
             ${Array.from({ length: 10 }, (_, index) => index + 1).map((value) => `<option value="${value}" ${value === requestedSymbolLimit ? "selected" : ""}>${value} 个币种</option>`).join("")}
           </select>
         </label>
-        <button type="button" class="secondary" data-demo-workflow-action="${demoWorkflowActions.updateSettings.action}" data-strategy-id="${escapeHtml(item.strategyId || "")}">保存上限</button>
-        <small>当前风险配置最多 ${Number(executionLimits.profileMaxPositionsPerStrategy || 1)} 个；实际生效 ${Number(executionLimits.effectiveConfiguredMaximum || 1)} 个，剩余 ${Number(executionLimits.availableConfiguredSlots || 0)} 个。</small>
+        <label>Demo 合约杠杆
+          <select data-demo-leverage>
+            ${Array.from({ length: 5 }, (_, index) => index + 1).map((value) => `<option value="${value}" ${value === requestedLeverage ? "selected" : ""}>${value}x</option>`).join("")}
+          </select>
+        </label>
+        <button type="button" class="secondary" data-demo-workflow-action="${demoWorkflowActions.updateSettings.action}" data-strategy-id="${escapeHtml(item.strategyId || "")}">保存设置</button>
+        <small>持仓实际生效 ${Number(executionLimits.effectiveConfiguredMaximum || 1)} 个；杠杆选择 ${requestedLeverage}x，Release 上限 ${Number(executionLimits.releaseMaxLeverage || 1)}x，实际 ${Number(executionLimits.effectiveLeverage || 1)}x。</small>
       </div>
       ${renderCompactExecutionPositions(positions, { title: "当前 Demo 持仓", emptyText: "尚未开仓；策略会继续扫描全市场并等待真实条件匹配。" })}
       ${renderDemoEvidence(evidenceChecklist)}
@@ -2564,7 +2677,7 @@ function renderDemoWorkflowLane(targetId, countId, rows, emptyText) {
   const items = Array.isArray(rows) ? rows : [];
   if (count) count.textContent = String(items.length);
   if (target) target.innerHTML = items.length
-    ? items.map(renderDemoWorkflowCard).join("")
+    ? renderStrategyTimeframeGroups(items, renderDemoWorkflowCard)
     : `<div class="workflow-empty">${escapeHtml(emptyText)}</div>`;
 }
 
@@ -2897,7 +3010,8 @@ function renderSimpleStrategyCards(rows) {
   const container = el("simpleStrategyCards");
   if (!container) return;
   const topRows = rows.slice(0, 5);
-  container.innerHTML = topRows.map((row, index) => {
+  const renderSimpleStrategyCard = (row) => {
+    const index = topRows.indexOf(row);
     const metrics = row.metrics || {};
     const testMetrics = row.testMetrics || {};
     const pairs = Array.isArray(row.selectedPairs) ? row.selectedPairs : [];
@@ -2923,7 +3037,10 @@ function renderSimpleStrategyCards(rows) {
         <small>${escapeHtml(row.nextAction || "继续本地沙盒观察，不触发真实交易。")}</small>
       </div>
     `;
-  }).join("") || '<div class="simple-action-item">还没有可观察策略。请先导入量化报告。</div>';
+  };
+  container.innerHTML = topRows.length
+    ? renderStrategyTimeframeGroups(topRows, renderSimpleStrategyCard)
+    : '<div class="simple-action-item">还没有可观察策略。请先导入量化报告。</div>';
 }
 
 function renderSimpleActionChecklist({ runnerState, rows, sandboxRows, dailySummary }) {
@@ -2998,7 +3115,8 @@ function renderSimpleReviewQueue(payload) {
   );
   const target = el("simpleReviewQueueList");
   if (!target) return;
-  target.innerHTML = rows.slice(0, 3).map((row) => {
+  const visibleRows = rows.slice(0, 3);
+  const renderSimpleReviewRow = (row) => {
     const metrics = row.metrics || {};
     const tone = reviewTone(row.status, row.warnings || []);
     return `
@@ -3016,7 +3134,10 @@ function renderSimpleReviewQueue(payload) {
         </div>
       </div>
     `;
-  }).join("") || '<div class="simple-review-empty">暂无策略复核样本。保持本地沙盒运行。</div>';
+  };
+  target.innerHTML = visibleRows.length
+    ? renderStrategyTimeframeGroups(visibleRows, renderSimpleReviewRow)
+    : '<div class="simple-review-empty">暂无策略复核样本。保持本地沙盒运行。</div>';
 }
 
 function qualityTone(status) {
@@ -3153,7 +3274,7 @@ function renderQualityCenter(payload, concentrationReview = {}, resultReview = {
 
   const list = el("qualityStrategyList");
   if (list) {
-    list.innerHTML = rows.slice(0, 8).map((row) => {
+    const renderQualityStrategyRow = (row) => {
       const selected = row.taskId === selectedQualityCenterTaskId ? " selected" : "";
       const tone = qualityTone(row.promotionStatus);
       return `
@@ -3166,7 +3287,10 @@ function renderQualityCenter(payload, concentrationReview = {}, resultReview = {
           <small>胜率 ${formatPercent(row.winRate)} · PF ${formatNumber(row.profitFactor)} · 质量 ${formatNumber(row.qualityScore, 1)}</small>
         </button>
       `;
-    }).join("") || '<div class="simple-review-empty">暂无沙盘质量策略。先运行本地沙盒。</div>';
+    };
+    list.innerHTML = rows.length
+      ? renderStrategyTimeframeGroups(rows.slice(0, 8), renderQualityStrategyRow)
+      : '<div class="simple-review-empty">暂无沙盘质量策略。先运行本地沙盒。</div>';
     list.querySelectorAll("[data-quality-task-id]").forEach((button) => {
       button.addEventListener("click", () => {
         selectedQualityCenterTaskId = button.getAttribute("data-quality-task-id");
@@ -3197,14 +3321,14 @@ function renderStrategyAssetPlaybook(payload) {
   setText("strategyAssetBlockers", String(summary.testnetBlockerCount ?? (readiness.blockers || []).length ?? 0));
   const target = el("strategyAssetList");
   if (!target) return;
-  target.innerHTML = rows.slice(0, 6).map((row, index) => {
+  const renderStrategyAssetRow = (row) => {
     const evidence = row.evidence || {};
     const gate = row.gate || {};
     const tone = gate.canEnterTestnetReadiness ? "ok" : qualityTone(gate.status);
     const blockers = Array.isArray(gate.testnetBlockers) ? gate.testnetBlockers : [];
     const rules = Array.isArray(row.coreRules) ? row.coreRules.slice(0, 2) : [];
     return `
-      <div class="strategy-asset-card${index === 0 ? " primary" : ""}">
+      <div class="strategy-asset-card${row === rows[0] ? " primary" : ""}">
         <div class="strategy-asset-card-head">
           <div>
             <strong>${escapeHtml(row.plainName || row.readableName || "--")}</strong>
@@ -3227,7 +3351,10 @@ function renderStrategyAssetPlaybook(payload) {
         <small>Testnet 阻塞：${escapeHtml(blockers.slice(0, 2).join(" / ") || "仍需安全设计复核")}。不接 API Key，不创建订单。</small>
       </div>
     `;
-  }).join("") || '<div class="simple-review-empty">暂无策略资产手册。请先运行本地沙盒质量中心。</div>';
+  };
+  target.innerHTML = rows.length
+    ? renderStrategyTimeframeGroups(rows.slice(0, 6), renderStrategyAssetRow)
+    : '<div class="simple-review-empty">暂无策略资产手册。请先运行本地沙盒质量中心。</div>';
 }
 
 function renderTestnetDrill(payload) {
@@ -3251,7 +3378,7 @@ function renderTestnetDrill(payload) {
 
   const strategyTarget = el("testnetDrillStrategyList");
   if (strategyTarget) {
-    strategyTarget.innerHTML = strategies.slice(0, 5).map((row) => {
+    const renderTestnetDrillStrategy = (row) => {
       const tone = row.stage === "testnet_drill_candidate" ? "ok" : row.stage === "local_review_candidate" ? "warn" : "neutral";
       return `
         <div class="testnet-drill-row">
@@ -3266,7 +3393,10 @@ function renderTestnetDrill(payload) {
           <small>${escapeHtml(row.nextAction || "继续本地沙盒观察。")}</small>
         </div>
       `;
-    }).join("") || '<div class="testnet-design-empty">暂无可演练策略；先让本地沙盒继续积累样本。</div>';
+    };
+    strategyTarget.innerHTML = strategies.length
+      ? renderStrategyTimeframeGroups(strategies.slice(0, 5), renderTestnetDrillStrategy)
+      : '<div class="testnet-design-empty">暂无可演练策略；先让本地沙盒继续积累样本。</div>';
   }
 
   const lifecycleTarget = el("testnetDrillLifecycleList");
@@ -3615,7 +3745,8 @@ function renderLocalLabPage(usableStrategyCatalog, sandboxDailyReport, sandboxAu
 
   const strategyTarget = el("localLabStrategyList");
   if (strategyTarget) {
-    strategyTarget.innerHTML = sandboxRows.slice(0, 8).map((row) => {
+    const visibleSandboxRows = sandboxRows.slice(0, 8);
+    const renderLocalLabStrategyRow = (row) => {
       const metrics = row.historicalMetrics || {};
       return `
         <div class="sandbox-lane-row">
@@ -3641,12 +3772,16 @@ function renderLocalLabPage(usableStrategyCatalog, sandboxDailyReport, sandboxAu
           <div class="sandbox-lane-next">${escapeHtml(row.nextAction)}</div>
         </div>
       `;
-    }).join("") || `<div class="sandbox-lane-empty">当前没有待跑策略。已有 ${bridgeSummary.demoTrialStrategyCount ?? 0} 条策略晋级 Demo，原有样本仍保留。</div>`;
+    };
+    strategyTarget.innerHTML = visibleSandboxRows.length
+      ? renderStrategyTimeframeGroups(visibleSandboxRows, renderLocalLabStrategyRow)
+      : `<div class="sandbox-lane-empty">当前没有待跑策略。已有 ${bridgeSummary.demoTrialStrategyCount ?? 0} 条策略晋级 Demo，原有样本仍保留。</div>`;
   }
 
   const reviewTarget = el("localLabReviewList");
   if (reviewTarget) {
-    reviewTarget.innerHTML = reviewRows.slice(0, 8).map((row) => {
+    const visibleReviewRows = reviewRows.slice(0, 8);
+    const renderLocalLabReviewRow = (row) => {
       const tone = qualityTone(row.status);
       const metrics = row.metrics || row;
       return `
@@ -3667,7 +3802,10 @@ function renderLocalLabPage(usableStrategyCatalog, sandboxDailyReport, sandboxAu
           <div class="sandbox-lane-next">${escapeHtml(row.recommendedAction || row.nextAction || "继续补充本地闭合样本和失败样本。")}</div>
         </div>
       `;
-    }).join("") || '<div class="sandbox-lane-empty">暂无本地复核队列；已晋级策略请到 Demo 模拟页面查看。</div>';
+    };
+    reviewTarget.innerHTML = visibleReviewRows.length
+      ? renderStrategyTimeframeGroups(visibleReviewRows, renderLocalLabReviewRow)
+      : '<div class="sandbox-lane-empty">暂无本地复核队列；已晋级策略请到 Demo 模拟页面查看。</div>';
   }
 }
 
@@ -3741,7 +3879,7 @@ function renderExchangeDemoPipeline(pipeline = {}) {
 
   const trialTarget = el("exchangeDemoTrialStrategyList");
   if (trialTarget) {
-    trialTarget.innerHTML = trialPool.map((strategy) => `
+    const renderExchangeDemoTrialStrategy = (strategy) => `
       <div class="exchange-demo-candidate-row is-selected">
         <div>
           <div class="exchange-demo-candidate-row-head">
@@ -3762,12 +3900,17 @@ function renderExchangeDemoPipeline(pipeline = {}) {
           <div class="sandbox-lane-next">${escapeHtml(strategy.nextAction || "等待 Demo 行情观察。")}</div>
         </div>
       </div>
-    `).join("") || '<div class="testnet-design-empty">暂无已晋级 Demo 的策略。</div>';
+    `;
+    trialTarget.innerHTML = trialPool.length
+      ? renderStrategyTimeframeGroups(trialPool, renderExchangeDemoTrialStrategy)
+      : '<div class="testnet-design-empty">暂无已晋级 Demo 的策略。</div>';
   }
 
   const target = el("exchangeDemoCandidateList");
   if (!target) return;
-  target.innerHTML = candidates.slice(0, 8).map((candidate, index) => {
+  const visibleCandidates = candidates.slice(0, 8);
+  const renderExchangeDemoCandidate = (candidate) => {
+    const index = candidates.indexOf(candidate);
     const isSelected = preferredCandidate && candidate.candidateId === preferredCandidate.candidateId;
     const status = translateExchangeDemoStatus(candidate.screeningStatus || candidate.marketDataStatus);
     return `
@@ -3794,7 +3937,10 @@ function renderExchangeDemoPipeline(pipeline = {}) {
         </div>
       </div>
     `;
-  }).join("") || '<div class="testnet-design-empty">暂无 Demo 候选。请先导入或刷新可用策略库。</div>';
+  };
+  target.innerHTML = visibleCandidates.length
+    ? renderStrategyTimeframeGroups(visibleCandidates, renderExchangeDemoCandidate)
+    : '<div class="testnet-design-empty">暂无 Demo 候选。请先导入或刷新可用策略库。</div>';
   target.querySelectorAll(".exchange-demo-use-candidate").forEach((button) => {
     button.addEventListener("click", () => {
       const idx = Number(button.getAttribute("data-candidate-index") || 0);
@@ -3864,7 +4010,7 @@ function renderNoKeyPreLiveWorkbench(payload = {}) {
 
   const cardsTarget = el("noKeyStrategyCards");
   if (cardsTarget) {
-    cardsTarget.innerHTML = cards.slice(0, 10).map((card) => {
+    const renderNoKeyStrategyCard = (card) => {
       const metrics = card.metrics || {};
       const riskNotes = Array.isArray(card.riskNotes) ? card.riskNotes : [];
       const entryContext = Array.isArray(card.entryContext) ? card.entryContext : [];
@@ -3890,12 +4036,16 @@ function renderNoKeyPreLiveWorkbench(payload = {}) {
           </div>
         </div>
       `;
-    }).join("") || '<div class="testnet-design-empty">暂无可解释策略。请先刷新策略目录。</div>';
+    };
+    cardsTarget.innerHTML = cards.length
+      ? renderStrategyTimeframeGroups(cards.slice(0, 10), renderNoKeyStrategyCard)
+      : '<div class="testnet-design-empty">暂无可解释策略。请先刷新策略目录。</div>';
   }
 
   const candidateTarget = el("noKeyCandidateList");
   if (candidateTarget) {
-    candidateTarget.innerHTML = candidates.slice(0, 10).map((candidate, index) => {
+    const renderNoKeyCandidate = (candidate) => {
+      const index = candidates.indexOf(candidate);
       const selected = preferred && candidate.candidateId === preferred.candidateId;
       const ready = candidate.screeningStatus === "market_ready";
       return `
@@ -3922,7 +4072,10 @@ function renderNoKeyPreLiveWorkbench(payload = {}) {
           </div>
         </div>
       `;
-    }).join("") || '<div class="testnet-design-empty">暂无候选。点击公共行情扫描后会显示可观察币种。</div>';
+    };
+    candidateTarget.innerHTML = candidates.length
+      ? renderStrategyTimeframeGroups(candidates.slice(0, 10), renderNoKeyCandidate)
+      : '<div class="testnet-design-empty">暂无候选。点击公共行情扫描后会显示可观察币种。</div>';
     candidateTarget.querySelectorAll(".no-key-use-candidate").forEach((button) => {
       button.addEventListener("click", () => {
         const idx = Number(button.getAttribute("data-no-key-index") || 0);
@@ -4181,7 +4334,7 @@ function renderAutoExecutionReview(payload = {}) {
 
   const strategyTarget = el("autoReviewStrategySummary");
   if (strategyTarget) {
-    strategyTarget.innerHTML = strategyRows.map((row) => `
+    const renderAutoReviewStrategy = (row) => `
       <div class="auto-review-row strategy-row">
         <div><strong>${escapeHtml(row.strategyName || row.strategyId || "--")}</strong><small>${escapeHtml(row.suggestedStatus || "闭合样本不足")}</small></div>
         <span>总记录 ${formatNumber(row.totalRecords, 0)}</span>
@@ -4190,7 +4343,10 @@ function renderAutoExecutionReview(payload = {}) {
         <span>阻塞 ${formatNumber(row.blockedCount, 0)} / ${formatPercent(row.blockedRatePct)}</span>
         <em>${escapeHtml(row.recommendation || "继续收集样本")}</em>
       </div>
-    `).join("") || '<div class="testnet-design-empty">暂无策略生命周期汇总。</div>';
+    `;
+    strategyTarget.innerHTML = strategyRows.length
+      ? renderStrategyTimeframeGroups(strategyRows, renderAutoReviewStrategy)
+      : '<div class="testnet-design-empty">暂无策略生命周期汇总。</div>';
   }
 
   const splitTarget = el("autoReviewSplitSummary");
@@ -4222,7 +4378,7 @@ function renderAutoExecutionLearning(payload = {}) {
 
   const target = el("autoLearningStrategyRows");
   if (!target) return;
-  target.innerHTML = strategyRows.slice(0, 12).map((row) => `
+  const renderAutoLearningStrategy = (row) => `
     <div class="auto-review-row strategy-row">
       <div><strong>${escapeHtml(row.label || row.key || "--")}</strong><small>${escapeHtml(row.sampleStage || "闭合样本不足")}</small></div>
       <span>闭合 ${formatNumber(row.closedSamples, 0)}</span>
@@ -4231,7 +4387,10 @@ function renderAutoExecutionLearning(payload = {}) {
       <span>PF(R) ${row.profitFactorR === null || row.profitFactorR === undefined ? "--" : formatNumber(row.profitFactorR, 2)}</span>
       <em>${escapeHtml(row.nextAction || "继续收集独立闭合样本")}</em>
     </div>
-  `).join("") || '<div class="testnet-design-empty">暂无闭合样本。点击“推进本地生命周期”后开始积累。</div>';
+  `;
+  target.innerHTML = strategyRows.length
+    ? renderStrategyTimeframeGroups(strategyRows.slice(0, 12), renderAutoLearningStrategy)
+    : '<div class="testnet-design-empty">暂无闭合样本。点击“推进本地生命周期”后开始积累。</div>';
 }
 
 function renderEvolutionDemoStatus(payload = {}) {
@@ -4763,6 +4922,34 @@ function getSelectedLiveCandidate(payload = latestLiveCandidatePayload) {
   return packages.find((item) => item.liveCandidatePackageId === selectedLiveCandidatePackageId) || packages[0] || null;
 }
 
+function renderLiveCandidateCard(item) {
+  const packageData = item.package || {};
+  const evidence = packageData.demoEvidence || {};
+  const risk = packageData.proposedRiskBudget || {};
+  const approval = item.approval || {};
+  const selectedClass = item.liveCandidatePackageId === selectedLiveCandidatePackageId ? " is-selected" : "";
+  return `
+    <button class="live-candidate-row${selectedClass}" type="button" data-live-package="${escapeHtml(item.liveCandidatePackageId)}">
+      <div class="live-readiness-row-head">
+        <div>
+          <strong>${escapeHtml(packageData.strategy?.name || packageData.strategyCandidateId || item.liveCandidatePackageId)}</strong>
+          <small>${escapeHtml(item.demoReleaseId || "--")} · checksum ${escapeHtml(String(item.packageHash || "").slice(0, 12))}</small>
+        </div>
+        <span class="badge ${approval.status === "approved_for_future_release_review" ? "ok" : approval.status === "revoked" ? "danger" : "warn"}">${escapeHtml(liveCandidateApprovalLabel(approval.status))}</span>
+      </div>
+      <div class="artifact-metrics">
+        <span>Demo 平仓 ${evidence.demoClosedTrades ?? "--"}</span>
+        <span>观察 ${evidence.demoCalendarDays ?? "--"} 天</span>
+        <span>PF ${formatNumber(evidence.netProfitFactor)}</span>
+        <span>回撤 ${formatPercent(evidence.maxDrawdownPercent)}</span>
+        <span>资金上限 ${formatUsd(risk.capitalLimitUsdt)}</span>
+        <span>单笔风险 ${formatPercent(risk.riskPerTradePercent)}</span>
+      </div>
+      <small>最多 ${risk.maxConcurrentPositions ?? "--"} 个持仓 · 最大 ${risk.maxLeverage ?? "--"}x · 单笔名义 ${formatUsd(risk.maxOrderNotionalUsdt)} · 执行仍为关闭</small>
+    </button>
+  `;
+}
+
 function renderLiveCandidateStatus(payload) {
   if (!el("liveCandidateList")) return;
   latestLiveCandidatePayload = payload || {};
@@ -4781,33 +4968,9 @@ function renderLiveCandidateStatus(payload) {
       ? `已读取 ${packages.length} 个不可变候选包；批准不会开启执行。`
       : "暂无通过 Demo 硬门槛的 Live Candidate，实盘保持锁定。",
   );
-  el("liveCandidateList").innerHTML = packages.map((item) => {
-    const packageData = item.package || {};
-    const evidence = packageData.demoEvidence || {};
-    const risk = packageData.proposedRiskBudget || {};
-    const approval = item.approval || {};
-    const selectedClass = item.liveCandidatePackageId === selectedLiveCandidatePackageId ? " is-selected" : "";
-    return `
-      <button class="live-candidate-row${selectedClass}" type="button" data-live-package="${escapeHtml(item.liveCandidatePackageId)}">
-        <div class="live-readiness-row-head">
-          <div>
-            <strong>${escapeHtml(packageData.strategy?.name || packageData.strategyCandidateId || item.liveCandidatePackageId)}</strong>
-            <small>${escapeHtml(item.demoReleaseId || "--")} · checksum ${escapeHtml(String(item.packageHash || "").slice(0, 12))}</small>
-          </div>
-          <span class="badge ${approval.status === "approved_for_future_release_review" ? "ok" : approval.status === "revoked" ? "danger" : "warn"}">${escapeHtml(liveCandidateApprovalLabel(approval.status))}</span>
-        </div>
-        <div class="artifact-metrics">
-          <span>Demo 平仓 ${evidence.demoClosedTrades ?? "--"}</span>
-          <span>观察 ${evidence.demoCalendarDays ?? "--"} 天</span>
-          <span>PF ${formatNumber(evidence.netProfitFactor)}</span>
-          <span>回撤 ${formatPercent(evidence.maxDrawdownPercent)}</span>
-          <span>资金上限 ${formatUsd(risk.capitalLimitUsdt)}</span>
-          <span>单笔风险 ${formatPercent(risk.riskPerTradePercent)}</span>
-        </div>
-        <small>最多 ${risk.maxConcurrentPositions ?? "--"} 个持仓 · 最大 ${risk.maxLeverage ?? "--"}x · 单笔名义 ${formatUsd(risk.maxOrderNotionalUsdt)} · 执行仍为关闭</small>
-      </button>
-    `;
-  }).join("") || '<div class="sandbox-lane-empty">暂无候选包。需要先完成真实 Demo 样本、漂移复核、账本与 checksum 硬门槛，不能人工绕过。</div>';
+  el("liveCandidateList").innerHTML = packages.length
+    ? renderStrategyTimeframeGroups(packages, renderLiveCandidateCard)
+    : '<div class="sandbox-lane-empty">暂无候选包。需要先完成真实 Demo 样本、漂移复核、账本与 checksum 硬门槛，不能人工绕过。</div>';
   el("approveLiveCandidateButton").disabled = !selected || selected.approval?.status === "approved_for_future_release_review";
   el("revokeLiveCandidateButton").disabled = !selected || selected.approval?.status !== "approved_for_future_release_review";
   document.querySelectorAll("[data-live-package]").forEach((button) => {
@@ -5451,7 +5614,7 @@ function renderClosedSampleReplay(payload) {
     selectedClosedSampleReplayTaskId = rows.slice().sort((a, b) => (b.dedupedClosedSampleCount || 0) - (a.dedupedClosedSampleCount || 0))[0]?.taskId || rows[0].taskId;
   }
 
-  el("closedSampleReplayStrategyList").innerHTML = rows.map((row) => {
+  const renderClosedSampleStrategy = (row) => {
     const selected = row.taskId === selectedClosedSampleReplayTaskId ? " selected" : "";
     const quality = row.quality || {};
     return `
@@ -5461,7 +5624,8 @@ function renderClosedSampleReplay(payload) {
         <span>去重 ${row.dedupedClosedSampleCount ?? 0} · 均分 ${formatNumber(row.scoreSummary?.averageReviewScore, 1)} · 估算 ${quality.estimatedPathSampleCount ?? 0} · 真实 ${quality.actualFillSampleCount ?? 0}</span>
       </button>
     `;
-  }).join("");
+  };
+  el("closedSampleReplayStrategyList").innerHTML = renderStrategyTimeframeGroups(rows, renderClosedSampleStrategy);
 
   el("closedSampleReplayStrategyList").querySelectorAll("[data-closed-sample-task-id]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -6190,7 +6354,7 @@ function renderStrategyPlaybookSelector(tasks, selectedTaskId) {
     target.innerHTML = '<div class="item">等待纸面观察任务包导入。</div>';
     return;
   }
-  target.innerHTML = tasks.slice(0, 8).map((task) => {
+  const renderPlaybookTask = (task) => {
     const metrics = task.historicalMetrics || {};
     const quality = task.observationQuality || {};
     const selected = task.taskId === selectedTaskId ? " selected" : "";
@@ -6201,7 +6365,8 @@ function renderStrategyPlaybookSelector(tasks, selectedTaskId) {
         <small>样本 ${metrics.tradeCount ?? "--"} · 胜率 ${formatPercent(metrics.winRatePct)} · PF ${formatNumber(metrics.profitFactor)} · ${escapeHtml(quality.qualityLabelCn || "未开始")}</small>
       </button>
     `;
-  }).join("");
+  };
+  target.innerHTML = renderStrategyTimeframeGroups(tasks.slice(0, 8), renderPlaybookTask);
   document.querySelectorAll("[data-playbook-task-id]").forEach((button) => {
     button.addEventListener("click", () => {
       selectedStrategyPlaybookTaskId = button.getAttribute("data-playbook-task-id");
@@ -6628,7 +6793,7 @@ function renderCandidateQueue(queuePayload) {
   el("candidateQueueMl").textContent = formatNumber(summary.mlEvaluationCount, 0);
   el("candidateQueueBacktest").textContent = formatNumber(summary.needsBacktestCount, 0);
   el("candidateQueueLabels").textContent = formatNumber(summary.needsLabelsCount, 0);
-  el("candidateQueueList").innerHTML = candidates.slice(0, 8).map((item) => `
+  const renderCandidateQueueRow = (item) => `
     <div class="candidate-queue-row">
       <div>
         <strong>#${formatNumber(item.rank, 0)} ${escapeHtml(item.title || item.strategyId || "--")}</strong>
@@ -6651,7 +6816,10 @@ function renderCandidateQueue(queuePayload) {
         ${Array.isArray(item.decisionReasons) && item.decisionReasons.length ? `<br />原因：${item.decisionReasons.map(escapeHtml).join(" / ")}` : ""}
       </div>
     </div>
-  `).join("") || '<div class="item">暂无候选队列。请先生成策略资产索引。</div>';
+  `;
+  el("candidateQueueList").innerHTML = candidates.length
+    ? renderStrategyTimeframeGroups(candidates.slice(0, 8), renderCandidateQueueRow)
+    : '<div class="item">暂无候选队列。请先生成策略资产索引。</div>';
 }
 
 function renderShortCycleCandidatePool(poolPayload) {
@@ -6667,7 +6835,7 @@ function renderShortCycleCandidatePool(poolPayload) {
     const notes = Array.isArray(poolPayload?.safetyNotes) ? poolPayload.safetyNotes : [];
     el("shortCycleSafety").textContent = notes[0] || "短周期候选池只做研究排序，不是交易信号，不创建订单。";
   }
-  el("shortCycleCandidateList").innerHTML = candidates.map((item) => {
+  const renderShortCycleCandidate = (item) => {
     const validationLabel = shortCycleValidationLabels[item.validationStatus] || item.validationLabel || item.validationStatus || "待验证";
     const missing = Array.isArray(item.missingData) ? item.missingData : [];
     const evidence = Array.isArray(item.evidence) ? item.evidence : [];
@@ -6706,7 +6874,10 @@ function renderShortCycleCandidatePool(poolPayload) {
         ${missing.length ? `<div class="short-cycle-missing">${missing.slice(0, 4).map((line) => `<span>缺口：${escapeHtml(line)}</span>`).join("")}</div>` : ""}
       </div>
     `;
-  }).join("") || '<div class="item">暂无短周期候选。请先导入策略资产。</div>';
+  };
+  el("shortCycleCandidateList").innerHTML = candidates.length
+    ? renderStrategyTimeframeGroups(candidates, renderShortCycleCandidate)
+    : '<div class="item">暂无短周期候选。请先导入策略资产。</div>';
 }
 
 function promotionGateBadge(item) {
@@ -6720,7 +6891,8 @@ function promotionGateBadge(item) {
 
 function renderPromotionRows(rows, emptyText, limit = 5) {
   const safeRows = Array.isArray(rows) ? rows : [];
-  return safeRows.slice(0, limit).map((item) => {
+  if (!safeRows.length) return `<div class="promotion-gate-empty">${escapeHtml(emptyText)}</div>`;
+  const renderPromotionRow = (item) => {
     const reasons = Array.isArray(item.reasons) ? item.reasons : [];
     const warnings = Array.isArray(item.warnings) ? item.warnings : [];
     const checks = Array.isArray(item.passedChecks) ? item.passedChecks : [];
@@ -6749,7 +6921,8 @@ function renderPromotionRows(rows, emptyText, limit = 5) {
         </div>
       </div>
     `;
-  }).join("") || `<div class="promotion-gate-empty">${escapeHtml(emptyText)}</div>`;
+  };
+  return renderStrategyTimeframeGroups(safeRows.slice(0, limit), renderPromotionRow);
 }
 
 function renderStrategyPromotionGate(payload) {
@@ -7046,7 +7219,7 @@ function renderStrategyArtifacts(indexPayload) {
   }
   renderArtifactDetail(artifacts.find((item) => item.artifactId === selectedArtifactId));
 
-  el("artifactList").innerHTML = artifacts.slice(0, 18).map((item) => {
+  const renderStrategyArtifactRow = (item) => {
     const metrics = item.metrics || {};
     const ml = item.mlCoverage || {};
     const selected = item.artifactId === selectedArtifactId ? " selected" : "";
@@ -7075,7 +7248,10 @@ function renderStrategyArtifacts(indexPayload) {
         </div>
       </button>
     `;
-  }).join("") || '<div class="item">暂无策略资产索引。请先在 Quant Engine 生成 strategy_artifact_index.json。</div>';
+  };
+  el("artifactList").innerHTML = artifacts.length
+    ? renderStrategyTimeframeGroups(artifacts.slice(0, 18), renderStrategyArtifactRow)
+    : '<div class="item">暂无策略资产索引。请先在 Quant Engine 生成 strategy_artifact_index.json。</div>';
 
   document.querySelectorAll("[data-artifact-id]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -7217,7 +7393,7 @@ function renderStrategyLearningLoop(loopPayload) {
   el("learningLive").textContent = summary.liveTradingApproved ? "异常：开启" : "关闭";
   el("learningNextStep").textContent = summary.nextExecutableResearchStep || "等待下一轮确定性回测实现。";
 
-  el("learningRefactorList").innerHTML = refactors.slice(0, 8).map((item) => `
+  const renderLearningRefactor = (item) => `
     <div class="research-task-row">
       <strong>${escapeHtml(item.title || item.candidateId || "--")}</strong>
       <small>${escapeHtml(item.candidateId || "--")} · 优先级 ${escapeHtml(item.priority || "--")}</small>
@@ -7227,9 +7403,12 @@ function renderStrategyLearningLoop(loopPayload) {
         <span class="badge danger">${item.paperObservationAllowed ? "纸面观察异常开启" : "纸面观察未开放"}</span>
       </div>
     </div>
-  `).join("") || '<div class="item">暂无重构候选。</div>';
+  `;
+  el("learningRefactorList").innerHTML = refactors.length
+    ? renderStrategyTimeframeGroups(refactors.slice(0, 8), renderLearningRefactor)
+    : '<div class="item">暂无重构候选。</div>';
 
-  el("learningExperimentList").innerHTML = experiments.slice(0, 8).map((item) => {
+  const renderLearningExperiment = (item) => {
     const gates = item.passGate || {};
     const gateText = Object.entries(gates).slice(0, 4).map(([key, value]) => `${key}: ${value}`).join(" / ");
     return `
@@ -7240,27 +7419,36 @@ function renderStrategyLearningLoop(loopPayload) {
         <div><span class="badge warn">${escapeHtml(gateText || "等待回测门槛")}</span></div>
       </div>
     `;
-  }).join("") || '<div class="item">暂无实验规格。</div>';
+  };
+  el("learningExperimentList").innerHTML = experiments.length
+    ? renderStrategyTimeframeGroups(experiments.slice(0, 8), renderLearningExperiment)
+    : '<div class="item">暂无实验规格。</div>';
 
-  el("learningGraveyardList").innerHTML = graveyard.slice(0, 8).map((item) => `
+  const renderLearningGraveyard = (item) => `
     <div class="item">
       <strong>${escapeHtml(item.title || item.subjectId || "--")}</strong>
       <small>${escapeHtml(item.subjectId || "--")}</small>
       <div>${escapeHtml(item.reason || "失败原因待补充。")}</div>
       <div>复活条件：${escapeHtml(item.resurrectionRule || "暂无")}</div>
     </div>
-  `).join("") || '<div class="item">暂无失败归档。</div>';
+  `;
+  el("learningGraveyardList").innerHTML = graveyard.length
+    ? renderStrategyTimeframeGroups(graveyard.slice(0, 8), renderLearningGraveyard)
+    : '<div class="item">暂无失败归档。</div>';
 
-  el("learningPaperReviewList").innerHTML = reviews.slice(0, 8).map((item) => `
+  const renderLearningPaperReview = (item) => `
     <div class="item">
       <strong>${escapeHtml(item.experimentId || "--")}</strong>
       <small>${escapeHtml(item.paperObservationStatus || "--")} · readiness ${formatNumber(item.readinessScore, 0)}</small>
       <div>缺失证据：${escapeHtml((item.missingEvidence || []).join(" / ") || "无")}</div>
       <div>允许下一步：${escapeHtml(item.allowedNextAction || "研究回测")}</div>
     </div>
-  `).join("") || '<div class="item">暂无纸面观察复审。</div>';
+  `;
+  el("learningPaperReviewList").innerHTML = reviews.length
+    ? renderStrategyTimeframeGroups(reviews.slice(0, 8), renderLearningPaperReview)
+    : '<div class="item">暂无纸面观察复审。</div>';
 
-  el("learningObservationTaskPackList").innerHTML = observationTasks.slice(0, 5).map((task) => {
+  const renderObservationTaskPack = (task) => {
     const metrics = task.historicalMetrics || {};
     const plan = task.observationPlan || {};
     const localObservation = task.localObservation || {};
@@ -7304,7 +7492,10 @@ function renderStrategyLearningLoop(loopPayload) {
         </div>
       </div>
     `;
-  }).join("") || '<div class="item">暂无五策略纸面观察任务包。</div>';
+  };
+  el("learningObservationTaskPackList").innerHTML = observationTasks.length
+    ? renderStrategyTimeframeGroups(observationTasks.slice(0, 5), renderObservationTaskPack)
+    : '<div class="item">暂无五策略纸面观察任务包。</div>';
   el("learningObservationTaskPackList").querySelectorAll("[data-task-pack-log]").forEach((button) => {
     button.addEventListener("click", async () => {
       const card = button.closest("[data-task-pack-card]");
@@ -7329,7 +7520,7 @@ function renderStrategyLearningLoop(loopPayload) {
     });
   });
   if (el("learningObservationQualityList")) {
-    el("learningObservationQualityList").innerHTML = qualityRows.slice(0, 5).map((row) => {
+    const renderObservationQuality = (row) => {
       const tone = row.qualityTone === "good" ? "ok" : row.qualityTone === "danger" ? "danger" : "warn";
       const progress = row.progress || {};
       const components = row.scoreComponents || {};
@@ -7360,7 +7551,10 @@ function renderStrategyLearningLoop(loopPayload) {
           <div>下一步：${escapeHtml(row.nextAction || "继续本地观察，不进入 Dry-run。")}</div>
         </div>
       `;
-    }).join("") || '<div class="item">暂无观察质量数据。请先导入 V13.7.23 报告。</div>';
+    };
+    el("learningObservationQualityList").innerHTML = qualityRows.length
+      ? renderStrategyTimeframeGroups(qualityRows.slice(0, 5), renderObservationQuality)
+      : '<div class="item">暂无观察质量数据。请先导入 V13.7.23 报告。</div>';
   }
 }
 
@@ -7372,7 +7566,7 @@ function renderStrategies(strategies) {
     return;
   }
 
-  const rows = strategies.map((item) => {
+  const renderLegacyStrategyRow = (item) => {
     const metrics = item.metrics || {};
     return `
       <tr>
@@ -7405,22 +7599,27 @@ function renderStrategies(strategies) {
         </td>
       </tr>
     `;
-  }).join("");
+  };
 
-  el("strategyList").innerHTML = `
-    <table>
-      <thead>
-        <tr>
-          <th>策略</th>
-          <th>状态</th>
-          <th>回测指标</th>
-          <th>风险参数</th>
-          <th>本地操作</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-  `;
+  el("strategyList").innerHTML = groupStrategiesByTimeframe(strategies).map((group) => `
+    <section class="strategy-timeframe-group" data-timeframe-group="${group.key}">
+      <header><strong>${group.label}</strong><span>${group.items.length} 条</span></header>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>策略</th>
+              <th>状态</th>
+              <th>回测指标</th>
+              <th>风险参数</th>
+              <th>本地操作</th>
+            </tr>
+          </thead>
+          <tbody>${group.items.map(renderLegacyStrategyRow).join("")}</tbody>
+        </table>
+      </div>
+    </section>
+  `).join("");
 
   document.querySelectorAll("[data-save]").forEach((button) => {
     button.addEventListener("click", async () => {
@@ -7490,7 +7689,8 @@ function renderExchanges(sources, mobile) {
 }
 
 function renderStrategySlots(slots) {
-  el("strategySlotList").innerHTML = (slots || []).map((slot) => {
+  const items = Array.isArray(slots) ? slots : [];
+  const renderStrategySlot = (slot) => {
     const strategy = slot.strategy || {};
     return `
       <div class="slot-card">
@@ -7507,7 +7707,10 @@ function renderStrategySlots(slots) {
         </div>
       </div>
     `;
-  }).join("") || '<div class="item">未配置策略槽位。</div>';
+  };
+  el("strategySlotList").innerHTML = items.length
+    ? renderStrategyTimeframeGroups(items, renderStrategySlot)
+    : '<div class="item">未配置策略槽位。</div>';
 }
 
 function translateConnectionNote(note) {
@@ -8304,7 +8507,10 @@ el("exchangeDemo")?.addEventListener("click", (event) => {
     return;
   }
   const extra = action === demoWorkflowActions.updateSettings.action
-    ? { maxConcurrentSymbols: Number(button.closest(".demo-workflow-card")?.querySelector("[data-demo-symbol-limit]")?.value || 1) }
+    ? {
+        maxConcurrentSymbols: Number(button.closest(".demo-workflow-card")?.querySelector("[data-demo-symbol-limit]")?.value || 1),
+        leverage: Number(button.closest(".demo-workflow-card")?.querySelector("[data-demo-leverage]")?.value || 1),
+      }
     : {};
   button.disabled = true;
   void runDemoWorkflowAction(action, strategyId, extra).finally(() => {

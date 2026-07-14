@@ -74,7 +74,7 @@ class WorkflowUiContractTests(unittest.TestCase):
         self.assertIn("strategy-optimization-dialog", self.css)
 
     def test_static_asset_cachebuster_matches_patch(self) -> None:
-        self.assertIn("v13-27-9-top100-low-latency", self.html)
+        self.assertIn("v13-27-11-family-current", self.html)
 
     def test_patch_version_and_documentation_are_consistent(self) -> None:
         self.assertIn('version: "V13.27.9"', self.js)
@@ -149,6 +149,90 @@ class WorkflowUiContractTests(unittest.TestCase):
         refresh = branch.index("await loadDemoWorkflow(true)")
         self.assertLess(final_status, refresh)
 
+    def test_backtest_summary_separates_queued_running_and_paused(self) -> None:
+        self.assertIn('const queued = items.filter((item) => item.status === "queued")', self.js)
+        self.assertIn('const running = items.filter((item) => item.status === "running")', self.js)
+        self.assertIn('const paused = items.filter((item) => item.status === "paused")', self.js)
+        for label in ("排队中", "正在执行", "已暂停"):
+            self.assertIn(label, self.js)
+        self.assertNotIn(
+            'const running = items.filter((item) => ["queued", "running", "paused"].includes(item.status))',
+            self.js,
+        )
+
+    def test_terminal_backtest_counts_use_current_strategy_family_only(self) -> None:
+        self.assertIn("function workflowCurrentFamilyItems", self.js)
+        self.assertIn("const currentItems = workflowCurrentFamilyItems(payload)", self.js)
+        self.assertIn(
+            'const currentBacktests = currentItems.filter((item) => item.stage === "backtest")',
+            self.js,
+        )
+        self.assertIn(
+            'const passed = currentBacktests.filter((item) => item.status === "passed")',
+            self.js,
+        )
+        self.assertIn(
+            'const failed = currentBacktests.filter((item) => ["failed", "blocked", "cancelled"].includes(item.status))',
+            self.js,
+        )
+        self.assertIn("历史失败尝试保留在审计记录", self.js)
+
+    def test_demo_strategy_settings_include_one_to_five_leverage(self) -> None:
+        self.assertIn("data-demo-leverage", self.js)
+        self.assertIn("value === requestedLeverage", self.js)
+        self.assertIn("leverage: Number", self.js)
+        self.assertIn("Array.from({ length: 5 }", self.js)
+        self.assertIn("${value}x", self.js)
+
+    def test_strategy_lists_are_grouped_by_timeframe_across_all_pages(self) -> None:
+        self.assertIn("function renderStrategyTimeframeGroups", self.js)
+        self.assertIn("function groupStrategiesByTimeframe", self.js)
+        grouped_renderers = {
+            "renderStrategyObservationDailyReport": "renderStrategyTimeframeGroups",
+            "renderUsableStrategyCatalog": "renderStrategyTimeframeGroups",
+            "renderLifecycleCards": "renderStrategyTimeframeGroups",
+            "renderSimpleStrategyCards": "renderStrategyTimeframeGroups",
+            "renderSimpleReviewQueue": "renderStrategyTimeframeGroups",
+            "renderQualityCenter": "renderStrategyTimeframeGroups",
+            "renderStrategyAssetPlaybook": "renderStrategyTimeframeGroups",
+            "renderTestnetDrill": "renderStrategyTimeframeGroups",
+            "renderLocalLab": "renderStrategyTimeframeGroups",
+            "renderExchangeDemoPipeline": "renderStrategyTimeframeGroups",
+            "renderNoKeyPreLiveWorkbench": "renderStrategyTimeframeGroups",
+            "renderAutoExecutionReview": "renderStrategyTimeframeGroups",
+            "renderAutoExecutionLearning": "renderStrategyTimeframeGroups",
+            "renderClosedSampleReplay": "renderStrategyTimeframeGroups",
+            "renderCandidateQueue": "renderStrategyTimeframeGroups",
+            "renderShortCycleCandidatePool": "renderStrategyTimeframeGroups",
+            "renderStrategyPlaybookSelector": "renderStrategyTimeframeGroups",
+            "renderPromotionRows": "renderStrategyTimeframeGroups",
+            "renderStrategyArtifacts": "renderStrategyTimeframeGroups",
+            "renderStrategyLearningLoop": "renderStrategyTimeframeGroups",
+            "renderStrategies": "groupStrategiesByTimeframe",
+            "renderStrategySlots": "renderStrategyTimeframeGroups",
+        }
+        for function_name, expected in grouped_renderers.items():
+            start = self.js.index(f"function {function_name}")
+            next_function = self.js.find("\nfunction ", start + 1)
+            segment = self.js[start:next_function if next_function >= 0 else len(self.js)]
+            self.assertIn(expected, segment, function_name)
+        for renderer in (
+            "renderDualLayerCard",
+            "renderFormalLocalForwardCard",
+            "renderDemoWorkflowCard",
+            "renderLiveCandidateCard",
+        ):
+            self.assertIn(renderer, self.js)
+        for label in ("5m", "15m", "1H", "4H", "1D", "其他"):
+            self.assertIn(label, self.js)
+
+    def test_demo_runtime_separates_current_result_from_historical_blocker(self) -> None:
+        self.assertIn('id="demoAutoExecutionLastBlocked"', self.html)
+        self.assertIn("automaticExecutionCurrentResultLabel", self.js)
+        self.assertIn("automaticExecutionLastBlockedLabel", self.js)
+        self.assertIn("当前结果", self.html)
+        self.assertIn("上次阻塞", self.html)
+
     def test_demo_cards_show_process_trade_pnl_and_failure_fields(self) -> None:
         for label in (
             "当前首选候选",
@@ -220,8 +304,8 @@ class WorkflowUiContractTests(unittest.TestCase):
     def test_one_time_issue_guidance_has_persistent_and_session_fallbacks(self) -> None:
         self.assertIn('id="issueGuidanceDialog"', self.html)
         self.assertIn('id="issueGuidanceNextAction"', self.html)
-        self.assertIn('/issue-guidance.js?v=20260713-v13-27-9-top100-low-latency', self.html)
-        self.assertIn('/app.js?v=20260713-v13-27-9-top100-low-latency', self.html)
+        self.assertIn('/issue-guidance.js?v=20260715-v13-27-11-family-current', self.html)
+        self.assertIn('/app.js?v=20260715-v13-27-11-family-current', self.html)
         self.assertIn("ALPHAPILOT_ISSUE_ACK_V1", self.issue_js)
         self.assertIn("function issueFingerprint", self.issue_js)
         self.assertIn("localStorage", self.issue_js)

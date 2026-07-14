@@ -174,6 +174,7 @@ class DemoWorkflowActionTests(unittest.TestCase):
             return_value={
                 "strategyId": "strategy-1",
                 "maxConcurrentSymbols": 3,
+                "leverage": 4,
                 "okxDemoOnly": True,
                 "liveExecutionAllowed": False,
             },
@@ -184,11 +185,12 @@ class DemoWorkflowActionTests(unittest.TestCase):
                     "action": "update_demo_strategy_settings",
                     "strategyId": "strategy-1",
                     "maxConcurrentSymbols": 3,
+                    "leverage": 4,
                 }
             )
 
         self.assertTrue(result["ok"])
-        update.assert_called_once_with("strategy-1", 3)
+        update.assert_called_once_with("strategy-1", 3, 4)
         self.assertFalse(result["safetyBoundary"]["createsOrder"])
         self.assertFalse(result["settings"]["liveExecutionAllowed"])
 

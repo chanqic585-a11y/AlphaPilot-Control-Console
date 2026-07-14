@@ -235,6 +235,10 @@ class EvolutionDemoServiceTests(unittest.TestCase):
             service, "load_okx_demo_credentials", return_value=object()
         ), patch.object(
             service,
+            "_demo_account_instrument_ids",
+            return_value={"BTC-USDT-SWAP", "ETH-USDT-SWAP"},
+        ), patch.object(
+            service,
             "_portfolio_from_demo_account",
             return_value={
                 "availableEquityUsdt": 1000.0,
@@ -357,6 +361,10 @@ class EvolutionDemoServiceTests(unittest.TestCase):
             service, "DemoExecutionEngine", FakeEngine
         ), patch.object(service, "OkxDemoClient", return_value=object()), patch.object(
             service, "load_okx_demo_credentials", return_value=object()
+        ), patch.object(
+            service,
+            "_demo_account_instrument_ids",
+            return_value={signal["instId"] for signal in signals},
         ), patch.object(
             service,
             "_portfolio_from_demo_account",

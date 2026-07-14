@@ -11,6 +11,15 @@ AlphaPilot Control Console is a local desktop web console for reviewing
 AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
+## Current Strategy Family Status
+
+The Strategy page now distinguishes immutable workflow history from the
+current status of a strategy family. Queued, running, and paused counters still
+show real workflow tasks. Passed, failed, and blocked counters use one current
+item per strategy family, so old bounded-optimization attempts no longer make
+`未通过` grow indefinitely. Historical failed versions remain available as
+audit evidence and are not deleted or rewritten.
+
 ## Local Formal Data and Auto-Optimization Recovery
 
 The Strategy page now follows the Quant Engine's local-formal workflow. Formal

@@ -28,8 +28,10 @@ OKX_DEMO_USER_AGENT = "AlphaPilot-Control-Console/13.15.2"
 _CLIENT_ID = re.compile(r"^[A-Za-z0-9]{1,32}$")
 _ALLOWED_ENDPOINTS = {
     ("GET", "/api/v5/account/config"),
+    ("GET", "/api/v5/account/instruments"),
     ("GET", "/api/v5/account/balance"),
     ("GET", "/api/v5/account/positions"),
+    ("POST", "/api/v5/account/set-leverage"),
     ("GET", "/api/v5/trade/order"),
     ("GET", "/api/v5/trade/orders-pending"),
     ("GET", "/api/v5/trade/fills"),
@@ -189,6 +191,13 @@ class OkxDemoClient:
     def get_account_config(self) -> dict[str, Any]:
         return self.request("GET", "/api/v5/account/config")
 
+    def get_account_instruments(self, instrumentType: str = "SWAP") -> dict[str, Any]:
+        return self.request(
+            "GET",
+            "/api/v5/account/instruments",
+            query={"instType": instrumentType},
+        )
+
     def get_balance(self, currency: str = "USDT") -> dict[str, Any]:
         return self.request("GET", "/api/v5/account/balance", query={"ccy": currency})
 
@@ -202,6 +211,40 @@ class OkxDemoClient:
             "/api/v5/account/positions",
             query={"instId": instrumentId, "instType": instrumentType},
         )
+
+    def set_leverage(
+        self,
+        *,
+        instrumentId: str,
+        leverage: Any,
+        marginMode: str,
+        positionSide: str | None = None,
+    ) -> dict[str, Any]:
+        instrument_id = str(instrumentId or "").strip()
+        if not instrument_id:
+            raise ValueError("instrumentId is required")
+        if isinstance(leverage, bool):
+            raise ValueError("leverage must be an integer from 1 to 5")
+        numeric_leverage = float(leverage)
+        if not numeric_leverage.is_integer():
+            raise ValueError("leverage must be an integer from 1 to 5")
+        normalized_leverage = int(numeric_leverage)
+        if normalized_leverage < 1 or normalized_leverage > 5:
+            raise ValueError("leverage must be an integer from 1 to 5")
+        margin_mode = str(marginMode or "").strip().lower()
+        if margin_mode not in {"isolated", "cross"}:
+            raise ValueError("marginMode must be isolated or cross")
+        position_side = str(positionSide or "").strip().lower()
+        if position_side not in {"", "net", "long", "short"}:
+            raise ValueError("positionSide must be net, long, or short")
+        body = {
+            "instId": instrument_id,
+            "lever": str(normalized_leverage),
+            "mgnMode": margin_mode,
+        }
+        if position_side in {"long", "short"}:
+            body["posSide"] = position_side
+        return self.request("POST", "/api/v5/account/set-leverage", body=body)
 
     def place_order(self, payload: dict[str, Any]) -> dict[str, Any]:
         required = ("instId", "tdMode", "side", "ordType", "sz", "clOrdId")

@@ -19,13 +19,16 @@ class DemoStrategyRuntimeSettingsTests(unittest.TestCase):
             state_store, "STATE_PATH", Path(directory) / "console_state.json"
         ), patch.object(state_store, "AUDIT_PATH", Path(directory) / "audit.jsonl"):
             default = get_demo_strategy_runtime_settings("strategy-1")
-            updated = update_demo_strategy_runtime_settings("strategy-1", 4)
+            updated = update_demo_strategy_runtime_settings("strategy-1", 4, 5)
             loaded = get_demo_strategy_runtime_settings("strategy-1")
             audit_text = state_store.AUDIT_PATH.read_text(encoding="utf-8")
 
         self.assertEqual(default["maxConcurrentSymbols"], 1)
+        self.assertEqual(default["leverage"], 1)
         self.assertEqual(updated["maxConcurrentSymbols"], 4)
+        self.assertEqual(updated["leverage"], 5)
         self.assertEqual(loaded["maxConcurrentSymbols"], 4)
+        self.assertEqual(loaded["leverage"], 5)
         self.assertIn("demo_strategy_runtime_settings_updated", audit_text)
         self.assertNotIn("apiKey", audit_text)
         self.assertFalse(updated["liveExecutionAllowed"])
@@ -46,6 +49,11 @@ class DemoStrategyRuntimeSettingsTests(unittest.TestCase):
     def test_fractional_symbol_limit_is_rejected_instead_of_truncated(self) -> None:
         with self.assertRaisesRegex(ValueError, "max_concurrent_symbols_must_be_integer"):
             update_demo_strategy_runtime_settings("strategy-1", 2.5)
+
+    def test_leverage_must_be_an_integer_from_one_to_five(self) -> None:
+        for value in (0, 6, 1.5, True):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                update_demo_strategy_runtime_settings("strategy-1", 1, value)
 
 
 if __name__ == "__main__":

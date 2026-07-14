@@ -332,6 +332,41 @@ def build_evolution_demo_status() -> dict[str, Any]:
     }
 
 
+def _demo_account_instrument_ids(client: Any) -> set[str]:
+    response = client.get_account_instruments("SWAP")
+    if str(response.get("code")) != "0":
+        raise RuntimeError("demo_account_instruments_read_failed")
+    rows = response.get("data") if isinstance(response.get("data"), list) else []
+    instrument_ids = {
+        str(row.get("instId") or "").strip()
+        for row in rows
+        if isinstance(row, dict)
+        and str(row.get("instId") or "").strip()
+        and str(row.get("state") or "live").lower() == "live"
+    }
+    if not instrument_ids:
+        raise RuntimeError("demo_account_instruments_empty")
+    return instrument_ids
+
+
+def _exchange_rejection_code(exchange_response: Any) -> str | None:
+    if not isinstance(exchange_response, dict):
+        return None
+    rows = exchange_response.get("data") if isinstance(exchange_response.get("data"), list) else []
+    first = rows[0] if rows and isinstance(rows[0], dict) else {}
+    code = first.get("sCode") or exchange_response.get("code")
+    return str(code) if code is not None else None
+
+
+def _demo_private_action_accepted(response: Any) -> bool:
+    if not isinstance(response, dict) or str(response.get("code")) != "0":
+        return False
+    rows = response.get("data") if isinstance(response.get("data"), list) else []
+    first = rows[0] if rows and isinstance(rows[0], dict) else {}
+    detail_code = first.get("sCode") or first.get("code")
+    return detail_code is None or str(detail_code) == "0"
+
+
 def _increment_demo_portfolio(portfolio: dict[str, Any], signal: dict[str, Any]) -> None:
     strategy_id = str(signal.get("strategyCandidateId") or signal.get("candidateId") or "unknown")
     symbol = str(signal.get("instId") or "unknown")
@@ -503,6 +538,11 @@ def run_evolution_demo_batch_cycle(
                 if isinstance(first_contract.get("riskEnvelope"), dict)
                 else {},
             )
+            account_instrument_ids = (
+                _demo_account_instrument_ids(client)
+                if all_signals
+                else set()
+            )
         except OkxDemoError as error:
             return {
                 "ok": False,
@@ -519,8 +559,24 @@ def run_evolution_demo_batch_cycle(
                 "scans": scans,
                 "status": build_evolution_demo_status(),
             }
-        portfolio["dataFresh"] = all(bool(item.get("dataFresh")) for item in all_signals)
-        portfolio["liquidityPassed"] = all(bool(item.get("liquidityPassed")) for item in all_signals)
+        unavailable_instrument_rejections = [
+            {
+                "candidateId": item.get("candidateId"),
+                "instId": item.get("instId"),
+                "demoReleaseId": item.get("demoReleaseId"),
+                "strategyCandidateId": item.get("strategyCandidateId"),
+                "reason": "demo_instrument_unavailable",
+            }
+            for item in all_signals
+            if str(item.get("instId") or "") not in account_instrument_ids
+        ]
+        tradable_signals = [
+            item
+            for item in all_signals
+            if str(item.get("instId") or "") in account_instrument_ids
+        ]
+        portfolio["dataFresh"] = all(bool(item.get("dataFresh")) for item in tradable_signals)
+        portfolio["liquidityPassed"] = all(bool(item.get("liquidityPassed")) for item in tradable_signals)
         risk_started_at = _utc_now()
         guard = evaluate_demo_runtime_guard(
             portfolio,
@@ -539,6 +595,7 @@ def run_evolution_demo_batch_cycle(
         base_result = {
             "scannedReleaseCount": len(selected_contracts),
             "matchedSignalCount": len(all_signals),
+            "tradableSignalCount": len(tradable_signals),
             "scans": scans,
             "recovered": [_record_payload(record) for record in recovered],
             "closeReceivedAt": str(close_received_at),
@@ -560,13 +617,16 @@ def run_evolution_demo_batch_cycle(
             "orderAttemptCount": 0,
             "orderOutcomes": [],
         }
-        if not all_signals:
+        if not tradable_signals:
             return {
                 "ok": True,
                 **base_result,
                 "createdOrderCount": 0,
                 "created": [],
-                "rejectedSignals": scan_rejections,
+                "rejectedSignals": [
+                    *scan_rejections,
+                    *unavailable_instrument_rejections,
+                ],
                 "status": build_evolution_demo_status(),
             }
 
@@ -589,7 +649,7 @@ def run_evolution_demo_batch_cycle(
                 "created": [],
                 "rejectedSignals": [
                     {**item, "reason": "portfolio_position_limit"}
-                    for item in all_signals
+                    for item in tradable_signals
                     if isinstance(item, dict)
                 ],
                 "status": status,
@@ -605,13 +665,17 @@ def run_evolution_demo_batch_cycle(
         }
         arbitration_started_at = _utc_now()
         preliminarily_selected: list[dict[str, Any]] = []
-        arbitration_rejections: list[dict[str, Any]] = list(scan_rejections)
+        arbitration_rejections: list[dict[str, Any]] = [
+            *scan_rejections,
+            *unavailable_instrument_rejections,
+        ]
         symbol_limits: dict[str, dict[str, Any]] = {}
+        strategy_runtime_settings: dict[str, dict[str, Any]] = {}
         for contract in selected_contracts:
             strategy_id = str(contract.get("strategyCandidateId") or "")
             strategy_signals = [
                 signal
-                for signal in all_signals
+                for signal in tradable_signals
                 if str(signal.get("strategyCandidateId") or "") == strategy_id
             ]
             if not strategy_signals:
@@ -624,6 +688,7 @@ def run_evolution_demo_batch_cycle(
             )
             max_positions_per_strategy = int(limits.get("maxPositionsPerStrategy") or max_positions)
             settings = get_demo_strategy_runtime_settings(strategy_id)
+            strategy_runtime_settings[strategy_id] = settings
             requested_slots = max(
                 0,
                 int(settings.get("maxConcurrentSymbols") or 1) - current_strategy_positions,
@@ -737,7 +802,40 @@ def run_evolution_demo_batch_cycle(
                 **signal,
                 "latencyAudit": timing_payload,
             }
+            settings = strategy_runtime_settings.get(
+                str(signal.get("strategyCandidateId") or ""),
+                {},
+            )
+            requested_leverage = max(1, min(5, int(settings.get("leverage") or 1)))
+            release_max_leverage = max(
+                1,
+                int(limits.get("maxLeverage") or limits.get("defaultMaxLeverage") or 1),
+            )
+            effective_leverage = min(requested_leverage, release_max_leverage, 5)
+            executable_signal["leverage"] = effective_leverage
+            position_side = str(executable_signal.get("posSide") or "").strip().lower()
             try:
+                leverage_response = client.set_leverage(
+                    instrumentId=str(executable_signal.get("instId") or ""),
+                    leverage=effective_leverage,
+                    marginMode=str(executable_signal.get("tdMode") or "isolated"),
+                    positionSide=position_side if position_side in {"long", "short"} else None,
+                )
+                if not _demo_private_action_accepted(leverage_response):
+                    rejection_code = _exchange_rejection_code(leverage_response)
+                    execution_rejections.append({
+                        "candidateId": signal.get("candidateId"),
+                        "instId": signal.get("instId"),
+                        "reason": (
+                            "demo_instrument_unavailable"
+                            if rejection_code == "51001"
+                            else "demo_leverage_rejected"
+                        ),
+                        "exchangeCode": rejection_code,
+                        "requestedLeverage": requested_leverage,
+                        "effectiveLeverage": effective_leverage,
+                    })
+                    continue
                 order_attempt_count += 1
                 record = engine.execute(
                     contract=contract,
@@ -745,6 +843,7 @@ def run_evolution_demo_batch_cycle(
                     portfolio=rolling_portfolio,
                 )
                 exchange_response = getattr(record, "exchangeResponse", None)
+                record_status = str(getattr(record, "status", "") or "unknown")
                 exchange_code = (
                     str(exchange_response.get("code"))
                     if isinstance(exchange_response, dict)
@@ -752,7 +851,7 @@ def run_evolution_demo_batch_cycle(
                     else None
                 )
                 order_outcomes.append({
-                    "status": str(getattr(record, "status", "") or "unknown"),
+                    "status": record_status,
                     "exchangeCode": exchange_code,
                 })
                 exchange_timing = (
@@ -780,8 +879,35 @@ def run_evolution_demo_batch_cycle(
                         if value is not None
                     }
                 )
+                if record_status not in {"submitted", "live", "partially_filled", "filled"}:
+                    rejection_code = _exchange_rejection_code(exchange_response)
+                    execution_rejections.append({
+                        "candidateId": signal.get("candidateId"),
+                        "instId": signal.get("instId"),
+                        "reason": (
+                            "demo_instrument_unavailable"
+                            if rejection_code == "51001"
+                            else "demo_order_rejected"
+                        ),
+                        "exchangeCode": rejection_code,
+                    })
+                    if store.get_runtime_flag("paused", False):
+                        break
+                    continue
                 created.append(record)
                 _increment_demo_portfolio(rolling_portfolio, executable_signal)
+            except OkxDemoError as error:
+                engine.pause("leverage_state_unknown")
+                order_outcomes.append({
+                    "status": "failed",
+                    "failureCode": type(error).__name__,
+                })
+                execution_rejections.append({
+                    "candidateId": signal.get("candidateId"),
+                    "instId": signal.get("instId"),
+                    "reason": "demo_leverage_state_unknown",
+                })
+                break
             except (RuntimeError, ValueError) as error:
                 order_outcomes.append({
                     "status": "failed",

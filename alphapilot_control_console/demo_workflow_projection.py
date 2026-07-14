@@ -480,6 +480,7 @@ def _build_item(
     active_profile = _mapping(active_profile_record.get("profile"))
     contract_limits = _mapping(contract.get("riskEnvelope"))
     requested_symbols = max(1, int(_number(settings.get("maxConcurrentSymbols")) or 1))
+    requested_leverage = max(1, min(5, int(_number(settings.get("leverage")) or 1)))
     profile_position_limit = max(
         1,
         int(_number(contract_limits.get("maxPositionsPerStrategy") or active_profile.get("maxPositionsPerStrategy")) or 1),
@@ -489,6 +490,11 @@ def _build_item(
         int(_number(contract_limits.get("maxConcurrentPositions") or active_profile.get("maxConcurrentPositions")) or 1),
     )
     effective_configured_maximum = min(requested_symbols, profile_position_limit, profile_portfolio_limit)
+    release_max_leverage = max(
+        1,
+        int(_number(contract_limits.get("maxLeverage") or contract_limits.get("defaultMaxLeverage")) or 1),
+    )
+    effective_leverage = min(requested_leverage, release_max_leverage, 5)
     evidence_checklist = build_demo_evidence_checklist(
         lifecycle_item,
         contract=contract,
@@ -525,6 +531,9 @@ def _build_item(
         },
         "executionLimits": {
             "requestedMaxConcurrentSymbols": requested_symbols,
+            "requestedLeverage": requested_leverage,
+            "releaseMaxLeverage": release_max_leverage,
+            "effectiveLeverage": effective_leverage,
             "profileMaxPositionsPerStrategy": profile_position_limit,
             "profileMaxConcurrentPositions": profile_portfolio_limit,
             "effectiveConfiguredMaximum": effective_configured_maximum,

@@ -326,17 +326,18 @@ def run_demo_workflow_action(payload: dict[str, Any] | None = None) -> dict[str,
             settings = update_demo_strategy_runtime_settings(
                 strategy_id,
                 payload.get("maxConcurrentSymbols", 1),
+                payload.get("leverage", 1),
             )
         except (TypeError, ValueError) as error:
             return _blocked(
-                message="每策略同时开仓币种数必须是 1 到 10 的整数。",
+                message="每策略同时开仓币种数必须是 1 到 10 的整数，杠杆必须是 1 到 5 的整数。",
                 blockers=[str(error)],
                 workflow=_response_workflow(lifecycle, exchange_demo),
             )
         return {
             "ok": True,
             "status": "completed",
-            "message": "每策略同时开仓币种上限已保存；组合风险上限仍优先。",
+            "message": "每策略同时开仓币种上限和 Demo 杠杆已保存；不可变 Release 与组合风险上限仍优先。",
             "settings": settings,
             "workflow": build_demo_workflow_status(),
             "safetyBoundary": SAFETY_BOUNDARY,

@@ -50,6 +50,43 @@ class OkxDemoClientTests(unittest.TestCase):
         self.assertEqual(request.body["clOrdId"], "apdemo123")
         self.assertIn("OK-ACCESS-SIGN", request.headers)
 
+    def test_account_instruments_uses_read_only_demo_endpoint(self) -> None:
+        response = self.client.get_account_instruments("SWAP")
+
+        request = self.transport.requests[0]
+        self.assertEqual(response["code"], "0")
+        self.assertEqual(request.method, "GET")
+        self.assertEqual(request.path, "/api/v5/account/instruments")
+        self.assertEqual(request.query, {"instType": "SWAP"})
+        self.assertEqual(request.headers["x-simulated-trading"], "1")
+
+    def test_set_leverage_uses_demo_trade_endpoint(self) -> None:
+        response = self.client.set_leverage(
+            instrumentId="BTC-USDT-SWAP",
+            leverage=5,
+            marginMode="isolated",
+            positionSide="long",
+        )
+
+        request = self.transport.requests[0]
+        self.assertEqual(response["code"], "0")
+        self.assertEqual(request.method, "POST")
+        self.assertEqual(request.path, "/api/v5/account/set-leverage")
+        self.assertEqual(
+            request.body,
+            {"instId": "BTC-USDT-SWAP", "lever": "5", "mgnMode": "isolated", "posSide": "long"},
+        )
+        self.assertEqual(request.headers["x-simulated-trading"], "1")
+
+    def test_set_leverage_rejects_values_outside_one_to_five(self) -> None:
+        for value in (0, 6, 2.5, True):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                self.client.set_leverage(
+                    instrumentId="BTC-USDT-SWAP",
+                    leverage=value,
+                    marginMode="isolated",
+                )
+
     def test_withdraw_endpoint_is_not_in_allowlist(self) -> None:
         with self.assertRaises(PermissionError):
             self.client.request("POST", "/api/v5/asset/withdrawal", body={"amt": "1"})

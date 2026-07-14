@@ -9,6 +9,8 @@ from . import state_store
 
 DEFAULT_MAX_CONCURRENT_SYMBOLS = 1
 MAX_CONFIGURABLE_SYMBOLS = 10
+DEFAULT_DEMO_LEVERAGE = 1
+MAX_DEMO_LEVERAGE = 5
 
 
 def _strategy_id(value: Any) -> str:
@@ -30,6 +32,10 @@ def get_demo_strategy_runtime_settings(strategy_id: str) -> dict[str, Any]:
             1,
             min(int(saved.get("maxConcurrentSymbols") or DEFAULT_MAX_CONCURRENT_SYMBOLS), MAX_CONFIGURABLE_SYMBOLS),
         ),
+        "leverage": max(
+            1,
+            min(int(saved.get("leverage") or DEFAULT_DEMO_LEVERAGE), MAX_DEMO_LEVERAGE),
+        ),
         "updatedAt": saved.get("updatedAt"),
         "source": saved.get("source") or "demo_strategy_runtime_settings_v13_27_1_5",
         "okxDemoOnly": True,
@@ -40,6 +46,7 @@ def get_demo_strategy_runtime_settings(strategy_id: str) -> dict[str, Any]:
 def update_demo_strategy_runtime_settings(
     strategy_id: str,
     max_concurrent_symbols: Any,
+    leverage: Any = DEFAULT_DEMO_LEVERAGE,
 ) -> dict[str, Any]:
     normalized = _strategy_id(strategy_id)
     if isinstance(max_concurrent_symbols, bool):
@@ -50,6 +57,14 @@ def update_demo_strategy_runtime_settings(
     requested = int(numeric)
     if requested < 1 or requested > MAX_CONFIGURABLE_SYMBOLS:
         raise ValueError("max_concurrent_symbols_out_of_range")
+    if isinstance(leverage, bool):
+        raise ValueError("leverage_must_be_integer")
+    numeric_leverage = float(leverage)
+    if not numeric_leverage.is_integer():
+        raise ValueError("leverage_must_be_integer")
+    requested_leverage = int(numeric_leverage)
+    if requested_leverage < 1 or requested_leverage > MAX_DEMO_LEVERAGE:
+        raise ValueError("leverage_out_of_range")
     state = state_store.load_state()
     rows = state.get("demoStrategyRuntimeSettings")
     settings = rows if isinstance(rows, dict) else {}
@@ -58,6 +73,7 @@ def update_demo_strategy_runtime_settings(
     record = {
         "strategyId": normalized,
         "maxConcurrentSymbols": requested,
+        "leverage": requested_leverage,
         "updatedAt": now,
         "source": "demo_strategy_runtime_settings_v13_27_1_5",
         "okxDemoOnly": True,
@@ -72,6 +88,8 @@ def update_demo_strategy_runtime_settings(
             "strategyId": normalized,
             "previousMaxConcurrentSymbols": previous.get("maxConcurrentSymbols") or DEFAULT_MAX_CONCURRENT_SYMBOLS,
             "maxConcurrentSymbols": requested,
+            "previousLeverage": previous.get("leverage") or DEFAULT_DEMO_LEVERAGE,
+            "leverage": requested_leverage,
             "okxDemoOnly": True,
             "createsOrder": False,
             "liveExecutionAllowed": False,
