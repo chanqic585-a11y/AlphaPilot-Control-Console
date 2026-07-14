@@ -49,6 +49,16 @@ class OkxDemoLauncherScriptTests(unittest.TestCase):
     def test_launcher_marks_explicit_automation_confirmation_for_startup_arm(self) -> None:
         self.assertIn('$env:ALPHAPILOT_OKX_DEMO_LAUNCHER_CONFIRMED = "1"', self.script)
 
+    def test_enrollment_validates_and_stores_before_listener_replacement(self) -> None:
+        self.assertIn("[switch]$EnrollCredentialVault", self.script)
+        self.assertIn("alphapilot_control_console.demo_credential_vault_cli", self.script)
+        enrollment = self.script.index("alphapilot_control_console.demo_credential_vault_cli")
+        process_stop = self.script.index("Stop-Process -Id $listenerProcessId")
+        self.assertLess(enrollment, process_stop)
+        self.assertNotIn("-ApiKey $apiKey", self.script)
+        self.assertNotIn("-SecretKey $secretKey", self.script)
+        self.assertNotIn("-Passphrase $passphrase", self.script)
+
     def test_replacement_waits_for_port_release(self) -> None:
         self.assertIn("port did not become available", self.script.lower())
         self.assertIn("Start-Sleep -Milliseconds 250", self.script)

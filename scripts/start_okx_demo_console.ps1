@@ -5,6 +5,7 @@ param(
   [switch]$EnableOrder,
   [switch]$EnableAutomation,
   [switch]$EnableCancel,
+  [switch]$EnrollCredentialVault,
   [switch]$Smoke,
   [switch]$ReplaceExistingConsole,
   [int]$ExpectedConsoleProcessId = 0
@@ -81,6 +82,26 @@ if ($EnableAutomation) {
   if ($automationConfirmation -cne "ENABLE_OKX_DEMO_AUTOMATION") {
     Write-Host "OKX Demo automation launch cancelled. Existing console remains running." -ForegroundColor Yellow
     exit 2
+  }
+}
+
+if ($EnrollCredentialVault) {
+  $env:ALPHAPILOT_OKX_SITE = "global"
+  $env:ALPHAPILOT_OKX_DEMO_API_KEY = $apiKey
+  $env:ALPHAPILOT_OKX_DEMO_SECRET_KEY = $secretKey
+  $env:ALPHAPILOT_OKX_DEMO_PASSPHRASE = $passphrase
+  try {
+    Write-Host "Validating the Demo credential with an OKX read-only request before local storage." -ForegroundColor Cyan
+    & $python -m alphapilot_control_console.demo_credential_vault_cli enroll
+    if ($LASTEXITCODE -ne 0) {
+      throw "OKX Demo credential validation or Windows Credential Manager enrollment failed. Existing console remains running."
+    }
+    Write-Host "Demo credential stored in Windows Credential Manager for this Windows user and computer." -ForegroundColor Green
+  } finally {
+    Remove-Item Env:\ALPHAPILOT_OKX_SITE -ErrorAction SilentlyContinue
+    Remove-Item Env:\ALPHAPILOT_OKX_DEMO_API_KEY -ErrorAction SilentlyContinue
+    Remove-Item Env:\ALPHAPILOT_OKX_DEMO_SECRET_KEY -ErrorAction SilentlyContinue
+    Remove-Item Env:\ALPHAPILOT_OKX_DEMO_PASSPHRASE -ErrorAction SilentlyContinue
   }
 }
 
