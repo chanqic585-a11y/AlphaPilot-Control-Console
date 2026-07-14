@@ -11,6 +11,28 @@ AlphaPilot Control Console is a local desktop web console for reviewing
 AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
+## Demo Credential Recovery Patch
+
+OKX Demo credentials can now be enrolled once into Windows Credential Manager
+under the fixed `AlphaPilot/OKX/Demo/v1` target. Windows encrypts the record for
+the current Windows user and computer. On later Console starts, the backend
+loads the record into that process only, validates it through one allowlisted
+OKX Demo read-only request, and then uses the existing fail-closed startup ARM
+path. Invalid or unavailable credentials never enable Demo gates and are not
+deleted automatically.
+
+The Demo page shows only redacted states such as `已安全保存`, `需要更新`, or
+`尚未保存`. It has no credential fields and does not write credentials to the
+browser, JSON, SQLite, logs, or audit payloads. The visible enrollment launcher
+opens at most once per Console PID and failure category. Updating or deleting
+the saved record is loopback-only; deletion requires an exact confirmation.
+
+This recovery applies only to OKX Demo Trading. Live credentials remain
+process-only. Withdraw remains absent, immutable Demo Releases and risk gates
+are unchanged, and restoring credentials does not bypass ARM or grant Live
+permission. After deploying this patch, complete one enrollment and one
+deliberate Console restart to verify recovery on the target Windows account.
+
 ## Bounded Structural Redesign Status
 
 The Strategy page reads the Quant workflow's explicit
