@@ -11,6 +11,21 @@ AlphaPilot Control Console is a local desktop web console for reviewing
 AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
+## Local Formal Data and Auto-Optimization Recovery
+
+The Strategy page now follows the Quant Engine's local-formal workflow. Formal
+backtests reuse immutable files derived from `D:\Codex-Workspace\回测数据` and
+no longer describe a running workflow as an OKX history download. The progress
+card distinguishes first local conversion, verified local reuse, formal
+backtest computation, and a genuine local-data gap.
+
+Current event-window strategy families are included in the Quant bounded
+parameter allowlist. Historical audit records that mislabeled an unregistered
+family as a data blocker are shown as recoverable, and the auto-optimize action
+can create one immutable Challenger through the existing audited queue. The
+three-attempt budget, structural redesign/archive lifecycle, `targetR >= 2R`,
+Demo Release, risk and Live gates remain unchanged; no strategy is force-passed.
+
 ## Demo Credential Recovery Patch
 
 OKX Demo credentials can now be enrolled once into Windows Credential Manager

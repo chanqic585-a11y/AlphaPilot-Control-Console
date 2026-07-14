@@ -176,24 +176,30 @@ class WorkflowUiContractTests(unittest.TestCase):
         self.assertIn("workflow-run-progress-track", self.css)
         self.assertIn('status === "paused"', self.js)
         self.assertIn("downloadProgress", self.js)
-        self.assertIn("function renderOfficialDownloadProgress", self.js)
+        self.assertIn("function renderFormalDataProgress", self.js)
         self.assertIn("official-download-progress", self.js)
         self.assertIn("official-download-progress", self.css)
         self.assertIn("requestCount", self.js)
         self.assertIn("rowCount", self.js)
         self.assertIn("控制台重启后会从当前检查点自动继续", self.html)
 
-    def test_official_data_progress_distinguishes_reuse_from_download(self) -> None:
-        self.assertIn("function officialPreparationModeLabel", self.js)
+    def test_local_formal_progress_distinguishes_conversion_from_reuse(self) -> None:
+        self.assertIn("function formalPreparationModeLabel", self.js)
         for label in (
-            "首次下载官方数据",
-            "复用共享仓并补齐最新 K 线",
-            "校验已有正式数据",
-            "共享官方数据已就绪",
+            "首次转换本地正式数据",
+            "复用本地正式数据仓",
+            "校验本地正式数据",
+            "本地正式数据已就绪",
             "正式回测计算中",
-            "根历史 K 线已复用",
+            "不会请求交易所历史接口",
         ):
             self.assertIn(label, self.js)
+        self.assertNotIn("首次下载官方数据", self.js)
+
+    def test_repaired_optimizer_copy_does_not_mislabel_allowlist_gap(self) -> None:
+        self.assertIn("当前新策略族已纳入受控参数白名单", self.js)
+        self.assertIn("自动 Challenger 已创建并排队", self.js)
+        self.assertNotIn("当前是数据或工程证据阻塞，不应通过调参掩盖", self.js)
 
     def test_demo_cards_show_permanent_evidence_and_full_market_summary(self) -> None:
         for label in (

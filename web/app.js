@@ -1160,8 +1160,8 @@ async function runWorkflowAction(action, item = {}) {
 const dualLayerPhaseLabels = {
   checking_local_data: "检查本地数据",
   research_smoke_running: "本地研究烟测",
-  preparing_official_data: "准备 OKX 官方数据",
-  validating_official_data: "校验正式数据",
+  preparing_official_data: "准备本地正式数据",
+  validating_official_data: "校验本地正式数据",
   freezing_data_snapshot: "冻结正式快照",
   building_validation_manifests: "构建正式验证集",
   formal_backtest_running: "正式回测中",
@@ -1197,22 +1197,23 @@ function dualLayerReadableFailure(item) {
   if (!raw) return "--";
   return raw.split("; ").map((part) => {
     if (dualLayerFailureLabels[part]) return dualLayerFailureLabels[part];
-    if (part.startsWith("official_collection_not_complete:")) return "OKX 官方数据尚未准备完成，可从断点继续";
-    if (part.startsWith("official_collection_partition_failures:")) return "部分官方数据分区校验失败，可补齐后重试";
+    if (part.startsWith("official_collection_not_complete:") || part.startsWith("formal_collection_not_complete:")) return "本地正式数据尚未准备完成，可从检查点继续";
+    if (part.startsWith("official_collection_partition_failures:") || part.startsWith("formal_collection_partition_failures:")) return "部分本地正式数据分区校验失败，可补齐后重试";
     if (part.startsWith("dual_layer_worker_error:")) return "本次运行遇到工程故障，可从检查点重试";
     if (part.startsWith("data_snapshot_not_")) return "正式数据快照未满足校验要求";
     return part;
   }).join("；");
 }
 
-function officialPreparationModeLabel(mode, active = false) {
+function formalPreparationModeLabel(mode, active = false) {
   const labels = {
-    initial_download: active ? "首次下载官方数据" : "准备首次下载官方数据",
-    shared_incremental_refresh: "复用共享仓并补齐最新 K 线",
-    contract_checkpoint_reuse: "校验已有正式数据",
-    shared_cache_ready: "共享官方数据已就绪",
+    user_approved_local: active ? "转换本地正式数据" : "复用本地正式数据仓",
+    initial_download: "旧数据准备状态待迁移",
+    shared_incremental_refresh: "旧共享数据状态待迁移",
+    contract_checkpoint_reuse: "校验本地正式数据",
+    shared_cache_ready: "本地正式数据已就绪",
   };
-  return labels[String(mode || "")] || (active ? "准备官方数据" : "官方数据准备中");
+  return labels[String(mode || "")] || (active ? "首次转换本地正式数据" : "本地正式数据准备中");
 }
 
 function dualLayerProgressText(item) {
@@ -1222,12 +1223,12 @@ function dualLayerProgressText(item) {
   const completed = Number(download.completed || 0);
   const required = Number(download.required || 0);
   if (phase === "formal_backtest_running") {
-    if (item?.status === "queued") return "官方数据已就绪 · 排队等待正式回测";
-    if (item?.status === "paused") return "正式回测已暂停 · 官方数据已就绪";
-    return "正式回测计算中 · 官方数据已就绪";
+    if (item?.status === "queued") return "本地正式数据已就绪 · 排队等待正式回测";
+    if (item?.status === "paused") return "正式回测已暂停 · 本地正式数据已就绪";
+    return "正式回测计算中 · 本地正式数据已就绪";
   }
   if (["preparing_official_data", "validating_official_data"].includes(phase) && required > 0) {
-    return `${officialPreparationModeLabel(download.mode)} · 数据分区 ${completed}/${required}`;
+    return `${formalPreparationModeLabel(download.mode)} · 数据分区 ${completed}/${required}`;
   }
   return required > 0 ? `${label} · 数据分区 ${completed}/${required}` : label;
 }
@@ -1273,7 +1274,7 @@ function dualLayerProgressModel(item) {
   };
 }
 
-function renderOfficialDownloadProgress(item) {
+function renderFormalDataProgress(item) {
   const progress = item?.downloadProgress || {};
   const active = progress.active;
   const phase = item?.phase || item?.progress?.phase;
@@ -1284,10 +1285,10 @@ function renderOfficialDownloadProgress(item) {
     return `
       <div class="official-download-progress">
         <div class="official-download-progress-head">
-          <strong>${escapeHtml(officialPreparationModeLabel(progress.mode))}</strong>
+          <strong>${escapeHtml(formalPreparationModeLabel(progress.mode))}</strong>
           <span>${completed.toLocaleString("zh-CN")} / ${required.toLocaleString("zh-CN")} 个数据分区</span>
         </div>
-        <small>当前策略会复用相同交易所、周期和覆盖范围的共享官方数据。</small>
+        <small>当前策略会复用相同周期和覆盖范围的本地正式数据，不会请求交易所历史接口。</small>
       </div>
     `;
   }
@@ -1311,7 +1312,7 @@ function renderOfficialDownloadProgress(item) {
   return `
     <div class="official-download-progress">
       <div class="official-download-progress-head">
-        <strong>${escapeHtml(officialPreparationModeLabel(active.mode, true))} · ${escapeHtml(partition)}</strong>
+        <strong>${escapeHtml(formalPreparationModeLabel(active.mode, true))} · ${escapeHtml(partition)}</strong>
         <span>${escapeHtml(pageText)} · ${escapeHtml(rowText)}</span>
       </div>
       <div class="official-download-progress-track"><i style="width:${percent.toFixed(1)}%"></i></div>
@@ -1321,7 +1322,7 @@ function renderOfficialDownloadProgress(item) {
 }
 
 function dualLayerEvidenceText(item) {
-  if (item?.evidenceClass === "formal_backtest") return "正式证据：OKX 官方公共数据";
+  if (item?.evidenceClass === "formal_backtest") return "正式证据：用户确认的本地历史数据";
   if (item?.evidenceClass === "research_smoke") return "研究烟测：本地旧数据，不参与晋级";
   return "证据尚未生成";
 }
@@ -1357,7 +1358,10 @@ function dualLayerCardActions(item) {
       { action: "optimize", label: "改善优化" },
       { action: "archive", label: "归档" },
     ];
-    if (!item?.optimizationCampaign?.reviewed && workflowOptimizationBackendReady) {
+    const campaign = item?.optimizationCampaign || {};
+    const supersedableLegacyAudit = campaign.reasonCode === "parameter_allowlist_missing"
+      && campaign.status === "data_evidence_blocked";
+    if ((!campaign.reviewed || supersedableLegacyAudit) && workflowOptimizationBackendReady) {
       actions.unshift({
         action: "auto-optimize",
         label: "自动优化（最多3次）",
@@ -1373,13 +1377,16 @@ function dualLayerCardActions(item) {
 function dualLayerOptimizationStatus(item) {
   const campaign = item?.optimizationCampaign || {};
   if (!campaign.reviewed) return "";
+  if (campaign.reasonCode === "parameter_allowlist_missing") {
+    return "旧版自动优化误把参数白名单漏注册标成数据阻塞；当前新策略族已纳入受控参数白名单，可重新恢复自动优化。";
+  }
   const status = String(campaign.status || "reviewed");
   const messages = {
     structural_redesign_required: "自动优化已审查：结构性弱势，已停止自动尝试；需要重设计，不会强制通过。",
     budget_exhausted: "自动优化已审查：最多 3 次尝试已用完，策略继续保持未通过。",
-    data_evidence_blocked: "自动优化已审查：当前是数据或工程证据阻塞，不应通过调参掩盖。",
+    data_evidence_blocked: "自动优化已审查：真实数据完整性或工程故障需先修复；不会通过调参掩盖。",
     formal_validation_failed: "自动优化已审查：一次性正式锁定验证未通过，已停止继续调参。",
-    challenger_queued: "自动优化已审查：已创建不可变 Challenger，并已加入自动回测队列。",
+    challenger_queued: "自动优化已审查：自动 Challenger 已创建并排队，完成后会继续按门槛判断。",
     passed: "自动优化已审查：正式门槛通过。",
     reviewed: "自动优化已审查，结论已写入审计记录。",
   };
@@ -1422,6 +1429,7 @@ function dualLayerNextStep(item) {
   if (item.status === "failed") {
     const campaign = item?.optimizationCampaign || {};
     if (campaign.status === "challenger_queued") return "自动 Challenger 已创建，等待新版本回测结果。";
+    if (campaign.reasonCode === "parameter_allowlist_missing") return "这是旧版错误审查记录；点击自动优化即可恢复，并为当前策略族创建受控新版本。";
     if (campaign.status === "structural_redesign_required") return "结构性弱势不是小幅调参可修复；请重设计信号逻辑，或归档该策略。";
     if (campaign.reviewed) return "自动优化已停止且不会强制放行；仍可人工改善逻辑后创建新版本。";
     if (!workflowOptimizationBackendReady) return "当前控制台后端未加载自动优化；请使用安全启动器正常重启后再试。";
@@ -1430,8 +1438,8 @@ function dualLayerNextStep(item) {
   if (item.status === "blocked") return item.failure?.retryDisposition === "same_version_retry"
     ? "这是数据或工程阻塞，不改策略版本即可从检查点重试。"
     : "先补齐缺失证据，再继续。";
-  if (["queued", "running", "paused"].includes(item.status)) return "完成官方数据校验和正式回测后，系统会自动判断下一阶段。";
-  return "点击一键双层回测：本地烟测只做实现检查，正式晋级只认 OKX 官方公共数据。";
+  if (["queued", "running", "paused"].includes(item.status)) return "完成本地正式数据校验和正式回测后，系统会自动判断下一阶段。";
+  return "点击一键双层回测：先做本地研究烟测，再使用本地正式数据运行固定门槛。";
 }
 
 function renderDualLayerCard(item, archived = false) {
@@ -1457,7 +1465,7 @@ function renderDualLayerCard(item, archived = false) {
       <div class="workflow-run-progress-head"><span>${escapeHtml(runProgress.label)}</span><strong>${runProgress.percent}%</strong></div>
       <div class="workflow-run-progress-track ${escapeHtml(runProgress.status)}"><i style="width:${runProgress.percent}%"></i></div>
       ${runProgress.required > 0 ? `<small class="workflow-run-progress-note">${runProgress.completed}/${runProgress.required} 个可核验步骤</small>` : ""}
-      ${renderOfficialDownloadProgress(item)}
+      ${renderFormalDataProgress(item)}
       <div class="workflow-evidence-row"><span>${escapeHtml(dualLayerEvidenceText(item))}</span><small>目标 ≥ 2R</small></div>
       ${metrics.length ? `<div class="workflow-metrics">${metrics.map((row) => `<span>${escapeHtml(row)}</span>`).join("")}</div>` : ""}
       ${failure && failure !== "--" ? `<div class="workflow-failure"><strong>${escapeHtml(failure)}</strong></div>` : ""}
