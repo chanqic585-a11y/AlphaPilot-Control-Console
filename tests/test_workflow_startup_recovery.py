@@ -63,7 +63,18 @@ class WorkflowStartupRecoveryTests(unittest.TestCase):
 
         with patch.object(
             http_app, "ThreadingHTTPServer", return_value=server
-        ), patch.object(http_app, "start_local_sandbox_auto_runner"), patch.object(
+        ), patch.object(
+            http_app,
+            "bootstrap_demo_credentials",
+            side_effect=lambda: lifecycle.append("credential_bootstrap") or {
+                "status": "loaded",
+                "promptRequired": False,
+            },
+        ) as bootstrap_credentials, patch.object(
+            http_app, "maybe_open_demo_credential_prompt"
+        ) as maybe_prompt, patch.object(
+            http_app, "start_local_sandbox_auto_runner"
+        ), patch.object(
             http_app, "stop_local_sandbox_auto_runner"
         ), patch.object(
             http_app, "start_unified_auto_execution_runner"
@@ -89,6 +100,8 @@ class WorkflowStartupRecoveryTests(unittest.TestCase):
             http_app.run_server("127.0.0.1", 8877)
 
         resume.assert_called_once_with()
+        bootstrap_credentials.assert_called_once_with()
+        maybe_prompt.assert_called_once()
         start_auto.assert_called_once_with()
         startup_arm.assert_called_once_with()
         stop_auto.assert_called_once_with()
@@ -97,7 +110,7 @@ class WorkflowStartupRecoveryTests(unittest.TestCase):
         server.serve_forever.assert_called_once_with()
         self.assertEqual(
             lifecycle,
-            ["market_start", "auto_start", "startup_arm", "serve", "auto_stop", "market_stop"],
+            ["credential_bootstrap", "market_start", "auto_start", "startup_arm", "serve", "auto_stop", "market_stop"],
         )
 
     def test_health_payload_reports_startup_recovery_state(self) -> None:

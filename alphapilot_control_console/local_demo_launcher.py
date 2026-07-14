@@ -33,6 +33,7 @@ class LocalDemoLauncher:
         self._script_path = self._repo_root / "scripts" / "start_okx_demo_console.ps1"
         self._popen_factory = popen_factory
         self._process: Any | None = None
+        self._prompt_history: set[tuple[int, str]] = set()
         self._lock = threading.Lock()
 
     def open(
@@ -84,6 +85,7 @@ class LocalDemoLauncher:
                 str(port),
                 "-EnableOrder",
                 "-EnableAutomation",
+                "-EnrollCredentialVault",
                 "-ReplaceExistingConsole",
                 "-ExpectedConsoleProcessId",
                 str(current_pid),
@@ -111,6 +113,36 @@ class LocalDemoLauncher:
             "message": "启动器已打开，请在 PowerShell 窗口输入三项 Demo 凭据。",
             "credentialPolicy": "process_only",
         }
+
+    def open_once_for_failure(
+        self,
+        client_host: str,
+        *,
+        current_pid: int,
+        port: int,
+        failure_class: str,
+        mobile: bool = False,
+    ) -> dict[str, object]:
+        """Open one automatic prompt for each console PID and safe failure category."""
+
+        prompt_key = (int(current_pid), str(failure_class or "credential_required"))
+        with self._lock:
+            if prompt_key in self._prompt_history:
+                return {
+                    "ok": True,
+                    "status": "prompt_suppressed",
+                    "message": "当前控制台进程已经提示过一次 Demo 凭据。",
+                }
+        result = self.open(
+            client_host,
+            current_pid=current_pid,
+            port=port,
+            mobile=mobile,
+        )
+        if result.get("ok"):
+            with self._lock:
+                self._prompt_history.add(prompt_key)
+        return result
 
 
 LOCAL_DEMO_LAUNCHER = LocalDemoLauncher()

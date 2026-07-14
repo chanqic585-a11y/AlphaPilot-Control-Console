@@ -31,6 +31,10 @@ from .evolution_demo_service import (
 )
 from .demo_workflow_service import build_demo_workflow_status, run_demo_workflow_action
 from .demo_market_runtime_registry import start_demo_market_runtime, stop_demo_market_runtime
+from .demo_credential_bootstrap import (
+    bootstrap_demo_credentials,
+    maybe_open_demo_credential_prompt,
+)
 from .demo_startup_arm import arm_okx_demo_runtime_on_startup
 from .execution_outcome_export import (
     build_execution_outcome_status,
@@ -1248,6 +1252,7 @@ def build_health_payload() -> dict[str, object]:
 
 def run_server(host: str, port: int) -> None:
     server = ThreadingHTTPServer((host, port), ConsoleHandler)
+    credential_bootstrap = bootstrap_demo_credentials()
     start_local_sandbox_auto_runner()
     resume_incomplete_workflow_runs()
     market_runtime = start_demo_market_runtime(
@@ -1262,6 +1267,12 @@ def run_server(host: str, port: int) -> None:
     startup_arm = arm_okx_demo_runtime_on_startup()
     if startup_arm.get("status") == "blocked":
         print("OKX Demo startup ARM was blocked: startup_arm_failed")
+    maybe_open_demo_credential_prompt(
+        credential_bootstrap,
+        get_unified_auto_execution_status(),
+        host=host,
+        port=port,
+    )
     print(f"AlphaPilot Control Console running at http://{host}:{port}")
     print("Research, OKX Demo, and gated Live Canary control. Credentials are process-only; Withdraw is absent.")
     try:

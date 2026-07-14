@@ -42,6 +42,7 @@ class LocalDemoLauncherTests(unittest.TestCase):
         self.assertIn("-NoExit", command)
         self.assertIn("-EnableOrder", command)
         self.assertIn("-EnableAutomation", command)
+        self.assertIn("-EnrollCredentialVault", command)
         self.assertIn("-ReplaceExistingConsole", command)
         self.assertEqual(command[command.index("-ExpectedConsoleProcessId") + 1], "4321")
         self.assertEqual(command[command.index("-Port") + 1], "8766")
@@ -93,6 +94,44 @@ class LocalDemoLauncherTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         command, _ = self.calls[0]
         self.assertIn("-Mobile", command)
+
+    def test_automatic_prompt_opens_once_for_same_pid_and_failure_class(self) -> None:
+        first = self.launcher.open_once_for_failure(
+            "127.0.0.1",
+            current_pid=4321,
+            port=8766,
+            failure_class="credential_missing",
+        )
+        second = self.launcher.open_once_for_failure(
+            "127.0.0.1",
+            current_pid=4321,
+            port=8766,
+            failure_class="credential_missing",
+        )
+
+        self.assertTrue(first["ok"])
+        self.assertTrue(second["ok"])
+        self.assertEqual(second["status"], "prompt_suppressed")
+        self.assertEqual(len(self.calls), 1)
+
+    def test_new_pid_may_open_a_new_automatic_prompt_after_previous_exits(self) -> None:
+        self.launcher.open_once_for_failure(
+            "127.0.0.1",
+            current_pid=4321,
+            port=8766,
+            failure_class="credential_missing",
+        )
+        self.processes[0].returncode = 2
+
+        result = self.launcher.open_once_for_failure(
+            "127.0.0.1",
+            current_pid=9876,
+            port=8766,
+            failure_class="credential_missing",
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(len(self.calls), 2)
 
 
 if __name__ == "__main__":
