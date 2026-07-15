@@ -300,3 +300,14 @@ latestObservedAt
 ## Phase Exit Gate
 
 Phase 2 passes only when Local Simulation is absent from primary navigation, every legacy write route returns `410`, restart cannot produce new local records, historical hashes and counts remain readable, all ten releases are non-mutating legacy diagnostics, and shadow observation records signal diagnostics with no order or performance semantics. Any local count increase or forbidden shadow field is a hard stop.
+
+## Reserved Phase 3 (Single Stage)
+
+Phase 3 remains one top-level implementation stage. It must not be split into
+3A, 3B, or other implementation sub-stages in the active roadmap.
+
+The detailed Phase 3 specification is intentionally pending a user-supplied
+update. Completing and pushing Phase 2 does not authorize any Phase 3 code,
+data collection, factor research, backtest campaign, Demo action, or Live
+action. Stop after the Phase 2 exit gate until the replacement Phase 3 document
+is confirmed.

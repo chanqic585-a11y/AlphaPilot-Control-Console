@@ -83,6 +83,7 @@ from .local_simulation_retirement import (
     legacy_read_projection,
     retired_write_response,
 )
+from .shadow_observation_store import DEFAULT_SHADOW_PATH, ShadowObservationStore
 from .mobile_connection import build_mobile_connection_info
 from .no_key_pre_live import (
     build_no_key_pre_live_workbench,
@@ -305,6 +306,19 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         fresh = _is_fresh_query(query)
         if path == "/api/health":
             self._send_json(build_health_payload())
+            return
+        if path == "/api/shadow-observation":
+            release_id = str((query.get("releaseId") or [""])[0] or "").strip() or None
+            try:
+                limit = int((query.get("limit") or ["100"])[0])
+            except (TypeError, ValueError):
+                limit = 100
+            store = ShadowObservationStore(DEFAULT_SHADOW_PATH)
+            try:
+                payload = store.query(release_id=release_id, limit=limit)
+            finally:
+                store.close()
+            self._send_json({**payload, "readOnly": True, "diagnosticOnly": True})
             return
         if path == "/api/local-control/okx-demo-credential-vault":
             if not _request_is_loopback(str(self.client_address[0])):

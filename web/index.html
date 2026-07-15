@@ -22,9 +22,6 @@
           <a class="rail-item active" href="#simpleConsole" title="策略" aria-label="策略">
             <span class="nav-key">S</span><span>策略</span>
           </a>
-          <a class="rail-item" href="#localLab" title="本地模拟" aria-label="本地模拟">
-            <span class="nav-key">L</span><span>本地模拟</span>
-          </a>
           <a class="rail-item" href="#exchangeDemo" title="交易所 Demo" aria-label="交易所 Demo">
             <span class="nav-key">D</span><span>Demo模拟</span>
           </a>
@@ -547,78 +544,6 @@
         </section>
 
 
-
-        <section id="localLab" class="panel local-lab-panel page-section">
-          <div class="section-header">
-            <div>
-              <p class="panel-eyebrow">LOCAL SIMULATION LAB</p>
-              <h2>本地模拟</h2>
-              <p>这里只显示当前仍在本地阶段的策略。策略晋级后会移出本页，历史样本继续保留；这里不连接交易所，不创建交易所订单。</p>
-            </div>
-            <span class="status-pill ok">&#26412;&#22320;&#36816;&#34892;</span>
-          </div>
-          <div class="lifecycle-stage-panel">
-            <div class="lifecycle-panel-head">
-              <div><h3>正式本地前向</h3><span id="formalLocalForwardMeta" aria-live="polite">回测通过后使用公共行情收集独立闭合样本。</span></div>
-              <div class="workflow-toolbar">
-                <button id="localForwardRunSelectedButton" type="button" disabled>启动选中 (0)</button>
-                <button id="localForwardRunAllButton" class="secondary" type="button">启动全部待运行</button>
-                <button id="localLabRefreshButton" class="secondary" type="button">刷新</button>
-              </div>
-            </div>
-            <div id="localForwardActionStatus" class="workflow-action-status">每次启动只读取最新闭合公共 K 线；不连接私有接口，不创建交易所订单。</div>
-            <div id="formalLocalForwardSummary" class="lifecycle-summary-grid"></div>
-            <div id="formalLocalForwardList" class="lifecycle-card-list" aria-live="polite"></div>
-          </div>
-          <details class="lifecycle-archive">
-            <summary><span>查看旧沙盒与兼容投影</span><small>历史功能保留，不作为新主线批量控制入口</small></summary>
-            <div class="lifecycle-archive-body">
-          <div class="local-lab-actions lifecycle-primary-actions">
-            <button id="localLabRunSandboxButton" type="button">运行旧本地沙盒</button>
-            <button id="localLabDailyReportButton" class="secondary" type="button">生成旧沙盒日报</button>
-            <span id="localLabActionStatus">旧沙盒只写入本地观察数据。</span>
-          </div>
-          <div class="lifecycle-stage-panel">
-            <div class="lifecycle-panel-head">
-              <div><h3>兼容本地生命周期</h3><span id="localLifecycleMeta" aria-live="polite">只用于核对历史策略状态。</span></div>
-              <span class="lifecycle-page-badge">兼容</span>
-            </div>
-            <div id="localLifecycleSummary" class="lifecycle-summary-grid"></div>
-            <div id="localLifecycleList" class="lifecycle-card-list" aria-live="polite"></div>
-          </div>
-          <div class="mode-flow-grid">
-            <div class="mode-flow-card active"><span>1</span><strong>&#26412;&#22320;&#27801;&#30418;</strong><small>&#25345;&#32493;&#29983;&#25104;&#34394;&#25311;&#35266;&#23519;&#26679;&#26412;</small></div>
-            <div class="mode-flow-card active"><span>2</span><strong>&#26412;&#22320;&#27169;&#25311;</strong><small>&#20445;&#23384;&#26412;&#22320;&#31080;&#25454;&#21644;&#38381;&#21512;&#32467;&#26524;</small></div>
-            <div class="mode-flow-card locked"><span>3</span><strong>OKX Demo</strong><small>&#36890;&#36807;&#21518;&#20877;&#36827;&#20837;&#20132;&#26131;&#25152;&#27169;&#25311;</small></div>
-            <div class="mode-flow-card disabled"><span>4</span><strong>&#23454;&#30424;</strong><small>&#24403;&#21069;&#20851;&#38381;&#65292;&#26410;&#26469;&#21333;&#29420;&#35299;&#38145;</small></div>
-          </div>
-          <div class="local-lab-grid">
-            <div class="local-lab-card primary"><span>&#27801;&#30418;&#29366;&#24577;</span><strong id="localLabRunnerState">--</strong><small id="localLabRunnerMeta">--</small></div>
-            <div class="local-lab-card"><span>&#34394;&#25311;&#26435;&#30410;</span><strong id="localLabEquity">--</strong><small id="localLabCapital">--</small></div>
-            <div class="local-lab-card"><span>&#38381;&#21512;&#26679;&#26412;</span><strong id="localLabClosedSamples">--</strong><small id="localLabQuality">--</small></div>
-            <div class="local-lab-card"><span>&#21487;&#22797;&#26680;&#31574;&#30053;</span><strong id="localLabReviewReady">--</strong><small id="localLabTestnetCandidates">--</small></div>
-            <div class="local-lab-card"><span>模拟盘接入状态</span><strong id="localLabSimulationState">--</strong><small id="localLabSimulationMeta">--</small></div>
-            <div class="local-lab-card"><span>学习状态</span><strong id="localLabLearningState">--</strong><small id="localLabLearningMeta">--</small></div>
-            <div class="local-lab-card"><span>策略复核队列</span><strong id="localLabQueueState">--</strong><small id="localLabQueueMeta">--</small></div>
-          </div>
-            </div>
-          </details>
-          <details class="lifecycle-archive">
-            <summary><span>查看旧沙盒复核明细</span><small>保留历史功能，不作为正式晋级依据</small></summary>
-            <div class="lifecycle-archive-body">
-          <div class="local-lab-columns">
-            <div>
-              <div class="simple-section-title"><strong>&#27491;&#22312;&#35266;&#23519;&#30340;&#31574;&#30053;</strong><span id="localLabStrategyMeta">&#31561;&#24453;&#27801;&#30418;&#25968;&#25454;&#12290;</span></div>
-              <div id="localLabStrategyList" class="sandbox-lane-list"></div>
-            </div>
-            <div>
-              <div class="simple-section-title"><strong>&#26412;&#22320;&#27169;&#25311;&#22797;&#26680;</strong><span id="localLabReviewMeta">&#31561;&#24453;&#38381;&#21512;&#26679;&#26412;&#12290;</span></div>
-              <div id="localLabReviewList" class="sandbox-lane-list"></div>
-            </div>
-          </div>
-            </div>
-          </details>
-        </section>
 
         <section id="exchangeDemo" class="panel exchange-demo-panel page-section">
           <div class="section-header">
@@ -2738,6 +2663,23 @@
               <pre id="mobilePreview" class="preview mobile-preview">加载中…</pre>
             </div>
           </div>
+        </section>
+
+        <section id="shadowDiagnostics" class="panel advanced-section">
+          <div class="section-header">
+            <div>
+              <p class="panel-eyebrow">SHADOW SIGNAL DIAGNOSTICS</p>
+              <h2>影子信号诊断</h2>
+              <p>只读展示冻结策略的信号匹配和拒绝原因，不记录仓位、权益或收益，也不参与晋级。</p>
+            </div>
+            <span class="status-pill neutral">只读诊断</span>
+          </div>
+          <div id="shadowObservationSummary" class="metric-grid compact"></div>
+          <details>
+            <summary>查看原因与最近观察</summary>
+            <div id="shadowObservationReasons" class="list"></div>
+            <div id="shadowObservationRows" class="audit-grid"></div>
+          </details>
         </section>
 
         <section id="audit" class="panel advanced-section">

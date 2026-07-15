@@ -452,16 +452,19 @@ class WorkflowUiContractTests(unittest.TestCase):
             self.assertIn(label, self.js)
         self.assertIn("auto-execution-control", self.css)
 
-    def test_three_primary_workflow_pages_have_single_selected_and_all_controls(self) -> None:
+    def test_active_workflow_pages_have_backtest_and_demo_controls_only(self) -> None:
         for target_id in (
             "workflowRunSelectedButton",
             "workflowRunAllButton",
-            "localForwardRunSelectedButton",
-            "localForwardRunAllButton",
             "demoWorkflowRunSelectedButton",
             "demoWorkflowRunAllButton",
         ):
             self.assertIn(f'id="{target_id}"', self.html)
+        for retired_target_id in (
+            "localForwardRunSelectedButton",
+            "localForwardRunAllButton",
+        ):
+            self.assertNotIn(f'id="{retired_target_id}"', self.html)
         for label in ("启动这一条", "启动选中", "启动全部待运行"):
             self.assertIn(label, self.js + self.html)
 

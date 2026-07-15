@@ -174,7 +174,6 @@ const healthLabels = {
 
 const sectionLabels = {
   simpleConsole: "策略",
-  localLab: "本地模拟",
   exchangeDemo: "Demo模拟",
   liveTradingPage: "实盘交易",
   mobileConsole: "手机控制台",
@@ -195,7 +194,7 @@ const hashAliases = {
   mobile: "mobileConsole",
 };
 
-const primaryPageIds = ["simpleConsole", "localLab", "exchangeDemo", "liveTradingPage", "mobileConsole"];
+const primaryPageIds = ["simpleConsole", "exchangeDemo", "liveTradingPage", "mobileConsole"];
 
 let latestStrategies = [];
 let latestArtifactIndex = {};
@@ -2101,7 +2100,6 @@ function renderStrategyLifecycle(payload = emptyStrategyLifecycle) {
     badge.className = "status-pill ok";
     badge.textContent = "单一阶段";
   }
-  registerPageIssues("localLab", collectLocalIssues(payload));
 }
 
 function demoWorkflowValue(value, formatter = null) {
@@ -2168,6 +2166,21 @@ function groupIssueItems(items, keyBuilder) {
 function currentPrimaryPageId() {
   const raw = (window.location.hash || "#simpleConsole").replace("#", "");
   return hashAliases[raw] || (primaryPageIds.includes(raw) ? raw : "simpleConsole");
+}
+
+function retireLocalLabHashOnce() {
+  if ((window.location.hash || "").replace("#", "") !== "localLab") return false;
+  const noticeKey = "alphapilot.localSimulationRetirementNotice";
+  try {
+    if (window.sessionStorage.getItem(noticeKey) !== "1") {
+      window.sessionStorage.setItem(noticeKey, "1");
+      window.alert("本地模拟已退出当前主流程。历史记录仍保留在高级诊断中；策略请从正式回测进入 OKX Demo 验证。");
+    }
+  } catch {
+    // Redirect remains mandatory even when browser storage is unavailable.
+  }
+  window.location.replace("#simpleConsole");
+  return true;
 }
 
 function registerPageIssues(pageId, issues) {
@@ -7860,6 +7873,30 @@ function renderAudit(events) {
   `).join("") || '<div class="item">暂无审计事件。</div>';
 }
 
+function renderShadowObservation(payload = {}) {
+  const summaryTarget = el("shadowObservationSummary");
+  const reasonsTarget = el("shadowObservationReasons");
+  const rowsTarget = el("shadowObservationRows");
+  if (!summaryTarget || !reasonsTarget || !rowsTarget) return;
+  const summary = payload.summary || {};
+  summaryTarget.innerHTML = [
+    ["观察", summary.observationCount ?? 0],
+    ["匹配", summary.matchedCount ?? 0],
+    ["拒绝", summary.rejectedCount ?? 0],
+    ["警告", summary.warningCount ?? 0],
+    ["Demo 池命中率", `${formatNumber((summary.demoUniverseHitRate ?? 0) * 100, 1)}%`],
+    ["最近观察", summary.latestObservedAt ? formatDate(summary.latestObservedAt) : "--"],
+  ].map(([label, value]) => `<div class="metric-cell"><span>${label}</span><strong>${value}</strong></div>`).join("");
+  const reasons = Object.entries(summary.reasonCounts || {});
+  reasonsTarget.innerHTML = reasons.length
+    ? reasons.map(([reason, count]) => `<div class="item"><strong>${reason}</strong><span>${count}</span></div>`).join("")
+    : '<div class="item">暂无影子观察原因。</div>';
+  const rows = Array.isArray(payload.rows) ? payload.rows : [];
+  rowsTarget.innerHTML = rows.length
+    ? rows.slice(0, 20).map((row) => `<div class="item audit-item"><strong>${row.strategyId} · ${row.symbol}</strong><small>${formatDate(row.timestamp)}</small><div>${row.passOrReject} · ${row.reasonZh}</div></div>`).join("")
+    : '<div class="item">暂无影子观察记录。</div>';
+}
+
 function getCurrentMobileStatus() {
   return latestMobilePayload && latestMobilePayload.safetyBoundary ? latestMobilePayload : emptyMobileStatus;
 }
@@ -7903,7 +7940,6 @@ function renderConsoleFromPayloads() {
   const strategyLifecycle = core.strategyLifecycle || emptyStrategyLifecycle;
 
   renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview, sandboxQualityCenter, sandboxConcentrationReview, sandboxResultReview, strategyAssetPlaybook);
-  renderLocalLabPage(usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, sandboxQualityCenter, sandboxResultReview, simulationBridge, simulationReview, strategyLearningLoop);
   renderNoKeyPreLiveWorkbench(noKeyPreLive);
   renderAutoExecutionEngine(autoExecutionEngine);
   renderAutoExecutionLifecycle(autoExecutionLifecycle);
@@ -8022,6 +8058,7 @@ async function loadAdvancedDataIfNeeded(force = false) {
       { key: "testnetSmallOrder", url: "/api/testnet-small-order-simulation", fallback: { summary: {}, defaultTicket: {}, orderPath: [], recentSimulations: [] }, timeoutMs: 30000 },
       { key: "strategyPromotionGate", url: "/api/strategy-promotion-gate", fallback: { candidates: [], summary: {} }, timeoutMs: 12000 },
       { key: "researchTaskBoard", url: "/api/research-task-board", fallback: { tasks: [], summary: {} } },
+      { key: "shadowObservation", url: "/api/shadow-observation?limit=100", fallback: { summary: {}, rows: [] } },
     ], 3);
     latestAdvancedPayload = advanced;
     advancedDataLoaded = true;
@@ -8040,6 +8077,7 @@ async function loadAdvancedDataIfNeeded(force = false) {
     renderTestnetSmallOrderSimulation(advanced.testnetSmallOrder || { summary: {}, defaultTicket: {}, orderPath: [], recentSimulations: [] });
     renderStrategyPromotionGate(advanced.strategyPromotionGate || { candidates: [], summary: {} });
     renderResearchTaskBoard(advanced.researchTaskBoard || { tasks: [], summary: {} });
+    renderShadowObservation(advanced.shadowObservation || { summary: {}, rows: [] });
     renderStrategyLearningLoop(latestStrategyLearningLoopPayload);
     return advanced;
   })().finally(() => {
@@ -8049,10 +8087,6 @@ async function loadAdvancedDataIfNeeded(force = false) {
 }
 
 function loadDataForSection(sectionId) {
-  if (sectionId === "localLab") {
-    void loadSandboxReviewDataIfNeeded();
-    void loadLocalLabEnrichmentIfNeeded();
-  }
   if (sectionId === "mobileConsole") {
     void loadMobileStatusIfNeeded();
   }
@@ -8082,8 +8116,6 @@ async function refreshAll() {
     { key: "artifacts", url: "/api/strategy-artifacts", fallback: { artifacts: [], summary: {} }, timeoutMs: 8000 },
     { key: "paperTasks", url: "/api/paper-observation-tasks", fallback: { tasks: [], summary: {} }, timeoutMs: 8000 },
     { key: "usableStrategyCatalog", url: "/api/usable-strategy-catalog", fallback: { strategies: [], summary: {} }, timeoutMs: 6000 },
-    { key: "sandboxDailyReport", url: "/api/local-sandbox/daily-report?limit=10", fallback: { reports: [], latestReport: { summary: {}, strategyHealthRows: [] } }, timeoutMs: 6000 },
-    { key: "sandboxAutoRunner", url: "/api/local-sandbox/auto-runner", fallback: { autoRunner: {}, events: [] }, timeoutMs: 6000 },
     { key: "noKeyPreLive", url: "/api/no-key-pre-live", fallback: { summary: {}, strategyCards: [], publicCandidates: [], recentTickets: [] }, timeoutMs: 8000 },
     { key: "autoExecutionEngine", url: "/api/auto-execution-engine", fallback: { summary: {}, records: [], recentRuns: [] }, timeoutMs: 8000 },
     { key: "autoExecutionLifecycle", url: "/api/auto-execution-lifecycle", fallback: { summary: {}, lanes: [], records: [] }, timeoutMs: 8000 },
@@ -8101,7 +8133,6 @@ async function refreshAll() {
   latestCoreConsolePayload = { ...corePayload, workflow, strategyLifecycle };
   renderConsoleFromPayloads();
   updateCurrentSection();
-  void loadSandboxReviewDataIfNeeded();
 }
 
 function renderMobileConnectionInfo(connection) {
@@ -8121,6 +8152,7 @@ function renderMobileConnectionInfo(connection) {
 }
 
 function updateCurrentSection() {
+  if (retireLocalLabHashOnce()) return;
   const hashId = (window.location.hash || "#simpleConsole").replace("#", "");
   const requestedId = hashAliases[hashId] || (sectionLabels[hashId] ? hashId : "simpleConsole");
   if (requestedId !== hashId && window.location.hash) {
@@ -8765,6 +8797,7 @@ el("artifactSort").addEventListener("change", (event) => {
   renderStrategyArtifacts(latestArtifactIndex);
 });
 function loadCurrentSectionData() {
+  if (retireLocalLabHashOnce()) return;
   const hashId = (window.location.hash || "#simpleConsole").replace("#", "");
   const requestedId = hashAliases[hashId] || (sectionLabels[hashId] ? hashId : "simpleConsole");
   loadDataForSection(requestedId);

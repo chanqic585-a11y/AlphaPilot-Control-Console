@@ -10,6 +10,7 @@ import alphapilot_control_console.local_sandbox_runner as local_runner
 import alphapilot_control_console.sandbox_auto_runner as auto_runner
 import alphapilot_control_console.state_store as state_store
 import alphapilot_control_console.strategy_stage_service as stage_service
+from alphapilot_control_console.local_simulation_retirement import LocalSimulationRetiredError
 
 
 def _catalog() -> dict:
@@ -82,31 +83,10 @@ class StrategyStageServiceTests(unittest.TestCase):
         self.assertTrue(all(row["formalDemoRelease"] is False for row in trial_pool))
 
     def test_promoted_strategies_are_not_run_in_local_sandbox(self) -> None:
-        tasks = [
-            {"taskId": "task-1", "strategyId": "strategy-1"},
-            {"taskId": "task-2", "strategyId": "strategy-2"},
-        ]
-        assignments = {
-            "strategy-1": {"stage": "demo_trial"},
-            "strategy-2": {"stage": "demo_trial"},
-        }
-        with patch.object(
-            local_runner,
-            "build_usable_sandbox_task_pack",
-            return_value={"paperObservationTasks": tasks, "summary": {}},
-        ), patch.object(
-            local_runner,
-            "list_strategy_stage_assignments",
-            return_value=assignments,
-        ), patch.object(
-            local_runner,
-            "save_local_sandbox_run",
-            side_effect=lambda payload: payload,
-        ):
-            result = local_runner.run_local_sandbox({"quantEnginePath": self.temp_dir.name})
-
-        self.assertEqual(result["taskCount"], 0)
-        self.assertEqual(result["promotedTaskCount"], 2)
+        with patch.object(local_runner, "save_local_sandbox_run") as save_run:
+            with self.assertRaisesRegex(LocalSimulationRetiredError, "local_simulation_retired"):
+                local_runner.run_local_sandbox({"quantEnginePath": self.temp_dir.name})
+        save_run.assert_not_called()
 
     def test_auto_runner_defaults_to_five_minutes_and_daily_capacity(self) -> None:
         self.assertEqual(state_store.DEFAULT_LOCAL_SANDBOX_AUTO_RUNNER["intervalMinutes"], 5)

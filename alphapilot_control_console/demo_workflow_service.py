@@ -4,11 +4,15 @@ from __future__ import annotations
 
 from typing import Any
 
+from .demo_release_classification import (
+    DEFAULT_CLASSIFICATION_PATH,
+    legacy_release_projection,
+)
 from .demo_override_release import authorize_demo_override
 from .demo_market_scan_service import scan_demo_strategy_public_universe
 from .demo_strategy_runtime_settings import update_demo_strategy_runtime_settings
 from .demo_workflow_projection import build_demo_workflow_projection
-from .evolution_demo_service import run_evolution_demo_cycle
+from .evolution_demo_service import _contract_paths, run_evolution_demo_cycle
 from .exchange_demo_simulation import (
     build_exchange_demo_simulation,
     run_exchange_demo_readonly_check,
@@ -50,7 +54,31 @@ def _build_sources() -> tuple[dict[str, Any], dict[str, Any]]:
 
 def build_demo_workflow_status() -> dict[str, Any]:
     lifecycle, exchange_demo = _build_sources()
-    return build_demo_workflow_projection(lifecycle=lifecycle, exchange_demo=exchange_demo)
+    workflow = build_demo_workflow_projection(lifecycle=lifecycle, exchange_demo=exchange_demo)
+    try:
+        diagnostics = legacy_release_projection(
+            _contract_paths(),
+            classification_path=DEFAULT_CLASSIFICATION_PATH,
+        )
+        diagnostics = {
+            **diagnostics,
+            "readOnly": True,
+            "strategyQualification": False,
+            "promotionEligible": False,
+            "available": True,
+        }
+    except (OSError, ValueError):
+        diagnostics = {
+            "legacyDiagnosticCount": 0,
+            "independentFamilyCount": 0,
+            "releases": [],
+            "readOnly": True,
+            "strategyQualification": False,
+            "promotionEligible": False,
+            "available": False,
+            "warning": "legacy_release_diagnostics_unavailable",
+        }
+    return {**workflow, "legacyReleaseDiagnostics": diagnostics}
 
 
 def run_demo_workflow_batch_action(

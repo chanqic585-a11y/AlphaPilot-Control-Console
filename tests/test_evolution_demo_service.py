@@ -386,6 +386,11 @@ class EvolutionDemoServiceTests(unittest.TestCase):
             return_value={},
             create=True,
         ) as save_scan, patch.object(
+            service,
+            "record_shadow_scan_nonblocking",
+            return_value={"status": "completed", "executionUnaffected": True},
+            create=True,
+        ) as observe_shadow, patch.object(
             service, "DemoExecutionStore", return_value=FakeStore()
         ), patch.object(
             service, "DemoExecutionEngine", FakeEngine
@@ -432,6 +437,14 @@ class EvolutionDemoServiceTests(unittest.TestCase):
         self.assertEqual(arbitrate.call_args.kwargs["maxPositions"], 1)
         save_scan.assert_called_once()
         self.assertEqual(save_scan.call_args.args[0], "strategy-1")
+        observe_shadow.assert_called_once()
+        self.assertEqual(observe_shadow.call_args.args[0], contract)
+        self.assertEqual(observe_shadow.call_args.args[1]["signals"], signals)
+        self.assertTrue(observe_shadow.call_args.kwargs["source_event_hash"])
+        self.assertEqual(
+            observe_shadow.call_args.kwargs["demo_instrument_ids"],
+            {signal["instId"] for signal in signals},
+        )
 
     def test_status_preserves_override_mode_and_dynamic_market_policy(self) -> None:
         contract = {

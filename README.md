@@ -2433,3 +2433,25 @@ validation.
 
 See `docs/demo-engineering-smoke-operator-guide.md` for the operator flow,
 success criteria, recovery steps, and safety boundary.
+
+## Local Simulation Retirement and No-PnL Shadow Diagnostics
+
+Local Simulation is retired from the active product lifecycle. Historical
+records remain available for read-only audit, while legacy write routes return
+HTTP `410 Gone` and restart recovery cannot create new local records.
+
+The active lifecycle is now:
+
+```text
+formal backtest -> immutable Demo Release -> OKX Demo validation -> Live Candidate
+```
+
+The ten pre-retirement Demo releases are preserved without changing their
+signed files or hashes and are classified separately as `legacy_diagnostic`.
+They do not qualify or promote a strategy.
+
+A lightweight shadow observer records public-market signal matches and reject
+reasons only. It stores no orders, fills, positions, virtual capital, equity,
+PnL, performance outcome, or promotion result, and a shadow failure cannot
+block the qualified Demo path. See
+`docs/local-simulation-retirement-and-shadow.md`.

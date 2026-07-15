@@ -21,11 +21,16 @@ from .demo_entry_latency_policy import evaluate_demo_entry_latency
 from .demo_latency_observability import build_latency_stage_metrics
 from .demo_market_runtime_registry import get_demo_market_runtime
 from .demo_release_scanner import scan_immutable_demo_release
+from .demo_release_classification import (
+    DEFAULT_CLASSIFICATION_PATH,
+    release_classification,
+)
 from .demo_runtime_guard import evaluate_demo_runtime_guard
 from .demo_strategy_runtime_settings import (
     effective_symbol_limit,
     get_demo_strategy_runtime_settings,
 )
+from .shadow_observer import record_shadow_scan_nonblocking
 from .exchange_connectors.okx_demo_client import OkxDemoClient, OkxDemoError
 from .execution_outcome_store import ExecutionOutcomeStore
 from .portfolio_risk import normalize_risk_profile
@@ -58,6 +63,22 @@ def _contract_hash(contract: dict[str, Any]) -> str:
     unsigned = {key: value for key, value in contract.items() if key != "contractHash"}
     digest = hashlib.sha256(_canonical(unsigned).encode("utf-8")).hexdigest()
     return f"console_contract_{digest}"
+
+
+def _shadow_source_event_hash(
+    *,
+    sequence_id: str,
+    timeframe: str,
+    candle_start_ms: int,
+    confirmed_instrument_ids: tuple[str, ...],
+) -> str:
+    event = {
+        "sequenceId": sequence_id,
+        "timeframe": timeframe,
+        "candleStartMs": candle_start_ms,
+        "confirmedInstrumentIds": sorted(confirmed_instrument_ids),
+    }
+    return hashlib.sha256(_canonical(event).encode("utf-8")).hexdigest()
 
 
 def validate_demo_contract(contract: dict[str, Any]) -> None:
@@ -184,7 +205,11 @@ def _contract_paths() -> list[Path]:
     return sorted(set(path.resolve() for path in paths))
 
 
-def discover_demo_contracts() -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+def discover_demo_contracts(
+    *,
+    classification_path: Path = DEFAULT_CLASSIFICATION_PATH,
+    include_legacy_diagnostic: bool = False,
+) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
     contracts: list[dict[str, Any]] = []
     rejected: list[dict[str, str]] = []
     seen: set[str] = set()
@@ -195,6 +220,17 @@ def discover_demo_contracts() -> tuple[list[dict[str, Any]], list[dict[str, str]
                 raise ValueError("Contract JSON must be an object")
             validate_demo_contract(payload)
             release_id = str(payload["demoReleaseId"])
+            classification = release_classification(
+                release_id,
+                classification_path=classification_path,
+            )
+            if (
+                not include_legacy_diagnostic
+                and classification
+                and classification.get("releasePurpose") == "legacy_diagnostic"
+            ):
+                rejected.append({"file": str(path), "reason": "legacy_diagnostic"})
+                continue
             if release_id not in seen:
                 seen.add(release_id)
                 contracts.append(payload)
@@ -500,6 +536,12 @@ def run_evolution_demo_batch_cycle(
         }
 
     evaluation_started_at = _utc_now()
+    shadow_source_event_hash = _shadow_source_event_hash(
+        sequence_id=close_sequence_id,
+        timeframe=close_timeframe,
+        candle_start_ms=close_candle_start_ms,
+        confirmed_instrument_ids=confirmed_instrument_ids,
+    )
     scans: dict[str, dict[str, Any]] = {}
     all_signals: list[dict[str, Any]] = []
     scan_rejections: list[dict[str, Any]] = []
@@ -512,6 +554,17 @@ def run_evolution_demo_batch_cycle(
             universe_loader=frozen_market.load_universe,
         )
         scans[release_id] = scan
+        try:
+            record_shadow_scan_nonblocking(
+                contract,
+                scan,
+                observed_at=str(close_received_at),
+                source_event_hash=shadow_source_event_hash,
+                demo_instrument_ids=account_instrument_ids,
+            )
+        except Exception:
+            # Shadow diagnostics are warning-only and cannot alter Demo execution.
+            pass
         if scan.get("blockers"):
             return {
                 "ok": False,
