@@ -8,6 +8,7 @@ from typing import Any
 from .config import SAFETY_BOUNDARY
 from .importer import scan_quant_engine
 from .local_sandbox_runner import run_local_sandbox
+from .local_simulation_retirement import legacy_read_projection, raise_local_simulation_retired
 from .sandbox_learning import build_learning_snapshot
 from .sandbox_observation_reporter import build_local_sandbox_daily_report
 from .state_store import (
@@ -297,7 +298,7 @@ AUTO_RUNNER = LocalSandboxAutoRunner()
 
 
 def start_local_sandbox_auto_runner() -> None:
-    AUTO_RUNNER.start()
+    raise_local_simulation_retired()
 
 
 def stop_local_sandbox_auto_runner() -> None:
@@ -305,13 +306,12 @@ def stop_local_sandbox_auto_runner() -> None:
 
 
 def get_local_sandbox_auto_runner_status() -> dict[str, Any]:
-    return AUTO_RUNNER.status()
+    return legacy_read_projection(AUTO_RUNNER.status())
 
 
 def update_local_sandbox_auto_runner_settings(payload: dict[str, Any]) -> dict[str, Any]:
-    settings = AUTO_RUNNER.update_settings(payload if isinstance(payload, dict) else {})
-    return AUTO_RUNNER.status() | {"autoRunner": settings}
+    raise_local_simulation_retired()
 
 
 def run_local_sandbox_auto_runner_now() -> dict[str, Any]:
-    return AUTO_RUNNER.run_once("manual_request")
+    raise_local_simulation_retired()

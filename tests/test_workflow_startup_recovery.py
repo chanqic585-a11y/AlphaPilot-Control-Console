@@ -73,10 +73,10 @@ class WorkflowStartupRecoveryTests(unittest.TestCase):
         ) as bootstrap_credentials, patch.object(
             http_app, "maybe_open_demo_credential_prompt"
         ) as maybe_prompt, patch.object(
-            http_app, "start_local_sandbox_auto_runner"
-        ), patch.object(
-            http_app, "stop_local_sandbox_auto_runner"
-        ), patch.object(
+            http_app, "start_local_sandbox_auto_runner", create=True
+        ) as start_sandbox, patch.object(
+            http_app, "stop_local_sandbox_auto_runner", create=True
+        ) as stop_sandbox, patch.object(
             http_app, "start_unified_auto_execution_runner"
         ) as start_auto, patch.object(
             http_app, "stop_unified_auto_execution_runner"
@@ -114,6 +114,8 @@ class WorkflowStartupRecoveryTests(unittest.TestCase):
         stop_auto.assert_called_once_with()
         start_market.assert_called_once()
         stop_market.assert_called_once_with()
+        start_sandbox.assert_not_called()
+        stop_sandbox.assert_not_called()
         server.serve_forever.assert_called_once_with()
         self.assertEqual(
             lifecycle,

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .config import DEFAULT_QUANT_ENGINE_PATH, SAFETY_BOUNDARY, get_quant_engine_path
+from .local_simulation_retirement import raise_local_simulation_retired
 from .sample_path_instrumentation import build_estimated_path_fields
 from .state_store import (
     add_paper_observation_log,
@@ -372,6 +373,7 @@ def _build_run_id() -> str:
 
 
 def run_local_sandbox(payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    raise_local_simulation_retired()
     payload = payload if isinstance(payload, dict) else {}
     quant_path = Path(str(payload.get("quantEnginePath") or get_quant_engine_path() or DEFAULT_QUANT_ENGINE_PATH)).expanduser().resolve()
     task_pack = build_usable_sandbox_task_pack(quant_path)

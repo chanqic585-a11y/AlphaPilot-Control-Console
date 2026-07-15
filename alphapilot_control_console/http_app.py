@@ -78,7 +78,11 @@ from .windows_demo_credential_vault import DEMO_CREDENTIAL_VAULT, DemoCredential
 from .local_sandbox_concentration_review import build_local_sandbox_concentration_review
 from .local_sandbox_quality_center import build_local_sandbox_quality_center
 from .local_sandbox_result_review import build_local_sandbox_result_review
-from .local_sandbox_runner import run_local_sandbox
+from .local_simulation_retirement import (
+    RETIRED_LOCAL_SIMULATION_POST_ROUTES,
+    legacy_read_projection,
+    retired_write_response,
+)
 from .mobile_connection import build_mobile_connection_info
 from .no_key_pre_live import (
     build_no_key_pre_live_workbench,
@@ -98,10 +102,6 @@ from .risk_profile_service import (
 from .risk_profile_store import build_risk_profile_status
 from .sandbox_auto_runner import (
     get_local_sandbox_auto_runner_status,
-    run_local_sandbox_auto_runner_now,
-    start_local_sandbox_auto_runner,
-    stop_local_sandbox_auto_runner,
-    update_local_sandbox_auto_runner_settings,
 )
 from .sandbox_observation_reporter import build_local_sandbox_daily_report
 from .short_cycle_candidates import build_short_cycle_candidate_pool
@@ -403,7 +403,7 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                         "version": item.get("version"),
                         "metrics": item.get("metrics") if isinstance(item.get("metrics"), dict) else {},
                     })
-            self._send_json({"tasks": tasks, "safetyBoundary": SAFETY_BOUNDARY})
+            self._send_json(legacy_read_projection({"tasks": tasks, "safetyBoundary": SAFETY_BOUNDARY}))
             return
         if path == "/api/forward-validation":
             payload = build_mobile_status(scan_quant_engine())
@@ -762,22 +762,25 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 for rows in logs.values():
                     flattened.extend(row for row in rows if isinstance(row, dict))
                 logs = sorted(flattened, key=lambda item: str(item.get("createdAt") or ""), reverse=True)[:200]
-            self._send_json({"logs": logs, "safetyBoundary": SAFETY_BOUNDARY})
+            self._send_json(legacy_read_projection({"logs": logs, "safetyBoundary": SAFETY_BOUNDARY}))
             return
         if path == "/api/local-sandbox/runs":
             query = parse_qs(parsed.query or "")
             limit = _safe_int((query.get("limit") or [20])[0], 20)
-            self._send_json({"runs": list_local_sandbox_runs(limit), "safetyBoundary": SAFETY_BOUNDARY})
+            self._send_json(legacy_read_projection({
+                "runs": list_local_sandbox_runs(limit),
+                "safetyBoundary": SAFETY_BOUNDARY,
+            }))
             return
         if path == "/api/local-sandbox/daily-report":
             query = parse_qs(parsed.query or "")
             limit = _safe_int((query.get("limit") or [10])[0], 10)
             reports = list_local_sandbox_daily_reports(limit)
-            self._send_json({
+            self._send_json(legacy_read_projection({
                 "latestReport": reports[0] if reports else {},
                 "reports": reports,
                 "safetyBoundary": SAFETY_BOUNDARY,
-            })
+            }))
             return
         if path == "/api/local-sandbox/auto-runner":
             self._send_json(get_local_sandbox_auto_runner_status())
@@ -786,28 +789,28 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             self._send_json(build_strategy_stage_board())
             return
         if path == "/api/local-sandbox/quality-center":
-            self._send_json(_cached_payload(
+            self._send_json(legacy_read_projection(_cached_payload(
                 "local-sandbox-quality-center",
                 45,
                 build_local_sandbox_quality_center,
                 fresh=fresh,
-            ))
+            )))
             return
         if path == "/api/local-sandbox/concentration-review":
-            self._send_json(_cached_payload(
+            self._send_json(legacy_read_projection(_cached_payload(
                 "local-sandbox-concentration-review",
                 45,
                 build_local_sandbox_concentration_review,
                 fresh=fresh,
-            ))
+            )))
             return
         if path == "/api/local-sandbox/result-review":
-            self._send_json(_cached_payload(
+            self._send_json(legacy_read_projection(_cached_payload(
                 "local-sandbox-result-review",
                 45,
                 build_local_sandbox_result_review,
                 fresh=fresh,
-            ))
+            )))
             return
         if path == "/api/live-readiness":
             self._send_json(_cached_payload(
@@ -856,6 +859,10 @@ class ConsoleHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
+        if parsed.path in RETIRED_LOCAL_SIMULATION_POST_ROUTES:
+            self._read_body_json()
+            self._send_json(retired_write_response(), 410)
+            return
         if parsed.path in {
             "/api/demo-engineering-smoke/run",
             "/api/demo-engineering-smoke/reconcile",
@@ -1017,29 +1024,11 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                     "allowed": sorted(ALLOWED_ARTIFACT_REVIEW_STATUSES),
                 }, 400)
                 return
+            if review_status == "paper_observation":
+                self._send_json(retired_write_response(), 410)
+                return
             updated = update_artifact_review(artifact_id, review_status, note)
             latest = scan_quant_engine()
-            if review_status == "paper_observation":
-                artifact = _find_artifact(latest["strategyArtifactIndex"], artifact_id)
-                checklist = artifact.get("paperObservationChecklist", {}) if artifact else {}
-                upsert_paper_observation_task(
-                    artifact_id=artifact_id,
-                    task_status="active",
-                    note=note,
-                    target_sample_count=_safe_int(checklist.get("targetSampleCount") if isinstance(checklist, dict) else None, 50),
-                    observation_days=60,
-                    artifact=artifact,
-                )
-                latest = scan_quant_engine()
-            if review_status in {"paused", "rejected"}:
-                artifact = _find_artifact(latest["strategyArtifactIndex"], artifact_id)
-                upsert_paper_observation_task(
-                    artifact_id=artifact_id,
-                    task_status="paused" if review_status == "paused" else "rejected",
-                    note=note,
-                    artifact=artifact,
-                )
-                latest = scan_quant_engine()
             self._send_json({
                 "updated": updated,
                 "strategyArtifactIndex": latest["strategyArtifactIndex"],
@@ -1408,7 +1397,6 @@ def build_health_payload() -> dict[str, object]:
 def run_server(host: str, port: int) -> None:
     server = ThreadingHTTPServer((host, port), ConsoleHandler)
     credential_bootstrap = bootstrap_demo_credentials()
-    start_local_sandbox_auto_runner()
     resume_incomplete_workflow_runs()
     market_runtime = start_demo_market_runtime(
         close_listener=wake_unified_auto_execution_runner,
@@ -1441,7 +1429,6 @@ def run_server(host: str, port: int) -> None:
     finally:
         stop_unified_auto_execution_runner()
         stop_demo_market_runtime()
-        stop_local_sandbox_auto_runner()
 
 
 def smoke() -> None:
