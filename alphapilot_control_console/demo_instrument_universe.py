@@ -66,6 +66,7 @@ def _blocked(*, blocker: str, policy: DemoUniversePolicy, now: datetime, public_
         "includedSample": [],
         "excludedSample": [],
         "eligibleInstrumentIds": [],
+        "instrumentConstraints": {},
         "publicManifestHash": _hash([]),
         "authenticatedInstrumentHash": _hash([]),
         "blockers": [blocker],
@@ -116,6 +117,7 @@ def build_demo_instrument_universe(
         return result
 
     private_states: dict[str, str] = {}
+    private_constraints: dict[str, dict[str, str]] = {}
     private_missing = 0
     for row in raw_private_rows:
         if not isinstance(row, dict):
@@ -133,8 +135,21 @@ def build_demo_instrument_universe(
         previous = private_states.get(identity.instId)
         if previous != "live":
             private_states[identity.instId] = state
+        sanitized_constraints = {
+            key: str(row.get(key) or "").strip()
+            for key in ("minSz", "lotSz", "tickSz", "ctVal", "ctMult", "ctType")
+            if str(row.get(key) or "").strip()
+        }
+        if sanitized_constraints:
+            private_constraints[identity.instId] = {
+                **private_constraints.get(identity.instId, {}),
+                **sanitized_constraints,
+            }
 
-    authenticated_hash = _hash(sorted(private_states.items()))
+    authenticated_hash = _hash({
+        "states": sorted(private_states.items()),
+        "constraints": {key: private_constraints.get(key, {}) for key in sorted(private_states)},
+    })
     if not private_states:
         result = _blocked(
             blocker="demo_account_instruments_malformed",
@@ -204,6 +219,10 @@ def build_demo_instrument_universe(
         "includedSample": eligible[: policy.maximumIncludedSample],
         "excludedSample": excluded[: policy.maximumExcludedSample],
         "eligibleInstrumentIds": eligible,
+        "instrumentConstraints": {
+            inst_id: private_constraints.get(inst_id, {})
+            for inst_id in eligible
+        },
         "publicManifestHash": public_hash,
         "authenticatedInstrumentHash": authenticated_hash,
         "blockers": blockers,

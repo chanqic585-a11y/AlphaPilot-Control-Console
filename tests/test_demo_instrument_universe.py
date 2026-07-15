@@ -44,6 +44,10 @@ def private_response() -> dict:
                 "quoteCcy": "USDT",
                 "settleCcy": "USDT",
                 "state": "live",
+                "minSz": "0.01",
+                "lotSz": "0.01",
+                "tickSz": "0.1",
+                "ctVal": "0.01",
             },
             {
                 "instId": "ETH-USDT-SWAP",
@@ -82,6 +86,7 @@ class DemoInstrumentUniverseTests(unittest.TestCase):
         self.assertEqual(result["intersectionCount"], 1)
         self.assertEqual(result["liquidityEligibleCount"], 1)
         self.assertEqual(result["eligibleInstrumentIds"], ["BTC-USDT-SWAP"])
+        self.assertEqual(result["instrumentConstraints"]["BTC-USDT-SWAP"]["minSz"], "0.01")
         self.assertEqual(result["excludedNotInDemoAccount"], 1)
         self.assertEqual(result["excludedUnavailableState"], 1)
         self.assertEqual(result["excludedDataMissing"], 1)
