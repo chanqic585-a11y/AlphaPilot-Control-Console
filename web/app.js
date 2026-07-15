@@ -2799,10 +2799,83 @@ async function loadDemoInstrumentUniverse(force = false) {
   return payload;
 }
 
+function renderDemoEngineeringSmoke(payload = {}) {
+  const summary = payload.summary || {};
+  const latest = summary.latestRun || (Array.isArray(payload.runs) ? payload.runs.at(-1) : null) || {};
+  const status = String(latest.status || (summary.runCount ? payload.status : "not_run"));
+  const statusLabels = {
+    not_run: "未运行",
+    usable: "可运行",
+    completed: "已完成",
+    failed: "失败",
+    blocked: "阻塞",
+    order_submitted: "订单已提交",
+    closing: "正在退出",
+  };
+  setText("demoEngineeringSmokeStatus", statusLabels[status] || status);
+  setText(
+    "demoEngineeringSmokeOrder",
+    `${Number(summary.orderAttemptCount ?? latest.orderAttemptCount ?? 0)} / ${latest.orderStatus || "--"}`,
+  );
+  setText("demoEngineeringSmokePosition", latest.positionStatus || "--");
+  setText("demoEngineeringSmokeExit", latest.exitStatus || "--");
+  setText("demoEngineeringSmokeDuplicates", String(summary.duplicateAttemptCount ?? latest.duplicateAttemptCount ?? 0));
+  setText("demoEngineeringSmokeOrphans", String(summary.orphanCount ?? 0));
+  setText("demoEngineeringSmokeReconciliation", latest.reconciliationStatus || "--");
+  setText(
+    "demoEngineeringSmokeNextAction",
+    payload.nextAction || "仅在需要核验 Demo 工程链路时显式运行。",
+  );
+  const diagnostics = el("demoEngineeringSmokeDiagnostics");
+  if (diagnostics) {
+    diagnostics.innerHTML = summary.runCount
+      ? `<dl>
+          <div><dt>合约</dt><dd>${escapeHtml(latest.instrumentId || "--")}</dd></div>
+          <div><dt>运行 ID</dt><dd>${escapeHtml(latest.runId || "--")}</dd></div>
+          <div><dt>错误码</dt><dd>${escapeHtml(latest.errorCode || "无")}</dd></div>
+          <div><dt>错误说明</dt><dd>${escapeHtml(latest.errorMessage || "无")}</dd></div>
+          <div><dt>更新时间</dt><dd>${escapeHtml(formatDate(latest.updatedAt))}</dd></div>
+        </dl>`
+      : "尚无工程烟测记录。";
+  }
+}
+
+async function loadDemoEngineeringSmoke() {
+  const payload = await getJsonSafe(
+    "/api/demo-engineering-smoke",
+    { status: "blocked", summary: {}, runs: [], nextAction: "无法读取工程烟测状态。" },
+    8000,
+  );
+  renderDemoEngineeringSmoke(payload);
+  return payload;
+}
+
+async function runDemoEngineeringSmokeAction(action) {
+  const isRun = action === "run";
+  const button = el(isRun ? "demoEngineeringSmokeRunButton" : "demoEngineeringSmokeReconcileButton");
+  if (button) button.disabled = true;
+  setText(
+    "demoEngineeringSmokeNextAction",
+    isRun ? "正在执行一次最小 Demo 工程烟测。" : "正在核对工程烟测持仓是否已归零。",
+  );
+  try {
+    const response = await postJson(`/api/demo-engineering-smoke/${action}`, {
+      confirmation: isRun ? "RUN_DEMO_ENGINEERING_SMOKE" : "RECONCILE_DEMO_ENGINEERING_SMOKE",
+    });
+    if (response.engineeringSmoke?.summary) renderDemoEngineeringSmoke(response.engineeringSmoke);
+    else await loadDemoEngineeringSmoke();
+  } catch (error) {
+    setText("demoEngineeringSmokeNextAction", `工程烟测未完成：${error.message}`);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
 async function loadDemoWorkflow(force = false) {
   if (demoWorkflowLoading && !force) return demoWorkflowLoading;
   void loadDemoCredentialVaultStatus();
   void loadDemoInstrumentUniverse(force);
+  void loadDemoEngineeringSmoke();
   demoWorkflowLoading = getJsonSafe(
     `/api/demo-workflow${force ? "?fresh=1" : ""}`,
     { summary: {}, queues: {}, loadError: "无法读取 Demo 工作流" },
@@ -8531,6 +8604,8 @@ el("formalLocalForwardList")?.addEventListener("click", (event) => {
   });
 });
 el("exchangeDemoReadOnlyButton")?.addEventListener("click", runExchangeDemoReadOnlyCheck);
+el("demoEngineeringSmokeRunButton")?.addEventListener("click", () => runDemoEngineeringSmokeAction("run"));
+el("demoEngineeringSmokeReconcileButton")?.addEventListener("click", () => runDemoEngineeringSmokeAction("reconcile"));
 el("demoRuntimeLauncherButton")?.addEventListener("click", launchOkxDemoRuntime);
 el("demoCredentialVaultUpdateButton")?.addEventListener("click", launchOkxDemoRuntime);
 el("demoCredentialVaultDeleteButton")?.addEventListener("click", deleteDemoCredentialVault);

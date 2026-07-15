@@ -16,6 +16,23 @@ from .demo_execution_store import DemoExecutionStore
 
 
 DEMO_ENGINEERING_SMOKE_STORE_PATH = DATA_DIR / "demo_engineering_smoke.sqlite"
+STRATEGY_EVIDENCE_STORE_PATHS = frozenset(
+    {
+        (DATA_DIR / "evolution_demo_execution.sqlite").resolve(),
+        (DATA_DIR / "execution_outcomes.sqlite").resolve(),
+        (DATA_DIR / "unified_auto_execution.sqlite").resolve(),
+        (DATA_DIR / "live_approval.sqlite").resolve(),
+        (DATA_DIR / "live_safety_plane.sqlite").resolve(),
+        (DATA_DIR / "live_execution.sqlite").resolve(),
+        (DATA_DIR / "risk_profiles.sqlite").resolve(),
+    }
+)
+
+
+def _assert_isolated_store_path(store_path: Path | str) -> None:
+    target = Path(store_path).resolve()
+    if target in STRATEGY_EVIDENCE_STORE_PATHS:
+        raise PermissionError("Demo engineering smoke cannot write to a strategy evidence store")
 
 
 def _now() -> str:
@@ -152,6 +169,7 @@ def run_demo_engineering_smoke(
     executionEngineFactory: Callable[..., DemoExecutionEngine] = DemoExecutionEngine,
     orderStatusChecks: int = 3,
 ) -> dict[str, Any]:
+    _assert_isolated_store_path(storePath)
     validate_demo_engineering_smoke_contract(contract)
     if deterministicTrigger is not True:
         raise PermissionError("Engineering smoke requires an explicit deterministic trigger")

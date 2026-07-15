@@ -5,7 +5,9 @@ import ipaddress
 import json
 import mimetypes
 import os
+import threading
 import time
+from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -34,6 +36,16 @@ from .evolution_demo_service import (
 from .demo_workflow_service import build_demo_workflow_status, run_demo_workflow_action
 from .demo_market_runtime_registry import start_demo_market_runtime, stop_demo_market_runtime
 from .demo_instrument_universe import load_or_refresh_demo_instrument_universe
+from .demo_engineering_smoke_contract import (
+    DEFAULT_CONTRACT_DIR as DEMO_ENGINEERING_SMOKE_CONTRACT_DIR,
+    build_demo_engineering_smoke_contract,
+    validate_demo_engineering_smoke_contract,
+)
+from .demo_engineering_smoke_service import (
+    build_demo_engineering_smoke_status,
+    reconcile_demo_engineering_smoke,
+    run_demo_engineering_smoke,
+)
 from .demo_credential_bootstrap import (
     bootstrap_demo_credentials,
     maybe_open_demo_credential_prompt,
@@ -158,6 +170,7 @@ def _json_bytes(payload: object) -> bytes:
 
 
 _RESPONSE_CACHE: dict[str, tuple[float, object]] = {}
+_DEMO_ENGINEERING_SMOKE_LOCK = threading.Lock()
 
 
 def _is_fresh_query(query: dict[str, list[str]]) -> bool:
@@ -204,6 +217,17 @@ def _build_demo_instrument_universe_status(*, fresh: bool) -> dict:
     return load_or_refresh_demo_instrument_universe(
         OkxDemoClient(credentials),
         fresh=fresh,
+    )
+
+
+def _load_demo_engineering_smoke_contract() -> dict:
+    paths = sorted(DEMO_ENGINEERING_SMOKE_CONTRACT_DIR.glob("*.json"))
+    if paths:
+        contract = json.loads(paths[-1].read_text(encoding="utf-8"))
+        validate_demo_engineering_smoke_contract(contract)
+        return contract
+    return build_demo_engineering_smoke_contract(
+        createdAt=datetime.now(UTC).replace(microsecond=0).isoformat(),
     )
 
 
@@ -611,6 +635,12 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             projection = _build_demo_instrument_universe_status(fresh=fresh)
             self._send_json(projection, 200 if projection.get("status") == "usable" else 503)
             return
+        if path == "/api/demo-engineering-smoke":
+            if not _request_is_loopback(str(self.client_address[0])):
+                self._send_json({"ok": False, "error": "local_host_required"}, 403)
+                return
+            self._send_json(build_demo_engineering_smoke_status())
+            return
         if path == "/api/live-candidates":
             self._send_json(_cached_payload("live-candidates", 5, build_live_candidate_status, fresh=fresh))
             return
@@ -826,6 +856,68 @@ class ConsoleHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
+        if parsed.path in {
+            "/api/demo-engineering-smoke/run",
+            "/api/demo-engineering-smoke/reconcile",
+        }:
+            payload = self._read_body_json()
+            if not _request_is_loopback(str(self.client_address[0])):
+                self._send_json({"ok": False, "error": "local_host_required"}, 403)
+                return
+            is_run = parsed.path.endswith("/run")
+            expected_confirmation = (
+                "RUN_DEMO_ENGINEERING_SMOKE"
+                if is_run
+                else "RECONCILE_DEMO_ENGINEERING_SMOKE"
+            )
+            if payload.get("confirmation") != expected_confirmation:
+                self._send_json({"ok": False, "error": "explicit_confirmation_required"}, 409)
+                return
+            if not _DEMO_ENGINEERING_SMOKE_LOCK.acquire(blocking=False):
+                self._send_json({"ok": False, "error": "engineering_smoke_already_running"}, 409)
+                return
+            try:
+                try:
+                    credentials = load_okx_demo_credentials()
+                except (RuntimeError, ValueError):
+                    self._send_json({"ok": False, "error": "okx_demo_credentials_missing"}, 409)
+                    return
+                universe = _build_demo_instrument_universe_status(fresh=True)
+                if universe.get("status") != "usable" or not universe.get("eligibleInstrumentIds"):
+                    self._send_json({
+                        "ok": False,
+                        "error": "demo_instrument_universe_blocked",
+                        "blockers": universe.get("blockers") or [],
+                    }, 409)
+                    return
+                client = OkxDemoClient(credentials)
+                if is_run:
+                    result = run_demo_engineering_smoke(
+                        client=client,
+                        contract=_load_demo_engineering_smoke_contract(),
+                        universe=universe,
+                        deterministicTrigger=True,
+                    )
+                    self._send_json({
+                        "ok": result.get("status") == "completed",
+                        "engineeringSmoke": result,
+                    })
+                    return
+                result = reconcile_demo_engineering_smoke(client=client)
+                self._send_json({
+                    "ok": result.get("status") == "usable",
+                    "engineeringSmoke": result,
+                })
+                return
+            except (KeyError, PermissionError, RuntimeError, ValueError) as error:
+                self._send_json({
+                    "ok": False,
+                    "error": type(error).__name__,
+                    "message": str(error),
+                }, 409)
+                return
+            finally:
+                _DEMO_ENGINEERING_SMOKE_LOCK.release()
         if parsed.path == "/api/local-control/delete-okx-demo-credential-vault":
             payload = self._read_body_json()
             if not _request_is_loopback(str(self.client_address[0])):

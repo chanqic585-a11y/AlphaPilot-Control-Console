@@ -191,6 +191,18 @@ class DemoAutomaticBatchTests(unittest.TestCase):
         }
         self.market_runtime = FakeMarketRuntime()
         self.account_client = FakeAccountClient({"BTC-USDT-SWAP"})
+        universe_patch = patch.object(
+            service,
+            "load_or_refresh_demo_instrument_universe",
+            side_effect=lambda client, fresh=True: {
+                "status": "usable",
+                "environment": "demo",
+                "eligibleInstrumentIds": sorted(client.instruments),
+                "blockers": [],
+            },
+        )
+        universe_patch.start()
+        self.addCleanup(universe_patch.stop)
 
     def _patches(self, scans: dict[str, dict]):
         return (

@@ -636,6 +636,33 @@
             <span id="demoInstrumentUniverseCache">缓存 --</span>
             <span id="demoInstrumentUniverseBlockers">等待认证后合约交集</span>
           </div>
+          <section id="demoEngineeringSmokePanel" class="demo-engineering-smoke-panel" aria-labelledby="demoEngineeringSmokeTitle">
+            <div class="demo-engineering-smoke-head">
+              <div>
+                <p class="panel-eyebrow">ISOLATED CONNECTIVITY PROOF</p>
+                <h3 id="demoEngineeringSmokeTitle">Demo 工程状态</h3>
+                <small>只验证最小订单、持仓、退出和对账链路；不计入策略验证、晋级或收益统计。</small>
+              </div>
+              <strong id="demoEngineeringSmokeStatus" class="badge neutral">未运行</strong>
+            </div>
+            <div class="demo-engineering-smoke-metrics">
+              <div><span>订单尝试 / 状态</span><strong id="demoEngineeringSmokeOrder">0 / --</strong></div>
+              <div><span>持仓</span><strong id="demoEngineeringSmokePosition">--</strong></div>
+              <div><span>退出 / 撤单</span><strong id="demoEngineeringSmokeExit">--</strong></div>
+              <div><span>重复触发</span><strong id="demoEngineeringSmokeDuplicates">0</strong></div>
+              <div><span>孤儿持仓</span><strong id="demoEngineeringSmokeOrphans">0</strong></div>
+              <div><span>最终对账</span><strong id="demoEngineeringSmokeReconciliation">--</strong></div>
+            </div>
+            <div class="demo-engineering-smoke-actions">
+              <button id="demoEngineeringSmokeRunButton" type="button">运行一次工程烟测</button>
+              <button id="demoEngineeringSmokeReconcileButton" class="secondary" type="button">仅重新对账</button>
+              <span id="demoEngineeringSmokeNextAction" aria-live="polite">仅在需要核验 Demo 工程链路时显式运行。</span>
+            </div>
+            <details class="demo-engineering-smoke-diagnostics">
+              <summary>工程烟测诊断</summary>
+              <div id="demoEngineeringSmokeDiagnostics">尚无工程烟测记录。</div>
+            </details>
+          </section>
           <div class="demo-workflow-panel">
             <div class="lifecycle-panel-head">
               <div>

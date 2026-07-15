@@ -2413,3 +2413,23 @@ Simulation, and Demo pages.
 The suggestions are deterministic research heuristics, not AI promises or
 profit guarantees. This patch adds no API key storage, Trade API, Withdraw API,
 Demo order, real order, or automatic Live activation.
+
+## Authenticated Demo Universe And Engineering Smoke
+
+The revised Demo boundary separates technical connectivity proof from strategy
+validation.
+
+- The authenticated Demo instrument service intersects public point-in-time
+  USDT perpetuals with the exact instruments available to the OKX Demo account.
+- Invalid, empty, or stale private instrument responses fail closed and never
+  fall back to a public-only universe.
+- `Demo 工程状态` can run one explicit minimum-size, 1x isolated engineering
+  smoke lifecycle and reconcile the account back to flat.
+- Engineering smoke uses `data/demo_engineering_smoke.sqlite` and an immutable
+  engineering-only contract. It cannot update strategy trades, PF, win rate,
+  PnL, promotion evidence, strategy releases, or Live candidates.
+- The launcher remains process-only for Demo credentials. The web UI never
+  accepts, persists, or returns raw credentials.
+
+See `docs/demo-engineering-smoke-operator-guide.md` for the operator flow,
+success criteria, recovery steps, and safety boundary.

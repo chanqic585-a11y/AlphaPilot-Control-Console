@@ -97,6 +97,29 @@ class WorkflowUiContractTests(unittest.TestCase):
         self.assertIn('path == "/api/demo-workflow"', self.http_app)
         self.assertIn('parsed.path == "/api/demo-workflow/action"', self.http_app)
 
+    def test_demo_engineering_smoke_is_visually_and_evidentially_separate(self) -> None:
+        self.assertIn('id="demoEngineeringSmokePanel"', self.html)
+        self.assertIn("Demo 工程状态", self.html)
+        self.assertIn("不计入策略验证", self.html)
+        for target_id in (
+            "demoEngineeringSmokeStatus",
+            "demoEngineeringSmokeOrder",
+            "demoEngineeringSmokePosition",
+            "demoEngineeringSmokeExit",
+            "demoEngineeringSmokeDuplicates",
+            "demoEngineeringSmokeOrphans",
+            "demoEngineeringSmokeReconciliation",
+            "demoEngineeringSmokeNextAction",
+            "demoEngineeringSmokeRunButton",
+            "demoEngineeringSmokeReconcileButton",
+        ):
+            self.assertIn(f'id="{target_id}"', self.html)
+        self.assertIn("function renderDemoEngineeringSmoke", self.js)
+        self.assertIn("/api/demo-engineering-smoke", self.js)
+        self.assertIn("RUN_DEMO_ENGINEERING_SMOKE", self.js)
+        self.assertIn("RECONCILE_DEMO_ENGINEERING_SMOKE", self.js)
+        self.assertIn("demo-engineering-smoke-panel", self.css)
+
     def test_okx_demo_launcher_endpoint_is_bound_to_request_client(self) -> None:
         self.assertIn('parsed.path == "/api/local-control/open-okx-demo-launcher"', self.http_app)
         self.assertIn("self.client_address[0]", self.http_app)

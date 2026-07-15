@@ -92,6 +92,25 @@ class DemoEvidenceTests(unittest.TestCase):
         self.assertEqual(items["immutable_demo_release"]["status"], "passed")
         self.assertFalse(contract["livePromotionAllowed"])
 
+    def test_engineering_smoke_cannot_count_as_strategy_demo_evidence(self) -> None:
+        result = build_demo_evidence_checklist(
+            lifecycle_item(),
+            contract=None,
+            runtime={
+                "evidenceClass": "demo_engineering_smoke",
+                "closedTradeCount": 99,
+                "credentialsConfigured": True,
+                "privateEnabled": True,
+                "orderEnabled": True,
+                "automationReady": True,
+            },
+        )
+
+        items = {item["evidenceId"]: item for item in result["items"]}
+        self.assertEqual(items["demo_closed_trades"]["current"], 0)
+        self.assertEqual(items["demo_closed_trades"]["status"], "pending")
+        self.assertFalse(items["demo_closed_trades"]["blocking"])
+
 
 if __name__ == "__main__":
     unittest.main()

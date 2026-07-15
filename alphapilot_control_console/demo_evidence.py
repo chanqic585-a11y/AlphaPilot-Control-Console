@@ -80,7 +80,11 @@ def build_demo_evidence_checklist(
     contract = _mapping(contract)
     trade_count = int(_number(metrics.get("tradeCount")))
     closed_samples = int(_number(metrics.get("closedSamples")))
-    closed_demo_trades = int(_number(runtime.get("closedTradeCount")))
+    closed_demo_trades = (
+        0
+        if str(runtime.get("evidenceClass") or "") == "demo_engineering_smoke"
+        else int(_number(runtime.get("closedTradeCount")))
+    )
     target_r = _target_r(definition, parameters)
     override = str(contract.get("releaseMode") or "") == "experimental_override"
     release_exists = bool(contract.get("demoReleaseId"))

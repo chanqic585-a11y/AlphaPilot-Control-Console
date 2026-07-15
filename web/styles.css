@@ -5155,6 +5155,103 @@ body:not(.show-advanced) .legacy-demo-ticket {
   color: var(--danger);
 }
 
+.demo-engineering-smoke-panel {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid rgba(105, 215, 190, 0.25);
+  border-left: 3px solid var(--mint);
+  border-radius: 6px;
+  background: rgba(8, 15, 19, 0.68);
+}
+
+.demo-engineering-smoke-head,
+.demo-engineering-smoke-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.demo-engineering-smoke-head h3 {
+  margin: 2px 0 4px;
+  font-size: 1rem;
+}
+
+.demo-engineering-smoke-head small,
+.demo-engineering-smoke-actions span {
+  color: var(--muted);
+}
+
+.demo-engineering-smoke-metrics {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin: 10px 0;
+  border: 1px solid var(--line);
+}
+
+.demo-engineering-smoke-metrics > div {
+  min-width: 0;
+  padding: 8px;
+  border-right: 1px solid var(--line);
+}
+
+.demo-engineering-smoke-metrics > div:last-child {
+  border-right: 0;
+}
+
+.demo-engineering-smoke-metrics span,
+.demo-engineering-smoke-metrics strong {
+  display: block;
+}
+
+.demo-engineering-smoke-metrics span {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.demo-engineering-smoke-metrics strong {
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+  font-size: 0.88rem;
+}
+
+.demo-engineering-smoke-actions {
+  justify-content: flex-start;
+}
+
+.demo-engineering-smoke-diagnostics {
+  margin-top: 10px;
+  color: var(--muted);
+}
+
+.demo-engineering-smoke-diagnostics dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 12px;
+}
+
+.demo-engineering-smoke-diagnostics dl div {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.demo-engineering-smoke-diagnostics dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 920px) {
+  .demo-engineering-smoke-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .demo-engineering-smoke-metrics > div {
+    border-bottom: 1px solid var(--line);
+  }
+}
+
 .exchange-demo-runbook {
   margin: 14px 0;
   padding: 14px;
