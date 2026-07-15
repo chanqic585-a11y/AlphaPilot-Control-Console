@@ -47,7 +47,15 @@ def canonicalize_demo_instrument(value: str | dict[str, Any]) -> CanonicalDemoIn
         quote = str(value.get("quoteCcy") or "").strip().upper()
         settle = str(value.get("settleCcy") or "").strip().upper()
         instrument_type = str(value.get("instType") or "").strip().upper()
-        if not all((inst_id, base, quote, settle, instrument_type)):
+        if not all((inst_id, settle, instrument_type)):
+            raise ValueError("Authenticated Demo instrument identity is incomplete")
+        if not base and not quote:
+            match = _OKX_PATTERN.fullmatch(inst_id)
+            if match is None:
+                raise ValueError("Authenticated Demo instrument identifier is invalid")
+            base = match.group(1)
+            quote = "USDT"
+        elif not base or not quote:
             raise ValueError("Authenticated Demo instrument identity is incomplete")
         canonical = _canonical_from_parts(base, quote, settle, instrument_type)
         if inst_id != canonical.instId:

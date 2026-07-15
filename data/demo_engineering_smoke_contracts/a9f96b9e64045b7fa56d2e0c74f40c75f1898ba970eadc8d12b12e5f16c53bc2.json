@@ -1,0 +1,17 @@
+{
+  "createdAt": "2026-07-15T16:53:26+00:00",
+  "demoPurpose": "engineering_smoke",
+  "environment": "demo",
+  "evidenceClass": "demo_engineering_smoke",
+  "forwardPerformanceEligible": false,
+  "liveExecutionAllowed": false,
+  "maximumAttempts": 3,
+  "maximumConcurrentPositions": 1,
+  "minimumOrderOnly": true,
+  "promotionEligible": false,
+  "releaseHash": "a9f96b9e64045b7fa56d2e0c74f40c75f1898ba970eadc8d12b12e5f16c53bc2",
+  "releaseId": "demo-engineering-smoke-a9f96b9e64045b7fa56d",
+  "schemaVersion": "alphapilot_demo_engineering_smoke_v1",
+  "strategyQualification": false,
+  "withdrawAllowed": false
+}

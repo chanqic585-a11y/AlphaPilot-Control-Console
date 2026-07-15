@@ -11,6 +11,21 @@ from alphapilot_control_console.demo_instrument_identity import (
 
 
 class DemoInstrumentIdentityTests(unittest.TestCase):
+    def test_accepts_current_okx_swap_shape_with_empty_base_and_quote_fields(self) -> None:
+        identity = canonicalize_demo_instrument({
+            "instId": "BTC-USDT-SWAP",
+            "baseCcy": "",
+            "quoteCcy": "",
+            "settleCcy": "USDT",
+            "instType": "SWAP",
+            "ctType": "linear",
+        })
+
+        self.assertEqual(identity.instId, "BTC-USDT-SWAP")
+        self.assertEqual(identity.baseCurrency, "BTC")
+        self.assertEqual(identity.quoteCurrency, "USDT")
+        self.assertEqual(identity.settleCurrency, "USDT")
+
     def test_canonicalizes_okx_and_ccxt_usdt_swap_identifiers(self) -> None:
         expected = CanonicalDemoInstrument(
             instId="BTC-USDT-SWAP",
