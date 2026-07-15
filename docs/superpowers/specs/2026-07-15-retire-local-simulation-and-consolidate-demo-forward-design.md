@@ -1,327 +1,599 @@
-# AlphaPilot Local Simulation Retirement and Demo Forward Consolidation Design
+# AlphaPilot Revised Demo Universe, Shadow Observer, and Backtest-First Consolidation Design
 
 ## Status
 
-Approved direction. This specification records the implementation boundary before code changes.
+Revision 2 for review. This revision combines the approved local-simulation retirement direction with the V13.27.1.10 revised Demo-universe and backtest-first proposal. No business code is changed by this document.
 
-## Goal
+## Executive Decision
 
-Remove the standalone local simulation page and retire local simulation as a promotion stage. Preserve all historical records as read-only audit evidence, keep only a lightweight hidden shadow observer, and make OKX Demo the single executable forward-validation stage after formal backtest approval.
+AlphaPilot will use one research path and one engineering path, with separate releases, ledgers, statistics, and acceptance criteria.
 
-## Why This Change
-
-The current lifecycle treats formal backtest, local simulation, and OKX Demo as three visible sequential stages. In practice, local simulation and Demo observe the same future market path, so treating both as independent promotion evidence creates delay without adding independent statistical evidence. It also makes the control console harder to understand.
-
-The correct separation is:
-
-- formal backtest establishes reproducible historical evidence;
-- a lightweight shadow observer records signal diagnostics without positions or simulated equity;
-- OKX Demo validates exchange-facing execution, fills, positions, exits, costs, and operational reliability;
-- Live Canary remains separately gated.
-
-## Approved User Flow
-
-```text
-New hypothesis
+~~~text
+Research path
+  Data availability audit
+  -> immutable preregistration
   -> bounded event prefilter
-  -> formal backtest
-  -> immutable strategy release
-  -> OKX Demo forward validation
-  -> Live Canary review
-```
+  -> full cost-aware backtest
+  -> formal backtest pass
+  -> immutable strategy-validation release
+  -> explicit enable approval
+  -> shadow diagnostics + OKX Demo strategy validation
+  -> Demo closed-trade review
+  -> future Live Canary decision in a separate version
 
-After an immutable release is created, the hidden shadow observer and OKX Demo may run in parallel. Shadow output is diagnostic only and never blocks, promotes, or duplicates Demo evidence.
+Engineering path
+  Demo account instrument discovery
+  -> public Top100 intersection
+  -> dedicated engineering-smoke release
+  -> minimum Demo order lifecycle rehearsal
+  -> reconciliation and recovery checks
+~~~
+
+The full local simulation page, virtual account, virtual positions, equity curve, PnL lifecycle, and promotion stage are retired. Historical records remain immutable and readable for audit.
+
+## Why This Is the Final Combined Direction
+
+The earlier design correctly removed a duplicated forward stage, but it needed three stricter boundaries from the revised proposal:
+
+1. OKX Demo connectivity must be proven with the Demo account's actual tradeable contracts, not with a public-only universe.
+2. Engineering-smoke Demo and strategy-validation Demo are different experiments and cannot share evidence or statistics.
+3. The retained shadow observer is signal diagnostics only. It must not calculate MFE, MAE, virtual PnL, 2R outcomes, positions, equity, or promotion decisions.
+
+This avoids two opposite errors: delaying every strategy behind a duplicate virtual portfolio, and sending unqualified research strategies into Demo merely to prove that the order API works.
 
 ## Information Architecture
 
-The primary navigation becomes:
+Primary navigation remains intentionally small:
 
-```text
+~~~text
 Strategy
 Demo
 Live
 Mobile Console
-```
+~~~
 
-The `Local Simulation` navigation item and page are removed. The old `#localLab` hash redirects to the Strategy page and shows one one-time message explaining that local simulation was retired and history remains preserved.
+- Remove the Local Simulation navigation item and page.
+- Redirect legacy #localLab links to Strategy with a one-time retirement message.
+- Do not add a replacement shadow page.
+- Show shadow diagnostics only in an advanced, read-only section when incident review requires them.
+- Keep historical local-simulation exports and audit reads, but do not load them in the primary workflow.
 
-No replacement page is added. Historical local simulation information is available only through read-only audit/export interfaces and advanced diagnostics when required for incident review.
+## Lifecycle Model
 
-## Stage Model
+### Active research and execution states
 
-### Active stages
-
-```text
+~~~text
 research_candidate
+data_audit
+preregistered
+event_prefilter
 backtest_queued
 backtest_running
-backtest_passed
-demo_waiting
+basic_backtest_passed
+formal_backtest_passed
+immutable_release_ready
+demo_waiting_approval
 demo_validation_running
 demo_validated
 live_candidate
-live_canary
 archived
-```
+~~~
 
-### Retired stages
+### Retired local-simulation states
 
-```text
+~~~text
 local_simulation_running
 local_simulation_passed
 local_forward
 local_sandbox
-```
+~~~
 
-Retired stages remain readable for legacy records but cannot be assigned to new work. Projection code maps historical records to a `legacy_local_observation` audit label instead of presenting them as an active lifecycle stage.
+Legacy rows keep their original stored state. Read projections label them legacy_local_observation; no new object may enter a retired state.
 
-## Formal Backtest to Demo Promotion
+## Evidence Model
 
-A strategy may create an immutable Demo Release only when all formal backtest gates pass:
+Every record has an explicit evidenceSource:
 
-- target risk/reward is at least 2R;
-- point-in-time data snapshot is registered and hashed;
-- purged walk-forward evidence exists;
-- holdout and locked out-of-sample evidence exist;
-- fees, funding, slippage, latency, and cost stress are included;
-- cross-symbol and cross-regime checks pass;
-- immutable strategy definition, risk profile, signal policy, and code/data hashes are complete.
+| Evidence source | What it proves | What it cannot prove |
+| --- | --- | --- |
+| historical_backtest | Historical, reproducible strategy screening | Future execution or profitability |
+| shadow_observation | A frozen release emitted or rejected a signal in live public data | Fill, PnL, position, or promotion evidence |
+| demo_engineering_smoke | Demo connectivity and order lifecycle plumbing | Strategy quality, PF, win rate, or promotion |
+| demo_strategy_validation | Exchange-facing forward closed-trade evidence | Guaranteed future or Live performance |
 
-The former local-forward sample threshold is removed from Demo promotion decisions. It must not be silently reintroduced under another name.
+One market event observed by shadow and Demo is one event, not two independent samples. Only closed trades in the strategy-validation Demo ledger count as forward execution evidence.
 
-## Lightweight Shadow Observer
+## Phase 1: Repair the OKX Demo Tradeable Universe
 
-The retained observer is not a simulation account and has no user-facing page.
+### Authoritative sources
 
-It may persist:
+Use the existing authenticated Demo client to query:
 
-- release ID and strategy hash;
-- closed-candle timestamp;
-- evaluated market universe;
-- matching symbol and signal reason;
-- veto reason;
-- hypothetical entry reference price;
-- hypothetical initial stop and 2R target;
-- later diagnostic MFE/MAE and outcome labels.
+~~~text
+GET /api/v5/account/instruments?instType=SWAP
+~~~
 
-It must not create:
+The request must use the Demo environment and its existing simulated-trading header. Do not store credentials, log authentication headers, substitute a Live response, or share caches between Demo and Live.
 
-- simulated orders;
-- simulated fills;
-- simulated positions;
-- virtual balances or equity curves;
-- promotion decisions;
-- Demo or Live orders.
+### Universe construction
 
-Shadow observations use a distinct evidence class and cannot be counted together with Demo outcomes as two independent forward samples.
+The executable Demo universe is:
 
-## OKX Demo as the Executable Forward Gate
-
-OKX Demo validates the complete forward execution path:
-
-- account-compatible tradeable universe;
-- closed-candle signal evaluation;
-- strategy arbitration and portfolio risk;
-- order submission and exchange response;
-- fills, fees, slippage, and latency;
-- position monitoring and exit handling;
-- reconciliation and closed-trade review.
-
-The scan universe is the intersection of:
-
-```text
-public Top100 USDT perpetual universe
+~~~text
+public point-in-time Top100 USDT perpetual universe
 AND
-current OKX Demo account tradeable SWAP instruments
+current Demo-account tradeable SWAP instruments
 AND
-liquidity/depth/risk filters
-```
+available instrument state
+AND
+data-quality, liquidity, depth, and portfolio-risk filters
+~~~
 
-Publicly visible instruments that the current Demo account cannot trade must be excluded before signal ranking. They may be logged as universe exclusions but must not produce false strategy matches or order failures.
+Normalize exact instrument identity across BTC-USDT-SWAP and BTC/USDT:USDT, case, separators, and settlement currency. Never use fuzzy base-symbol matching; never map spot or USDC instruments to USDT SWAP.
 
-## Engineering Smoke Releases
+The builder reports:
 
-An engineering smoke release may be used before formal strategy approval only to test connectivity and lifecycle plumbing. It must be explicitly marked:
+~~~text
+publicUniverseCount
+demoAccountInstrumentCount
+intersectionCount
+liquidityEligibleCount
+excludedNotInDemoAccount
+excludedUnavailableState
+excludedDataMissing
+excludedLiquidity
+generatedAt
+cacheAge
+~~~
 
-```text
-engineeringSmoke = true
-strategyEvidenceEligible = false
-liveCandidateEligible = false
-```
+Cache results with an explicit Demo environment key, TTL, generated timestamp, and stale status. A missing, stale beyond policy, malformed, or empty authenticated response fails closed and must not fall back to the public universe.
 
-Smoke orders cannot satisfy strategy evidence, cannot create a Live candidate, and cannot be relabeled as formal evidence later.
+### Read-only endpoint
+
+Add GET /api/demo-instrument-universe. Return counts, status, and small included/excluded samples. Never return credentials, private headers, or a raw private response.
+
+## Phase 2: Engineering-Smoke Demo
+
+Engineering smoke validates only:
+
+- scan and signal-object construction;
+- risk checks;
+- minimum-size Demo order submission;
+- order, fill or open-order status;
+- position reads;
+- stop/target and exit or cancellation handling;
+- restart recovery;
+- local-to-exchange reconciliation.
+
+It uses a dedicated release and ledger:
+
+~~~text
+demoPurpose = engineering_smoke
+strategyQualification = false
+promotionEligible = false
+forwardPerformanceEligible = false
+evidenceClass = demo_engineering_smoke
+ledger = engineering_smoke_ledger
+~~~
+
+It may use a deterministic test trigger instead of waiting for a research signal. It is limited to one minimum-size Demo position, no concurrent entries, no adding, no martingale, and bounded retries.
+
+Engineering smoke passes only when:
+
+~~~text
+Demo/public intersection > 0
+orderAttemptCount > 0
+no demo_instrument_unavailable inside the intersection
+order status can be read
+position status can be read
+exit or cancellation completes where supported
+reconciliation is consistent
+duplicate orders = 0
+orphan positions = 0
+~~~
+
+Real OKX errors remain errors and are recorded; success must never be fabricated.
 
 ## Current Ten Demo Releases
 
-The ten existing releases are relabeled as legacy diagnostic releases until each release proves that its formal backtest evidence, immutable hashes, Demo tradeable-universe binding, and risk profile satisfy the new contract.
+The current ten releases become legacy_diagnostic releases:
 
-This relabeling does not delete, mutate, or recreate their historical orders, scans, or evidence. It changes only how the console describes their validation status.
+~~~text
+releasePurpose = legacy_diagnostic
+strategyQualification = false
+promotionEligible = false
+forwardPerformanceEligible = false
+demoPerformanceEligible = false
+~~~
 
-## API Retirement and Compatibility
+They may support engineering diagnosis, signal audits, and historical comparison. They may not count as independent hypotheses, strategy-validation Demo candidates, promotion evidence, or Live candidates. Historical scans, orders, and records are preserved without mutation.
 
-### Removed write behavior
+The UI labels variants from one family as: 同源变体，不是独立假设.
 
-The console no longer starts the local sandbox auto-runner during application bootstrap. Local sandbox run, run-now, settings mutation, daily-report creation, and return-to-sandbox actions are retired.
+## Phase 3: Retire Full Local Simulation
 
-Legacy write endpoints return an explicit retired response and do not modify state:
+The following capabilities are permanently false in this version and cannot be re-enabled by frontend controls, hidden endpoints, or environment variables:
 
-```json
+~~~text
+fullLocalSimulationEnabled=false
+localVirtualPositionEnabled=false
+localVirtualEquityEnabled=false
+localSimulationLifecycleEnabled=false
+simulationLearningEnabled=false
+~~~
+
+Bootstrap must not start the local sandbox runner. Restart recovery must not revive it. No new virtual order, fill, position, equity snapshot, PnL, daily report, learning sample, or lifecycle transition may be written.
+
+Legacy write endpoints return 410 Gone:
+
+~~~json
 {
   "status": "retired",
   "code": "local_simulation_retired",
+  "historicalDataPreserved": true,
   "nextAction": "Use formal backtest and OKX Demo validation."
 }
-```
+~~~
 
-The HTTP status is `410 Gone` for direct legacy callers.
+Read-only audit and export compatibility may remain deprecated. No existing SQLite table, report, snapshot, order, fill, position, or history is deleted.
 
-### Preserved read behavior
+## Phase 4: Lightweight Shadow Observer
 
-Read-only history endpoints remain temporarily available for audit/export compatibility. They must be marked deprecated and must not appear in primary page loading.
+Shadow observation records only whether a frozen release produced a candidate signal and why it passed or failed:
 
-No SQLite table, report, snapshot, fill, position, or strategy history is deleted by this change.
+~~~text
+shadowObservationId
+releaseId
+strategyId
+strategyFamilyId
+timestamp
+symbol
+direction
+timeframe
+signalMatched
+passOrReject
+reasonZh
+featureSnapshot
+marketRegime
+publicUniverseIncluded
+demoUniverseIncluded
+liquidityPassed
+dataQualityPassed
+riskGatePassed
+wouldAttemptDemoOrder
+sourceDataHashes
+~~~
+
+It must not create or calculate:
+
+~~~text
+orders or fills
+virtual positions
+virtual capital or equity
+realized or unrealized PnL
+MFE or MAE outcome scoring
+2R / -1R lifecycle outcomes
+local closed trades
+automatic promotion or rejection
+~~~
+
+Shadow failure is warning-only and cannot stop a qualified Demo release. Add a read-only GET /api/shadow-observation endpoint for signal counts, rejection reasons, families, symbols, directions, and Demo-universe hit rates.
+
+## Phase 5: Backtest-First Research Factory
+
+### Data availability audit
+
+Audit OHLCV, funding, open interest, liquidation, spot and perpetual prices, basis, volume, point-in-time universe, and market breadth before selecting hypotheses. Missing evidence remains null and unavailable; it is never fabricated. Continue with other families, but do not claim a complete campaign unless at least three genuinely testable independent families remain.
+
+Candidate families should begin with market mechanisms that previous indicator stacks underused, such as funding/OI crowding, price/OI continuation, liquidation exhaustion, basis deviation, breadth, liquid cross-sectional momentum, idiosyncratic shock reversion, and volatility compression confirmed by OI/volume. Simple EMA/RSI/MACD/Bollinger stacking is not an independent hypothesis.
+
+### Immutable preregistration
+
+Before reading screening results, commit immutable preregistration files containing hypotheses, variants, data range, split, folds, embargo, final holdout, thresholds, costs, experiment budget, and stop rules. The preregistration commit and hash are audit evidence and cannot be edited after results are known.
+
+### Data split
+
+Use the default split unless a hypothesis preregisters a better justified one:
+
+~~~text
+development = 55%
+walk-forward = 25%
+final locked holdout = 20%
+embargo between development and validation
+~~~
+
+Thresholds are chosen only in development. The final holdout is not used for parameter choice, model selection, or rescue attempts.
+
+### Event prefilter
+
+Run a cheap event-level prefilter before implementing a full Freqtrade strategy. Each event stores hypothesis, variant, timestamp, symbol, direction, timeframe, entry/stop/target references, maximum hold, split, fold, and data hash. Same-bar stop/target collisions use the conservative stop-first rule.
+
+Only variants meeting all of the following proceed:
+
+~~~text
+development base-cost PF >= 1.08
+development average net R >= 0.03
+at least 60% of development months have average net R > 0
+minimum effective event count and coverage pass
+~~~
+
+Minimums from the revised proposal are:
+
+~~~text
+15m: >= 300 events and >= 12 months
+1h: >= 150 events and >= 12 months
+4h: >= 80 events and >= 18 months
+1d: >= 40 events and >= 24 months
+~~~
+
+The proposal does not define a 5m minimum. A 5m campaign must preregister a separate, stricter noise- and cost-aware minimum before it can claim a formal pass; it must not silently borrow the 15m threshold.
+
+### Full backtest and cost stress
+
+Only prefilter survivors receive a full implementation. Signal definitions and hashes must match the event study. Long and short variants remain distinguishable.
+
+Run base, 1.5x, and 2x cost scenarios covering fees, slippage, funding, and a spread proxy. Missing real cost data stays explicit and receives a separately labeled conservative proxy.
+
+Use at least five real purged walk-forward folds with an embargo, preserving foldId on every event/trade. Apply Benjamini-Hochberg FDR; Deflated Sharpe and PBO may be added when valid and otherwise remain null.
+
+### Two pass levels
+
+Basic research pass:
+
+~~~text
+OOS PF >= 1.05
+OOS average net R > 0
+OOS total net R > 0
+maximum drawdown <= 25%
+at least 3/5 folds have average net R > 0
+base costs included
+minimum samples pass
+no look-ahead
+~~~
+
+A basic pass permits further research only. It cannot enter strategy-validation Demo.
+
+Formal pass:
+
+~~~text
+OOS PF >= 1.15
+OOS average net R >= 0.05
+OOS total net R > 0
+maximum drawdown <= 20%
+at least 4/5 folds have average net R > 0
+1.5x-cost PF >= 1.05
+1.5x-cost average net R > 0
+single-symbol positive contribution <= 35%
+single-month positive contribution <= 35%
+locked holdout was not used for selection
+~~~
+
+The strategy definition keeps an initial target of at least 2R, expresses risk in R, and never widens the initial stop after entry. Adaptive exits or trailing logic must be bounded, preregistered, versioned, and hashed; they cannot be invented after seeing the holdout.
+
+### Finite experiment budget
+
+Per campaign:
+
+~~~text
+hypothesis families <= 8
+initial variants per family <= 2
+initial candidates <= 16
+structural revisions per family <= 1
+full backtests <= 48
+~~~
+
+No unlimited generation, genetic search, broad parameter grid, holdout-driven editing, forced passing, or threshold weakening is allowed. A bounded failure is archived with attribution and informs a genuinely new hypothesis batch.
+
+## Strategy-Validation Demo Admission
+
+Only a formal pass may generate an immutable candidate release with:
+
+~~~text
+releaseId
+strategyId
+strategyFamilyId
+strategyDefinitionHash
+dataManifestHash
+costModelHash
+riskConfigHash
+backtestReportHash
+releasePurpose = strategy_forward_validation
+~~~
+
+Admission additionally requires traceable hashes, untouched holdout, base and 1.5x cost passes, walk-forward pass, a frozen execution-risk profile, and explicit enable approval. Generating a release does not automatically arm it.
+
+The strategy-validation ledger is separate:
+
+~~~text
+demoPurpose = strategy_forward_validation
+ledger = strategy_forward_validation_ledger
+~~~
+
+It records actual Demo orders, partial fills, fees, funding, slippage proxy, exits, reconciliation, and closed trades. Only these closed trades count as forward execution evidence.
+
+Future review policy, not an automatic promotion rule in this version:
+
+~~~text
+>= 30 closed Demo trades: preliminary review
+>= 100 closed Demo trades: serious review
+~~~
+
+Shadow observations and engineering-smoke records never count toward these thresholds.
 
 ## Console Projection
 
-The Strategy page shows:
+### Strategy page
 
-- awaiting backtest;
-- backtest running;
-- formal pass;
-- failed/blocked with reasons;
-- archived history.
+Show only decision-useful research status:
 
-The Demo page shows:
+- data audit and preregistration;
+- event prefilter progress;
+- full backtests;
+- basic passes;
+- formal passes;
+- failure attribution;
+- experiment budget used;
+- immutable candidate releases awaiting approval.
 
-- waiting for Demo;
-- Demo validating;
-- Demo passed;
-- Live candidates;
-- current positions, orders, PnL, fees, slippage, blockers, and next action.
+Rank by formal status, OOS PF, average net R, 1.5x-cost PF, positive-fold ratio, drawdown, symbol/month concentration, sample size, and evidence completeness, not by raw return alone.
 
-No stage summary includes an active local-simulation count. Legacy local records appear only in audit metadata.
+### Demo page
 
-## Finite Research Budget
+Use two visibly separated sections:
 
-Strategy generation remains bounded:
+1. Demo 工程状态: Runtime, Demo account instruments, Top100 intersection, latest order attempt, reconciliation, duplicate/orphan counts.
+2. 策略验证 Demo: approved immutable releases, current orders/positions, fees, funding, slippage, PnL, closed trades, blockers, and next action.
 
-- at most 8 hypothesis families per research campaign;
-- at most 2 initial variants per family;
-- at most 16 candidates per campaign;
-- at most 48 full formal backtests per campaign;
-- event prefilter before expensive full backtest;
-- bounded optimization, then archive without forced promotion.
+Never merge engineering-smoke metrics into strategy PF, win rate, PnL, or promotion counts.
 
-The system must never optimize toward a forced pass or weaken the 2R target merely to create Demo activity.
+### Advanced diagnostics
 
-## Data Migration and Recovery
+The hidden shadow section shows signal counts, pass/reject counts, and reasons only. It never shows virtual equity, virtual positions, or virtual PnL.
 
-This change requires no destructive migration.
+## Read-Only APIs
 
-- Existing stage assignments remain immutable history.
-- New assignments cannot target retired stages.
-- A compatibility projection translates legacy local stages at read time.
-- Existing local runner enabled state is force-disabled once, with an audit event.
-- Restart recovery must not restart the retired runner.
-- Active OKX Demo runtime, process-only credentials, immutable releases, and positions are not restarted or mutated by the migration.
+Add or consolidate:
 
-## Error Handling
+~~~text
+GET /api/demo-instrument-universe
+GET /api/demo-engineering-smoke
+GET /api/shadow-observation
+GET /api/backtest-screening
+~~~
 
-- Old bookmarks redirect safely instead of rendering a blank page.
-- Retired API callers receive `410` and a clear next action.
-- Missing Demo credentials leave releases in `demo_waiting`; they do not fall back to local simulation.
-- A Demo-incompatible instrument is excluded before ranking and is recorded as an availability exclusion.
-- Shadow observer failure is warning-only and cannot stop Demo.
-- Demo execution failure remains fail-closed and visible with an actionable blocker.
+Legacy simulation write APIs are retired. Deprecated simulation history reads remain audit-only.
+
+## Failure and Stop Rules
+
+- Empty or invalid Demo-account instruments: fail closed and expose the exact blocker.
+- Public/Demo intersection empty: engineering smoke and strategy Demo do not place orders.
+- Engineering smoke failure: keep strategy evidence unchanged.
+- Shadow failure: warning only; never block qualified Demo execution.
+- Formal pass count equals zero: keep full local simulation off, keep shadow and engineering smoke, stop the current batch, and propose a new independent hypothesis batch from failure attribution.
+- Formal pass count is positive: freeze at most one to three releases and wait for explicit enable approval before strategy-validation Demo.
+- No forced pass, resurrection of old candidates, post-hoc coin deletion, or extra trials beyond budget.
+
+## Live Boundary
+
+This version does not implement or enable Live Canary. A future, separately approved version may define:
+
+~~~text
+separate subaccount
+no withdraw permission
+IP allowlist
+maximum one position initially
+fixed absolute loss budget
+no adding
+immediate stop at the budget
+~~~
+
+No Demo result guarantees profitability or Live safety.
 
 ## Security Boundaries
 
 - No Withdraw API.
-- No raw API key storage in browser or SQLite.
-- Demo credentials remain process-only or in the existing approved Windows credential vault.
-- Live trading remains separately gated.
-- No historical local record is presented as a real trade or real PnL.
-- No shadow observation is presented as a Demo fill or Live result.
-- Immutable releases, risk limits, and audit trails remain mandatory.
-
-## Testing Strategy
-
-Implementation follows test-first development.
-
-### Frontend contract tests
-
-- navigation has no Local Simulation item;
-- `#localLab` redirects to Strategy;
-- local page markup and active controls are absent;
-- Strategy and Demo summaries contain no active local stage;
-- historical audit wording remains available where appropriate.
-
-### HTTP tests
-
-- local simulation writes return `410` with `local_simulation_retired`;
-- read-only history remains accessible;
-- bootstrap never starts the local sandbox auto-runner;
-- application shutdown does not assume the runner was started.
-
-### Workflow tests
-
-- formal backtest pass creates or queues an immutable Demo Release without local-forward evidence;
-- failed formal backtest cannot enter Demo;
-- retired stages cannot be assigned to new strategies;
-- legacy records remain readable and are projected as audit-only;
-- shadow observations cannot satisfy promotion gates;
-- engineering smoke releases can never become Live candidates.
-
-### Demo universe tests
-
-- public Top100 is intersected with account-tradeable Demo instruments;
-- unavailable instruments are excluded before signal ranking;
-- one account-instrument request is shared for all releases in a scan cycle;
-- no raw credential or private payload appears in logs.
-
-### Regression checks
-
-- full Python test suite;
-- compileall;
-- JavaScript syntax check;
-- `git diff --check`;
-- local console health endpoint;
-- Strategy, Demo, Live, and Mobile pages open normally;
-- active Demo runtime remains unchanged unless a restart is explicitly required.
+- No raw API key in browser, SQLite, reports, logs, or commits.
+- Demo and Live clients, caches, releases, and ledgers remain isolated.
+- No Live account, position, or order access in this version.
+- Immutable release hashes and frozen risk profiles are mandatory.
+- Historical local records are never presented as real performance.
+- Shadow records are never presented as orders or PnL.
 
 ## Rollout Order
 
-1. Remove the Local Simulation page and navigation, add legacy redirect, and stop primary-page API loading.
-2. Disable local sandbox bootstrap and retire its write endpoints while preserving read-only history.
-3. Replace active local stages in lifecycle projection with direct formal-backtest-to-Demo flow.
-4. Add hidden shadow-observation evidence with no promotion authority.
-5. Bind Demo scans to the account-compatible tradeable universe.
-6. Relabel existing ten releases as legacy diagnostics without mutating evidence.
-7. Update AlphaPilot Docs and operator instructions.
-8. Run full regression and verify the active Demo runtime separately.
+1. Back up and inventory current databases, active Runtime, process-only credentials boundary, releases, and pre-existing changes.
+2. Build and test the authenticated Demo instrument universe and exact ID normalization.
+3. Run the isolated engineering-smoke lifecycle and prove attempts, reads, exit/cancel, reconciliation, no duplicates, and no orphans.
+4. Relabel the current ten releases as legacy diagnostics without mutating historical evidence.
+5. Remove the Local Simulation page and navigation; retire all local simulation writes and bootstrap recovery while preserving history.
+6. Add the no-PnL shadow observer and its read-only diagnostics.
+7. Audit research data, commit preregistration, and run the bounded event-prefilter/backtest campaign.
+8. Generate at most one to three immutable strategy-validation releases only from formal passes; do not auto-arm them.
+9. Update Console, Quant, Docs, operator guidance, and audit reports.
+10. Run regression, security scans, runtime proof, and git diff --check; tag only after every required result is evidenced.
+
+## Test and Runtime Proof
+
+### Demo universe
+
+- Demo and Live environments never mix.
+- Exact contract normalization and intersection are correct.
+- Cache freshness and exclusion reasons are correct.
+- Credentials and private payloads never enter logs.
+
+### Engineering smoke
+
+- Demo only.
+- orderAttemptCount > 0.
+- No unavailable-instrument failure inside the intersection.
+- Order and position reads work.
+- Exit/cancel works where supported.
+- Duplicate orders = 0.
+- Orphan positions = 0.
+- No strategy performance metric changes.
+
+### Local simulation retirement
+
+- No new virtual position, equity, PnL, learning, or lifecycle write.
+- History remains unchanged and readable.
+- Restart cannot revive the runner.
+
+### Shadow
+
+- Signals and rejection reasons are recorded.
+- No PnL, position, equity, lifecycle, or promotion is generated.
+
+### Research screening
+
+- Immutable preregistration exists.
+- Locked holdout remains isolated.
+- Five real folds exist.
+- Costs and stress are correct.
+- Basic and formal gates are deterministic.
+- FDR is reported.
+- Old candidates are not silently restored.
+- Trial budget is enforced.
+
+### Required operating result
+
+Before tagging, prove all of the following:
+
+~~~text
+Demo account instrument query succeeds
+public Top100 intersect Demo instruments is non-empty
+intersection contracts do not fail as unavailable
+engineering-smoke orderAttemptCount > 0
+full local simulation writes no new records
+virtual equity no longer changes
+shadow records signals and rejection reasons only
+legacy releases do not count as strategy performance
+bounded screening actually runs
+reports are generated from real results
+~~~
 
 ## Acceptance Criteria
 
-1. The Local Simulation navigation item and page no longer exist.
-2. Old `#localLab` links redirect to Strategy with a one-time explanation.
-3. No local sandbox runner starts automatically.
-4. Legacy local write APIs are retired and cannot mutate data.
-5. Historical local records remain readable and unchanged.
-6. New strategies cannot enter a local simulation stage.
-7. Formal backtest pass can proceed directly to an immutable Demo Release.
-8. Shadow observations are hidden, diagnostic, and non-promotional.
-9. Demo and shadow evidence are never double-counted.
-10. Demo scan candidates are restricted to account-tradeable instruments before ranking.
-11. Current ten releases are clearly labeled legacy diagnostic until requalified.
-12. Live remains separately gated and no security boundary is weakened.
-13. All targeted and full regression checks pass.
+1. Local Simulation is absent from primary navigation and cannot mutate state.
+2. Historical local evidence remains intact and audit-only.
+3. Shadow observation has no virtual account, PnL, position, outcome, or promotion behavior.
+4. OKX Demo scans only the authenticated Demo-account/public-universe intersection.
+5. Engineering smoke proves order plumbing without producing strategy evidence.
+6. The ten current releases are clearly labeled legacy diagnostics.
+7. Research candidates obey immutable preregistration, locked holdout, cost stress, real folds, FDR, and finite trial limits.
+8. Only formal passes can produce strategy-validation releases.
+9. Strategy-validation releases require explicit enable approval and use a separate ledger.
+10. Only strategy-validation Demo closed trades count as forward execution evidence.
+11. No automatic Live activation or Live trading capability is added.
+12. All targeted tests, complete regressions, safety scans, and runtime proofs pass.
 
 ## Non-Goals
 
 - deleting historical local simulation tables or reports;
-- converting old local samples into Demo evidence;
-- weakening formal backtest or 2R requirements;
-- enabling Live automatically;
-- storing raw API credentials;
+- converting local, shadow, or smoke evidence into Demo strategy evidence;
+- weakening formal backtest, cost stress, locked holdout, or 2R risk rules;
+- manufacturing a passing strategy;
+- restoring the ten diagnostic releases as candidates without requalification;
+- implementing Live Canary;
+- storing raw credentials;
 - adding Withdraw support;
-- claiming that Demo or Live Canary guarantees profitability.
+- claiming that backtest, Demo, or future Canary results guarantee profit.
