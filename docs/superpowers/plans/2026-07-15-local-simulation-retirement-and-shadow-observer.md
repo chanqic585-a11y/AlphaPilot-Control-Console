@@ -283,19 +283,19 @@ latestObservedAt
 - Modify: `README.md` in both repositories
 - Create: `docs/local-simulation-retirement-and-shadow.md`
 
-- [ ] Run Console: `python -m unittest discover -s tests -v`.
-- [ ] Run Console: `python -m compileall alphapilot_control_console`.
-- [ ] Run Quant: `python -m pytest tests -q`.
-- [ ] Run Quant: `python -m compileall alphapilot`.
-- [ ] Run `git diff --check` in both repositories.
-- [ ] Restart the Console twice and observe at least one former scheduler interval; require every local history count to remain at its baseline.
-- [ ] Verify deprecated reads still return the same historical counts and hashes.
-- [ ] Verify the ten release file hashes are unchanged and all classification overlays are `legacy_diagnostic`.
-- [ ] Generate shadow matches and rejects, then scan its SQLite schema and JSON values for forbidden performance fields.
-- [ ] Confirm a forced shadow storage failure does not block a qualified mocked Demo order path.
-- [ ] Commit Console: `git commit -m "Retire local simulation and add no-PnL shadow diagnostics"`.
-- [ ] Commit Quant without staging the pre-existing report: `git commit -m "Consolidate strategy workflow around backtest and Demo"`.
-- [ ] Push both commits and require both intended scopes clean before Phase 3.
+- [x] Run Console: `python -m unittest discover -s tests -v`.
+- [x] Run Console: `python -m compileall alphapilot_control_console`.
+- [x] Run Quant: `python -m pytest tests -q`.
+- [x] Run Quant: `python -m compileall alphapilot`.
+- [x] Run `git diff --check` in both repositories.
+- [x] Restart the Console twice and observe at least one former scheduler interval; require every local history count to remain at its baseline.
+- [x] Verify deprecated reads still return the same historical counts and hashes.
+- [x] Verify the ten release file hashes are unchanged and all classification overlays are `legacy_diagnostic`.
+- [x] Generate shadow matches and rejects, then scan its SQLite schema and JSON values for forbidden performance fields.
+- [x] Confirm a forced shadow storage failure does not block a qualified mocked Demo order path.
+- [x] Commit Console: `git commit -m "Retire local simulation and add no-PnL shadow diagnostics"`.
+- [x] Commit Quant without staging the pre-existing report: `git commit -m "Consolidate strategy workflow around backtest and Demo"`.
+- [x] Push both commits and require both intended scopes clean before Phase 3.
 
 ## Phase Exit Gate
 
