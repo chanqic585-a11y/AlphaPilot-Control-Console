@@ -1,8 +1,8 @@
 # AlphaPilot 第四阶段更新版：正式 Release 准入与 OKX 策略验证 Demo
 
-> **执行状态前提**：阶段 1、阶段 2 已完成；阶段 4 只能在更新后的第三阶段真实 Campaign 完成后启动。  
-> **本文件替代**：`docs/superpowers/plans/2026-07-15-strategy-validation-demo-admission-and-cutover.md`。旧文件保留并标记 `supersededBy`。  
-> **执行方式**：建议使用 `superpowers:subagent-driven-development` 或 `superpowers:executing-plans` 按复选框实施。  
+> **执行状态前提**：阶段 1、阶段 2 已完成；阶段 4 只能在更新后的第三阶段真实 Campaign 完成后启动。
+> **本文件替代**：`docs/superpowers/plans/2026-07-15-strategy-validation-demo-admission-and-cutover.md`。旧文件保留并标记 `supersededBy`。
+> **执行方式**：建议使用 `superpowers:subagent-driven-development` 或 `superpowers:executing-plans` 按复选框实施。
 > **核心目标**：只允许第三阶段正式回测通过的不可变候选，经 Hash 绑定的人工批准后，进入隔离的 OKX 策略验证 Demo。影子观察、工程烟测、旧 Release 和历史本地模拟永远不能成为策略晋级证据。
 
 ---
