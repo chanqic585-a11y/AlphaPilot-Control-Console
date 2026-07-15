@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Any
 
 from .exchange_connectors.public_exchange_registry import fetch_okx_public_payload
@@ -104,7 +106,7 @@ def build_okx_usdt_swap_universe(
 
     ranked.sort(key=lambda row: (-float(row["quoteVolumeProxy"]), float(row["spreadPct"]), str(row["instId"])))
     total = len(instrument_rows)
-    return {
+    result = {
         "source": "okx_public_full_market_universe_v13_27_1_5",
         "generatedAt": now_iso(),
         "marketScope": "okx_usdt_linear_perpetual_full_market",
@@ -131,6 +133,22 @@ def build_okx_usdt_swap_universe(
         "privateEndpointsUsed": False,
         "createsOrder": False,
     }
+    manifest_projection = {
+        "marketScope": result["marketScope"],
+        "screeningLimit": safe_limit,
+        "rankedInstrumentIds": [row["instId"] for row in ranked],
+        "screeningPoolIds": [row["instId"] for row in ranked[:safe_limit]],
+    }
+    result["manifestHash"] = hashlib.sha256(
+        json.dumps(
+            manifest_projection,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    return result
 
 
 def fetch_okx_usdt_swap_universe(

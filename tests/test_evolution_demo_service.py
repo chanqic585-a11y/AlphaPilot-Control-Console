@@ -52,6 +52,36 @@ class FakeMarketRuntime:
 
 
 class EvolutionDemoServiceTests(unittest.TestCase):
+    def test_account_instrument_ids_use_shared_authenticated_intersection(self) -> None:
+        with patch.object(
+            service,
+            "load_or_refresh_demo_instrument_universe",
+            return_value={
+                "status": "usable",
+                "eligibleInstrumentIds": ["ETH-USDT-SWAP", "BTC-USDT-SWAP"],
+                "blockers": [],
+            },
+            create=True,
+        ) as load_universe:
+            result = service._demo_account_instrument_ids(object())
+
+        self.assertEqual(result, {"BTC-USDT-SWAP", "ETH-USDT-SWAP"})
+        load_universe.assert_called_once_with(unittest.mock.ANY, fresh=True)
+
+    def test_account_instrument_ids_fail_closed_for_blocked_intersection(self) -> None:
+        with patch.object(
+            service,
+            "load_or_refresh_demo_instrument_universe",
+            return_value={
+                "status": "blocked",
+                "eligibleInstrumentIds": [],
+                "blockers": ["demo_public_intersection_empty"],
+            },
+            create=True,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "demo_public_intersection_empty"):
+                service._demo_account_instrument_ids(object())
+
     def test_resume_clears_ordinary_pause_and_records_event(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "demo.sqlite"
@@ -393,8 +423,10 @@ class EvolutionDemoServiceTests(unittest.TestCase):
         ) as arbitrate, patch.object(
             service, "get_demo_market_runtime", return_value=FakeMarketRuntime()
         ):
+            close_event = confirmed_close()
+            close_event["confirmedInstrumentIds"] = [signal["instId"] for signal in signals]
             service.run_evolution_demo_cycle(
-                {"demoReleaseId": "release-1", "closeEvent": confirmed_close()}
+                {"demoReleaseId": "release-1", "closeEvent": close_event}
             )
 
         self.assertEqual(arbitrate.call_args.kwargs["maxPositions"], 1)

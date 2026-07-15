@@ -41,6 +41,11 @@ class OkxMarketUniverseTests(unittest.TestCase):
         self.assertEqual(reasons["BTC-USD-SWAP"], "not_usdt_linear_swap")
         self.assertTrue(result["publicMarketOnly"])
         self.assertFalse(result["createsOrder"])
+        self.assertEqual(len(result["manifestHash"]), 64)
+        self.assertEqual(
+            result["manifestHash"],
+            build_okx_usdt_swap_universe(instruments, tickers, screening_limit=1)["manifestHash"],
+        )
 
     def test_missing_ticker_is_rejected_without_fabricated_values(self) -> None:
         result = build_okx_usdt_swap_universe(

@@ -16,6 +16,7 @@ from .demo_arbitrator import arbitrate_demo_signals
 from .demo_market_scan_service import save_demo_release_scan
 from .demo_execution_engine import DemoExecutionEngine
 from .demo_execution_store import DemoExecutionStore
+from .demo_instrument_universe import load_or_refresh_demo_instrument_universe
 from .demo_entry_latency_policy import evaluate_demo_entry_latency
 from .demo_latency_observability import build_latency_stage_metrics
 from .demo_market_runtime_registry import get_demo_market_runtime
@@ -333,19 +334,15 @@ def build_evolution_demo_status() -> dict[str, Any]:
 
 
 def _demo_account_instrument_ids(client: Any) -> set[str]:
-    response = client.get_account_instruments("SWAP")
-    if str(response.get("code")) != "0":
-        raise RuntimeError("demo_account_instruments_read_failed")
-    rows = response.get("data") if isinstance(response.get("data"), list) else []
+    universe = load_or_refresh_demo_instrument_universe(client, fresh=True)
     instrument_ids = {
-        str(row.get("instId") or "").strip()
-        for row in rows
-        if isinstance(row, dict)
-        and str(row.get("instId") or "").strip()
-        and str(row.get("state") or "live").lower() == "live"
+        str(value).strip().upper()
+        for value in universe.get("eligibleInstrumentIds", [])
+        if str(value).strip()
     }
     if not instrument_ids:
-        raise RuntimeError("demo_account_instruments_empty")
+        blockers = universe.get("blockers") if isinstance(universe.get("blockers"), list) else []
+        raise RuntimeError(str(blockers[0] if blockers else "demo_account_instruments_empty"))
     return instrument_ids
 
 
@@ -450,6 +447,34 @@ def run_evolution_demo_batch_cycle(
             "blockers": ["confirmed_close_timeframe_mismatch"],
             "status": status,
         }
+    try:
+        client = OkxDemoClient(load_okx_demo_credentials())
+        account_instrument_ids = _demo_account_instrument_ids(client)
+    except OkxDemoError as error:
+        return {
+            "ok": False,
+            "transient": True,
+            "blockers": [str(error)],
+            "status": build_evolution_demo_status(),
+        }
+    except RuntimeError as error:
+        return {
+            "ok": False,
+            "blockers": [str(error)],
+            "status": build_evolution_demo_status(),
+        }
+    confirmed_set = set(confirmed_instrument_ids)
+    eligible_close_instruments = tuple(sorted(
+        account_instrument_ids & confirmed_set
+        if confirmed_set
+        else account_instrument_ids
+    ))
+    if not eligible_close_instruments:
+        return {
+            "ok": False,
+            "blockers": ["demo_confirmed_instrument_intersection_empty"],
+            "status": build_evolution_demo_status(),
+        }
     market_runtime = get_demo_market_runtime()
     market_runtime_status = market_runtime.status()
     if not market_runtime_status.get("warm"):
@@ -464,7 +489,7 @@ def run_evolution_demo_batch_cycle(
             close_timeframe,
             received_at=_utc_now(),
             candle_start_ms=close_candle_start_ms or None,
-            allowed_instruments=confirmed_instrument_ids or None,
+            allowed_instruments=eligible_close_instruments,
         )
     except RuntimeError:
         return {
@@ -526,7 +551,6 @@ def run_evolution_demo_batch_cycle(
     first_contract = selected_contracts[0]
     store = DemoExecutionStore(STORE_PATH)
     try:
-        client = OkxDemoClient(load_okx_demo_credentials())
         engine = DemoExecutionEngine(client=client, store=store)
         recovered: list[Any] = []
         try:
@@ -537,11 +561,6 @@ def run_evolution_demo_batch_cycle(
                 first_contract.get("riskEnvelope")
                 if isinstance(first_contract.get("riskEnvelope"), dict)
                 else {},
-            )
-            account_instrument_ids = (
-                _demo_account_instrument_ids(client)
-                if all_signals
-                else set()
             )
         except OkxDemoError as error:
             return {
