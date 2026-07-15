@@ -535,7 +535,7 @@ def request_workflow_action(
         if not version_id:
             raise ValueError("strategy_version_id_required")
         return run_workflow_cli(
-            ["archive", "--strategy-version-id", version_id],
+            ["archive-campaign", "--strategy-version-id", version_id],
             quant_root=quant_root,
         )
     if normalized == "advance":

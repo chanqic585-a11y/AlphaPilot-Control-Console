@@ -243,6 +243,35 @@ class WorkflowClientTests(unittest.TestCase):
         self.assertEqual(result["recovery"]["reviewedCount"], 1)
         self.assertNotIn("apiKey", repr(result))
 
+    def test_archive_action_archives_the_whole_campaign_with_one_cli_call(self) -> None:
+        with patch.object(
+            client,
+            "run_workflow_cli",
+            return_value={
+                "rootStrategyVersionId": "strategy-root",
+                "archivedStrategyVersionIds": ["strategy-root", "strategy-attempt-1"],
+            },
+        ) as run_cli:
+            result = client.request_workflow_action(
+                "archive",
+                {
+                    "strategyVersionId": "strategy-attempt-1",
+                    "apiKey": "must-not-flow",
+                },
+                quant_root=self.quant_root,
+            )
+
+        run_cli.assert_called_once_with(
+            [
+                "archive-campaign",
+                "--strategy-version-id",
+                "strategy-attempt-1",
+            ],
+            quant_root=self.quant_root,
+        )
+        self.assertEqual(result["rootStrategyVersionId"], "strategy-root")
+        self.assertNotIn("apiKey", repr(result))
+
     def test_run_selected_forward_cycles_accepts_only_running_local_runs(self) -> None:
         projection = {
             "items": [
