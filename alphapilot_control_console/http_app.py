@@ -139,6 +139,15 @@ from .workflow_client import (
     request_workflow_action,
     resume_incomplete_workflow_runs,
 )
+from .backtest_screening_projection import build_backtest_screening_projection
+from .strategy_validation_hashing import reject_sensitive_fields
+from .strategy_validation_status import (
+    build_strategy_validation_status,
+    import_strategy_validation_campaign,
+    resume_strategy_validation_risk,
+    run_strategy_validation_approval_action,
+    run_strategy_validation_runtime_action,
+)
 from .state_store import (
     ALLOWED_ARTIFACT_REVIEW_STATUSES,
     ALLOWED_PAPER_OBSERVATION_LOG_TYPES,
@@ -306,6 +315,22 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         fresh = _is_fresh_query(query)
         if path == "/api/health":
             self._send_json(build_health_payload())
+            return
+        if path == "/api/backtest-screening":
+            campaign_id = str((query.get("campaignId") or [""])[0] or "").strip()
+            if not campaign_id:
+                self._send_json({"ok": False, "error": "campaign_id_required"}, 400)
+                return
+            try:
+                self._send_json(build_backtest_screening_projection(campaign_id))
+            except FileNotFoundError as error:
+                self._send_json({"ok": False, "error": "campaign_not_found", "message": str(error)}, 404)
+            except ValueError as error:
+                self._send_json({"ok": False, "error": "campaign_evidence_invalid", "message": str(error)}, 409)
+            return
+        if path == "/api/strategy-validation/status":
+            campaign_id = str((query.get("campaignId") or [""])[0] or "").strip() or None
+            self._send_json(build_strategy_validation_status(campaign_id=campaign_id))
             return
         if path == "/api/shadow-observation":
             release_id = str((query.get("releaseId") or [""])[0] or "").strip() or None
@@ -873,6 +898,45 @@ class ConsoleHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
+        strategy_validation_routes = {
+            "/api/strategy-validation-releases/import",
+            "/api/strategy-validation-releases/approve",
+            "/api/strategy-validation-releases/revoke",
+            "/api/strategy-validation-runtime/arm",
+            "/api/strategy-validation-runtime/disarm",
+            "/api/strategy-validation-risk/resume",
+        }
+        if parsed.path in strategy_validation_routes:
+            payload = self._read_body_json()
+            if not _request_is_loopback(str(self.client_address[0])):
+                self._send_json({"ok": False, "error": "local_host_required"}, 403)
+                return
+            try:
+                reject_sensitive_fields(payload)
+            except ValueError as error:
+                self._send_json({"ok": False, "error": "sensitive_field_forbidden", "message": str(error)}, 400)
+                return
+            try:
+                if parsed.path.endswith("/import"):
+                    result = import_strategy_validation_campaign(payload)
+                elif parsed.path.endswith("/approve"):
+                    result = run_strategy_validation_approval_action("approve", payload)
+                elif parsed.path.endswith("/revoke"):
+                    result = run_strategy_validation_approval_action("revoke", payload)
+                elif parsed.path.endswith("/arm"):
+                    result = run_strategy_validation_runtime_action("arm", payload)
+                elif parsed.path.endswith("/disarm"):
+                    result = run_strategy_validation_runtime_action("disarm", payload)
+                else:
+                    result = resume_strategy_validation_risk(payload)
+            except FileNotFoundError as error:
+                self._send_json({"ok": False, "error": "campaign_not_found", "message": str(error)}, 404)
+                return
+            except (KeyError, PermissionError, RuntimeError, ValueError) as error:
+                self._send_json({"ok": False, "error": type(error).__name__, "message": str(error)}, 409)
+                return
+            self._send_json(result)
+            return
         if parsed.path in RETIRED_LOCAL_SIMULATION_POST_ROUTES:
             self._read_body_json()
             self._send_json(retired_write_response(), 410)

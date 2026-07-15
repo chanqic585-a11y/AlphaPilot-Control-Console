@@ -242,6 +242,7 @@ let latestExecutionOutcomeExportPath = "";
 let latestMobilePayload = {};
 let latestSandboxReviewPayload = {};
 let latestCoreConsolePayload = {};
+let latestStrategyValidationPayload = {};
 let sandboxReviewLoading = null;
 let localLabEnrichmentLoading = null;
 let advancedDataLoading = null;
@@ -7897,6 +7898,197 @@ function renderShadowObservation(payload = {}) {
     : '<div class="item">暂无影子观察记录。</div>';
 }
 
+function strategyValidationCount(value) {
+  if (Array.isArray(value)) return value.length;
+  if (value && typeof value === "object") return Object.keys(value).length;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function strategyValidationMetric(label, value, note = "") {
+  return `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong>${note ? `<small>${escapeHtml(note)}</small>` : ""}</div>`;
+}
+
+function strategyValidationReleaseCard(release, interactive = false) {
+  const approved = Boolean(release?.approved);
+  const status = approved ? "已人工批准" : "等待人工批准";
+  const action = approved ? "revoke" : "approve";
+  const label = approved ? "撤销批准" : "批准用于 Demo";
+  return `
+    <article class="strategy-validation-release-card">
+      <div>
+        <strong>${escapeHtml(release?.strategyId || release?.candidateId || "未命名 Release")}</strong>
+        <span class="badge ${approved ? "ok" : "warn"}">${status}</span>
+      </div>
+      <small>Campaign ${escapeHtml(release?.campaignId || "--")} · 导入 ${escapeHtml(formatDate(release?.importedAt))}</small>
+      ${interactive ? `<button type="button" class="${approved ? "secondary" : ""}" data-strategy-validation-approval="${action}" data-release-id="${escapeHtml(release?.releaseId || "")}" data-release-hash="${escapeHtml(release?.releaseHash || "")}" data-risk-hash="${escapeHtml(release?.riskConfigHash || "")}">${label}</button>` : ""}
+      <details><summary>不可变身份</summary><code>${escapeHtml(release?.releaseHash || "--")}</code><code>${escapeHtml(release?.riskConfigHash || "--")}</code></details>
+    </article>
+  `;
+}
+
+function renderStrategyValidation(payload = {}) {
+  latestStrategyValidationPayload = payload || {};
+  const screening = payload.screening || {};
+  const releaseSummary = payload.releaseSummary || {};
+  const releases = Array.isArray(payload.releases) ? payload.releases : [];
+  const runtime = payload.runtime || {};
+  const risk = payload.risk || {};
+  const ledger = payload.demoLedger || {};
+  const review = payload.forwardReview || {};
+  const formalPassCount = Number(screening.formalPassCount || 0);
+  const campaignId = payload.campaignId || screening.campaignId || "";
+  const dataReadiness = screening.dataReadiness || {};
+  const externalReferences = screening.externalReferences || {};
+  const factorShortlist = screening.factorShortlist || {};
+  const preregistration = screening.preregistration || {};
+  const factorCount = Number(
+    factorShortlist.selectedCount
+    ?? factorShortlist.shortlistCount
+    ?? factorShortlist.factorCount
+    ?? strategyValidationCount(factorShortlist.factorIds || factorShortlist.factors),
+  );
+  const dataStatus = dataReadiness.status || dataReadiness.readiness || (strategyValidationCount(dataReadiness) ? "已记录" : "缺失");
+  const researchMetrics = el("strategyValidationResearchMetrics");
+  if (researchMetrics) {
+    researchMetrics.innerHTML = [
+      strategyValidationMetric("数据就绪", dataStatus),
+      strategyValidationMetric("外部参考", strategyValidationCount(externalReferences)),
+      strategyValidationMetric("因子 Shortlist", factorCount),
+      strategyValidationMetric("预注册", strategyValidationCount(preregistration) ? "已锁定" : "缺失"),
+      strategyValidationMetric("事件预筛", Number(screening.prescreenPassCount || 0)),
+      strategyValidationMetric("完整回测", Number(screening.fullBacktestCount || 0)),
+      strategyValidationMetric("基础通过", Number(screening.basePassCount || 0)),
+      strategyValidationMetric("正式通过", formalPassCount),
+    ].join("");
+  }
+  const campaignStatus = el("strategyValidationCampaignStatus");
+  if (campaignStatus) {
+    campaignStatus.textContent = campaignId ? `${formalPassCount} 条正式通过` : "等待 Campaign";
+    campaignStatus.className = `badge ${screening.status === "blocked" ? "danger" : (formalPassCount ? "ok" : "neutral")}`;
+  }
+  const researchSummary = el("strategyValidationResearchSummary");
+  if (researchSummary) {
+    researchSummary.textContent = screening.status === "blocked"
+      ? `Campaign 证据校验失败：${screening.error || "未知原因"}`
+      : (campaignId
+        ? `Campaign ${campaignId} 已校验 ${Number(screening.verifiedArtifactCount || 0)} 个制品；${formalPassCount ? "存在可进入人工批准的正式候选。" : "当前 0 条正式通过，因此不会生成或导入可执行 Release。"}`
+        : "尚未发现第三阶段回测 Campaign。策略验证 Demo 保持为空。" );
+  }
+  const researchReleaseList = el("strategyValidationReleaseList");
+  if (researchReleaseList) {
+    researchReleaseList.innerHTML = releases.length
+      ? releases.map((release) => strategyValidationReleaseCard(release, false)).join("")
+      : '<div class="strategy-validation-empty">没有待批准不可变 Release。</div>';
+  }
+  const researchDetails = el("strategyValidationResearchDetails");
+  if (researchDetails) {
+    const preregHash = preregistration.preregistrationHash || preregistration.hash || "--";
+    const shortlistHash = factorShortlist.factorShortlistHash || factorShortlist.shortlistHash || factorShortlist.hash || "--";
+    researchDetails.innerHTML = `
+      <dl class="strategy-validation-evidence-list">
+        <div><dt>Campaign</dt><dd><code>${escapeHtml(campaignId || "--")}</code></dd></div>
+        <div><dt>预注册 Hash</dt><dd><code>${escapeHtml(preregHash)}</code></dd></div>
+        <div><dt>Shortlist Hash</dt><dd><code>${escapeHtml(shortlistHash)}</code></dd></div>
+        <div><dt>失败归因</dt><dd>${escapeHtml(strategyValidationCount(screening.failureAttribution))} 组证据</dd></div>
+        <div><dt>实验预算</dt><dd>${escapeHtml(strategyValidationCount(screening.experimentBudget))} 项约束</dd></div>
+        <div><dt>证据隔离</dt><dd>不计工程烟测、影子观察、旧诊断和历史本地模拟</dd></div>
+      </dl>`;
+  }
+
+  const approved = Number(releaseSummary.approved || 0);
+  const waitingApproval = Number(releaseSummary.waitingApproval || 0);
+  const armed = Boolean(runtime.armed);
+  const riskPaused = Boolean(risk.paused);
+  const demoMetrics = el("strategyValidationDemoMetrics");
+  if (demoMetrics) {
+    demoMetrics.innerHTML = [
+      strategyValidationMetric("已导入 Release", Number(releaseSummary.imported || 0), "最多 3 条 / Campaign"),
+      strategyValidationMetric("已人工批准", approved),
+      strategyValidationMetric("Runtime", armed ? "已 ARM" : "未 ARM"),
+      strategyValidationMetric("风险状态", riskPaused ? "已暂停" : "正常"),
+      strategyValidationMetric("委托", Number(ledger.exchangeOrderCount || 0)),
+      strategyValidationMetric("成交", Number(ledger.fillCount || 0)),
+      strategyValidationMetric("持仓快照", Number(ledger.positionSnapshotCount || 0)),
+      strategyValidationMetric("闭合交易", Number(ledger.closedTradeCount || 0)),
+    ].join("");
+  }
+  const demoStatus = el("strategyValidationDemoStatus");
+  if (demoStatus) {
+    const statusText = riskPaused ? "风险暂停" : (armed ? "已 ARM" : (approved ? "等待 ARM" : (releases.length ? "等待批准" : "等待 Release")));
+    demoStatus.textContent = statusText;
+    demoStatus.className = `badge ${riskPaused ? "danger" : (armed ? "ok" : "neutral")}`;
+  }
+  const nextAction = el("strategyValidationDemoNextAction");
+  if (nextAction) {
+    nextAction.textContent = riskPaused
+      ? "风险熔断已持久化。复核原因后由人工恢复；系统不会自动调参。"
+      : (waitingApproval
+        ? `${waitingApproval} 条 Release 等待逐条人工批准；批准不会自动 ARM。`
+        : (approved && !armed
+          ? "Release 已批准。需要单独点击“独立 ARM”才允许进入策略验证 Demo。"
+          : (armed
+            ? "策略验证 Runtime 已就绪；只在新鲜 Demo Universe、信号与风险门槛同时通过时委托。"
+            : (formalPassCount ? "先导入当前 Campaign 的不可变 Release。" : "当前没有正式通过候选，策略验证 Demo 正确保持为空。"))));
+  }
+  const demoReleaseList = el("strategyValidationDemoReleaseList");
+  if (demoReleaseList) {
+    demoReleaseList.innerHTML = releases.length
+      ? releases.map((release) => strategyValidationReleaseCard(release, true)).join("")
+      : '<div class="strategy-validation-empty">没有策略验证 Release；工程烟测仍可独立使用。</div>';
+  }
+  const demoDetails = el("strategyValidationDemoDetails");
+  if (demoDetails) {
+    demoDetails.innerHTML = `
+      <dl class="strategy-validation-evidence-list">
+        <div><dt>订单意图</dt><dd>${escapeHtml(Number(ledger.orderIntentCount || 0))}</dd></div>
+        <div><dt>交易所委托</dt><dd>${escapeHtml(Number(ledger.exchangeOrderCount || 0))}</dd></div>
+        <div><dt>成交 / 持仓快照</dt><dd>${escapeHtml(Number(ledger.fillCount || 0))} / ${escapeHtml(Number(ledger.positionSnapshotCount || 0))}</dd></div>
+        <div><dt>已对账闭合交易</dt><dd>${escapeHtml(Number(review.closedTradeCount || 0))}</dd></div>
+        <div><dt>前向复核</dt><dd>${escapeHtml(review.reviewStatus || "collecting")}</dd></div>
+        <div><dt>净 PnL / 平均净 R</dt><dd>${escapeHtml(formatNumber(review.netPnl, 2))} / ${escapeHtml(formatNumber(review.averageNetR, 2))}</dd></div>
+      </dl>`;
+  }
+
+  const importButton = el("strategyValidationImportButton");
+  if (importButton) importButton.disabled = !campaignId;
+  const armButton = el("strategyValidationArmButton");
+  if (armButton) armButton.disabled = !approved || armed || riskPaused;
+  const disarmButton = el("strategyValidationDisarmButton");
+  if (disarmButton) disarmButton.disabled = !armed;
+  const resumeButton = el("strategyValidationResumeRiskButton");
+  if (resumeButton) resumeButton.disabled = !riskPaused;
+}
+
+async function refreshStrategyValidation() {
+  const payload = await getJsonSafe(
+    "/api/strategy-validation/status",
+    { screening: {}, releaseSummary: {}, releases: [], runtime: {}, risk: {}, demoLedger: {}, forwardReview: {} },
+    12000,
+  );
+  latestCoreConsolePayload = { ...latestCoreConsolePayload, strategyValidation: payload };
+  renderStrategyValidation(payload);
+  return payload;
+}
+
+async function runStrategyValidationPost(url, payload, button) {
+  if (button) button.disabled = true;
+  try {
+    await postJson(url, payload);
+    await refreshStrategyValidation();
+  } catch (error) {
+    const target = el("strategyValidationDemoNextAction");
+    if (target) target.textContent = `操作失败：${error.message}`;
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+function requestStrategyValidationReason(message) {
+  const value = window.prompt(message, "人工复核后确认");
+  return value && value.trim() ? value.trim() : null;
+}
+
 function getCurrentMobileStatus() {
   return latestMobilePayload && latestMobilePayload.safetyBoundary ? latestMobilePayload : emptyMobileStatus;
 }
@@ -7938,6 +8130,7 @@ function renderConsoleFromPayloads() {
   const simulationReview = core.simulationReview || emptySimulationReview;
   const strategyLearningLoop = latestStrategyLearningLoopPayload || emptyStrategyLearningLoop;
   const strategyLifecycle = core.strategyLifecycle || emptyStrategyLifecycle;
+  const strategyValidation = core.strategyValidation || {};
 
   renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview, sandboxQualityCenter, sandboxConcentrationReview, sandboxResultReview, strategyAssetPlaybook);
   renderNoKeyPreLiveWorkbench(noKeyPreLive);
@@ -7946,6 +8139,7 @@ function renderConsoleFromPayloads() {
   renderAutoExecutionReview(autoExecutionReview);
   renderAutoExecutionLearning(autoExecutionLearning);
   renderExchangeDemoSimulation(exchangeDemo);
+  renderStrategyValidation(strategyValidation);
   renderLiveCandidateStatus(liveCandidates);
   renderRiskProfiles(riskProfiles);
   renderLiveCanary(liveCanary);
@@ -8129,6 +8323,7 @@ async function refreshAll() {
     { key: "executionOutcomes", url: "/api/execution-outcomes", fallback: { summary: {}, records: [], quarantinedExecutionRecords: [] }, timeoutMs: 6000 },
     { key: "liveReadiness", url: "/api/live-readiness", fallback: { rows: [], summary: {} }, timeoutMs: 8000 },
     { key: "forwardReview", url: "/api/forward-review", fallback: { rows: [], summary: {} }, timeoutMs: 8000 },
+    { key: "strategyValidation", url: "/api/strategy-validation/status", fallback: { screening: {}, releaseSummary: {}, releases: [], runtime: {}, risk: {}, demoLedger: {}, forwardReview: {} }, timeoutMs: 12000 },
   ], 4);
   latestCoreConsolePayload = { ...corePayload, workflow, strategyLifecycle };
   renderConsoleFromPayloads();
@@ -8638,6 +8833,66 @@ el("formalLocalForwardList")?.addEventListener("click", (event) => {
 el("exchangeDemoReadOnlyButton")?.addEventListener("click", runExchangeDemoReadOnlyCheck);
 el("demoEngineeringSmokeRunButton")?.addEventListener("click", () => runDemoEngineeringSmokeAction("run"));
 el("demoEngineeringSmokeReconcileButton")?.addEventListener("click", () => runDemoEngineeringSmokeAction("reconcile"));
+el("strategyValidationImportButton")?.addEventListener("click", (event) => {
+  const campaignId = latestStrategyValidationPayload?.campaignId || latestStrategyValidationPayload?.screening?.campaignId || "";
+  if (!campaignId) return;
+  void runStrategyValidationPost(
+    "/api/strategy-validation-releases/import",
+    { campaignId },
+    event.currentTarget,
+  );
+});
+el("strategyValidationDemoReleaseList")?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-strategy-validation-approval]");
+  if (!button) return;
+  const action = button.dataset.strategyValidationApproval || "";
+  const reason = requestStrategyValidationReason(
+    action === "approve" ? "请输入本次 Demo 批准原因。批准不会自动 ARM。" : "请输入撤销批准原因。",
+  );
+  if (!reason) return;
+  void runStrategyValidationPost(
+    action === "approve"
+      ? "/api/strategy-validation-releases/approve"
+      : "/api/strategy-validation-releases/revoke",
+    {
+      releaseId: button.dataset.releaseId || "",
+      releaseHash: button.dataset.releaseHash || "",
+      riskConfigHash: button.dataset.riskHash || "",
+      reason,
+    },
+    button,
+  );
+});
+el("strategyValidationArmButton")?.addEventListener("click", (event) => {
+  const reason = requestStrategyValidationReason("请输入本次独立 ARM 原因。只有已批准 Release 才可能运行。");
+  if (!reason) return;
+  void runStrategyValidationPost(
+    "/api/strategy-validation-runtime/arm",
+    { reason },
+    event.currentTarget,
+  );
+});
+el("strategyValidationDisarmButton")?.addEventListener("click", (event) => {
+  const reason = requestStrategyValidationReason("请输入解除 ARM 原因。");
+  if (!reason) return;
+  void runStrategyValidationPost(
+    "/api/strategy-validation-runtime/disarm",
+    { reason },
+    event.currentTarget,
+  );
+});
+el("strategyValidationResumeRiskButton")?.addEventListener("click", (event) => {
+  const reason = requestStrategyValidationReason("请确认已经人工复核风险暂停原因，并填写恢复原因。");
+  if (!reason) return;
+  void runStrategyValidationPost(
+    "/api/strategy-validation-risk/resume",
+    { reason },
+    event.currentTarget,
+  );
+});
+el("strategyValidationRefreshButton")?.addEventListener("click", () => {
+  void refreshStrategyValidation();
+});
 el("demoRuntimeLauncherButton")?.addEventListener("click", launchOkxDemoRuntime);
 el("demoCredentialVaultUpdateButton")?.addEventListener("click", launchOkxDemoRuntime);
 el("demoCredentialVaultDeleteButton")?.addEventListener("click", deleteDemoCredentialVault);

@@ -5164,6 +5164,149 @@ body:not(.show-advanced) .legacy-demo-ticket {
   background: rgba(8, 15, 19, 0.68);
 }
 
+.strategy-validation-panel {
+  margin: 18px 0;
+  padding: 18px 0;
+  border-top: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.strategy-validation-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 14px;
+}
+
+.strategy-validation-head h3 {
+  margin: 2px 0 4px;
+  font-size: 20px;
+}
+
+.strategy-validation-head small,
+.strategy-validation-release-card small {
+  color: var(--muted);
+}
+
+.strategy-validation-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid var(--line);
+}
+
+.strategy-validation-metrics > div {
+  min-height: 78px;
+  padding: 13px 15px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.strategy-validation-metrics > div:nth-child(4n) {
+  border-right: 0;
+}
+
+.strategy-validation-metrics span,
+.strategy-validation-metrics small {
+  display: block;
+  color: var(--muted);
+}
+
+.strategy-validation-metrics strong {
+  display: block;
+  margin-top: 5px;
+  font-size: 20px;
+  color: var(--text);
+}
+
+.strategy-validation-summary {
+  margin-top: 12px;
+  padding: 11px 13px;
+  border-left: 3px solid var(--gold);
+  background: rgba(255, 209, 61, 0.07);
+  color: #dfe6ed;
+}
+
+.strategy-validation-release-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.strategy-validation-release-card {
+  padding: 13px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+}
+
+.strategy-validation-release-card > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.strategy-validation-release-card > small,
+.strategy-validation-release-card > button,
+.strategy-validation-release-card details {
+  display: block;
+  margin-top: 10px;
+}
+
+.strategy-validation-release-card code {
+  display: block;
+  overflow-wrap: anywhere;
+  margin-top: 6px;
+  color: var(--blue);
+  font-size: 11px;
+}
+
+.strategy-validation-empty {
+  grid-column: 1 / -1;
+  padding: 18px;
+  border: 1px dashed var(--line-strong);
+  color: var(--muted);
+  text-align: center;
+}
+
+.strategy-validation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.strategy-validation-details {
+  margin-top: 12px;
+}
+
+.strategy-validation-details > summary {
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.strategy-validation-evidence-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 12px 0 0;
+  border: 1px solid var(--line);
+}
+
+.strategy-validation-evidence-list > div {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.strategy-validation-evidence-list dt {
+  color: var(--muted);
+}
+
+.strategy-validation-evidence-list dd {
+  margin: 5px 0 0;
+  overflow-wrap: anywhere;
+}
+
 .demo-engineering-smoke-head,
 .demo-engineering-smoke-actions {
   display: flex;

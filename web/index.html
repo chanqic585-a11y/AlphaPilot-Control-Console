@@ -70,6 +70,23 @@
             </div>
             <span id="simpleConsoleBadge" class="status-pill ok">单一阶段</span>
           </div>
+          <section id="strategyValidationResearchPanel" class="strategy-validation-panel" aria-labelledby="strategyValidationResearchTitle">
+            <div class="strategy-validation-head">
+              <div>
+                <p class="panel-eyebrow">FORMAL RESEARCH EVIDENCE</p>
+                <h3 id="strategyValidationResearchTitle">因子研究与正式回测</h3>
+                <small>只读展示第三阶段的可复核证据；这里不会触发下载、回测、批准或 Demo 订单。</small>
+              </div>
+              <strong id="strategyValidationCampaignStatus" class="badge neutral">等待 Campaign</strong>
+            </div>
+            <div id="strategyValidationResearchMetrics" class="strategy-validation-metrics"></div>
+            <div id="strategyValidationResearchSummary" class="strategy-validation-summary" aria-live="polite">正在读取正式研究证据。</div>
+            <div id="strategyValidationReleaseList" class="strategy-validation-release-list"></div>
+            <details class="strategy-validation-details">
+              <summary>证据谱系与高级信息</summary>
+              <div id="strategyValidationResearchDetails">等待 Hash、Fold、成本、FDR、因子来源和外部参考。</div>
+            </details>
+          </section>
           <div class="workflow-stage-panel">
             <div class="lifecycle-panel-head">
               <div>
@@ -586,6 +603,30 @@
             <details class="demo-engineering-smoke-diagnostics">
               <summary>工程烟测诊断</summary>
               <div id="demoEngineeringSmokeDiagnostics">尚无工程烟测记录。</div>
+            </details>
+          </section>
+          <section id="strategyValidationDemoPanel" class="strategy-validation-panel demo-validation-panel" aria-labelledby="strategyValidationDemoTitle">
+            <div class="strategy-validation-head">
+              <div>
+                <p class="panel-eyebrow">ISOLATED STRATEGY VALIDATION</p>
+                <h3 id="strategyValidationDemoTitle">策略验证 Demo</h3>
+                <small>工程烟测、影子观察、旧诊断和历史本地模拟均不计入策略 PF、胜率、PnL 或样本。</small>
+              </div>
+              <strong id="strategyValidationDemoStatus" class="badge neutral">等待 Release</strong>
+            </div>
+            <div id="strategyValidationDemoMetrics" class="strategy-validation-metrics"></div>
+            <div id="strategyValidationDemoNextAction" class="strategy-validation-summary" aria-live="polite">等待正式通过并导入不可变 Release。</div>
+            <div class="strategy-validation-actions">
+              <button id="strategyValidationImportButton" type="button">导入当前 Campaign</button>
+              <button id="strategyValidationArmButton" class="secondary" type="button">独立 ARM</button>
+              <button id="strategyValidationDisarmButton" class="secondary" type="button">解除 ARM</button>
+              <button id="strategyValidationResumeRiskButton" class="secondary" type="button">恢复风险暂停</button>
+              <button id="strategyValidationRefreshButton" class="secondary" type="button">刷新</button>
+            </div>
+            <div id="strategyValidationDemoReleaseList" class="strategy-validation-release-list"></div>
+            <details class="strategy-validation-details">
+              <summary>策略验证账本与前向复核</summary>
+              <div id="strategyValidationDemoDetails">尚无策略验证订单、成交、持仓或闭合交易。</div>
             </details>
           </section>
           <div class="demo-workflow-panel">
