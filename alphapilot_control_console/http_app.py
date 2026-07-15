@@ -11,6 +11,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from .config import ALLOWED_STRATEGY_STATUSES, SAFETY_BOUNDARY, WEB_DIR
+from .credential_runtime import load_okx_demo_credentials
 from .auto_execution_engine import build_auto_execution_engine, run_auto_execution_engine
 from .auto_execution_learning import build_auto_execution_learning
 from .auto_execution_lifecycle import build_auto_execution_lifecycle_monitor
@@ -32,6 +33,7 @@ from .evolution_demo_service import (
 )
 from .demo_workflow_service import build_demo_workflow_status, run_demo_workflow_action
 from .demo_market_runtime_registry import start_demo_market_runtime, stop_demo_market_runtime
+from .demo_instrument_universe import load_or_refresh_demo_instrument_universe
 from .demo_credential_bootstrap import (
     bootstrap_demo_credentials,
     maybe_open_demo_credential_prompt,
@@ -40,6 +42,7 @@ from .demo_startup_arm import (
     arm_okx_demo_runtime_on_startup,
     start_okx_demo_runtime_startup_recovery,
 )
+from .exchange_connectors.okx_demo_client import OkxDemoClient
 from .execution_outcome_export import (
     build_execution_outcome_status,
     write_execution_outcome_export,
@@ -185,6 +188,23 @@ def _safe_int(value: object, fallback: int) -> int:
         return int(value)
     except (TypeError, ValueError):
         return fallback
+
+
+def _build_demo_instrument_universe_status(*, fresh: bool) -> dict:
+    try:
+        credentials = load_okx_demo_credentials()
+    except (RuntimeError, ValueError):
+        return {
+            "status": "blocked",
+            "environment": "demo",
+            "eligibleInstrumentIds": [],
+            "blockers": ["okx_demo_credentials_missing"],
+            "rawPrivatePayloadStored": False,
+        }
+    return load_or_refresh_demo_instrument_universe(
+        OkxDemoClient(credentials),
+        fresh=fresh,
+    )
 
 
 def _find_artifact(index: dict, artifact_id: str) -> dict | None:
@@ -583,6 +603,13 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/evolution-demo":
             self._send_json(_cached_payload("evolution-demo", 5, build_evolution_demo_status, fresh=fresh))
+            return
+        if path == "/api/demo-instrument-universe":
+            if not _request_is_loopback(str(self.client_address[0])):
+                self._send_json({"ok": False, "error": "local_host_required"}, 403)
+                return
+            projection = _build_demo_instrument_universe_status(fresh=fresh)
+            self._send_json(projection, 200 if projection.get("status") == "usable" else 503)
             return
         if path == "/api/live-candidates":
             self._send_json(_cached_payload("live-candidates", 5, build_live_candidate_status, fresh=fresh))

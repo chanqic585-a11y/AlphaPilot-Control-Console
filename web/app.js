@@ -2762,9 +2762,47 @@ async function runDemoWorkflowSelection(strategyIds) {
   }
 }
 
+function renderDemoInstrumentUniverse(payload = {}) {
+  const status = String(payload.status || "blocked");
+  const container = el("demoInstrumentUniverseStatus")?.parentElement;
+  if (container) {
+    container.classList.toggle("is-usable", status === "usable");
+    container.classList.toggle("is-blocked", status !== "usable");
+  }
+  setText(
+    "demoInstrumentUniverseStatus",
+    status === "usable" ? "Demo 可交易合约：已核对" : "Demo 可交易合约：阻塞",
+  );
+  setText(
+    "demoInstrumentUniverseCounts",
+    `公共 ${Number(payload.publicUniverseCount || 0)} · 账户 ${Number(payload.demoAccountInstrumentCount || 0)} · 交集 ${Number(payload.intersectionCount || 0)} · Top100 ${Number(payload.liquidityEligibleCount || 0)}`,
+  );
+  const cacheAge = Number(payload.cacheAgeSeconds);
+  setText(
+    "demoInstrumentUniverseCache",
+    Number.isFinite(cacheAge) ? `缓存 ${Math.max(0, Math.round(cacheAge))} 秒${payload.stale ? " · 已过期" : ""}` : "缓存 --",
+  );
+  const blockers = Array.isArray(payload.blockers) ? payload.blockers.filter(Boolean) : [];
+  setText(
+    "demoInstrumentUniverseBlockers",
+    blockers.length ? `阻塞：${blockers.join("、")}` : "认证交集可用",
+  );
+}
+
+async function loadDemoInstrumentUniverse(force = false) {
+  const payload = await getJsonSafe(
+    `/api/demo-instrument-universe${force ? "?fresh=1" : ""}`,
+    { status: "blocked", blockers: ["无法读取认证后合约交集"] },
+    30000,
+  );
+  renderDemoInstrumentUniverse(payload);
+  return payload;
+}
+
 async function loadDemoWorkflow(force = false) {
   if (demoWorkflowLoading && !force) return demoWorkflowLoading;
   void loadDemoCredentialVaultStatus();
+  void loadDemoInstrumentUniverse(force);
   demoWorkflowLoading = getJsonSafe(
     `/api/demo-workflow${force ? "?fresh=1" : ""}`,
     { summary: {}, queues: {}, loadError: "无法读取 Demo 工作流" },

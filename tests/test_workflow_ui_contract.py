@@ -357,6 +357,18 @@ class WorkflowUiContractTests(unittest.TestCase):
         self.assertIn("启动器已打开，请在 PowerShell 窗口输入三项 Demo 凭据", self.js)
         self.assertIn("Demo 凭据每次运行只输入一次，全部合格策略共用", self.js)
 
+    def test_demo_page_shows_compact_authenticated_instrument_universe(self) -> None:
+        for target_id in (
+            "demoInstrumentUniverseStatus",
+            "demoInstrumentUniverseCounts",
+            "demoInstrumentUniverseCache",
+            "demoInstrumentUniverseBlockers",
+        ):
+            self.assertIn(f'id="{target_id}"', self.html)
+        self.assertIn("function renderDemoInstrumentUniverse", self.js)
+        self.assertIn("/api/demo-instrument-universe", self.js)
+        self.assertIn("loadDemoInstrumentUniverse(force)", self.js)
+
     def test_demo_vault_controls_are_redacted_and_do_not_collect_browser_credentials(self) -> None:
         self.assertIn('id="demoCredentialVaultStatus"', self.html)
         self.assertIn('id="demoCredentialVaultUpdateButton"', self.html)

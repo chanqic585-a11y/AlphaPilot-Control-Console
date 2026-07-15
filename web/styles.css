@@ -5129,6 +5129,32 @@ body:not(.show-advanced) .legacy-demo-ticket {
   color: var(--gold);
 }
 
+.demo-instrument-universe-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.demo-instrument-universe-status strong {
+  color: var(--text);
+}
+
+.demo-instrument-universe-status.is-usable strong {
+  color: var(--mint);
+}
+
+.demo-instrument-universe-status.is-blocked strong,
+.demo-instrument-universe-status.is-blocked #demoInstrumentUniverseBlockers {
+  color: var(--danger);
+}
+
 .exchange-demo-runbook {
   margin: 14px 0;
   padding: 14px;
