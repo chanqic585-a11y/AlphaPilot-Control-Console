@@ -1,3 +1,6 @@
+supersededBy: docs/superpowers/plans/2026-07-15-strategy-validation-demo-admission-and-cutover-v2.md
+status: superseded
+
 # AlphaPilot Strategy-Validation Demo Admission and Cutover Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
