@@ -2455,3 +2455,16 @@ reasons only. It stores no orders, fills, positions, virtual capital, equity,
 PnL, performance outcome, or promotion result, and a shadow failure cannot
 block the qualified Demo path. See
 `docs/local-simulation-retirement-and-shadow.md`.
+
+## V13.27.1.14 Advisory-R Demo Compatibility
+
+The Console accepts both legacy v1 releases and the immutable Advisory-R v2
+Demo schema. A v2 release must carry a complete, canonical, hash-verified exit
+policy plus every frozen evidence hash. Advisory-R completeness replaces the
+legacy 2R target check only for v2 Demo admission; it does not bypass approval,
+risk checks, immutable release validation, or runtime ARM.
+
+Legacy v1 imports keep their existing >=2R behavior byte-for-byte. Live
+admission remains unchanged and still uses its existing gate. This version
+adds schema and scanner compatibility only: it does not create a release, ARM
+the runtime, submit an order, or access credentials.
