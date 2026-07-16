@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Mapping
 
+from .advisory_r_exit_policy import exit_policy_hash, validate_canonical_exit_policy
 from .config import DATA_DIR
 from .strategy_validation_hashing import canonical_bytes, reject_sensitive_fields, stable_hash
 
@@ -46,18 +47,52 @@ REQUIRED_RELEASE_FIELDS = {
     "createdAt",
 }
 
+REQUIRED_V2_RELEASE_FIELDS = {
+    "schemaVersion",
+    "releaseId",
+    "releaseHash",
+    "campaignId",
+    "strategyId",
+    "familyId",
+    "strategyDefinitionHash",
+    "exitPolicyVersion",
+    "exitPolicyMode",
+    "exitPolicyHash",
+    "canonicalExitPolicy",
+    "dataSnapshotHash",
+    "preregistrationHash",
+    "trialLedgerHash",
+    "statisticalAuditHash",
+    "walkForwardHash",
+    "lockedOosHash",
+    "costModelHash",
+    "riskConfigHash",
+    "formalGateHash",
+    "environment",
+    "approvalRequired",
+    "approved",
+    "liveEligible",
+}
+
 
 def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def validate_strategy_validation_release(payload: Mapping[str, Any]) -> dict[str, Any]:
+def _validate_release_identity(payload: Mapping[str, Any]) -> None:
+    body = {key: value for key, value in payload.items() if key not in {"releaseId", "releaseHash"}}
+    expected_release_hash = stable_hash(body, "strategy_validation_release")
+    if payload.get("releaseHash") != expected_release_hash:
+        raise ValueError("release hash mismatch")
+    expected_release_id = stable_hash({"releaseHash": expected_release_hash}, "validation_release")
+    if payload.get("releaseId") != expected_release_id:
+        raise ValueError("release id mismatch")
+
+
+def _validate_v1_release(payload: Mapping[str, Any]) -> None:
     missing = sorted(REQUIRED_RELEASE_FIELDS - set(payload))
     if missing:
         raise ValueError(f"strategy-validation release is missing fields: {', '.join(missing)}")
-    reject_sensitive_fields(payload)
-    if payload.get("schemaVersion") != "strategy_validation_release_v1":
-        raise ValueError("unsupported strategy-validation release schema")
     if payload.get("releasePurpose") != "strategy_forward_validation":
         raise ValueError("only strategy_forward_validation releases can be imported")
     if payload.get("evidenceClass") != "demo_strategy_validation":
@@ -93,13 +128,46 @@ def validate_strategy_validation_release(payload: Mapping[str, Any]) -> dict[str
         if risk_profile.get(key) is not False:
             raise ValueError(f"unsafe risk option must remain false: {key}")
 
-    body = {key: value for key, value in payload.items() if key not in {"releaseId", "releaseHash"}}
-    expected_release_hash = stable_hash(body, "strategy_validation_release")
-    if payload.get("releaseHash") != expected_release_hash:
-        raise ValueError("release hash mismatch")
-    expected_release_id = stable_hash({"releaseHash": expected_release_hash}, "validation_release")
-    if payload.get("releaseId") != expected_release_id:
-        raise ValueError("release id mismatch")
+
+def _validate_v2_release(payload: Mapping[str, Any]) -> None:
+    missing = sorted(REQUIRED_V2_RELEASE_FIELDS - set(payload))
+    if missing:
+        raise ValueError(f"strategy-validation release is missing fields: {', '.join(missing)}")
+    if payload.get("environment") != "demo":
+        raise ValueError("strategy-validation release must target Demo")
+    if payload.get("approvalRequired") is not True or payload.get("approved") is not False:
+        raise ValueError("release must arrive unapproved and require manual approval")
+    if payload.get("liveEligible") is not False:
+        raise ValueError("Advisory-R release must not be live eligible")
+    for field in REQUIRED_V2_RELEASE_FIELDS - {
+        "approved",
+        "approvalRequired",
+        "liveEligible",
+        "canonicalExitPolicy",
+    }:
+        if not str(payload.get(field) or "").strip():
+            raise ValueError(f"strategy-validation release field is empty: {field}")
+
+    policy = validate_canonical_exit_policy(payload.get("canonicalExitPolicy"))
+    if payload.get("exitPolicyVersion") != policy["version"]:
+        raise ValueError("exit policy version mismatch")
+    if payload.get("exitPolicyMode") != policy["mode"]:
+        raise ValueError("exit policy mode mismatch")
+    if payload.get("exitPolicyHash") != exit_policy_hash(policy):
+        raise ValueError("exit policy hash mismatch")
+
+
+def validate_strategy_validation_release(payload: Mapping[str, Any]) -> dict[str, Any]:
+    reject_sensitive_fields(payload)
+    schema_version = payload.get("schemaVersion")
+    if schema_version == "strategy_validation_release_v1":
+        _validate_v1_release(payload)
+    elif schema_version == "strategy_validation_release_v2":
+        _validate_v2_release(payload)
+    else:
+        raise ValueError("unsupported strategy-validation release schema")
+
+    _validate_release_identity(payload)
     return dict(payload)
 
 
@@ -181,7 +249,7 @@ class StrategyValidationReleaseStore:
                     release_id,
                     release_hash,
                     normalized["campaignId"],
-                    normalized["candidateId"],
+                    normalized.get("candidateId") or normalized["strategyId"],
                     normalized["strategyId"],
                     normalized["riskConfigHash"],
                     digest,

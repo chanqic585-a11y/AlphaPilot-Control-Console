@@ -9,6 +9,11 @@ from datetime import UTC, datetime
 from statistics import median
 from typing import Any, Callable
 
+from .advisory_r_exit_policy import (
+    advisory_target_r,
+    is_advisory_definition,
+    validate_definition_exit_policy,
+)
 from .exchange_connectors.public_exchange_registry import (
     fetch_okx_public_instrument_metadata,
     fetch_okx_public_market_snapshot,
@@ -292,11 +297,16 @@ def _size_signal(
     snapshot: dict[str, Any],
     metadata: dict[str, Any],
     factor_context: dict[str, Any],
+    exit_policy: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any] | None, str | None]:
     price = float(snapshot.get("price") or 0)
     atr = float(snapshot.get("atr14") or 0)
     atr_multiplier = max(0.1, float(factor_context.get("atrMultiplier") or 1.0))
-    target_r = max(2.0, float(factor_context.get("targetRewardRiskRatio") or 2.0))
+    target_r = (
+        advisory_target_r(exit_policy)
+        if exit_policy is not None
+        else max(2.0, float(factor_context.get("targetRewardRiskRatio") or 2.0))
+    )
     risk_distance = atr * atr_multiplier
     ct_val = float(metadata.get("ctVal") or 0)
     lot_size = float(metadata.get("lotSz") or 0)
@@ -329,6 +339,12 @@ def _size_signal(
     ).hexdigest()
     signal_time = datetime.fromtimestamp(signal_time_ms / 1000, tz=UTC).isoformat()
     strategy = contract.get("strategy") if isinstance(contract.get("strategy"), dict) else {}
+    static_take_profit = (
+        price + sign * risk_distance * target_r
+        if target_r is not None
+        and (exit_policy is None or exit_policy.get("mode") == "fixed_r")
+        else None
+    )
     return {
         "candidateId": candidate_id,
         "strategyCandidateId": contract["strategyCandidateId"],
@@ -344,7 +360,7 @@ def _size_signal(
         "sz": f"{size:.12f}".rstrip("0").rstrip("."),
         "entryPrice": price,
         "stopLossPrice": price - sign * risk_distance,
-        "takeProfitPrice": price + sign * risk_distance * target_r,
+        "takeProfitPrice": static_take_profit,
         "notionalUsdt": notional,
         "leverage": min(2, int(limits.get("defaultMaxLeverage") or 2)),
         "riskPercent": risk_percent,
@@ -353,6 +369,10 @@ def _size_signal(
         "dataFresh": True,
         "liquidityPassed": True,
         "factorContext": factor_context,
+        "exitPolicyMode": exit_policy.get("mode") if exit_policy else "legacy_fixed_r",
+        "exitPolicy": exit_policy,
+        "exitPolicyHash": strategy.get("exitPolicyHash") if exit_policy else None,
+        "advisoryTargetR": target_r if exit_policy else None,
     }, None
 
 
@@ -364,6 +384,17 @@ def scan_immutable_demo_release(
     universe_loader: UniverseLoader = fetch_okx_usdt_swap_universe,
 ) -> dict[str, Any]:
     strategy = contract.get("strategy") if isinstance(contract.get("strategy"), dict) else {}
+    exit_policy: dict[str, Any] | None = None
+    if is_advisory_definition(strategy):
+        try:
+            exit_policy = validate_definition_exit_policy(strategy)
+        except ValueError:
+            return {
+                "signals": [],
+                "rejections": [],
+                "blockers": ["exit_policy_incomplete"],
+                "createsOrder": False,
+            }
     market = strategy.get("marketDefinition") if isinstance(strategy.get("marketDefinition"), dict) else {}
     policy = strategy.get("forwardSignalPolicy") if isinstance(strategy.get("forwardSignalPolicy"), dict) else {}
     instruments = market.get("eligibleInstruments")
@@ -557,6 +588,7 @@ def scan_immutable_demo_release(
             snapshot=snapshot,
             metadata=metadata,
             factor_context=factor_context,
+            exit_policy=exit_policy,
         )
         if signal is None:
             if instrument in candidate_by_id:

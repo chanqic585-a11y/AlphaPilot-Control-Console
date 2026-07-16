@@ -8,6 +8,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable
 
+from .advisory_r_exit_policy import (
+    is_advisory_definition,
+    validate_definition_exit_policy,
+)
 from .evolution_demo_service import (
     LOCAL_CONTRACT_DIR,
     _contract_hash,
@@ -72,7 +76,15 @@ def _hard_gate_blockers(lifecycle_item: dict[str, Any]) -> tuple[list[str], dict
     blockers: list[str] = []
     if int(_number(metrics.get("tradeCount"))) <= 0:
         blockers.append("formal_backtest_evidence_missing")
-    if target_r < 2.0:
+    advisory_definition = is_advisory_definition(definition)
+    exit_policy_complete = False
+    if advisory_definition:
+        try:
+            validate_definition_exit_policy(definition)
+            exit_policy_complete = True
+        except ValueError:
+            blockers.append("exit_policy_incomplete")
+    elif target_r < 2.0:
         blockers.append("target_r_below_2r")
     if not all(
         (
@@ -80,6 +92,7 @@ def _hard_gate_blockers(lifecycle_item: dict[str, Any]) -> tuple[list[str], dict
             _direction(definition.get("direction") or lifecycle_item.get("direction")),
             str(definition.get("timeframe") or lifecycle_item.get("timeframe") or "").strip(),
             parameters,
+            exit_policy_complete if advisory_definition else True,
         )
     ):
         blockers.append("strategy_definition_incomplete")
@@ -114,7 +127,7 @@ def _build_strategy(
     family = str(definition.get("family") or parameters.get("family") or "").strip()
     timeframe = str(definition.get("timeframe") or lifecycle_item.get("timeframe") or "").strip()
     direction = _direction(definition.get("direction") or lifecycle_item.get("direction"))
-    return {
+    strategy = {
         "familyKey": family,
         "strategyContentHash": lifecycle_item.get("contentHash"),
         "marketDefinition": {
@@ -131,6 +144,15 @@ def _build_strategy(
             "parameters": parameters,
         },
     }
+    if is_advisory_definition(definition):
+        strategy.update(
+            {
+                "schemaVersion": definition.get("schemaVersion"),
+                "exitPolicy": validate_definition_exit_policy(definition),
+                "exitPolicyHash": definition.get("exitPolicyHash"),
+            }
+        )
+    return strategy
 
 
 def authorize_demo_override(

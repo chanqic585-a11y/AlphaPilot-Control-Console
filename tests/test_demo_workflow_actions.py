@@ -4,6 +4,7 @@ import unittest
 from unittest.mock import patch
 
 import alphapilot_control_console.demo_workflow_service as service
+from alphapilot_control_console.strategy_validation_hashing import stable_hash
 
 
 def lifecycle(stage: str, *, closed_samples: int = 0) -> dict:
@@ -18,6 +19,34 @@ def lifecycle(stage: str, *, closed_samples: int = 0) -> dict:
             }
         ]
     }
+
+
+def advisory_lifecycle(stage: str = "demo_trial") -> dict:
+    payload = lifecycle(stage, closed_samples=30)
+    exit_policy = {
+        "version": "advisory_r_exit_policy_v1",
+        "mode": "structure_or_time",
+        "maximumHoldBars": 24,
+        "initialStopMayWiden": False,
+        "parameters": {
+            "structureRule": {
+                "kind": "event_reversal",
+                "confirmationBars": 2,
+            }
+        },
+    }
+    payload["items"][0]["optimizationContext"] = {
+        "definition": {
+            "schemaVersion": "strategy_workflow_definition_v2",
+            "family": "event_continuation",
+            "direction": "long_research",
+            "timeframe": "1h",
+            "exitPolicy": exit_policy,
+            "exitPolicyHash": stable_hash(exit_policy, "exit_policy"),
+        },
+        "parameters": {"atrMultiplier": 1.2},
+    }
+    return payload
 
 
 def exchange_demo(*, candidate_status: str = "strategy_loaded", contract: bool = False, ready: bool = False) -> dict:
@@ -100,6 +129,26 @@ class DemoWorkflowActionTests(unittest.TestCase):
         self.assertEqual(result["readiness"]["closedSamples"], 1)
         self.assertEqual(result["readiness"]["reviewStartSamples"], 30)
         self.assertFalse(result["safetyBoundary"]["createsOrder"])
+
+    def test_advisory_release_preflight_does_not_require_two_r_target(self) -> None:
+        with patch.object(
+            service,
+            "build_strategy_lifecycle_projection",
+            return_value=advisory_lifecycle(),
+        ), patch.object(
+            service,
+            "build_exchange_demo_simulation",
+            return_value=exchange_demo(candidate_status="market_ready", contract=True),
+        ):
+            result = service.run_demo_workflow_action(
+                {"action": "prepare_demo_release", "strategyId": "strategy-1"}
+            )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["status"], "ready")
+        self.assertTrue(result["readiness"]["exitPolicyComplete"])
+        self.assertEqual(result["readiness"]["exitPolicyMode"], "structure_or_time")
+        self.assertNotIn("target_r_below_2r", result.get("blockers", []))
 
     def test_running_release_calls_existing_demo_cycle_only_when_release_matches(self) -> None:
         ready_exchange = exchange_demo(candidate_status="market_ready", contract=True, ready=True)

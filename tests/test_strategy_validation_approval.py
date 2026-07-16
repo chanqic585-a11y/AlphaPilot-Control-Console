@@ -10,7 +10,7 @@ from alphapilot_control_console.strategy_validation_approval_store import (
 from alphapilot_control_console.strategy_validation_release_store import (
     StrategyValidationReleaseStore,
 )
-from tests.strategy_validation_fixtures import canonical_bytes, make_release
+from tests.strategy_validation_fixtures import canonical_bytes, make_advisory_release, make_release
 
 
 class StrategyValidationApprovalTests(unittest.TestCase):
@@ -72,6 +72,27 @@ class StrategyValidationApprovalTests(unittest.TestCase):
                     reason="wrong hash",
                     actor="human_local_operator",
                 )
+            approvals.close()
+            releases.close()
+
+    def test_schema_v2_approval_remains_separate_from_runtime_arm(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            releases = StrategyValidationReleaseStore(root / "releases.sqlite", root / "contracts")
+            release = make_advisory_release()
+            releases.import_bytes(canonical_bytes(release))
+            approvals = StrategyValidationApprovalStore(root / "approvals.sqlite", releases)
+
+            approved = approvals.approve(
+                releaseId=release["releaseId"],
+                releaseHash=release["releaseHash"],
+                riskConfigHash=release["riskConfigHash"],
+                reason="Reviewed Advisory-R evidence for Demo only.",
+                actor="human_local_operator",
+            )
+
+            self.assertTrue(approved["approved"])
+            self.assertFalse(approved["runtimeArmed"])
             approvals.close()
             releases.close()
 

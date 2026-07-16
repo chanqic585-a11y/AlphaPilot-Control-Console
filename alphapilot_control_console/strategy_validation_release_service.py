@@ -41,7 +41,10 @@ class StrategyValidationReleaseService:
                 payload = json.loads(path.read_text(encoding="utf-8"))
             except json.JSONDecodeError as error:
                 raise ValueError(f"invalid release JSON: {path.name}") from error
-            if payload.get("schemaVersion") != "strategy_validation_release_v1":
+            if payload.get("schemaVersion") not in {
+                "strategy_validation_release_v1",
+                "strategy_validation_release_v2",
+            }:
                 continue
             imported.append(self.store.import_file(path))
         expected = int(summary.get("releaseCount") or 0)
