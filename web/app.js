@@ -235,6 +235,7 @@ let latestAutoExecutionLearningPayload = {};
 let latestLiveCandidatePayload = {};
 let latestLiveCanaryPayload = {};
 let latestAutomaticExecutionPayload = { environments: {} };
+let latestExecutionControlPayload = { environments: { demo: {}, live: {} } };
 let selectedLiveCandidatePackageId = null;
 let latestRiskProfilePayload = {};
 let selectedRiskProfileId = null;
@@ -628,6 +629,197 @@ async function runAutomaticExecutionAction(environment, action, button) {
     else await refreshLiveCanaryStatus();
   } catch (error) {
     setText(`${prefix}ActionStatus`, `操作失败：${error.message}`);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+const executionControlBlockerLabels = {
+  demo_credentials_missing: "Demo 进程凭据未就绪",
+  immutable_release_missing: "缺少不可变 Demo Release",
+  process_arm_required: "当前 Demo 进程尚未 ARM",
+  runtime_error: "执行运行时存在错误",
+  reconciliation_unhealthy: "订单或持仓对账未通过",
+  kill_switch_active: "紧急停止开关已生效",
+  live_default_off: "实盘默认关闭",
+  live_start_not_available_in_v37a: "V37A 不开放网页启动实盘",
+  live_arm_requires_existing_manual_path: "实盘 ARM 必须使用既有人工审批路径",
+  action_dispatch_timeout: "动作分发超时",
+  action_dispatch_failed: "动作分发失败",
+};
+
+function executionControlStateLabel(runtime = {}, environment = "demo") {
+  if (runtime.killSwitch?.active) return "紧急停止";
+  if (runtime.lastError) return "运行异常";
+  if (environment === "live" && !runtime.desiredEnabled) return "实盘默认关闭";
+  if (runtime.desiredEnabled && runtime.armedForCurrentProcess) return "已运行";
+  if (runtime.desiredEnabled) return "等待进程 ARM";
+  return runtime.status === "paused" ? "已暂停" : "未启动";
+}
+
+function executionControlBoolean(value, yes = "是", no = "否") {
+  return value ? yes : no;
+}
+
+function executionControlDate(value) {
+  return value ? `${formatDate(value)} 北京时间` : "--";
+}
+
+function renderExecutionEnvironment(environment, runtime = {}) {
+  const isLive = environment === "live";
+  const label = isLive ? "实盘" : "Demo";
+  const state = executionControlStateLabel(runtime, environment);
+  const stateClass = runtime.lastError || runtime.killSwitch?.active
+    ? "danger"
+    : runtime.desiredEnabled && runtime.armedForCurrentProcess
+      ? "ok"
+      : "warn";
+  return `
+    <article class="execution-control-environment" data-environment="${environment}">
+      <div class="execution-control-environment-head">
+        <strong>${label}</strong>
+        <span class="badge ${stateClass}">${escapeHtml(state)}</span>
+      </div>
+      <dl class="execution-control-metrics">
+        <div><dt>运行身份</dt><dd>${escapeHtml(runtime.runtimeIdentity || "--")}</dd></div>
+        <div><dt>不可变 Release</dt><dd>${Number(runtime.releaseCount || 0)}</dd></div>
+        <div><dt>进程凭据</dt><dd>${executionControlBoolean(runtime.credentialReady, "已就绪", "未就绪")}</dd></div>
+        <div><dt>当前进程 ARM</dt><dd>${executionControlBoolean(runtime.armedForCurrentProcess, "已 ARM", "未 ARM")}</dd></div>
+        <div><dt>最近心跳</dt><dd>${escapeHtml(executionControlDate(runtime.lastHeartbeatAt))}</dd></div>
+        <div><dt>下次评估</dt><dd>${escapeHtml(executionControlDate(runtime.nextEvaluationAt))}</dd></div>
+      </dl>
+    </article>
+  `;
+}
+
+function executionControlActionButtons(environment, runtime = {}) {
+  if (environment === "live") {
+    return `
+      <div class="execution-control-actions">
+        <button class="secondary" type="button" data-execution-control-action="pause" data-environment="okx_live">暂停新开仓</button>
+        <button class="secondary" type="button" data-execution-control-action="stop" data-environment="okx_live">停止实盘运行</button>
+        <button class="danger-action" type="button" data-execution-control-action="emergency_stop" data-environment="okx_live">紧急停止</button>
+      </div>
+      <p class="execution-control-note">V37A 不提供实盘启动或 ARM 按钮；实盘 ARM 必须使用既有人工审批路径。</p>
+    `;
+  }
+  return `
+    <div class="execution-control-actions">
+      <button type="button" data-execution-control-action="start" data-environment="okx_demo">${runtime.desiredEnabled ? "保持 Demo 自动运行" : "启动 Demo 自动运行"}</button>
+      <button class="secondary" type="button" data-execution-control-action="pause" data-environment="okx_demo">暂停新开仓</button>
+      <button class="secondary" type="button" data-execution-control-action="stop" data-environment="okx_demo">停止</button>
+      <button class="danger-action" type="button" data-execution-control-action="emergency_stop" data-environment="okx_demo">紧急停止</button>
+    </div>
+    <p class="execution-control-note">凭据仅存在于独立启动进程；网页不会保存或回显 API Key。</p>
+  `;
+}
+
+function executionControlBlockers(runtime = {}) {
+  const blockers = Array.isArray(runtime.blockerCodes) ? runtime.blockerCodes : [];
+  if (!blockers.length) return '<span class="execution-control-clear">当前没有执行阻塞</span>';
+  return `<ul>${blockers.map((code) => `<li><code>${escapeHtml(code)}</code><span>${escapeHtml(executionControlBlockerLabels[code] || code)}</span></li>`).join("")}</ul>`;
+}
+
+function executionControlNextActions(runtime = {}) {
+  const actions = Array.isArray(runtime.nextActions) ? runtime.nextActions : [];
+  if (!actions.length) return '<span class="execution-control-clear">无需额外处理</span>';
+  return `<ol>${actions.map((action) => `<li>${escapeHtml(action.labelZh || action.code || "待处理")}</li>`).join("")}</ol>`;
+}
+
+function renderExecutionControl(payload = { environments: { demo: {}, live: {} } }) {
+  latestExecutionControlPayload = payload || { environments: { demo: {}, live: {} } };
+  const environments = latestExecutionControlPayload.environments || {};
+  const demo = environments.demo || {};
+  const live = environments.live || {};
+  const crossTrack = latestExecutionControlPayload.crossTrack || {};
+  const safety = latestExecutionControlPayload.safetyBoundary || {};
+  document.querySelectorAll("[data-execution-control-panel]").forEach((panel) => {
+    const focus = panel.dataset.executionControlEnvironment === "live" ? "live" : "demo";
+    const focusLabel = focus === "live" ? "实盘" : "Demo";
+    panel.innerHTML = `
+      <div class="execution-control-title">
+        <div><p class="panel-eyebrow">V37A EXECUTION FUNCTION CORE</p><h3>双轨执行控制</h3></div>
+        <span class="status-pill ${focus === "live" ? "danger" : "neutral"}">当前页面：${focusLabel}</span>
+      </div>
+      <section class="execution-control-band" data-execution-control-section="dual-track-overview">
+        <div class="execution-control-section-title"><strong>双轨总览</strong><span>共享信息架构，运行身份与证据完全隔离</span></div>
+        <div class="execution-control-grid">${renderExecutionEnvironment("demo", demo)}${renderExecutionEnvironment("live", live)}</div>
+      </section>
+      <section class="execution-control-band" data-execution-control-section="demo-runtime">
+        <div class="execution-control-section-title"><strong>Demo 运行</strong><span>${escapeHtml(executionControlStateLabel(demo, "demo"))}</span></div>
+        ${executionControlActionButtons("demo", demo)}
+      </section>
+      <section class="execution-control-band" data-execution-control-section="live-readiness">
+        <div class="execution-control-section-title"><strong>实盘就绪</strong><span>实盘默认关闭</span></div>
+        ${executionControlActionButtons("live", live)}
+      </section>
+      <section class="execution-control-band" data-execution-control-section="orders-positions">
+        <div class="execution-control-section-title"><strong>订单与持仓</strong><span>只显示脱敏摘要</span></div>
+        <div class="execution-control-order-grid">
+          <div><span>Demo 未完成订单</span><strong>${Number(demo.orders?.openCount || 0)}</strong></div>
+          <div><span>Demo 持仓</span><strong>${Number(demo.positions?.openCount || 0)}</strong></div>
+          <div><span>Live 执行记录</span><strong>${Number(live.orders?.recordCount || 0)}</strong></div>
+          <div><span>Live 持仓</span><strong>${Number(live.positions?.openCount || 0)}</strong></div>
+        </div>
+      </section>
+      <section class="execution-control-band" data-execution-control-section="blockers-next-actions">
+        <div class="execution-control-section-title"><strong>阻塞与下一步</strong><span>确定性后台结论</span></div>
+        <div class="execution-control-blocker-grid">
+          <div><h4>Demo 阻塞</h4>${executionControlBlockers(demo)}<h4>Demo 下一步</h4>${executionControlNextActions(demo)}</div>
+          <div><h4>实盘阻塞</h4>${executionControlBlockers(live)}<h4>实盘下一步</h4>${executionControlNextActions(live)}</div>
+        </div>
+        <p class="execution-control-action-status" data-execution-control-action-status aria-live="polite"></p>
+      </section>
+      <details class="execution-control-evidence">
+        <summary>高级证据</summary>
+        <dl>
+          <div><dt>Demo Release Hash</dt><dd>${escapeHtml((crossTrack.demoReleaseHashes || []).join(", ") || "--")}</dd></div>
+          <div><dt>Live Release Hash</dt><dd>${escapeHtml((crossTrack.liveReleaseHashes || []).join(", ") || "--")}</dd></div>
+          <div><dt>共享 Hash</dt><dd>${escapeHtml((crossTrack.sharedReleaseHashes || []).join(", ") || "--")}</dd></div>
+          <div><dt>运行身份隔离</dt><dd>${executionControlBoolean(crossTrack.runtimeIdentityIsolated, "已确认", "未确认")}</dd></div>
+          <div><dt>凭据持久化</dt><dd>${executionControlBoolean(safety.credentialsPersisted, "是", "否")}</dd></div>
+          <div><dt>Withdraw</dt><dd>${executionControlBoolean(safety.withdrawAllowed, "允许", "禁用")}</dd></div>
+        </dl>
+      </details>
+    `;
+  });
+}
+
+function executionControlRequestId() {
+  const unique = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `execution-control-request-${unique}`;
+}
+
+async function loadExecutionControl(force = false) {
+  const payload = await getJsonSafe(
+    `/api/execution-control/status${force ? "?fresh=1" : ""}`,
+    { schemaVersion: "execution-control.v1", environments: { demo: {}, live: {} } },
+    8000,
+  );
+  renderExecutionControl(payload);
+  return payload;
+}
+
+async function runExecutionControlAction(environment, action, button) {
+  const panel = button?.closest("[data-execution-control-panel]");
+  const status = panel?.querySelector("[data-execution-control-action-status]");
+  if (button) button.disabled = true;
+  if (status) status.textContent = "正在提交受限执行动作...";
+  try {
+    const response = await postJson("/api/execution-control/action", {
+      requestId: executionControlRequestId(),
+      environment,
+      action,
+      actor: "console_operator",
+      reason: `v37a_console_${action}`,
+    });
+    await loadExecutionControl(true);
+    const message = response.idempotentReplay ? "动作已幂等重放。" : "动作已完成。";
+    document.querySelectorAll("[data-execution-control-action-status]").forEach((target) => {
+      target.textContent = message;
+    });
+  } catch (error) {
+    if (status) status.textContent = `操作未完成：${error.message}`;
   } finally {
     if (button) button.disabled = false;
   }
@@ -8123,6 +8315,7 @@ function renderConsoleFromPayloads() {
   const riskProfiles = core.riskProfiles || { summary: {}, profiles: [], activeProfiles: {} };
   const liveCanary = core.liveCanary || { summary: {}, runtimeGates: {}, runtime: {}, liveReleases: { summary: {} }, blockers: [] };
   const automaticExecution = core.automaticExecution || mobile.automaticExecution || { environments: {} };
+  const executionControl = core.executionControl || { schemaVersion: "execution-control.v1", environments: { demo: {}, live: {} } };
   const executionOutcomes = core.executionOutcomes || { summary: {}, records: [], quarantinedExecutionRecords: [] };
   const liveReadiness = core.liveReadiness || { rows: [], summary: {} };
   const forwardReview = core.forwardReview || { rows: [], summary: {} };
@@ -8144,6 +8337,7 @@ function renderConsoleFromPayloads() {
   renderRiskProfiles(riskProfiles);
   renderLiveCanary(liveCanary);
   renderAutomaticExecution(automaticExecution);
+  renderExecutionControl(executionControl);
   renderExecutionOutcomes(executionOutcomes);
   renderCommandCenter(strategyItems, reportItems, mobile);
   renderRuntimeMonitor(strategyItems, mobile);
@@ -8320,6 +8514,7 @@ async function refreshAll() {
     { key: "riskProfiles", url: "/api/risk-profiles", fallback: { summary: {}, profiles: [], activeProfiles: {} }, timeoutMs: 6000 },
     { key: "liveCanary", url: "/api/live-canary", fallback: { summary: {}, runtimeGates: {}, runtime: {}, liveReleases: { summary: {} }, blockers: [] }, timeoutMs: 6000 },
     { key: "automaticExecution", url: "/api/auto-execution/runtime", fallback: { environments: {}, running: false }, timeoutMs: 6000 },
+    { key: "executionControl", url: "/api/execution-control/status", fallback: { schemaVersion: "execution-control.v1", environments: { demo: {}, live: {} } }, timeoutMs: 8000 },
     { key: "executionOutcomes", url: "/api/execution-outcomes", fallback: { summary: {}, records: [], quarantinedExecutionRecords: [] }, timeoutMs: 6000 },
     { key: "liveReadiness", url: "/api/live-readiness", fallback: { rows: [], summary: {} }, timeoutMs: 8000 },
     { key: "forwardReview", url: "/api/forward-review", fallback: { rows: [], summary: {} }, timeoutMs: 8000 },
@@ -8963,6 +9158,13 @@ document.addEventListener("click", (event) => {
   const action = button.dataset.autoExecutionAction || "";
   void runAutomaticExecutionAction(environment, action, button);
 });
+document.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-execution-control-action]");
+  if (!button) return;
+  const environment = button.dataset.environment || "";
+  const action = button.dataset.executionControlAction || "";
+  void runExecutionControlAction(environment, action, button);
+});
 el("exportExecutionOutcomesButton")?.addEventListener("click", exportExecutionOutcomes);
 el("toggleAdvancedModeButton")?.addEventListener("click", () => {
   toggleAdvancedMode();
@@ -9084,6 +9286,9 @@ refreshAll().catch((error) => {
 });
 window.setInterval(() => {
   void loadAutomaticExecution(true);
+}, 15000);
+window.setInterval(() => {
+  void loadExecutionControl(true);
 }, 15000);
 updateCurrentSection();
 loadCurrentSectionData();

@@ -74,6 +74,30 @@ The first UI slice is a compact Chinese operations panel with stable dimensions 
 
 Advanced evidence is collapsed. UI actions map one-to-one to backend action codes. No API key form is added to the page.
 
+## Demo and Live terminal parity
+
+Demo and Live use the same terminal information architecture and reusable presentation components so that Demo validates the real operating workflow rather than a simplified mock screen. Shared sections include market context, active strategy, signals, orders, positions, realized and unrealized PnL, exit protection, risk limits, reconciliation health, and an audit timeline.
+
+Runtime identity is never shared. Demo and Live retain separate credentials, environment adapters, ledgers, approvals, ARM state, risk profiles, and kill switches. The UI must make the active environment unmistakable:
+
+- Demo uses a persistent `OKX Demo` banner and simulated-account labels;
+- Live uses a persistent `LIVE` banner, stronger confirmation gates, and default-OFF controls;
+- switching views never transfers desired state or ARM state between environments;
+- engineering smoke records remain separate from strategy evidence in both views.
+
+Demo additionally exposes diagnostic details such as strategy-match rejection reasons, exchange response codes, latency stages, and reconciliation traces. Live defaults to a tighter operational view and reveals diagnostic evidence only on demand.
+
+## External product reference boundary
+
+FinceptTerminal is a product and workflow reference only:
+
+- URL: https://github.com/Fincept-Corporation/FinceptTerminal
+- License: AGPL-3.0 plus a separate commercial license with explicit restrictions stated by the project
+- Summary: native financial terminal covering multi-asset analytics, data connectors, trading, portfolio views, risk metrics, and visual workflows
+- Citation: Fincept-Corporation/FinceptTerminal repository README and LICENSE, reviewed 2026-07-19
+
+AlphaPilot may study its dense terminal layout, module navigation, market/portfolio/risk grouping, and workflow visibility. AlphaPilot must not copy, fork, import, translate, or derive implementation code, branded assets, text, or proprietary data connectors from that repository. The Console keeps its existing web stack, original Chinese UI, and independently implemented execution contracts.
+
 ## Verification
 
 - projection tests with complete, missing, stale, blocked, and mismatch states;

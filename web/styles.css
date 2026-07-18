@@ -7013,3 +7013,218 @@ body.show-advanced .hero-grid.advanced-section {
   display: grid;
   gap: 12px;
 }
+
+.execution-control-shell {
+  background: #0b1118;
+  border: 1px solid #2b3948;
+  border-radius: 6px;
+  display: grid;
+  gap: 0;
+  margin: 14px 0 18px;
+  overflow: hidden;
+}
+
+.execution-control-loading {
+  color: var(--muted);
+  padding: 18px;
+}
+
+.execution-control-title,
+.execution-control-section-title,
+.execution-control-environment-head {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.execution-control-title {
+  background: #101821;
+  padding: 14px 16px;
+}
+
+.execution-control-title h3,
+.execution-control-section-title strong,
+.execution-control-blocker-grid h4 {
+  margin: 0;
+}
+
+.execution-control-band,
+.execution-control-evidence {
+  border-top: 1px solid #253240;
+  padding: 14px 16px;
+}
+
+.execution-control-section-title {
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.execution-control-section-title span,
+.execution-control-note,
+.execution-control-evidence summary,
+.execution-control-evidence dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.execution-control-grid,
+.execution-control-blocker-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.execution-control-environment {
+  border-left: 3px solid #4a647c;
+  min-width: 0;
+  padding: 4px 0 4px 12px;
+}
+
+.execution-control-environment[data-environment="demo"] {
+  border-left-color: #67d6b0;
+}
+
+.execution-control-environment[data-environment="live"] {
+  border-left-color: #e06f87;
+}
+
+.execution-control-metrics,
+.execution-control-evidence dl {
+  display: grid;
+  gap: 8px 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 12px 0 0;
+}
+
+.execution-control-metrics div,
+.execution-control-evidence dl div {
+  min-width: 0;
+}
+
+.execution-control-metrics dt,
+.execution-control-metrics dd,
+.execution-control-evidence dt,
+.execution-control-evidence dd {
+  margin: 0;
+}
+
+.execution-control-metrics dt {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.execution-control-metrics dd,
+.execution-control-evidence dd {
+  overflow-wrap: anywhere;
+  padding-top: 3px;
+}
+
+.execution-control-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.execution-control-actions button {
+  min-height: 38px;
+}
+
+.execution-control-note {
+  margin: 9px 0 0;
+}
+
+.execution-control-order-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.execution-control-order-grid > div {
+  border-left: 1px solid #253240;
+  display: grid;
+  gap: 5px;
+  padding: 4px 12px;
+}
+
+.execution-control-order-grid > div:first-child {
+  border-left: 0;
+  padding-left: 0;
+}
+
+.execution-control-order-grid span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.execution-control-order-grid strong {
+  font-size: 20px;
+}
+
+.execution-control-blocker-grid > div {
+  border-left: 2px solid #384a5c;
+  min-width: 0;
+  padding-left: 12px;
+}
+
+.execution-control-blocker-grid ul,
+.execution-control-blocker-grid ol {
+  display: grid;
+  gap: 7px;
+  margin: 8px 0 13px;
+  padding-left: 18px;
+}
+
+.execution-control-blocker-grid li {
+  color: #d9e2ec;
+}
+
+.execution-control-blocker-grid code {
+  color: #efbd54;
+  display: block;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.execution-control-clear {
+  color: #6ed6ae;
+  display: block;
+  margin: 8px 0 13px;
+}
+
+.execution-control-action-status {
+  color: #efbd54;
+  min-height: 18px;
+  margin: 10px 0 0;
+}
+
+.execution-control-evidence summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+@media (max-width: 760px) {
+  .execution-control-grid,
+  .execution-control-blocker-grid,
+  .execution-control-metrics,
+  .execution-control-evidence dl {
+    grid-template-columns: 1fr;
+  }
+
+  .execution-control-order-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .execution-control-order-grid > div:nth-child(3) {
+    border-left: 0;
+    padding-left: 0;
+  }
+
+  .execution-control-title,
+  .execution-control-section-title {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .execution-control-actions button {
+    flex: 1 1 140px;
+  }
+}

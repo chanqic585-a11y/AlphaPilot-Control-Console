@@ -11,6 +11,28 @@ AlphaPilot Control Console is a local desktop web console for reviewing
 AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
+## V37A Execution Function Core
+
+V37A strengthens the existing Console execution stack without changing its
+trading boundaries:
+
+- A single redacted `execution-control.v1` projection summarizes Demo and Live
+  runtime identity, market-feed state, immutable releases, orders, positions,
+  reconciliation, risk, kill switches, blockers, and deterministic next steps.
+- A bounded idempotent action facade delegates only to existing runtime
+  services. Demo supports start/pause/stop/emergency stop; Live remains
+  default OFF and exposes no new start or ARM path.
+- A deterministic Workflow Validation Demo exercises discovery through
+  reconciliation without exchange network access, credentials, or orders.
+- Demo and Live use one compact Chinese information architecture while keeping
+  credentials, adapters, ledgers, approvals, ARM, risk profiles, kill switches,
+  and runtime identity isolated.
+
+V37A stores no credentials, adds no Withdraw integration, creates no real
+account or order integration, and does not bypass immutable Release, Approval,
+ARM, reconciliation, or risk gates. FinceptTerminal is retained only as
+citation/reference metadata under `docs/references/`.
+
 ## Current Strategy Family Status
 
 The Strategy page now distinguishes immutable workflow history from the

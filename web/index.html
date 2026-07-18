@@ -571,6 +571,14 @@
             </div>
             <span id="exchangeDemoModeBadge" class="status-pill danger">Demo &#38145;&#23450;</span>
           </div>
+          <section
+            class="execution-control-shell"
+            data-execution-control-panel
+            data-execution-control-environment="demo"
+            aria-label="V37A 执行控制核心"
+          >
+            <div class="execution-control-loading">正在加载双轨执行状态...</div>
+          </section>
           <div class="exchange-demo-warning"><strong>安全边界：</strong>Demo 自动执行只作用于 OKX 模拟账户和版本化 RiskProfile（默认资金上限 1000 USDT）。Withdraw、实盘自动晋级和实盘执行全部关闭。</div>
           <div class="demo-instrument-universe-status" aria-live="polite">
             <strong id="demoInstrumentUniverseStatus">Demo 可交易合约：正在核对</strong>
@@ -933,6 +941,14 @@
             </div>
             <span id="liveCanaryHeaderBadge" class="status-pill danger">Canary 未就绪</span>
           </div>
+          <section
+            class="execution-control-shell"
+            data-execution-control-panel
+            data-execution-control-environment="live"
+            aria-label="V37A 执行控制核心"
+          >
+            <div class="execution-control-loading">正在加载双轨执行状态...</div>
+          </section>
           <div class="exchange-demo-warning"><strong>当前状态：</strong><span id="liveCanaryHeadline">Live 适配器已安装但默认关闭；缺任一 release、配置 hash、对账或进程门都会阻止下单。</span></div>
           <div class="workflow-action-status">实盘账户凭据输入一次；每条策略仍需逐条批准启用，并分别绑定不可变 Release 与 RiskProfile。</div>
           <section class="auto-execution-control" data-auto-execution-environment="okx_live">

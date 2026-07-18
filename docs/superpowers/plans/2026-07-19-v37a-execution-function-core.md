@@ -26,6 +26,8 @@ Use fakes to validate the complete diagnostic lifecycle and statistical isolatio
 
 Render the consolidated API into compact, scan-friendly bands. Use existing icon library and styles. Keep evidence collapsed and present only actionable blockers and next steps. Do not redesign unrelated pages.
 
+Build Demo and Live from the same original AlphaPilot terminal components and status schema while keeping environment adapters, ledgers, credentials, approvals, ARM state, risk profiles, and kill switches isolated. Demo should expose extra diagnostics; Live should be operationally simpler and default OFF. Use FinceptTerminal only as a high-level information-architecture reference under the documented license boundary. Do not copy or import its code or assets.
+
 ## Task 7: Browser and regression verification
 
 Run targeted tests, full Console tests, compileall, safety scan, whitespace checks, and browser checks at desktop and 390 px. Verify no secrets in DOM or JSON and Live remains disabled.
