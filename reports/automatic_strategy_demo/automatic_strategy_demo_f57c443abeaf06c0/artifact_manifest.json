@@ -1,0 +1,57 @@
+{
+  "artifactCount": 10,
+  "artifacts": [
+    {
+      "relativePath": "demo_approval_overlay.json",
+      "sha256": "2533f546a2f24931da22e1fc28cc575fb6defaa548b8ba7b265b520369ca35f3",
+      "sizeBytes": 224
+    },
+    {
+      "relativePath": "demo_approval_request.json",
+      "sha256": "3eb832848114aad8db091289e4a2fa7ac664c2735c590b2782fd1283a485613c",
+      "sizeBytes": 245
+    },
+    {
+      "relativePath": "demo_approval_request.md",
+      "sha256": "e1eb231645c7e842a4f367e99697e7304926405806688a5cd9a6008f52710acf",
+      "sizeBytes": 91
+    },
+    {
+      "relativePath": "demo_arm_audit.json",
+      "sha256": "22927df24e3942a78db8b77331e6e54177512c5bc4c3aac3d38a9a228bcab227",
+      "sizeBytes": 98
+    },
+    {
+      "relativePath": "demo_universe_audit.json",
+      "sha256": "e01199ea8b24de1e480669a7fa83cdafefc36ea7162aa141d2007f6f7eafd5ff",
+      "sizeBytes": 89
+    },
+    {
+      "relativePath": "engineering_smoke_isolation_audit.json",
+      "sha256": "bfc2461552fdef2dcb64f5a3d311c9dae0117e9fb78ddc2d3d3b3f1ed9d0e0aa",
+      "sizeBytes": 343
+    },
+    {
+      "relativePath": "final_route_decision.json",
+      "sha256": "24a45bea25b74cdf300ccc5886e850d84d288ded9e254909c9161d27b5476f69",
+      "sizeBytes": 332
+    },
+    {
+      "relativePath": "final_self_check.md",
+      "sha256": "d64b5a4f8e88e2e98ad92460d21e7f3634fe5743c20dbc3a2e20f082399d0ec0",
+      "sizeBytes": 261
+    },
+    {
+      "relativePath": "release_import_audit.json",
+      "sha256": "9872d7009c856079709366ed796ed54046c79064538f9dbbba2cbb0644e84695",
+      "sizeBytes": 892
+    },
+    {
+      "relativePath": "release_store_record.json",
+      "sha256": "cd93e3d90e34af8ad931e6e66f677c73fc9389a6859b5deeef56e047195bd4cd",
+      "sizeBytes": 233
+    }
+  ],
+  "manifestHash": "automatic_v24_console_manifest_30cb86e0b78ad648906466c887fa7e009fcbf3264188ba4b84950820428ecedd",
+  "schemaVersion": "automatic_v24_console_artifact_manifest_v1"
+}
