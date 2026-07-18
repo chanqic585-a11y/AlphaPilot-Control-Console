@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Mapping
 
+from .advisory_r_exit_policy import exit_policy_hash, validate_canonical_exit_policy
 from .config import DATA_DIR
 from .strategy_validation_hashing import canonical_bytes, reject_sensitive_fields, stable_hash
 
@@ -46,18 +47,83 @@ REQUIRED_RELEASE_FIELDS = {
     "createdAt",
 }
 
+REQUIRED_V2_RELEASE_FIELDS = {
+    "schemaVersion",
+    "releaseId",
+    "releaseHash",
+    "campaignId",
+    "strategyId",
+    "familyId",
+    "strategyDefinitionHash",
+    "exitPolicyVersion",
+    "exitPolicyMode",
+    "exitPolicyHash",
+    "canonicalExitPolicy",
+    "dataSnapshotHash",
+    "preregistrationHash",
+    "trialLedgerHash",
+    "statisticalAuditHash",
+    "walkForwardHash",
+    "lockedOosHash",
+    "costModelHash",
+    "riskConfigHash",
+    "formalGateHash",
+    "environment",
+    "approvalRequired",
+    "approved",
+    "liveEligible",
+}
+
+REQUIRED_V3_RELEASE_FIELDS = {
+    "schemaVersion",
+    "releaseId",
+    "releaseHash",
+    "campaignId",
+    "candidateId",
+    "strategyId",
+    "familyId",
+    "strategyDefinitionHash",
+    "exitPolicyHash",
+    "dataProfileHash",
+    "dataManifestHash",
+    "preregistrationHash",
+    "costModelHash",
+    "capitalPolicyHash",
+    "benchmarkHash",
+    "formalGateHash",
+    "backtestReportHash",
+    "formalStatus",
+    "releaseClass",
+    "releasePurpose",
+    "evidenceClass",
+    "approvalRequired",
+    "approved",
+    "environment",
+    "livePromotionEligible",
+    "riskOverlay",
+    "riskOverlayHash",
+    "createdAt",
+}
+
 
 def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def validate_strategy_validation_release(payload: Mapping[str, Any]) -> dict[str, Any]:
+def _validate_release_identity(payload: Mapping[str, Any]) -> None:
+    body = {key: value for key, value in payload.items() if key not in {"releaseId", "releaseHash"}}
+    expected_release_hash = stable_hash(body, "strategy_validation_release")
+    if payload.get("releaseHash") != expected_release_hash:
+        raise ValueError("release hash mismatch")
+    expected_release_id = stable_hash({"releaseHash": expected_release_hash}, "validation_release")
+    if payload.get("releaseId") != expected_release_id:
+        raise ValueError("release id mismatch")
+
+
+def _validate_v1_release(payload: Mapping[str, Any]) -> None:
     missing = sorted(REQUIRED_RELEASE_FIELDS - set(payload))
     if missing:
         raise ValueError(f"strategy-validation release is missing fields: {', '.join(missing)}")
-    reject_sensitive_fields(payload)
-    if payload.get("schemaVersion") != "strategy_validation_release_v1":
-        raise ValueError("unsupported strategy-validation release schema")
     if payload.get("releasePurpose") != "strategy_forward_validation":
         raise ValueError("only strategy_forward_validation releases can be imported")
     if payload.get("evidenceClass") != "demo_strategy_validation":
@@ -93,13 +159,111 @@ def validate_strategy_validation_release(payload: Mapping[str, Any]) -> dict[str
         if risk_profile.get(key) is not False:
             raise ValueError(f"unsafe risk option must remain false: {key}")
 
-    body = {key: value for key, value in payload.items() if key not in {"releaseId", "releaseHash"}}
-    expected_release_hash = stable_hash(body, "strategy_validation_release")
+
+def _validate_v2_release(payload: Mapping[str, Any]) -> None:
+    missing = sorted(REQUIRED_V2_RELEASE_FIELDS - set(payload))
+    if missing:
+        raise ValueError(f"strategy-validation release is missing fields: {', '.join(missing)}")
+    if payload.get("environment") != "demo":
+        raise ValueError("strategy-validation release must target Demo")
+    if payload.get("approvalRequired") is not True or payload.get("approved") is not False:
+        raise ValueError("release must arrive unapproved and require manual approval")
+    if payload.get("liveEligible") is not False:
+        raise ValueError("Advisory-R release must not be live eligible")
+    for field in REQUIRED_V2_RELEASE_FIELDS - {
+        "approved",
+        "approvalRequired",
+        "liveEligible",
+        "canonicalExitPolicy",
+    }:
+        if not str(payload.get(field) or "").strip():
+            raise ValueError(f"strategy-validation release field is empty: {field}")
+
+    policy = validate_canonical_exit_policy(payload.get("canonicalExitPolicy"))
+    if payload.get("exitPolicyVersion") != policy["version"]:
+        raise ValueError("exit policy version mismatch")
+    if payload.get("exitPolicyMode") != policy["mode"]:
+        raise ValueError("exit policy mode mismatch")
+    if payload.get("exitPolicyHash") != exit_policy_hash(policy):
+        raise ValueError("exit policy hash mismatch")
+
+
+def _validate_v3_release(payload: Mapping[str, Any]) -> None:
+    missing = sorted(REQUIRED_V3_RELEASE_FIELDS - set(payload))
+    if missing:
+        raise ValueError(f"automatic V23 release is missing fields: {', '.join(missing)}")
+    if payload.get("environment") != "demo":
+        raise ValueError("automatic V23 release must target Demo")
+    if payload.get("approvalRequired") is not True or payload.get("approved") is not False:
+        raise ValueError("automatic V23 release must arrive unapproved")
+    if payload.get("livePromotionEligible") is not False:
+        raise ValueError("automatic V23 release must not be live eligible")
+    status = str(payload.get("formalStatus") or "")
+    release_class = str(payload.get("releaseClass") or "")
+    if status == "formal_pass":
+        expected = ("standard_demo", "strategy_forward_validation", "demo_strategy_validation")
+    elif status in {
+        "research_pass_no_clean_holdout",
+        "research_pass_funding_unavailable",
+    }:
+        expected = ("research_forward", "research_forward_validation", "demo_research_forward")
+    else:
+        raise ValueError("automatic V23 release status is not eligible")
+    actual = (
+        release_class,
+        str(payload.get("releasePurpose") or ""),
+        str(payload.get("evidenceClass") or ""),
+    )
+    if actual != expected:
+        raise ValueError("automatic V23 release evidence class mismatch")
+    for field in REQUIRED_V3_RELEASE_FIELDS - {
+        "approved",
+        "approvalRequired",
+        "livePromotionEligible",
+        "riskOverlay",
+    }:
+        if not str(payload.get(field) or "").strip():
+            raise ValueError(f"automatic V23 release field is empty: {field}")
+    overlay = payload.get("riskOverlay")
+    if not isinstance(overlay, Mapping):
+        raise ValueError("automatic V23 risk overlay is required")
+    if overlay.get("mayWidenFrozenRisk") is not False:
+        raise ValueError("Demo risk overlay cannot widen frozen risk")
+    for key in ("addingAllowed", "averagingAllowed", "martingaleAllowed"):
+        if overlay.get(key) is not False:
+            raise ValueError(f"unsafe Demo risk overlay option: {key}")
+    expected_overlay_hash = stable_hash(overlay, "automatic_demo_risk_overlay")
+    if payload.get("riskOverlayHash") != expected_overlay_hash:
+        raise ValueError("automatic V23 risk overlay hash mismatch")
+    body = {key: value for key, value in payload.items() if key != "releaseHash"}
+    expected_release_hash = stable_hash(body, "automatic_demo_release")
     if payload.get("releaseHash") != expected_release_hash:
-        raise ValueError("release hash mismatch")
-    expected_release_id = stable_hash({"releaseHash": expected_release_hash}, "validation_release")
+        raise ValueError("automatic V23 release hash mismatch")
+    identity = {
+        "campaignId": payload["campaignId"],
+        "candidateId": payload["candidateId"],
+        "releaseClass": payload["releaseClass"],
+        "evidenceClass": payload["evidenceClass"],
+    }
+    expected_release_id = f"automatic_demo_release_{stable_hash(identity)[:16]}"
     if payload.get("releaseId") != expected_release_id:
-        raise ValueError("release id mismatch")
+        raise ValueError("automatic V23 release id mismatch")
+
+
+def validate_strategy_validation_release(payload: Mapping[str, Any]) -> dict[str, Any]:
+    reject_sensitive_fields(payload)
+    schema_version = payload.get("schemaVersion")
+    if schema_version == "strategy_validation_release_v1":
+        _validate_v1_release(payload)
+    elif schema_version == "strategy_validation_release_v2":
+        _validate_v2_release(payload)
+    elif schema_version == "automatic_v23_immutable_demo_release_v1":
+        _validate_v3_release(payload)
+    else:
+        raise ValueError("unsupported strategy-validation release schema")
+
+    if schema_version != "automatic_v23_immutable_demo_release_v1":
+        _validate_release_identity(payload)
     return dict(payload)
 
 
@@ -181,9 +345,9 @@ class StrategyValidationReleaseStore:
                     release_id,
                     release_hash,
                     normalized["campaignId"],
-                    normalized["candidateId"],
+                    normalized.get("candidateId") or normalized["strategyId"],
                     normalized["strategyId"],
-                    normalized["riskConfigHash"],
+                    normalized.get("riskConfigHash") or normalized["riskOverlayHash"],
                     digest,
                     raw,
                     str(path),
@@ -197,7 +361,14 @@ class StrategyValidationReleaseStore:
         return {**self._row_to_result(row), "importStatus": "imported"}
 
     def import_file(self, path: Path | str) -> dict[str, Any]:
-        return self.import_bytes(Path(path).read_bytes())
+        raw = Path(path).read_bytes()
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return self.import_bytes(raw)
+        if isinstance(payload, Mapping) and payload.get("schemaVersion") == "automatic_v23_immutable_demo_release_v1":
+            return self.import_bytes(canonical_bytes(payload))
+        return self.import_bytes(raw)
 
     def get(self, release_id: str) -> dict[str, Any] | None:
         row = self.connection.execute(

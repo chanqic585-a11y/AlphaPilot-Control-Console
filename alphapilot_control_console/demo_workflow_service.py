@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from .advisory_r_exit_policy import (
+    is_advisory_definition,
+    validate_definition_exit_policy,
+)
 from .demo_release_classification import (
     DEFAULT_CLASSIFICATION_PATH,
     legacy_release_projection,
@@ -248,11 +252,20 @@ def _release_readiness(item: dict[str, Any], exchange_demo: dict[str, Any]) -> d
         or parameters.get("targetR"),
         0.0,
     )
+    advisory_definition = is_advisory_definition(definition)
+    exit_policy: dict[str, Any] | None = None
+    if advisory_definition:
+        try:
+            exit_policy = validate_definition_exit_policy(definition)
+        except ValueError:
+            exit_policy = None
+    exit_policy_complete = exit_policy is not None
     strategy_definition_complete = bool(
         str(definition.get("family") or "").strip()
         and str(definition.get("direction") or item.get("direction") or "").strip()
         and str(definition.get("timeframe") or item.get("timeframe") or "").strip()
         and parameters
+        and (exit_policy_complete if advisory_definition else True)
     )
     contract = _find_contract(exchange_demo, _text(item.get("strategyId")))
     readiness = {
@@ -263,7 +276,11 @@ def _release_readiness(item: dict[str, Any], exchange_demo: dict[str, Any]) -> d
         "reviewStartSamples": 30,
         "localForwardReviewStartReached": closed_samples >= 30,
         "targetR": target_r,
-        "targetRPassed": target_r >= 2.0,
+        "targetRPassed": target_r >= 2.0 if not advisory_definition else None,
+        "advisoryR": advisory_definition,
+        "exitPolicyComplete": exit_policy_complete if advisory_definition else None,
+        "exitPolicyMode": exit_policy.get("mode") if exit_policy else None,
+        "exitPolicyHash": definition.get("exitPolicyHash") if exit_policy else None,
         "strategyDefinitionComplete": strategy_definition_complete,
         "formalStrategyCandidateRegistered": bool(contract),
         "immutableDemoReleaseAvailable": bool(contract),
@@ -305,7 +322,9 @@ def run_demo_workflow_action(payload: dict[str, Any] | None = None) -> dict[str,
             blockers.append("formal_backtest_evidence_missing")
         if not readiness["localForwardReviewStartReached"]:
             blockers.append("local_forward_evidence_incomplete")
-        if not readiness["targetRPassed"]:
+        if readiness["advisoryR"] and not readiness["exitPolicyComplete"]:
+            blockers.append("exit_policy_incomplete")
+        if not readiness["advisoryR"] and not readiness["targetRPassed"]:
             blockers.append("target_r_below_2r")
         if not readiness["strategyDefinitionComplete"]:
             blockers.append("strategy_definition_incomplete")

@@ -13,6 +13,7 @@ from alphapilot_control_console.demo_universe_policy import (
 )
 from alphapilot_control_console.evolution_demo_service import validate_demo_contract
 from alphapilot_control_console.risk_profile_store import default_profile
+from alphapilot_control_console.strategy_validation_hashing import stable_hash
 
 
 def lifecycle_item(*, trade_count: int = 42, target_r: float = 2.0) -> dict:
@@ -39,6 +40,33 @@ def lifecycle_item(*, trade_count: int = 42, target_r: float = 2.0) -> dict:
             },
         },
     }
+
+
+def advisory_lifecycle_item(*, valid_hash: bool = True) -> dict:
+    item = lifecycle_item(target_r=0.0)
+    policy = {
+        "version": "advisory_r_exit_policy_v1",
+        "mode": "structure_or_time",
+        "maximumHoldBars": 24,
+        "initialStopMayWiden": False,
+        "parameters": {
+            "structureRule": {
+                "kind": "event_reversal",
+                "confirmationBars": 2,
+            }
+        },
+    }
+    definition = item["optimizationContext"]["definition"]
+    definition.update(
+        {
+            "schemaVersion": "strategy_workflow_definition_v2",
+            "exitPolicy": policy,
+            "exitPolicyHash": (
+                stable_hash(policy, "exit_policy") if valid_hash else "exit_policy_changed"
+            ),
+        }
+    )
+    return item
 
 
 def risk_record() -> dict:
@@ -107,6 +135,34 @@ class DemoOverrideReleaseTests(unittest.TestCase):
 
         self.assertIn("formal_backtest_evidence_missing", no_backtest["blockers"])
         self.assertIn("target_r_below_2r", low_r["blockers"])
+
+    def test_advisory_override_requires_valid_exit_policy_instead_of_two_r(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            accepted = authorize_demo_override(
+                advisory_lifecycle_item(),
+                reason="Demo research",
+                confirmation=DEMO_OVERRIDE_CONFIRMATION,
+                contract_dir=Path(directory),
+                risk_profile_record=risk_record(),
+                audit_writer=lambda *_args: {},
+            )
+            rejected = authorize_demo_override(
+                advisory_lifecycle_item(valid_hash=False),
+                reason="Demo research",
+                confirmation=DEMO_OVERRIDE_CONFIRMATION,
+                contract_dir=Path(directory) / "invalid",
+                risk_profile_record=risk_record(),
+                audit_writer=lambda *_args: {},
+            )
+
+        self.assertTrue(accepted["ok"])
+        self.assertNotIn("target_r_below_2r", accepted.get("blockers", []))
+        self.assertEqual(
+            accepted["contract"]["strategy"]["exitPolicy"]["mode"],
+            "structure_or_time",
+        )
+        self.assertFalse(rejected["ok"])
+        self.assertIn("exit_policy_incomplete", rejected["blockers"])
 
     def test_override_creates_idempotent_demo_only_contract_and_audit(self) -> None:
         audits: list[tuple[str, dict]] = []

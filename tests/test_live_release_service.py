@@ -55,6 +55,16 @@ class LiveReleaseServiceTests(unittest.TestCase):
         with self.assertRaises(PermissionError):
             validate_live_release_export(withdraw)
 
+    def test_advisory_r_demo_changes_do_not_relax_live_two_r_boundary(self) -> None:
+        low_r = valid_export()
+        low_r["release"]["protectionPolicy"]["minimumRewardRiskRatio"] = 1.25
+        low_r["liveReleaseHash"] = hashlib.sha256(
+            canonical(low_r["release"]).encode("utf-8")
+        ).hexdigest()
+
+        with self.assertRaisesRegex(PermissionError, "below 2R"):
+            validate_live_release_export(low_r)
+
 
 if __name__ == "__main__":
     unittest.main()

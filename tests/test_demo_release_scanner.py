@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import patch
 
 from alphapilot_control_console.demo_release_scanner import scan_immutable_demo_release
+from alphapilot_control_console.strategy_validation_hashing import stable_hash
 
 
 def contract() -> dict:
@@ -29,6 +30,34 @@ def contract() -> dict:
             },
         },
     }
+
+
+def advisory_contract(mode: str) -> dict:
+    release = contract()
+    if mode == "fixed_r":
+        parameters = {"targetR": 1.25}
+    else:
+        parameters = {
+            "structureRule": {
+                "kind": "event_reversal",
+                "confirmationBars": 2,
+            }
+        }
+    policy = {
+        "version": "advisory_r_exit_policy_v1",
+        "mode": mode,
+        "maximumHoldBars": 24,
+        "initialStopMayWiden": False,
+        "parameters": parameters,
+    }
+    release["strategy"].update(
+        {
+            "schemaVersion": "strategy_workflow_definition_v2",
+            "exitPolicy": policy,
+            "exitPolicyHash": stable_hash(policy, "exit_policy"),
+        }
+    )
+    return release
 
 
 def snapshot(_symbol: str, _timeframe: str, _limit: int) -> dict:
@@ -181,6 +210,51 @@ class DemoReleaseScannerTests(unittest.TestCase):
         self.assertEqual(signal["entryPrice"] - signal["stopLossPrice"], 2.0)
         self.assertLessEqual(signal["notionalUsdt"], 250.0)
         self.assertFalse(result["createsOrder"])
+
+    def test_advisory_fixed_r_below_two_is_not_clamped_by_demo_scanner(self) -> None:
+        result = scan_immutable_demo_release(
+            advisory_contract("fixed_r"),
+            snapshot_loader=snapshot,
+            metadata_loader=metadata,
+        )
+
+        self.assertEqual(result["blockers"], [])
+        signal = result["signals"][0]
+        self.assertEqual(signal["exitPolicyMode"], "fixed_r")
+        self.assertEqual(signal["takeProfitPrice"] - signal["entryPrice"], 2.5)
+        self.assertEqual(signal["exitPolicy"]["parameters"]["targetR"], 1.25)
+
+    def test_advisory_structure_or_time_has_no_synthetic_two_r_target(self) -> None:
+        result = scan_immutable_demo_release(
+            advisory_contract("structure_or_time"),
+            snapshot_loader=snapshot,
+            metadata_loader=metadata,
+        )
+
+        self.assertEqual(result["blockers"], [])
+        signal = result["signals"][0]
+        self.assertEqual(signal["exitPolicyMode"], "structure_or_time")
+        self.assertIsNone(signal["takeProfitPrice"])
+        self.assertIsNone(signal["advisoryTargetR"])
+
+    def test_advisory_scanner_rejects_incomplete_policy_before_market_call(self) -> None:
+        release = advisory_contract("fixed_r")
+        release["strategy"]["exitPolicyHash"] = "exit_policy_changed"
+        calls = 0
+
+        def forbidden_loader(_symbol: str, _timeframe: str, _limit: int) -> dict:
+            nonlocal calls
+            calls += 1
+            return {}
+
+        result = scan_immutable_demo_release(
+            release,
+            snapshot_loader=forbidden_loader,
+            metadata_loader=metadata,
+        )
+
+        self.assertEqual(calls, 0)
+        self.assertIn("exit_policy_incomplete", result["blockers"])
 
     def test_incomplete_release_policy_fails_closed_before_market_call(self) -> None:
         calls = 0

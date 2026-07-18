@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from .advisory_r_exit_policy import (
+    is_advisory_definition,
+    validate_definition_exit_policy,
+)
 
 REVIEW_START_SAMPLES = 30
 
@@ -63,7 +67,24 @@ def _definition_complete(definition: dict[str, Any], parameters: dict[str, Any])
         str(definition.get("direction") or "").strip(),
         str(definition.get("timeframe") or "").strip(),
     )
-    return all(required) and bool(parameters)
+    if not all(required) or not parameters:
+        return False
+    if not is_advisory_definition(definition):
+        return True
+    try:
+        validate_definition_exit_policy(definition)
+    except ValueError:
+        return False
+    return True
+
+
+def _advisory_policy(definition: dict[str, Any]) -> dict[str, Any] | None:
+    if not is_advisory_definition(definition):
+        return None
+    try:
+        return validate_definition_exit_policy(definition)
+    except ValueError:
+        return None
 
 
 def build_demo_evidence_checklist(
@@ -86,6 +107,9 @@ def build_demo_evidence_checklist(
         else int(_number(runtime.get("closedTradeCount")))
     )
     target_r = _target_r(definition, parameters)
+    advisory_definition = is_advisory_definition(definition)
+    exit_policy = _advisory_policy(definition)
+    exit_policy_complete = exit_policy is not None
     override = str(contract.get("releaseMode") or "") == "experimental_override"
     release_exists = bool(contract.get("demoReleaseId"))
     candidate_exists = bool(contract.get("strategyCandidateId"))
@@ -105,14 +129,28 @@ def build_demo_evidence_checklist(
         ),
         _evidence(
             "target_reward_risk",
-            "目标盈亏比",
-            status="passed" if target_r >= 2.0 else "missing",
-            current=target_r,
-            target=">= 2R",
+            "退出策略完整性" if advisory_definition else "目标盈亏比",
+            status=(
+                "passed"
+                if (exit_policy_complete if advisory_definition else target_r >= 2.0)
+                else "missing"
+            ),
+            current=(exit_policy.get("mode") if exit_policy else "缺失") if advisory_definition else target_r,
+            target="完整且不可变的 Exit Policy" if advisory_definition else ">= 2R",
             source_type="automatic",
-            blocking=target_r < 2.0,
-            detail="系统自动读取不可变策略定义中的目标 R。",
-            next_action="目标 R 已达标。" if target_r >= 2.0 else "创建目标不低于 2R 的新策略版本。",
+            blocking=not exit_policy_complete if advisory_definition else target_r < 2.0,
+            detail=(
+                "系统自动校验 Exit Policy 内容、不可放宽初始止损规则和内容哈希。"
+                if advisory_definition
+                else "系统自动读取不可变策略定义中的目标 R。"
+            ),
+            next_action=(
+                "Exit Policy 已完整冻结。"
+                if exit_policy_complete
+                else "补齐并重新冻结 Exit Policy 及其哈希。"
+            ) if advisory_definition else (
+                "目标 R 已达标。" if target_r >= 2.0 else "创建目标不低于 2R 的新策略版本。"
+            ),
         ),
         _evidence(
             "strategy_definition",

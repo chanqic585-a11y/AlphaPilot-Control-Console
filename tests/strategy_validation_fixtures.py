@@ -76,3 +76,58 @@ def make_release(*, candidate_id: str = "candidate-1") -> dict[str, Any]:
         "releaseId": stable_hash({"releaseHash": release_hash}, "validation_release"),
         "releaseHash": release_hash,
     }
+
+
+def make_exit_policy(
+    *,
+    mode: str = "fixed_r",
+    parameters: dict[str, Any] | None = None,
+    initial_stop_may_widen: bool = False,
+) -> dict[str, Any]:
+    if parameters is None:
+        parameters = {"targetR": 1.25}
+    return {
+        "version": "advisory_r_exit_policy_v1",
+        "mode": mode,
+        "maximumHoldBars": 48,
+        "initialStopMayWiden": initial_stop_may_widen,
+        "parameters": parameters,
+    }
+
+
+def make_advisory_release(
+    *,
+    strategy_id: str = "advisory-candidate-1",
+    exit_policy: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    policy = exit_policy or make_exit_policy()
+    body = {
+        "schemaVersion": "strategy_validation_release_v2",
+        "campaignId": "advisory-campaign-1",
+        "strategyId": strategy_id,
+        "familyId": "event_continuation",
+        "strategyDefinitionHash": "strategy-definition-hash-v2",
+        "exitPolicyVersion": policy.get("version"),
+        "exitPolicyMode": policy.get("mode"),
+        "exitPolicyHash": stable_hash(policy, "exit_policy"),
+        "canonicalExitPolicy": policy,
+        "dataSnapshotHash": "data-snapshot-hash-v2",
+        "preregistrationHash": "preregistration-hash-v2",
+        "trialLedgerHash": "trial-ledger-hash-v2",
+        "statisticalAuditHash": "statistical-audit-hash-v2",
+        "walkForwardHash": "walk-forward-hash-v2",
+        "lockedOosHash": "locked-oos-hash-v2",
+        "costModelHash": "cost-model-hash-v2",
+        "riskConfigHash": "risk-config-hash-v2",
+        "formalGateHash": "formal-gate-hash-v2",
+        "environment": "demo",
+        "approvalRequired": True,
+        "approved": False,
+        "liveEligible": False,
+    }
+    release_hash = stable_hash(body, "strategy_validation_release")
+    return {
+        **body,
+        "releaseId": stable_hash({"releaseHash": release_hash}, "validation_release"),
+        "releaseHash": release_hash,
+    }
