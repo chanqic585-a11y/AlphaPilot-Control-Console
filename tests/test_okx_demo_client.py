@@ -16,6 +16,8 @@ class FakeTransport:
 
     def send(self, request: OkxDemoRequest) -> dict:
         self.requests.append(request)
+        if request.path == "/api/v5/public/time":
+            return {"code": "0", "msg": "", "data": [{"ts": "1783987200150"}]}
         return {"code": "0", "msg": "", "data": [{"ordId": "123", "sCode": "0"}]}
 
 
@@ -26,7 +28,61 @@ class OkxDemoClientTests(unittest.TestCase):
             OkxDemoCredentials("key", "secret", "pass"),
             transport=self.transport,
             timestampFactory=lambda: "2026-07-10T00:00:00.000Z",
+            epochMillisecondsFactory=iter((1783987200100, 1783987200200)).__next__,
         )
+
+    def test_server_time_is_public_and_offset_uses_request_midpoint(self) -> None:
+        result = self.client.measure_server_time_offset_ms()
+
+        request = self.transport.requests[0]
+        self.assertEqual(request.path, "/api/v5/public/time")
+        self.assertEqual(request.method, "GET")
+        self.assertNotIn("OK-ACCESS-KEY", request.headers)
+        self.assertNotIn("OK-ACCESS-SIGN", request.headers)
+        self.assertEqual(result["serverEpochMilliseconds"], 1783987200150)
+        self.assertEqual(result["roundTripMilliseconds"], 100)
+        self.assertEqual(result["offsetMilliseconds"], 0)
+
+    def test_synchronized_offset_is_applied_to_private_request_timestamp(self) -> None:
+        class OffsetTransport(FakeTransport):
+            def send(self, request: OkxDemoRequest) -> dict:
+                self.requests.append(request)
+                if request.path == "/api/v5/public/time":
+                    return {"code": "0", "data": [{"ts": "1150"}]}
+                return {"code": "0", "data": []}
+
+        transport = OffsetTransport()
+        client = OkxDemoClient(
+            OkxDemoCredentials("key", "secret", "pass"),
+            transport=transport,
+            epochMillisecondsFactory=iter((1000, 1100, 1200)).__next__,
+        )
+
+        sync = client.synchronize_server_time()
+        client.get_balance()
+
+        self.assertEqual(sync["offsetMilliseconds"], 100)
+        self.assertEqual(
+            transport.requests[1].headers["OK-ACCESS-TIMESTAMP"],
+            "1970-01-01T00:00:01.300Z",
+        )
+
+    def test_open_orders_and_fills_are_allowlisted_for_reconciliation(self) -> None:
+        self.client.get_open_orders("BTC-USDT-SWAP")
+        self.client.get_fills("BTC-USDT-SWAP", limit=25)
+
+        self.assertEqual(self.transport.requests[0].path, "/api/v5/trade/orders-pending")
+        self.assertEqual(
+            self.transport.requests[0].query,
+            {"instId": "BTC-USDT-SWAP", "instType": "SWAP"},
+        )
+        self.assertEqual(self.transport.requests[1].path, "/api/v5/trade/fills")
+        self.assertEqual(self.transport.requests[1].query["limit"], 25)
+
+    def test_fill_limit_is_bounded(self) -> None:
+        for value in (0, 101):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                self.client.get_fills(limit=value)
 
     def test_place_order_uses_demo_header_and_client_order_id(self) -> None:
         response = self.client.place_order(

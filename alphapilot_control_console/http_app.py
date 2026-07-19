@@ -152,6 +152,7 @@ from .strategy_validation_status import (
     run_strategy_validation_approval_action,
     run_strategy_validation_runtime_action,
 )
+from .strategy_lab_projection import build_strategy_lab_projection
 from .state_store import (
     ALLOWED_ARTIFACT_REVIEW_STATUSES,
     ALLOWED_PAPER_OBSERVATION_LOG_TYPES,
@@ -336,6 +337,14 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/strategy-validation/status":
             campaign_id = str((query.get("campaignId") or [""])[0] or "").strip() or None
             self._send_json(build_strategy_validation_status(campaign_id=campaign_id))
+            return
+        if path == "/api/strategy-lab":
+            self._send_json(_cached_payload(
+                "strategy-lab",
+                30,
+                build_strategy_lab_projection,
+                fresh=fresh,
+            ))
             return
         if path == "/api/shadow-observation":
             release_id = str((query.get("releaseId") or [""])[0] or "").strip() or None

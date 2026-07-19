@@ -58,6 +58,34 @@ class DemoRuntimeGuardTests(unittest.TestCase):
         self.assertIn("demo_consecutive_loss_stop", result.reasonCodes)
         self.assertIn("demo_slippage_drift", result.reasonCodes)
 
+    def test_data_auth_orphan_and_approval_drift_fail_closed(self) -> None:
+        result = evaluate_demo_runtime_guard(
+            {
+                "availableEquityUsdt": 1000.0,
+                "dailyLossPercent": 0.0,
+                "drawdownPercent": 0.0,
+                "reconciliationMatched": True,
+                "marketDataFresh": False,
+                "accountDataFresh": False,
+                "authenticationHealthy": False,
+                "orphanPositionCount": 1,
+            },
+            recovered_statuses=[],
+            checksums_match=True,
+            approval_checksums_match=False,
+        )
+
+        self.assertEqual(
+            set(result.reasonCodes),
+            {
+                "demo_market_data_stale",
+                "demo_account_data_stale",
+                "demo_authentication_failure",
+                "orphan_demo_position",
+                "approval_checksum_mismatch",
+            },
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "alphapilot_v38_reconciliation_audit_v1",
+  "generatedAt": "2026-07-19T22:36:41.707073+00:00",
+  "orderQuerySupported": true,
+  "openRecordRecoverySupported": true,
+  "preparedIntentFailsClosed": true,
+  "unknownOrderStatePausesEntries": true,
+  "closedOutcomeRequiresFilledEntry": true,
+  "releaseIdentityRechecked": true,
+  "openOrdersReadSupported": true,
+  "fillsReadSupported": true,
+  "partialFillObservationSupported": true,
+  "privateWebsocketChannels": [
+    "orders",
+    "positions",
+    "account"
+  ],
+  "wsRestReconciliationSupported": true,
+  "unknownOrdersFailClosed": true,
+  "orphanPositionsFailClosed": true,
+  "privateNetworkVerified": false,
+  "networkRequestMade": false
+}

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "alphapilot_v38_final_route_v1",
+  "generatedAt": "2026-07-19T22:36:41.707073+00:00",
+  "v38Status": "completed_zero_release",
+  "v39Status": "not_run_zero_release",
+  "v40Status": "disabled",
+  "formalCandidateCount": 0,
+  "releaseCount": 0,
+  "demoArm": false,
+  "orderCount": 0,
+  "workflowValidationIsStrategyEvidence": false
+}

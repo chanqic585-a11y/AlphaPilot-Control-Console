@@ -1,0 +1,54 @@
+{
+  "schemaVersion": "alphapilot_v38_demo_execution_audit_v1",
+  "generatedAt": "2026-07-19T22:36:41.707073+00:00",
+  "inspectionMode": "static_capability_and_deterministic_fixture",
+  "networkRequestMade": false,
+  "orderCreated": false,
+  "implementationVerified": true,
+  "privateNetworkVerified": false,
+  "runtimeActivation": "not_started_zero_release",
+  "verificationEvidence": [
+    "tests/test_okx_demo_client.py",
+    "tests/test_okx_demo_private_ws.py",
+    "tests/test_okx_demo_private_reconciliation.py",
+    "tests/test_demo_execution_engine.py",
+    "tests/test_demo_runtime_guard.py"
+  ],
+  "capabilities": {
+    "simulatedTradingHeaderRequired": true,
+    "authenticatedInstrumentDiscovery": true,
+    "exactUsdtSwapIntersection": true,
+    "serverTimeOffset": true,
+    "orderSubmit": true,
+    "orderQuery": true,
+    "partialFillState": true,
+    "cancel": true,
+    "closeLifecycle": true,
+    "positions": true,
+    "balance": true,
+    "privateWebsocketRuntime": true,
+    "restReconciliation": true,
+    "deterministicClientOrderId": true,
+    "singleFlightAndSignalDedup": true,
+    "restartRecovery": true,
+    "boundedRetry": true,
+    "unknownStateFailClosed": true
+  },
+  "killSwitches": [
+    "manual",
+    "stale_market_data",
+    "stale_account_data",
+    "authentication_failure",
+    "unknown_order_state",
+    "orphan_position",
+    "risk_limit",
+    "release_hash_mismatch",
+    "approval_hash_mismatch"
+  ],
+  "safetyBoundary": {
+    "demoOnly": true,
+    "withdrawAllowed": false,
+    "liveExecutionAllowed": false,
+    "credentialsPersisted": false
+  }
+}

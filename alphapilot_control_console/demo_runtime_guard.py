@@ -20,6 +20,7 @@ def evaluate_demo_runtime_guard(
     *,
     recovered_statuses: Iterable[str],
     checksums_match: bool,
+    approval_checksums_match: bool = True,
 ) -> DemoRuntimeGuard:
     daily_loss = float(portfolio.get("dailyLossPercent") or 0)
     drawdown = float(portfolio.get("drawdownPercent") or 0)
@@ -44,6 +45,16 @@ def evaluate_demo_runtime_guard(
     reasons: list[str] = []
     if not checksums_match:
         reasons.append("release_checksum_mismatch")
+    if not approval_checksums_match:
+        reasons.append("approval_checksum_mismatch")
+    if not bool(portfolio.get("marketDataFresh", portfolio.get("dataFresh", True))):
+        reasons.append("demo_market_data_stale")
+    if not bool(portfolio.get("accountDataFresh", True)):
+        reasons.append("demo_account_data_stale")
+    if not bool(portfolio.get("authenticationHealthy", True)):
+        reasons.append("demo_authentication_failure")
+    if int(portfolio.get("orphanPositionCount") or 0) > 0:
+        reasons.append("orphan_demo_position")
     if not bool(portfolio.get("reconciliationMatched")):
         reasons.append("demo_reconciliation_mismatch")
     if statuses & {"prepared", "unknown"}:

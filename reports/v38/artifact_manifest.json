@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "alphapilot_v38_artifact_manifest_v1",
+  "generatedAt": "2026-07-19T22:36:41.707073+00:00",
+  "artifactCount": 9,
+  "artifacts": [
+    {
+      "path": "demo_approval_request.json",
+      "sha256": "677c930167d562959276fcc78fe042e013f75a42310e15a0aa6d91337bc45bf9",
+      "sizeBytes": 236
+    },
+    {
+      "path": "demo_arm_audit.json",
+      "sha256": "7f3ad0cfa652568204bc01ec43b97de3b12a436d8a84c9f78d38990619a5fdbe",
+      "sizeBytes": 215
+    },
+    {
+      "path": "demo_execution_audit.json",
+      "sha256": "e82feffb6a9f2d6bf59ac0b402a424726169d49df5af970beb450ead48ccc024",
+      "sizeBytes": 1648
+    },
+    {
+      "path": "final_route.json",
+      "sha256": "98b251c82f6e633c21547605b0721e9cbe1961eb9c6a67d3b716681cbd8c31a4",
+      "sizeBytes": 365
+    },
+    {
+      "path": "final_self_check.md",
+      "sha256": "2bc9d83bbc25047222e2c9dcf6399c7a446b1f17a905f55413d0cdbafec1daec",
+      "sizeBytes": 448
+    },
+    {
+      "path": "reconciliation_audit.json",
+      "sha256": "8124d3149d5ad3569098c19821efcd247126045a03955da00a7c6a77fc68dc77",
+      "sizeBytes": 738
+    },
+    {
+      "path": "release_inventory.json",
+      "sha256": "cbcfd34c220bbd8251bc422973902dbbfb89c100979d2cfc6297ebc829c38b5a",
+      "sizeBytes": 861
+    },
+    {
+      "path": "strategy_lab_ui_audit.json",
+      "sha256": "33ab4eb42c52aa8ee47e254c4b4b12504f349992034380cfef3802dfc8afcc1a",
+      "sizeBytes": 836
+    },
+    {
+      "path": "workflow_validation_demo_audit.json",
+      "sha256": "e21e3f728ee360d1d8268241fd51af2ce68352adbfe05c380cf4081665f3b091",
+      "sizeBytes": 1944
+    }
+  ]
+}

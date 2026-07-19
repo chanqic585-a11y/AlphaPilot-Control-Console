@@ -2490,3 +2490,33 @@ Legacy v1 imports keep their existing >=2R behavior byte-for-byte. Live
 admission remains unchanged and still uses its existing gate. This version
 adds schema and scanner compatibility only: it does not create a release, ARM
 the runtime, submit an order, or access credentials.
+
+## V37F-V38 Selective Vibe Integration
+
+AlphaPilot selectively adopts research-workflow ideas from the MIT-licensed
+`HKUDS/Vibe-Trading` repository at pinned commit
+`7d42de944466e1a1f12f0df3933624fe665dee3c`. The source is treated as a
+reference artifact only: AlphaPilot does not merge the repository, migrate its
+frontend, depend on its runtime, or reuse its broker/live connectors.
+
+V38 adds a read-only Strategy Lab to the existing Console stack. It projects
+the pinned source registry, candidate lineage, factor bench, bounded campaign
+budget, failure attribution, and final route without allowing frozen-candidate
+edits, gate changes, approvals, or orders.
+
+The Demo execution core now includes:
+
+- public OKX server-time synchronization applied to private REST signatures;
+- allowlisted pending-order and fill reads for authoritative reconciliation;
+- process-only OKX Demo private WebSocket login and subscriptions for orders,
+  positions, and account updates;
+- WS plus REST reconciliation for partial fills, unknown orders, and orphan
+  positions;
+- fail-closed guards for stale market/account data, authentication failure,
+  release/approval checksum drift, risk limits, and reconciliation failures.
+
+The generated V38 evidence is written to `reports/v38/`. Its network audit is
+explicit: implementation and deterministic tests are verified, while private
+network verification remains false unless a user starts a process-only Demo
+session. The current V37I/J route has zero qualified Formal candidates, so V39
+is not run, Demo is not armed, no order is created, and V40 remains disabled.

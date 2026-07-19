@@ -8119,6 +8119,69 @@ function strategyValidationReleaseCard(release, interactive = false) {
   `;
 }
 
+function renderStrategyLab(payload = {}) {
+  const summary = payload.summary || {};
+  const source = payload.sourceRegistry || {};
+  const budget = payload.experimentBudget || {};
+  const failures = payload.failureAttribution || {};
+  const route = payload.route || {};
+  const lineage = Array.isArray(payload.candidateLineage) ? payload.candidateLineage : [];
+  const factors = Array.isArray(payload.factorRegistry) ? payload.factorRegistry : [];
+  const similarities = Array.isArray(payload.similarityMatrix) ? payload.similarityMatrix : [];
+  const status = el("strategyLabStatus");
+  if (status) {
+    const ready = payload.status === "ready";
+    status.textContent = ready ? "只读证据就绪" : "证据不完整";
+    status.className = `badge ${ready ? "ok" : "warn"}`;
+  }
+  const metrics = el("strategyLabMetrics");
+  if (metrics) {
+    metrics.innerHTML = [
+      strategyValidationMetric("来源制品", Number(summary.sourceArtifactCount || 0)),
+      strategyValidationMetric("因子登记", Number(summary.factorCount || 0)),
+      strategyValidationMetric("候选", Number(summary.candidateCount || 0)),
+      strategyValidationMetric("Campaign", Number(summary.campaignCount || 0)),
+      strategyValidationMetric("正式候选", Number(summary.formalCandidateCount || 0)),
+      strategyValidationMetric("Demo Release", Number(summary.releaseCount || 0)),
+    ].join("");
+  }
+  const sourceRegistry = el("strategyLabSourceRegistry");
+  if (sourceRegistry) {
+    const commit = String(source.commit || "");
+    sourceRegistry.innerHTML = `
+      <div><span>仓库</span><strong>${escapeHtml(source.repository || "--")}</strong></div>
+      <div><span>固定 Commit</span><code>${escapeHtml(commit ? commit.slice(0, 12) : "--")}</code></div>
+      <div><span>许可证</span><strong>${escapeHtml(source.license || "--")}</strong></div>
+      <div><span>运行依赖</span><strong>${source.runtimeDependency ? "是" : "否，clean-room 投影"}</strong></div>`;
+  }
+  const campaigns = el("strategyLabCampaigns");
+  if (campaigns) {
+    campaigns.innerHTML = `
+      <div><span>已用 Campaign</span><strong>${escapeHtml(Number(budget.campaignsUsed || summary.campaignCount || 0))}</strong></div>
+      <div><span>已用家族</span><strong>${escapeHtml(Number(budget.familiesUsed || 0))}</strong></div>
+      <div><span>登记候选</span><strong>${escapeHtml(Number(budget.candidatesRegistered || summary.candidateCount || 0))}</strong></div>
+      <div><span>当前路由</span><strong>${escapeHtml(route.status || "--")}</strong></div>`;
+  }
+  const failureTarget = el("strategyLabFailureAttribution");
+  if (failureTarget) {
+    const rows = Object.entries(failures.byReason || {});
+    failureTarget.innerHTML = rows.length
+      ? rows.map(([reason, count]) => `<div><span>${escapeHtml(reason)}</span><strong>${escapeHtml(count)}</strong></div>`).join("")
+      : '<div><span>失败记录</span><strong>0</strong></div>';
+  }
+  const details = el("strategyLabEvidenceDetails");
+  if (details) {
+    const lineageRows = lineage.slice(0, 8).map((item) => `
+      <div><dt>${escapeHtml(item.candidateId || "--")}</dt><dd>${escapeHtml(item.familyId || "--")} · ${escapeHtml(item.status || "--")} · ${escapeHtml(item.reasonCode || "无失败码")}</dd></div>`).join("");
+    const factorRows = factors.slice(0, 12).map((item) => escapeHtml(item.factorId || item.name || "--")).join("、");
+    details.innerHTML = `
+      <dl class="strategy-validation-evidence-list">${lineageRows || "<div><dt>候选谱系</dt><dd>暂无候选</dd></div>"}</dl>
+      <p><strong>因子登记：</strong>${factorRows || "暂无"}</p>
+      <p><strong>相似性记录：</strong>${escapeHtml(similarities.length)} 条；仅用于去重与研究分组，不替代 Formal Gate。</p>
+      <p><strong>衰减监控：</strong>${escapeHtml(payload.decayState?.status || "inactive")}；没有真实闭合 Demo 证据时不会启用。</p>`;
+  }
+}
+
 function renderStrategyValidation(payload = {}) {
   latestStrategyValidationPayload = payload || {};
   const screening = payload.screening || {};
@@ -8324,6 +8387,7 @@ function renderConsoleFromPayloads() {
   const strategyLearningLoop = latestStrategyLearningLoopPayload || emptyStrategyLearningLoop;
   const strategyLifecycle = core.strategyLifecycle || emptyStrategyLifecycle;
   const strategyValidation = core.strategyValidation || {};
+  const strategyLab = core.strategyLab || {};
 
   renderSimpleConsole(strategyItems, reportItems, mobile, usableStrategyCatalog, sandboxDailyReport, sandboxAutoRunner, liveReadiness, simulationBridge, simulationReview, sandboxQualityCenter, sandboxConcentrationReview, sandboxResultReview, strategyAssetPlaybook);
   renderNoKeyPreLiveWorkbench(noKeyPreLive);
@@ -8332,6 +8396,7 @@ function renderConsoleFromPayloads() {
   renderAutoExecutionReview(autoExecutionReview);
   renderAutoExecutionLearning(autoExecutionLearning);
   renderExchangeDemoSimulation(exchangeDemo);
+  renderStrategyLab(strategyLab);
   renderStrategyValidation(strategyValidation);
   renderLiveCandidateStatus(liveCandidates);
   renderRiskProfiles(riskProfiles);
@@ -8519,6 +8584,7 @@ async function refreshAll() {
     { key: "liveReadiness", url: "/api/live-readiness", fallback: { rows: [], summary: {} }, timeoutMs: 8000 },
     { key: "forwardReview", url: "/api/forward-review", fallback: { rows: [], summary: {} }, timeoutMs: 8000 },
     { key: "strategyValidation", url: "/api/strategy-validation/status", fallback: { screening: {}, releaseSummary: {}, releases: [], runtime: {}, risk: {}, demoLedger: {}, forwardReview: {} }, timeoutMs: 12000 },
+    { key: "strategyLab", url: "/api/strategy-lab", fallback: { status: "blocked_missing_evidence", summary: {}, sourceRegistry: {}, experimentBudget: {}, failureAttribution: {}, route: {}, candidateLineage: [], factorRegistry: [], similarityMatrix: [] }, timeoutMs: 12000 },
   ], 4);
   latestCoreConsolePayload = { ...corePayload, workflow, strategyLifecycle };
   renderConsoleFromPayloads();

@@ -12,9 +12,23 @@ class WorkflowValidationDemoTests(unittest.TestCase):
         result = run_workflow_validation_demo_fixture()
 
         self.assertTrue(result["ok"])
+        self.assertEqual(result["releaseClassification"], "diagnostic_only")
+        self.assertFalse(result["strategyQualification"])
+        self.assertFalse(result["formalPass"])
+        self.assertFalse(result["livePromotionEligible"])
         self.assertEqual(
             [row["stage"] for row in result["timeline"]],
-            ["discover", "authorize", "submit", "inspect", "exit", "reconcile", "report"],
+            [
+                "import",
+                "approval",
+                "arm",
+                "signal",
+                "order",
+                "position",
+                "exit",
+                "reconciliation",
+                "ui",
+            ],
         )
         self.assertTrue(all(row["status"] == "passed" for row in result["timeline"]))
         self.assertTrue(result["evidence"]["engineeringOnly"])

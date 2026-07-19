@@ -1,0 +1,79 @@
+{
+  "fixtureVersion": "workflow-validation-demo.v1",
+  "generatedAt": "2026-07-19T22:36:41.708073+00:00",
+  "ok": true,
+  "releaseClassification": "diagnostic_only",
+  "strategyQualification": false,
+  "formalPass": false,
+  "livePromotionEligible": false,
+  "timeline": [
+    {
+      "sequence": 1,
+      "stage": "import",
+      "labelZh": "导入诊断 Release",
+      "status": "passed"
+    },
+    {
+      "sequence": 2,
+      "stage": "approval",
+      "labelZh": "校验精确 Release 与风险 Hash",
+      "status": "passed"
+    },
+    {
+      "sequence": 3,
+      "stage": "arm",
+      "labelZh": "验证独立 ARM 门",
+      "status": "passed"
+    },
+    {
+      "sequence": 4,
+      "stage": "signal",
+      "labelZh": "生成隔离诊断信号",
+      "status": "passed"
+    },
+    {
+      "sequence": 5,
+      "stage": "order",
+      "labelZh": "生成确定性幂等订单请求",
+      "status": "passed"
+    },
+    {
+      "sequence": 6,
+      "stage": "position",
+      "labelZh": "验证模拟持仓状态",
+      "status": "passed"
+    },
+    {
+      "sequence": 7,
+      "stage": "exit",
+      "labelZh": "执行模拟退出生命周期",
+      "status": "passed"
+    },
+    {
+      "sequence": 8,
+      "stage": "reconciliation",
+      "labelZh": "核对订单、持仓和账本",
+      "status": "passed"
+    },
+    {
+      "sequence": 9,
+      "stage": "ui",
+      "labelZh": "验证操作台状态投影",
+      "status": "passed"
+    }
+  ],
+  "evidence": {
+    "engineeringOnly": true,
+    "formalEvidenceEligible": false,
+    "strategyPerformanceEligible": false,
+    "promotionEvidenceEligible": false
+  },
+  "safetyBoundary": {
+    "exchangeNetworkUsed": false,
+    "liveOrderCreated": false,
+    "credentialsRequired": false,
+    "credentialsPersisted": false,
+    "withdrawAllowed": false,
+    "immutableReleaseBypassed": false
+  }
+}
