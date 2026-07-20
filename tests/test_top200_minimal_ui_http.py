@@ -5,7 +5,7 @@ import threading
 import unittest
 from http.server import ThreadingHTTPServer
 from urllib.error import HTTPError
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 from unittest.mock import Mock, patch
 
 from alphapilot_control_console.http_app import ConsoleHandler
@@ -26,6 +26,17 @@ class Top200MinimalUiHttpTests(unittest.TestCase):
 
     def _get(self, path: str) -> dict:
         with urlopen(self.base_url + path, timeout=2) as response:
+            self.assertEqual(response.status, 200)
+            return json.loads(response.read().decode("utf-8"))
+
+    def _post(self, path: str, payload: dict) -> dict:
+        request = Request(
+            self.base_url + path,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urlopen(request, timeout=2) as response:
             self.assertEqual(response.status, 200)
             return json.loads(response.read().decode("utf-8"))
 
@@ -91,6 +102,63 @@ class Top200MinimalUiHttpTests(unittest.TestCase):
         serialized = json.dumps(payload).lower()
         self.assertNotIn("apikey", serialized)
         self.assertNotIn("passphrase", serialized)
+
+    def test_exact_demo_release_approval_and_arm_are_separate_local_routes(self) -> None:
+        approval = {"ok": True, "approved": True, "demoArm": False}
+        armed = {"ok": True, "approved": True, "demoArm": True}
+        disarmed = {"ok": True, "approved": True, "demoArm": False}
+        exact = {
+            "releaseId": "release-1",
+            "releaseHash": "release-hash-1",
+            "riskOverlayHash": "risk-hash-1",
+            "executionIntersectionHash": "intersection-hash-1",
+            "engineeringSmokeEvidenceHash": "smoke-evidence-hash-1",
+            "engineeringSmokeContractHash": "smoke-contract-hash-1",
+            "approvalRequestHash": "approval-request-hash-1",
+            "operatorIdentity": "human_local_operator",
+            "approvedAt": "2026-07-21T01:00:00Z",
+        }
+        with patch(
+            "alphapilot_control_console.http_app.approve_final_demo_release",
+            return_value=approval,
+        ) as approve, patch(
+            "alphapilot_control_console.http_app.arm_final_demo_release",
+            return_value=armed,
+        ) as arm, patch(
+            "alphapilot_control_console.http_app.disarm_final_demo_release",
+            return_value=disarmed,
+        ) as disarm:
+            self.assertEqual(
+                self._post("/api/strategy/releases/release-1/approve", exact),
+                approval,
+            )
+            self.assertEqual(
+                self._post("/api/demo/releases/release-1/arm", exact),
+                armed,
+            )
+            self.assertEqual(
+                self._post("/api/demo/releases/release-1/disarm", exact),
+                disarmed,
+            )
+
+        approve.assert_called_once_with("release-1", exact)
+        arm.assert_called_once_with("release-1", exact)
+        disarm.assert_called_once_with("release-1", exact)
+
+    def test_exact_demo_release_write_routes_reject_non_loopback_clients(self) -> None:
+        request = Request(
+            self.base_url + "/api/strategy/releases/release-1/approve",
+            data=b"{}",
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with patch(
+            "alphapilot_control_console.http_app._request_is_loopback",
+            return_value=False,
+        ), self.assertRaises(HTTPError) as raised:
+            urlopen(request, timeout=2)
+
+        self.assertEqual(raised.exception.code, 403)
 
 
 if __name__ == "__main__":

@@ -206,13 +206,29 @@ class UnifiedAutoExecutionRunner:
                         "marketRuntime": market_startup,
                         "runtime": self.status(),
                     }
-                self.controller.arm(environment)
+                if not self.controller.status(environment).get("armedForCurrentProcess"):
+                    return {
+                        "ok": False,
+                        "action": action,
+                        "environment": environment,
+                        "blockers": ["exact_demo_release_arm_required"],
+                        "marketRuntime": market_startup,
+                        "runtime": self.status(),
+                    }
             elif not self.controller.status(environment).get("armedForCurrentProcess"):
                 return {"ok": False, "blockers": ["live_process_arm_required"], "runtime": self.status()}
             result = self.controller.start(environment)
         elif action == "arm":
             if environment == "okx_live":
                 arm_result = self.live_arm(body)
+            else:
+                return {
+                    "ok": False,
+                    "action": action,
+                    "environment": environment,
+                    "blockers": ["exact_demo_release_arm_route_required"],
+                    "runtime": self.status(),
+                }
             result = self.controller.arm(environment)
         elif action == "pause":
             result = self.controller.pause(environment, str(body.get("reason") or "operator_pause"))
@@ -299,3 +315,32 @@ def run_unified_auto_execution_action(payload: dict[str, Any] | None = None) -> 
         str(body.get("action") or ""),
         body,
     )
+
+
+def arm_approved_demo_runtime() -> dict[str, Any]:
+    """ARM Demo only after the exact-release service has verified every gate."""
+    runner = _default_runner()
+    runner.start()
+    result = runner.controller.arm("okx_demo")
+    runner.wake()
+    return {
+        "ok": True,
+        "environment": "okx_demo",
+        "action": "arm",
+        "result": result,
+        "runtime": runner.status(),
+    }
+
+
+def disarm_approved_demo_runtime() -> dict[str, Any]:
+    """Disarm and disable Demo without touching Live or any exchange credential."""
+    runner = _default_runner()
+    result = runner.controller.stop("okx_demo", "exact_release_disarm")
+    runner.wake()
+    return {
+        "ok": True,
+        "environment": "okx_demo",
+        "action": "disarm",
+        "result": result,
+        "runtime": runner.status(),
+    }

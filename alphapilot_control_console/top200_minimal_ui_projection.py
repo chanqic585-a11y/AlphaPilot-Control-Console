@@ -26,10 +26,21 @@ class Top200MinimalUiProjection:
         "systemIssue",
     )
 
-    def __init__(self, evidence_root: Path, matchability_root: Path | None = None) -> None:
+    def __init__(
+        self,
+        evidence_root: Path,
+        matchability_root: Path | None = None,
+        *,
+        release_root: Path | None = None,
+        control_audit_root: Path | None = None,
+    ) -> None:
         self.evidence_root = Path(evidence_root)
         self.matchability_root = (
             Path(matchability_root) if matchability_root is not None else self.evidence_root
+        )
+        self.release_root = Path(release_root) if release_root is not None else None
+        self.control_audit_root = (
+            Path(control_audit_root) if control_audit_root is not None else None
         )
 
     def _load(self, name: str) -> dict[str, Any]:
@@ -54,11 +65,49 @@ class Top200MinimalUiProjection:
             return None
         return payload if isinstance(payload, dict) else None
 
+    @staticmethod
+    def _load_optional(root: Path | None, name: str) -> dict[str, Any] | None:
+        if root is None:
+            return None
+        path = root / name
+        if not path.is_file():
+            return None
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+        return payload if isinstance(payload, dict) else None
+
     def _release(self) -> dict[str, Any]:
-        return self._load("superseding_provisional_release.json")
+        return self._load_optional(
+            self.release_root,
+            "final_superseding_provisional_release.json",
+        ) or self._load("superseding_provisional_release.json")
 
     def _approval(self) -> dict[str, Any]:
-        return self._load("superseding_demo_approval_request.json")
+        release = self._release()
+        approval = dict(
+            self._load_optional(self.release_root, "final_demo_approval_request.json")
+            or self._load("superseding_demo_approval_request.json")
+        )
+        overlay = self._load_optional(
+            self.control_audit_root,
+            "demo_approval_overlay.json",
+        )
+        if overlay and all(
+            overlay.get(field) == release.get(field)
+            for field in ("releaseId", "releaseHash")
+        ):
+            approval.update(overlay)
+        arm = self._load_optional(self.control_audit_root, "demo_arm_audit.json")
+        if arm and all(
+            arm.get(field) == release.get(field)
+            for field in ("releaseId", "releaseHash")
+        ):
+            armed = arm.get("action") == "arm" and arm.get("status") == "armed"
+            approval["demoArm"] = armed
+            approval["route"] = "armed" if armed else "approved_not_armed"
+        return approval
 
     def _snapshot(self) -> dict[str, Any]:
         return self._load("initial_top200_demo_universe_snapshot.json")
@@ -139,6 +188,8 @@ class Top200MinimalUiProjection:
             "universePolicyId": release.get("dynamicUniversePolicyId"),
             "universePolicyHash": release.get("dynamicUniversePolicyHash"),
             "universeSnapshotHash": release.get("dynamicUniverseSnapshotHash"),
+            "snapshotBindingMode": release.get("snapshotBindingMode"),
+            "activationSnapshotHash": release.get("activationSnapshotHash"),
             "riskOverlayHash": release.get("riskOverlayHash"),
             "generatedAt": release.get("generatedAt"),
             "supersedesReleaseId": release.get("supersedesReleaseId"),
@@ -361,7 +412,18 @@ def build_top200_minimal_ui_projection() -> Top200MinimalUiProjection:
         if configured_matchability
         else DATA_DIR / "v54_v60" / "matchability"
     )
-    return Top200MinimalUiProjection(root, matchability_root)
+    release_root = DATA_DIR / "v54_v60" / "release"
+    control_audit_root = DATA_DIR / "v54_v60" / "control" / "audit"
+    return Top200MinimalUiProjection(
+        root,
+        matchability_root,
+        release_root=(
+            release_root
+            if (release_root / "final_superseding_provisional_release.json").is_file()
+            else None
+        ),
+        control_audit_root=control_audit_root,
+    )
 
 
 def _write_json_artifact(path: Path, payload: dict[str, Any]) -> str:

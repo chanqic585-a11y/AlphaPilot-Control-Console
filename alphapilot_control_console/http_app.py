@@ -36,6 +36,11 @@ from .evolution_demo_service import (
 from .demo_workflow_service import build_demo_workflow_status, run_demo_workflow_action
 from .demo_market_runtime_registry import start_demo_market_runtime, stop_demo_market_runtime
 from .demo_instrument_universe import load_or_refresh_demo_instrument_universe
+from .demo_release_service import (
+    approve_final_demo_release,
+    arm_final_demo_release,
+    disarm_final_demo_release,
+)
 from .demo_engineering_smoke_contract import (
     DEFAULT_CONTRACT_DIR as DEMO_ENGINEERING_SMOKE_CONTRACT_DIR,
     build_demo_engineering_smoke_contract,
@@ -995,6 +1000,51 @@ class ConsoleHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
+        release_control_action: str | None = None
+        release_control_id = ""
+        if parsed.path.startswith("/api/strategy/releases/") and parsed.path.endswith(
+            "/approve"
+        ):
+            release_control_action = "approve"
+            release_control_id = parsed.path.removeprefix(
+                "/api/strategy/releases/"
+            ).removesuffix("/approve").strip("/")
+        elif parsed.path.startswith("/api/demo/releases/"):
+            suffix = parsed.path.removeprefix("/api/demo/releases/").strip("/")
+            if suffix.endswith("/arm"):
+                release_control_action = "arm"
+                release_control_id = suffix.removesuffix("/arm").strip("/")
+            elif suffix.endswith("/disarm"):
+                release_control_action = "disarm"
+                release_control_id = suffix.removesuffix("/disarm").strip("/")
+        if release_control_action is not None:
+            payload = self._read_body_json()
+            if not _request_is_loopback(str(self.client_address[0])):
+                self._send_json({"ok": False, "error": "local_host_required"}, 403)
+                return
+            try:
+                reject_sensitive_fields(payload)
+                if not release_control_id:
+                    raise ValueError("releaseId is required in the route")
+                if release_control_action == "approve":
+                    result = approve_final_demo_release(release_control_id, payload)
+                elif release_control_action == "arm":
+                    result = arm_final_demo_release(release_control_id, payload)
+                else:
+                    result = disarm_final_demo_release(release_control_id, payload)
+            except (KeyError, PermissionError, RuntimeError, ValueError, OSError) as error:
+                self._send_json(
+                    {
+                        "ok": False,
+                        "error": type(error).__name__,
+                        "message": str(error),
+                    },
+                    409,
+                )
+                return
+            _RESPONSE_CACHE.clear()
+            self._send_json(result)
+            return
         strategy_validation_routes = {
             "/api/strategy-validation-releases/import",
             "/api/strategy-validation-releases/approve",

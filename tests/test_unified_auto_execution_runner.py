@@ -92,7 +92,7 @@ class UnifiedAutoExecutionRunnerTests(unittest.TestCase):
         runner.stop()
         self.assertEqual(controller.close_events, [close_event])
 
-    def test_demo_start_resumes_then_arms_without_order_confirmation(self) -> None:
+    def test_demo_start_requires_separate_exact_release_arm(self) -> None:
         controller = FakeController()
         resume_calls: list[str] = []
         market_start_calls: list[str] = []
@@ -107,10 +107,26 @@ class UnifiedAutoExecutionRunnerTests(unittest.TestCase):
 
         result = runner.action("okx_demo", "start", {})
 
-        self.assertTrue(result["ok"])
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["blockers"], ["exact_demo_release_arm_required"])
         self.assertEqual(resume_calls, ["resume"])
         self.assertEqual(market_start_calls, ["start"])
-        self.assertEqual(controller.actions[:2], [("okx_demo", "arm"), ("okx_demo", "start")])
+        self.assertEqual(controller.actions, [])
+
+        controller.armed["okx_demo"] = True
+        ready = runner.action("okx_demo", "start", {})
+        self.assertTrue(ready["ok"])
+        self.assertEqual(controller.actions, [("okx_demo", "start")])
+
+    def test_generic_demo_arm_route_cannot_bypass_exact_release_control(self) -> None:
+        controller = FakeController()
+        runner = UnifiedAutoExecutionRunner(controller=controller)
+
+        result = runner.action("okx_demo", "arm", {})
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["blockers"], ["exact_demo_release_arm_route_required"])
+        self.assertEqual(controller.actions, [])
 
     def test_demo_start_does_not_arm_when_public_market_warmup_fails(self) -> None:
         controller = FakeController()

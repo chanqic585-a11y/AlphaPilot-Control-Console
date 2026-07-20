@@ -277,6 +277,84 @@ class Top200MinimalUiProjectionTests(unittest.TestCase):
             self.assertTrue((output_dir / item["path"]).is_file())
             self.assertEqual(len(item["sha256"]), 64)
 
+    def test_policy_bound_successor_and_control_overlays_replace_pre_final_identity(
+        self,
+    ) -> None:
+        release_root = self.root / "release"
+        control_root = self.root / "control"
+        release_root.mkdir()
+        control_root.mkdir()
+        _write_json(
+            release_root,
+            "final_superseding_provisional_release.json",
+            {
+                "releaseId": "policy-bound-release",
+                "releaseHash": "policy-bound-release-hash",
+                "componentIds": ["component_a", "component_b", "component_c"],
+                "actualInstrumentCount": 2,
+                "maximumInstrumentCount": 200,
+                "dynamicUniversePolicyId": "okx_demo_top200_liquid_usdt_swap_forward_v1",
+                "dynamicUniversePolicyHash": "top200_universe_policy_fixture",
+                "dynamicUniverseSnapshotHash": "demo_top200_universe_snapshot_fixture",
+                "snapshotBindingMode": "policy_bound_daily_snapshot",
+                "riskOverlayHash": "risk_overlay_fixture",
+                "formalPass": False,
+                "approved": False,
+                "demoArm": False,
+                "route": "blocked_waiting_exact_release_approval",
+                "generatedAt": "2026-07-21T00:00:00Z",
+                "supersedesReleaseId": "provisional_research_demo_top200_fixture",
+                "supersedesReleaseHash": "provisional_demo_release_fixture",
+            },
+        )
+        _write_json(
+            release_root,
+            "final_demo_approval_request.json",
+            {
+                "releaseId": "policy-bound-release",
+                "releaseHash": "policy-bound-release-hash",
+                "requestHash": "policy-bound-approval-request",
+                "approved": False,
+                "demoArm": False,
+                "strategyOrderCount": 0,
+                "route": "blocked_waiting_exact_release_approval",
+            },
+        )
+        _write_json(
+            control_root,
+            "demo_approval_overlay.json",
+            {
+                "releaseId": "policy-bound-release",
+                "releaseHash": "policy-bound-release-hash",
+                "approved": True,
+                "demoArm": False,
+                "status": "approved_not_armed",
+            },
+        )
+        _write_json(
+            control_root,
+            "demo_arm_audit.json",
+            {
+                "releaseId": "policy-bound-release",
+                "releaseHash": "policy-bound-release-hash",
+                "action": "arm",
+                "status": "armed",
+            },
+        )
+
+        projection = Top200MinimalUiProjection(
+            self.root,
+            release_root=release_root,
+            control_audit_root=control_root,
+        )
+
+        release = projection.strategy_release("policy-bound-release")
+        summary = projection.strategy_summary()
+        self.assertEqual(release["snapshotBindingMode"], "policy_bound_daily_snapshot")
+        self.assertTrue(summary["approved"])
+        self.assertTrue(summary["demoArm"])
+        self.assertEqual(summary["route"], "armed")
+
 
 if __name__ == "__main__":
     unittest.main()
