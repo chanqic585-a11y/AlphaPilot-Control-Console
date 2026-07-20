@@ -166,18 +166,22 @@ def build_demo_evidence_checklist(
         _evidence(
             "local_forward_samples",
             "本地前向闭合样本",
-            status="bypassed" if override else ("passed" if closed_samples >= REVIEW_START_SAMPLES else "missing"),
+            status=(
+                "legacy_inactive"
+                if override
+                else ("passed" if closed_samples >= REVIEW_START_SAMPLES else "missing")
+            ),
             current=closed_samples,
             target=REVIEW_START_SAMPLES,
-            source_type="controlled_override" if override else "automatic",
-            blocking=not override and closed_samples < REVIEW_START_SAMPLES,
+            source_type="legacy_read_only" if override else "automatic",
+            blocking=override or closed_samples < REVIEW_START_SAMPLES,
             detail=(
-                "本地前向样本门槛已由受控 Demo-only 放行绕过；实盘仍不可放行。"
+                "旧 experimental_override 仅保留为历史记录，不能再绕过证据或执行。"
                 if override
                 else "系统自动累计去重后的本地前向闭合样本。"
             ),
             next_action=(
-                "继续在 OKX Demo 收集独立证据。"
+                "为冻结组合生成新的精确 Hash Provisional Research Demo Release。"
                 if override
                 else (
                     "本地前向样本已达到复核起点。"
@@ -200,13 +204,25 @@ def build_demo_evidence_checklist(
         _evidence(
             "immutable_demo_release",
             "不可变 Demo Release",
-            status="passed" if release_exists else "missing",
+            status=(
+                "legacy_inactive"
+                if override
+                else ("passed" if release_exists else "missing")
+            ),
             current=contract.get("demoReleaseId") or "未生成",
             target="校验通过的不可变 Release",
-            source_type="automatic",
-            blocking=not release_exists,
-            detail="系统自动校验 Release 内容哈希、风险包和 Demo-only 边界。",
-            next_action="Demo Release 已存在。" if release_exists else "补齐证据后生成 Demo Release。",
+            source_type="legacy_read_only" if override else "automatic",
+            blocking=override or not release_exists,
+            detail=(
+                "旧 Override Release 只读保留，不再具备执行资格。"
+                if override
+                else "系统自动校验 Release 内容哈希、风险包和 Demo-only 边界。"
+            ),
+            next_action=(
+                "生成 Provisional Research Demo Release 并等待精确 Hash 批准。"
+                if override
+                else ("Demo Release 已存在。" if release_exists else "补齐证据后生成 Demo Release。")
+            ),
         ),
         _evidence(
             "demo_runtime",
@@ -238,6 +254,7 @@ def build_demo_evidence_checklist(
             "blockingCount": sum(bool(item["blocking"]) for item in items),
             "automaticCount": sum(item["sourceType"] == "automatic" for item in items),
             "manualCount": sum(item["sourceType"] == "manual_runtime" for item in items),
-            "overrideActive": override,
+            "overrideActive": False,
+            "legacyOverrideDetected": override,
         },
     }

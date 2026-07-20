@@ -68,6 +68,20 @@ def signal() -> dict:
 
 
 class DemoExecutionEngineTests(unittest.TestCase):
+    def test_experimental_override_is_rejected_before_order(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = DemoExecutionStore(Path(directory) / "demo.sqlite")
+            client = FakeDemoClient()
+            engine = DemoExecutionEngine(client=client, store=store)
+            legacy_contract = {**contract(), "releaseMode": "experimental_override"}
+
+            with self.assertRaisesRegex(PermissionError, "legacy experimental override"):
+                engine.execute(contract=legacy_contract, signal=signal(), portfolio={})
+
+            self.assertEqual(client.placeCalls, 0)
+            self.assertEqual(store.list_records(), [])
+            store.close()
+
     def test_demo_unavailable_instrument_rejection_does_not_pause_all_strategies(self) -> None:
         class UnavailableInstrumentClient(FakeDemoClient):
             def place_order(self, payload: dict) -> dict:

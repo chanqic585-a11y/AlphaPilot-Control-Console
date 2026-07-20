@@ -94,7 +94,7 @@ class DemoEvidenceTests(unittest.TestCase):
         self.assertIn("启动", items["demo_runtime"]["nextAction"])
         self.assertGreater(result["summary"]["blockingCount"], 0)
 
-    def test_experimental_override_marks_only_forward_samples_bypassed(self) -> None:
+    def test_experimental_override_is_read_only_and_cannot_bypass_evidence(self) -> None:
         contract = {
             "demoReleaseId": "release-1",
             "strategyCandidateId": "strategy-1",
@@ -109,14 +109,17 @@ class DemoEvidenceTests(unittest.TestCase):
         )
 
         items = {item["evidenceId"]: item for item in result["items"]}
-        self.assertEqual(items["local_forward_samples"]["status"], "bypassed")
-        self.assertEqual(items["local_forward_samples"]["sourceType"], "controlled_override")
-        self.assertFalse(items["local_forward_samples"]["blocking"])
+        self.assertEqual(items["local_forward_samples"]["status"], "legacy_inactive")
+        self.assertEqual(items["local_forward_samples"]["sourceType"], "legacy_read_only")
+        self.assertTrue(items["local_forward_samples"]["blocking"])
         self.assertEqual(items["formal_backtest"]["status"], "passed")
         self.assertEqual(items["target_reward_risk"]["status"], "passed")
         self.assertEqual(items["formal_strategy_candidate"]["status"], "passed")
-        self.assertEqual(items["immutable_demo_release"]["status"], "passed")
+        self.assertEqual(items["immutable_demo_release"]["status"], "legacy_inactive")
+        self.assertTrue(items["immutable_demo_release"]["blocking"])
         self.assertFalse(contract["livePromotionAllowed"])
+        self.assertFalse(result["summary"]["overrideActive"])
+        self.assertTrue(result["summary"]["legacyOverrideDetected"])
 
     def test_engineering_smoke_cannot_count_as_strategy_demo_evidence(self) -> None:
         result = build_demo_evidence_checklist(

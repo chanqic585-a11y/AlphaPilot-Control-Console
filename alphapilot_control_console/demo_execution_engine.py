@@ -259,6 +259,8 @@ class DemoExecutionEngine:
         boundary = contract.get("executionBoundary") if isinstance(contract.get("executionBoundary"), dict) else {}
         if contract.get("schemaVersion") != "alphapilot_control_console_demo_v1":
             raise ValueError("Unsupported Demo release contract")
+        if contract.get("releaseMode") == "experimental_override":
+            raise PermissionError("legacy experimental override cannot execute")
         if contract.get("status") not in {"demo_eligible", "demo_active"}:
             raise ValueError("Demo release is not eligible")
         if not contract.get("demoReleaseId") or not contract.get("releaseContentHash"):
