@@ -99,6 +99,12 @@ class Top200MinimalUiProjection:
             for field in ("releaseId", "releaseHash")
         ):
             approval.update(overlay)
+            if overlay.get("approved") and not overlay.get("demoArm"):
+                approval["route"] = (
+                    overlay.get("route")
+                    or overlay.get("status")
+                    or "approved_not_armed"
+                )
         arm = self._load_optional(self.control_audit_root, "demo_arm_audit.json")
         if arm and all(
             arm.get(field) == release.get(field)
