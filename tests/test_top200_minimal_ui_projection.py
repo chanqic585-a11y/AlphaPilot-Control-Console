@@ -191,6 +191,43 @@ class Top200MinimalUiProjectionTests(unittest.TestCase):
         self.assertEqual(self.projection.demo_positions()["positions"], [])
         self.assertEqual(self.projection.demo_orders()["orders"], [])
 
+    def test_demo_projection_exposes_only_four_matchability_headlines(self) -> None:
+        _write_json(
+            self.root,
+            "signal_matchability_30d.json",
+            {"status": "ready_with_sparse_signal_warning", "signalCount": 4},
+        )
+        _write_json(
+            self.root,
+            "signal_matchability_90d.json",
+            {"status": "ready_with_sparse_signal_warning", "signalCount": 10},
+        )
+        _write_json(
+            self.root,
+            "pre_arm_scan_funnel.json",
+            {
+                "status": "ready_with_sparse_signal_warning",
+                "releaseInstrumentCount": 82,
+                "compatibleComponentCount": 3,
+                "warnings": ["component_without_signal_30d:long_1d"],
+            },
+        )
+
+        matchability = self.projection.demo_matchability()
+
+        self.assertEqual(
+            matchability,
+            {
+                "status": "ready_with_sparse_signal_warning",
+                "releaseInstrumentCount": 82,
+                "compatibleComponentCount": 3,
+                "signalCount30d": 4,
+                "signalCount90d": 10,
+                "warningCount": 1,
+            },
+        )
+        self.assertEqual(self.projection.demo_summary()["matchability"], matchability)
+
     def test_all_read_projections_do_not_modify_evidence(self) -> None:
         before = {
             path.name: path.read_bytes()
@@ -210,6 +247,7 @@ class Top200MinimalUiProjectionTests(unittest.TestCase):
         self.projection.demo_orders()
         self.projection.demo_universe()
         self.projection.demo_reconciliation()
+        self.projection.demo_matchability()
 
         after = {
             path.name: path.read_bytes()

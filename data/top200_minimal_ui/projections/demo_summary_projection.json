@@ -70,6 +70,14 @@
         "severity": "warning"
       }
     ],
+    "matchability": {
+      "compatibleComponentCount": 3,
+      "releaseInstrumentCount": 82,
+      "signalCount30d": 4,
+      "signalCount90d": 10,
+      "status": "ready_with_sparse_signal_warning",
+      "warningCount": 3
+    },
     "openPositionCount": 0,
     "readOnly": true,
     "route": "blocked_waiting_exact_release_approval",

@@ -15,10 +15,11 @@ def main() -> int:
         description="Build read-only TOP200 Strategy and Demo UI projections."
     )
     parser.add_argument("--evidence-root", type=Path, required=True)
+    parser.add_argument("--matchability-root", type=Path)
     parser.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args()
     manifest = write_top200_minimal_ui_projection_artifacts(
-        Top200MinimalUiProjection(args.evidence_root),
+        Top200MinimalUiProjection(args.evidence_root, args.matchability_root),
         args.output_dir,
     )
     print(json.dumps(manifest, ensure_ascii=False, sort_keys=True))

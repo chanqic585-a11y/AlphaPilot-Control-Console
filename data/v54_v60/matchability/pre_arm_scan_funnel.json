@@ -1,0 +1,18 @@
+{
+  "asOf": "2026-06-27T18:00:00Z",
+  "blockers": [],
+  "compatibleComponentCount": 3,
+  "componentWithSignal30dCount": 1,
+  "componentWithSignal90dCount": 2,
+  "historicallyObservedInstrumentCount": 20,
+  "releaseId": "provisional_research_demo_top200_1fc1e9895d79de78e457bc9c",
+  "releaseInstrumentCount": 82,
+  "schemaVersion": "demo_pre_arm_scan_funnel_v1",
+  "status": "ready_with_sparse_signal_warning",
+  "strategyOrderCount": 0,
+  "warnings": [
+    "component_without_signal_30d:v13_7_20_lf_research_candidate_090",
+    "component_without_signal_30d:v13_7_20_lf_research_candidate_117",
+    "component_without_signal_90d:v13_7_20_lf_research_candidate_117"
+  ]
+}

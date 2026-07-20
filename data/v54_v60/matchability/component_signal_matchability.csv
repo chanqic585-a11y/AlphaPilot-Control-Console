@@ -1,0 +1,4 @@
+﻿candidateId,family,direction,timeframe,sourceUniverseMode,sourceInstrumentCount,compatibleInstrumentCount,historicallyObservedInstrumentCount,historicalTradeCount,signalCount30d,signalCount90d,lastSignalAt
+v13_7_20_lf_research_candidate_090,squeeze_breakout,long,1d,full_market,82,82,17,193,0,2,2026-05-15T00:00:00Z
+v13_7_20_lf_research_candidate_117,mean_reversion,long,1d,full_market,82,82,13,33,0,0,2025-09-26T00:00:00Z
+v13_7_40_1h_short_rejection_2149_asset_filter_top10,short_rejection,short,1h,selected_pairs,10,6,6,138,4,8,2026-06-27T18:00:00Z

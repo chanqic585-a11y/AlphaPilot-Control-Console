@@ -1,0 +1,44 @@
+{
+  "asOf": "2026-06-27T18:00:00Z",
+  "blockers": [],
+  "components": [
+    {
+      "candidateId": "v13_7_20_lf_research_candidate_090",
+      "compatibleInstrumentCount": 82,
+      "lastSignalAt": "2026-05-15T00:00:00Z",
+      "signalCount": 2,
+      "timeframe": "1d"
+    },
+    {
+      "candidateId": "v13_7_20_lf_research_candidate_117",
+      "compatibleInstrumentCount": 82,
+      "lastSignalAt": "2025-09-26T00:00:00Z",
+      "signalCount": 0,
+      "timeframe": "1d"
+    },
+    {
+      "candidateId": "v13_7_40_1h_short_rejection_2149_asset_filter_top10",
+      "compatibleInstrumentCount": 6,
+      "lastSignalAt": "2026-06-27T18:00:00Z",
+      "signalCount": 8,
+      "timeframe": "1h"
+    }
+  ],
+  "releaseHash": "provisional_demo_release_96aa2aa4bdb320e91745474f287dda9e4836b8a901910f252bcf447d718010d0",
+  "releaseId": "provisional_research_demo_top200_1fc1e9895d79de78e457bc9c",
+  "schemaVersion": "demo_signal_matchability_90d_v1",
+  "securityBoundary": {
+    "canCreateOrder": false,
+    "orderClientReachable": false,
+    "privateEndpointReachable": false,
+    "publicEvidenceOnly": true
+  },
+  "signalCount": 10,
+  "status": "ready_with_sparse_signal_warning",
+  "warnings": [
+    "component_without_signal_30d:v13_7_20_lf_research_candidate_090",
+    "component_without_signal_30d:v13_7_20_lf_research_candidate_117",
+    "component_without_signal_90d:v13_7_20_lf_research_candidate_117"
+  ],
+  "windowDays": 90
+}

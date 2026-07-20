@@ -26,8 +26,11 @@ class Top200MinimalUiProjection:
         "systemIssue",
     )
 
-    def __init__(self, evidence_root: Path) -> None:
+    def __init__(self, evidence_root: Path, matchability_root: Path | None = None) -> None:
         self.evidence_root = Path(evidence_root)
+        self.matchability_root = (
+            Path(matchability_root) if matchability_root is not None else self.evidence_root
+        )
 
     def _load(self, name: str) -> dict[str, Any]:
         path = self.evidence_root / name
@@ -40,6 +43,16 @@ class Top200MinimalUiProjection:
         if not isinstance(payload, dict):
             raise ProjectionEvidenceError(f"projection evidence must be an object: {path}")
         return payload
+
+    def _load_matchability(self, name: str) -> dict[str, Any] | None:
+        path = self.matchability_root / name
+        if not path.is_file():
+            return None
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+        return payload if isinstance(payload, dict) else None
 
     def _release(self) -> dict[str, Any]:
         return self._load("superseding_provisional_release.json")
@@ -227,8 +240,33 @@ class Top200MinimalUiProjection:
                 + int(smoke.get("forwardEvidenceDelta") or 0),
                 "strategyOrdersExcluded": True,
             },
+            "matchability": self.demo_matchability(),
             "updatedAt": release.get("generatedAt"),
             "readOnly": True,
+        }
+
+    def demo_matchability(self) -> dict[str, Any]:
+        window_30d = self._load_matchability("signal_matchability_30d.json")
+        window_90d = self._load_matchability("signal_matchability_90d.json")
+        funnel = self._load_matchability("pre_arm_scan_funnel.json")
+        if window_30d is None or window_90d is None or funnel is None:
+            return {
+                "status": "not_available",
+                "releaseInstrumentCount": None,
+                "compatibleComponentCount": None,
+                "signalCount30d": None,
+                "signalCount90d": None,
+                "warningCount": 0,
+            }
+        return {
+            "status": funnel.get("status"),
+            "releaseInstrumentCount": int(funnel.get("releaseInstrumentCount") or 0),
+            "compatibleComponentCount": int(
+                funnel.get("compatibleComponentCount") or 0
+            ),
+            "signalCount30d": int(window_30d.get("signalCount") or 0),
+            "signalCount90d": int(window_90d.get("signalCount") or 0),
+            "warningCount": len(funnel.get("warnings") or []),
         }
 
     def demo_strategies(self) -> dict[str, Any]:
@@ -317,7 +355,13 @@ class Top200MinimalUiProjection:
 def build_top200_minimal_ui_projection() -> Top200MinimalUiProjection:
     configured = os.environ.get("ALPHAPILOT_TOP200_MINIMAL_UI_EVIDENCE_ROOT")
     root = Path(configured).expanduser().resolve() if configured else DEFAULT_TOP200_MINIMAL_UI_EVIDENCE_ROOT
-    return Top200MinimalUiProjection(root)
+    configured_matchability = os.environ.get("ALPHAPILOT_DEMO_MATCHABILITY_ROOT")
+    matchability_root = (
+        Path(configured_matchability).expanduser().resolve()
+        if configured_matchability
+        else DATA_DIR / "v54_v60" / "matchability"
+    )
+    return Top200MinimalUiProjection(root, matchability_root)
 
 
 def _write_json_artifact(path: Path, payload: dict[str, Any]) -> str:
