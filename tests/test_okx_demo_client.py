@@ -43,6 +43,20 @@ class OkxDemoClientTests(unittest.TestCase):
         self.assertEqual(result["roundTripMilliseconds"], 100)
         self.assertEqual(result["offsetMilliseconds"], 0)
 
+    def test_ticker_is_public_and_preserves_instrument_query(self) -> None:
+        response = self.client.get_ticker("BTC-USDT-SWAP")
+
+        request = self.transport.requests[0]
+        self.assertEqual(response["code"], "0")
+        self.assertEqual(request.method, "GET")
+        self.assertEqual(request.path, "/api/v5/market/ticker")
+        self.assertEqual(request.query, {"instId": "BTC-USDT-SWAP"})
+        self.assertEqual(
+            request.url,
+            "https://openapi.okx.com/api/v5/market/ticker?instId=BTC-USDT-SWAP",
+        )
+        self.assertNotIn("OK-ACCESS-KEY", request.headers)
+
     def test_synchronized_offset_is_applied_to_private_request_timestamp(self) -> None:
         class OffsetTransport(FakeTransport):
             def send(self, request: OkxDemoRequest) -> dict:

@@ -40,7 +40,10 @@ _ALLOWED_ENDPOINTS = {
     ("POST", "/api/v5/trade/cancel-order"),
     ("POST", "/api/v5/trade/cancel-all-after"),
 }
-_PUBLIC_ENDPOINTS = {("GET", "/api/v5/public/time")}
+_PUBLIC_ENDPOINTS = {
+    ("GET", "/api/v5/public/time"),
+    ("GET", "/api/v5/market/ticker"),
+}
 
 
 def resolve_okx_rest_url(site: str = "global") -> str:
@@ -194,16 +197,25 @@ class OkxDemoClient:
         )
         return _redact_payload(response)
 
-    def public_request(self, method: str, path: str) -> dict[str, Any]:
+    def public_request(
+        self,
+        method: str,
+        path: str,
+        *,
+        query: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         normalized_method = method.upper()
         if (normalized_method, path) not in _PUBLIC_ENDPOINTS:
             raise PermissionError(f"OKX public endpoint is not allowlisted: {normalized_method} {path}")
+        query_payload = {key: value for key, value in (query or {}).items() if value is not None}
+        query_string = urlencode(query_payload)
+        request_path = f"{path}?{query_string}" if query_string else path
         response = self._transport.send(
             OkxDemoRequest(
                 method=normalized_method,
-                url=f"{self._base_url}{path}",
+                url=f"{self._base_url}{request_path}",
                 path=path,
-                query={},
+                query=query_payload,
                 body={},
                 headers={
                     "Accept": "application/json",
@@ -216,6 +228,16 @@ class OkxDemoClient:
 
     def get_server_time(self) -> dict[str, Any]:
         return self.public_request("GET", "/api/v5/public/time")
+
+    def get_ticker(self, instrumentId: str) -> dict[str, Any]:
+        instrument_id = str(instrumentId or "").strip()
+        if not instrument_id:
+            raise ValueError("instrumentId is required")
+        return self.public_request(
+            "GET",
+            "/api/v5/market/ticker",
+            query={"instId": instrument_id},
+        )
 
     def _signed_timestamp(self) -> str:
         if not self._server_time_synchronized:
