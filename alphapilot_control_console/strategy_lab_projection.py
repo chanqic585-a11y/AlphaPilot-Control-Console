@@ -14,6 +14,7 @@ from .config import get_quant_engine_path
 _SOURCE_RELATIVE = Path("research/external_capabilities/vibe_trading")
 _INTEGRATION_RELATIVE = Path("reports/integration/v37g_v37h")
 _CAMPAIGN_RELATIVE = Path("reports/strategy_acquisition/v37i_v37j")
+_MECHANISM_RELATIVE = Path("reports/mechanism_breakthrough")
 
 
 def _load_json(path: Path, fallback: Any) -> Any:
@@ -52,6 +53,21 @@ def _integer(*values: Any) -> int:
     return 0
 
 
+def _latest_mechanism_research(root: Path) -> Path | None:
+    mechanism_root = root / _MECHANISM_RELATIVE
+    if not mechanism_root.is_dir():
+        return None
+    candidates = sorted(
+        (
+            path / "research"
+            for path in mechanism_root.iterdir()
+            if (path / "research" / "campaign_summary.json").is_file()
+        ),
+        key=lambda path: path.parent.name,
+    )
+    return candidates[-1] if candidates else None
+
+
 def build_strategy_lab_projection(quant_root: Path | str | None = None) -> dict[str, Any]:
     """Join V37G-H source evidence with V37I-J campaign evidence without mutation."""
 
@@ -86,6 +102,21 @@ def build_strategy_lab_projection(quant_root: Path | str | None = None) -> dict[
     source_equivalence = _load_csv(integration_root / "source_equivalence_matrix.csv")
     similarity_matrix = _load_csv(integration_root / "artifact_similarity_summary.csv")
     factor_bench = _load_csv(integration_root / "factor_bench_matrix.csv")
+    mechanism_research = _latest_mechanism_research(root)
+    mechanism_summary = (
+        _dict(_load_json(mechanism_research / "campaign_summary.json", {}))
+        if mechanism_research else {}
+    )
+    formal_gate_matrix = _load_csv(mechanism_research / "formal_gate_matrix.csv") if mechanism_research else []
+    mechanism_status = str(mechanism_summary.get("status") or "not_available")
+    mechanism_prefilter_survivors = _integer(mechanism_summary.get("prefilterSurvivorCount"))
+    mechanism_formal_runs = _integer(mechanism_summary.get("formalRunCount"))
+    if mechanism_formal_runs > 0:
+        formal_gate_status = "completed"
+    elif mechanism_status == "completed_zero_qualified_candidates" and mechanism_prefilter_survivors == 0:
+        formal_gate_status = "not_run_zero_prefilter_survivors"
+    else:
+        formal_gate_status = "not_run"
 
     formal_count = _integer(
         formal_route.get("formalCandidateCount"),
@@ -153,6 +184,22 @@ def build_strategy_lab_projection(quant_root: Path | str | None = None) -> dict[
         "similarityMatrix": similarity_matrix,
         "factorRegistry": factor_registry,
         "factorBench": factor_bench,
+        "mechanismCampaign": {
+            "campaignId": str(mechanism_summary.get("campaignId") or ""),
+            "status": mechanism_status,
+            "candidateCount": _integer(mechanism_summary.get("candidateCount")),
+            "prefilterSurvivorCount": mechanism_prefilter_survivors,
+            "formalCandidateCount": _integer(mechanism_summary.get("formalCandidateCount")),
+            "formalRunCount": mechanism_formal_runs,
+            "releaseCount": _integer(mechanism_summary.get("releaseCount")),
+            "lockedOosReadCount": _integer(mechanism_summary.get("lockedOosReadCount")),
+            "formalGateStatus": formal_gate_status,
+            "evidenceRoot": (
+                str(mechanism_research.relative_to(root)).replace("\\", "/")
+                if mechanism_research else ""
+            ),
+        },
+        "formalGateMatrix": formal_gate_matrix,
         "campaigns": _list(campaign_summary.get("campaigns")),
         "campaignSummary": campaign_summary,
         "experimentBudget": experiment_budget,

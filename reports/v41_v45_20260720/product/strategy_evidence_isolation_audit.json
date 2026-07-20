@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "alphapilot_v41_v45_strategy_evidence_isolation_audit_v1",
+  "generatedAt": "2026-07-20T03:31:42.586671+00:00",
+  "status": "completed",
+  "strategyEvidenceBeforeSha256": "8a92cf1616f7c14d6abe7f1220506ae1a09a156cb73be788998594c358981162",
+  "strategyEvidenceAfterSha256": "8a92cf1616f7c14d6abe7f1220506ae1a09a156cb73be788998594c358981162",
+  "strategyEvidenceChanged": false,
+  "engineeringOnly": true,
+  "strategyQualification": false,
+  "formalPass": false,
+  "promotionEvidenceEligible": false,
+  "livePromotionEligible": false
+}

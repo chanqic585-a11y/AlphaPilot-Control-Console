@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "alphapilot_v41_v45_demo_private_preflight_v1",
+  "generatedAt": "2026-07-20T03:31:42.586671+00:00",
+  "status": "blocked_demo_credentials_not_injected",
+  "credentialsInjected": false,
+  "privateNetworkVerified": false,
+  "networkRequestMade": false,
+  "simulatedTradingHeaderRequired": true,
+  "environment": "demo",
+  "withdrawAllowed": false,
+  "liveExecutionAllowed": false,
+  "credentialsPersisted": false,
+  "reason": "Process-only OKX Demo credentials were not injected; private endpoints and orders were not called."
+}

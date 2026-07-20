@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "alphapilot_v41_v45_ui_screenshot_manifest_v1",
+  "generatedAt": "2026-07-20T03:31:42.586671+00:00",
+  "screenshots": [
+    {
+      "path": "screenshots/real_demo_universe.png",
+      "status": "not_run",
+      "reason": "track_p_not_reached",
+      "sensitiveDataPresent": false
+    },
+    {
+      "path": "screenshots/real_engineering_smoke_order.png",
+      "status": "not_run",
+      "reason": "track_p_not_reached",
+      "sensitiveDataPresent": false
+    },
+    {
+      "path": "screenshots/real_engineering_smoke_position.png",
+      "status": "not_run",
+      "reason": "track_p_not_reached",
+      "sensitiveDataPresent": false
+    },
+    {
+      "path": "screenshots/real_engineering_smoke_reconciliation.png",
+      "status": "not_run",
+      "reason": "track_p_not_reached",
+      "sensitiveDataPresent": false
+    },
+    {
+      "path": "screenshots/real_kill_switch.png",
+      "status": "not_run",
+      "reason": "track_p_not_reached",
+      "sensitiveDataPresent": false
+    },
+    {
+      "path": "screenshots/formal_gate_matrix.png",
+      "status": "available",
+      "reason": null,
+      "sensitiveDataPresent": false
+    }
+  ]
+}

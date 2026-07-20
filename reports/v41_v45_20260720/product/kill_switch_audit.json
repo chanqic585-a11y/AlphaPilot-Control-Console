@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "alphapilot_v41_v45_kill_switch_audit_v1",
+  "generatedAt": "2026-07-20T03:31:42.586671+00:00",
+  "status": "not_run",
+  "reason": "blocked_demo_credentials_not_injected",
+  "networkRequestMade": false,
+  "orderCreated": false,
+  "engineeringOnly": true,
+  "strategyQualification": false,
+  "formalPass": false,
+  "promotionEvidenceEligible": false,
+  "livePromotionEligible": false
+}

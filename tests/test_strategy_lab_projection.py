@@ -107,6 +107,41 @@ class StrategyLabProjectionTests(unittest.TestCase):
         self.assertGreater(len(result["missingEvidence"]), 0)
         self.assertEqual(result["summary"]["candidateCount"], 0)
 
+    def test_projection_exposes_latest_mechanism_campaign_and_formal_gate_matrix(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            research = (
+                root
+                / "reports"
+                / "mechanism_breakthrough"
+                / "v41_v45_fixture"
+                / "research"
+            )
+            research.mkdir(parents=True)
+            self._write_json(research / "campaign_summary.json", {
+                "campaignId": "campaign-v41-fixture",
+                "status": "completed_zero_qualified_candidates",
+                "candidateCount": 4,
+                "prefilterSurvivorCount": 0,
+                "formalCandidateCount": 0,
+                "formalRunCount": 0,
+                "releaseCount": 0,
+                "lockedOosReadCount": 0,
+            })
+            (research / "formal_gate_matrix.csv").write_text(
+                "candidateId,gateName,actual,operator,required,passed,status\n",
+                encoding="utf-8",
+            )
+
+            result = build_strategy_lab_projection(root)
+
+            mechanism = result["mechanismCampaign"]
+            self.assertEqual(mechanism["campaignId"], "campaign-v41-fixture")
+            self.assertEqual(mechanism["status"], "completed_zero_qualified_candidates")
+            self.assertEqual(mechanism["formalCandidateCount"], 0)
+            self.assertEqual(mechanism["formalGateStatus"], "not_run_zero_prefilter_survivors")
+            self.assertEqual(result["formalGateMatrix"], [])
+
     @staticmethod
     def _write_json(path: Path, payload: object) -> None:
         path.write_text(json.dumps(payload), encoding="utf-8")

@@ -2520,3 +2520,21 @@ explicit: implementation and deterministic tests are verified, while private
 network verification remains false unless a user starts a process-only Demo
 session. The current V37I/J route has zero qualified Formal candidates, so V39
 is not run, Demo is not armed, no order is created, and V40 remains disabled.
+
+## V13.27.1.41-V13.27.1.45 Mechanism and Demo Closeout
+
+The Strategy Lab now exposes the V41-V44 mechanism campaign and its Formal Gate
+Matrix. When development produces no survivors, the UI states that Formal was
+not run and shows the Locked OOS read count instead of implying missing data.
+
+The Demo engineering layer also includes a V41-V45 exact-contract validator. A
+future real Demo smoke must bind the authenticated `instId`, instrument
+metadata, account mode, position mode, `maximumSize=minSz`, one-position limits,
+and non-qualification flags. It can proceed only when the current process sets
+`ALPHAPILOT_ENGINEERING_SMOKE_APPROVED` to that exact contract hash. The overlay
+never stores credentials and cannot qualify or promote a strategy.
+
+The executed closeout is under `reports/v41_v45_20260720/`. Research completed
+with four candidates and zero prefilter survivors. Track P is truthfully marked
+`blocked_demo_credentials_not_injected`; no private request, Demo order, fill,
+position, release, Live action, or Withdraw capability was fabricated.

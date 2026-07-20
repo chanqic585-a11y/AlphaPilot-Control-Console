@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "alphapilot_v41_v45_candidate_release_status_v1",
+  "generatedAt": "2026-07-20T03:31:42.586671+00:00",
+  "status": "not_run_no_qualified_formal_candidate",
+  "releaseCount": 0,
+  "reason": "No candidate survived prefilter and Formal was not run."
+}

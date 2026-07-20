@@ -1,0 +1,367 @@
+{
+  "schemaVersion": "alphapilot_v41_v45_delivery_manifest_v1",
+  "generatedAt": "2026-07-20T03:31:42.586671+00:00",
+  "artifactCount": 72,
+  "artifacts": [
+    {
+      "path": "AlphaPilot_V41-V45_Final_Closeout_CN.md",
+      "sha256": "a1fe7299a12cb76c65ccefe3651f83c782c2e5b6ea5322d2795919a80a8b5437",
+      "sizeBytes": 601
+    },
+    {
+      "path": "common/integration_merge_receipt.json",
+      "sha256": "d170e1546714bc2efc61ef7298cdf0ef965562657a26421534c09a196b5efa2f",
+      "sizeBytes": 532
+    },
+    {
+      "path": "common/program_budget.json",
+      "sha256": "c8dcd5d02d89589f8085e1fe56be8bdbe3ac3b17209e5044c17e588cf9da1a3b",
+      "sizeBytes": 615
+    },
+    {
+      "path": "common/program_budget_ledger.jsonl",
+      "sha256": "fd72d9f3b18aec57ca455488c06c2f501c2f8a69d9484a49de33d4bcde904ad6",
+      "sizeBytes": 231
+    },
+    {
+      "path": "common/program_ledger.jsonl",
+      "sha256": "f04b3a23dc6c83963e9cd8b7bfca7c51c5211861b106c150cb100ce0e2b286cf",
+      "sizeBytes": 334
+    },
+    {
+      "path": "common/program_spec.json",
+      "sha256": "0dad76963e77b12c8522ac4fcc39266a0130d4aa0e1902414511e01c6a77fb24",
+      "sizeBytes": 1114
+    },
+    {
+      "path": "common/program_state.json",
+      "sha256": "ad2037b51216406bda839f8dbdaef7dd90203de9dd66fed98b19acee19dd8ad8",
+      "sizeBytes": 510
+    },
+    {
+      "path": "final_self_check.json",
+      "sha256": "f4376b75083e31ad7f07ee6d411d5218ae165cf9acf99a9c8d2ade8b289ef61d",
+      "sizeBytes": 1683
+    },
+    {
+      "path": "final_self_check.md",
+      "sha256": "a1fe7299a12cb76c65ccefe3651f83c782c2e5b6ea5322d2795919a80a8b5437",
+      "sizeBytes": 601
+    },
+    {
+      "path": "product/demo_private_preflight.json",
+      "sha256": "477f6c41b8bbd559e1c1bfb5568249446b73e278d980d974ae5a46cd9117bf1e",
+      "sizeBytes": 549
+    },
+    {
+      "path": "product/demo_universe_audit.json",
+      "sha256": "a5de623f8473eb6bec2b79877c21133dd09c938c17f1a4cb32ef763c5942686c",
+      "sizeBytes": 408
+    },
+    {
+      "path": "product/engineering_smoke_approval_overlay.json",
+      "sha256": "4d201416a231589d19bbeec5f27894ea326094d7d922f3bf91809d362c504f50",
+      "sizeBytes": 423
+    },
+    {
+      "path": "product/engineering_smoke_cancel_audit.json",
+      "sha256": "c86b82c2221d13703057123a68e99a0839489c708cac99bc9803807b46db8348",
+      "sizeBytes": 419
+    },
+    {
+      "path": "product/engineering_smoke_contract.json",
+      "sha256": "80972650a69401843be605bace40c86c6059b9a9bb48110554726d1d92adec24",
+      "sizeBytes": 507
+    },
+    {
+      "path": "product/engineering_smoke_fill_close_audit.json",
+      "sha256": "b00a9ed69a7fdf4894cd72872676e911749f3722457f323eda47e79ca5b0c330",
+      "sizeBytes": 423
+    },
+    {
+      "path": "product/engineering_smoke_fill_ledger.jsonl",
+      "sha256": "ff15005e8e7a7fb6dd89dc20d25331e232e235c7ea9a8b00010e06901da34bc0",
+      "sizeBytes": 278
+    },
+    {
+      "path": "product/engineering_smoke_order_ledger.jsonl",
+      "sha256": "ff15005e8e7a7fb6dd89dc20d25331e232e235c7ea9a8b00010e06901da34bc0",
+      "sizeBytes": 278
+    },
+    {
+      "path": "product/engineering_smoke_position_ledger.jsonl",
+      "sha256": "ff15005e8e7a7fb6dd89dc20d25331e232e235c7ea9a8b00010e06901da34bc0",
+      "sizeBytes": 278
+    },
+    {
+      "path": "product/kill_switch_audit.json",
+      "sha256": "dde8b2d2e2d57b356bb78f212aba4259108988425ef542f64bf175abef8535b4",
+      "sizeBytes": 406
+    },
+    {
+      "path": "product/private_websocket_audit.json",
+      "sha256": "5ce28eca222113279e5c912c8dc3ed7afe0047596455ef32bbad036d2020b859",
+      "sizeBytes": 412
+    },
+    {
+      "path": "product/rest_reconciliation_audit.json",
+      "sha256": "2f99c2f2ee81c8c0cb68db21b3cecad4a951e9c6133947679614160ac1ad73d7",
+      "sizeBytes": 414
+    },
+    {
+      "path": "product/restart_recovery_audit.json",
+      "sha256": "a2efe88d460f305e537773e1c42a080b8e44e5b71b0380b7f69ef2f305054455",
+      "sizeBytes": 411
+    },
+    {
+      "path": "product/strategy_evidence_isolation_audit.json",
+      "sha256": "ff9410fd357432fbf57269f63bdaf19eec0448124803c4972006ed3bdd29b484",
+      "sizeBytes": 554
+    },
+    {
+      "path": "product/ui_screenshot_manifest.json",
+      "sha256": "c9131af4c4892c37c248f5940c7359b9425f081e264e939651b2c2dd79abdccd",
+      "sizeBytes": 1173
+    },
+    {
+      "path": "release/candidate_releases/status.json",
+      "sha256": "decc3c2df9fda5c1acfa7c994f2120a66690ca5fc04ad3fe0638455651d3842c",
+      "sizeBytes": 270
+    },
+    {
+      "path": "release/demo_approval_request.json",
+      "sha256": "075b05b0fc317ffc93a1fd40424c30af3ed374f5439ac90d31f6203678004c11",
+      "sizeBytes": 107
+    },
+    {
+      "path": "release/demo_approval_request.md",
+      "sha256": "a2534696c2e4a763a5ae8d64a72e949b0ae058f2cf0e92c5ffeb0b90d9ae6120",
+      "sizeBytes": 55
+    },
+    {
+      "path": "release/release_hash_audit.json",
+      "sha256": "ca1768b5bec7b2fb76d256f9096371a82d3ef8ab7a719e840e0d9e521facb686",
+      "sizeBytes": 73
+    },
+    {
+      "path": "release/release_inventory.json",
+      "sha256": "8d0b13b498f7cd67c336afdec6b1e3c50af0113718f5813d0ca347e006c03a94",
+      "sizeBytes": 226
+    },
+    {
+      "path": "research/artifact_lifecycle_history.jsonl",
+      "sha256": "d9a006cd3b8363e4455cb618eebd868bdb7292af4d518576810c015136410f53",
+      "sizeBytes": 7260
+    },
+    {
+      "path": "research/artifact_similarity_matrix.parquet",
+      "sha256": "f923fcb3a59b22f700a64cd0954599450993823ba1a639c2b121ce6933861521",
+      "sizeBytes": 3470
+    },
+    {
+      "path": "research/benchmark_comparability_matrix.csv",
+      "sha256": "334688c319b4649500d6409e7bf24a7c69f3ff2d6f72b2aa896199fe02d15a30",
+      "sizeBytes": 744
+    },
+    {
+      "path": "research/campaign_summary.json",
+      "sha256": "8466865c0aeb775c4f20a9eec1633f89813142a59998d714611479b1d6c96a36",
+      "sizeBytes": 1249
+    },
+    {
+      "path": "research/campaign_summary.md",
+      "sha256": "adb2bde9ebdc2097f3df083523727eba0b38daf0e194e7263e706771eb5ae7ee",
+      "sizeBytes": 303
+    },
+    {
+      "path": "research/candidate_adapters/v42_breakout_trap_second_entry_long_4h_v1.json",
+      "sha256": "f421128f2b4ec48309fa603224640105f93fe3d233ab62bbec154430816d31d9",
+      "sizeBytes": 397
+    },
+    {
+      "path": "research/candidate_adapters/v42_breakout_trap_second_entry_short_4h_v1.json",
+      "sha256": "520e7ebc36f16e78c2e93330f66a82dbae5ae49ca85585d83ba0d1d9f840a8c1",
+      "sizeBytes": 398
+    },
+    {
+      "path": "research/candidate_adapters/v42_spike_pullback_continuation_long_1h_v1.json",
+      "sha256": "956fb33b0a04c729d006029fc0d9648ec93372d629ac5d3306aac2ffc9fc5b31",
+      "sizeBytes": 398
+    },
+    {
+      "path": "research/candidate_adapters/v42_spike_pullback_continuation_short_1h_v1.json",
+      "sha256": "0311f3513f84e17003c46b51ce854698fbf46380f8553271e3badbfa9c812293",
+      "sizeBytes": 399
+    },
+    {
+      "path": "research/candidate_dedup_decisions.json",
+      "sha256": "0a9d5a0548614ce4585db513878ccb9834a31f63a98bc0bf79daeaa96cc5d3fd",
+      "sizeBytes": 702
+    },
+    {
+      "path": "research/candidate_inventory.json",
+      "sha256": "a00174b47e87406b4e36f153f645fd31598bdc97a84bb8136a0f9085ab8b9599",
+      "sizeBytes": 52124
+    },
+    {
+      "path": "research/candidate_results.parquet",
+      "sha256": "1904eeb5f2c922679f8a7cee5974f5d868f128435544e7f6d74f7ddd484ce3b3",
+      "sizeBytes": 12778
+    },
+    {
+      "path": "research/candidate_specs/v42_breakout_trap_second_entry_long_4h_v1.json",
+      "sha256": "eed77a1faa9ad487f041cc68aa15d0428252ae92743dd6a7b2c43039ef1f45f2",
+      "sizeBytes": 1880
+    },
+    {
+      "path": "research/candidate_specs/v42_breakout_trap_second_entry_short_4h_v1.json",
+      "sha256": "313aab20257d174423eb8da8cfee781988a500e49f9d54cea0a656da3feae84d",
+      "sizeBytes": 1882
+    },
+    {
+      "path": "research/candidate_specs/v42_spike_pullback_continuation_long_1h_v1.json",
+      "sha256": "70c0721c2bb5e229ebf99c6e792d0bd6bcde75df2d331ddfb52895e6377d58b3",
+      "sizeBytes": 1935
+    },
+    {
+      "path": "research/candidate_specs/v42_spike_pullback_continuation_short_1h_v1.json",
+      "sha256": "bb539f460aa3bb0af54ac6bf8cbb22fd44827c427af0421139885ab8d89e049d",
+      "sizeBytes": 1937
+    },
+    {
+      "path": "research/data_snapshot.json",
+      "sha256": "df9d2222bba164cdba9d589ff74869e2a0091ad2ca1e1326c5722686eb9a5e80",
+      "sizeBytes": 69575
+    },
+    {
+      "path": "research/demo_approval_request.json",
+      "sha256": "075b05b0fc317ffc93a1fd40424c30af3ed374f5439ac90d31f6203678004c11",
+      "sizeBytes": 107
+    },
+    {
+      "path": "research/demo_approval_request.md",
+      "sha256": "a2534696c2e4a763a5ae8d64a72e949b0ae058f2cf0e92c5ffeb0b90d9ae6120",
+      "sizeBytes": 55
+    },
+    {
+      "path": "research/development_data_audit.json",
+      "sha256": "bcb32905477605036a9f68a30bc111b434e757f9355ecd621d7f647bfc09fa3f",
+      "sizeBytes": 166785
+    },
+    {
+      "path": "research/experiment_budget.json",
+      "sha256": "a7b69ecf2f3768747d764a296248cf4b515762a2f8cab05f350cb9ff56802f03",
+      "sizeBytes": 721
+    },
+    {
+      "path": "research/failure_attribution.json",
+      "sha256": "d903f57cf0399e0d9d8e9353535496d323629eba46c5603dc2bc3a769bb336c6",
+      "sizeBytes": 1375
+    },
+    {
+      "path": "research/formal_gate_matrix.csv",
+      "sha256": "ccf808f79dc7b8cc6b98b895758c9b6e9b2cd0889e50dcd92ec06cbff8f45924",
+      "sizeBytes": 64
+    },
+    {
+      "path": "research/formal_matrix.csv",
+      "sha256": "fbb4e5ca702b4a180ed5e79af332d9b6990b771a396db7775686608c688835dd",
+      "sizeBytes": 73
+    },
+    {
+      "path": "research/formal_route_matrix.csv",
+      "sha256": "fbb4e5ca702b4a180ed5e79af332d9b6990b771a396db7775686608c688835dd",
+      "sizeBytes": 73
+    },
+    {
+      "path": "research/funding_carry_episode_semantics_audit.json",
+      "sha256": "477e01b963ff6323b77b72d83849b64e2a9e99571db3f9262d933b939d6070c3",
+      "sizeBytes": 483
+    },
+    {
+      "path": "research/mechanism_dossiers/v42_breakout_trap_second_entry_long_4h_v1.json",
+      "sha256": "459d183662191e42a0fb4dc9aec8dd300d34a6403be2de5118b610b6e7781150",
+      "sizeBytes": 549
+    },
+    {
+      "path": "research/mechanism_dossiers/v42_breakout_trap_second_entry_short_4h_v1.json",
+      "sha256": "d62d1c285f17d54aa7658872d335105248f09bed14f105df6a449486888d2cf5",
+      "sizeBytes": 550
+    },
+    {
+      "path": "research/mechanism_dossiers/v42_spike_pullback_continuation_long_1h_v1.json",
+      "sha256": "af6f00b641ac7bb199b823aff702f4d167a6ea9676aa69333f7f125247967166",
+      "sizeBytes": 562
+    },
+    {
+      "path": "research/mechanism_dossiers/v42_spike_pullback_continuation_short_1h_v1.json",
+      "sha256": "ba343f65da315bbab86acf93d66a78073c13c33c6f296212a73ee3ab53e69345",
+      "sizeBytes": 563
+    },
+    {
+      "path": "research/prefilter_failure_attribution.json",
+      "sha256": "d903f57cf0399e0d9d8e9353535496d323629eba46c5603dc2bc3a769bb336c6",
+      "sizeBytes": 1375
+    },
+    {
+      "path": "research/prefilter_gate_matrix.csv",
+      "sha256": "d075e26c8cc12a436c8a560832913e1f7f6df173b19d70b90cf3654ab7f311a8",
+      "sizeBytes": 2779
+    },
+    {
+      "path": "research/prefilter_matrix.csv",
+      "sha256": "76a7abd00cf8811797556c741fe7b0f071dac0fd6c7c9113f7bfedad14637ce5",
+      "sizeBytes": 2053
+    },
+    {
+      "path": "research/preregistration_supersession.json",
+      "sha256": "d0ad2d0803103825b91cc07344b2d742c31e73d9fd5a0f4903a5ac57369e7574",
+      "sizeBytes": 562
+    },
+    {
+      "path": "research/preregistrations/mechanism_breakthrough_campaign_52feb0057e92d3b6e92f6a239d213cff4dc5c56114a43e78ae162e15c07562d2.json",
+      "sha256": "32519b9f302ecbb9ccde7cbe2cc0659809c58ab451ee26cb73a4472e987eb342",
+      "sizeBytes": 1536
+    },
+    {
+      "path": "research/preregistrations/mechanism_breakthrough_campaign_aa63925bdc4d2777f7c93ff62a20dc6ab14e972df51c5525934d3603885628bb.json",
+      "sha256": "8949a9b8848f908ba2d3cad02a3ef8754edd84ea258c76f2c6e0b7f26e6311bb",
+      "sizeBytes": 1536
+    },
+    {
+      "path": "research/program_budget_ledger.jsonl",
+      "sha256": "b3c4b10e659aeeb253e813b9ecc0b2021b229d28275d35b6edd0d7a16587ac3e",
+      "sizeBytes": 294
+    },
+    {
+      "path": "research/release_hash_audit.json",
+      "sha256": "ca1768b5bec7b2fb76d256f9096371a82d3ef8ab7a719e840e0d9e521facb686",
+      "sizeBytes": 73
+    },
+    {
+      "path": "research/release_inventory.json",
+      "sha256": "8d0b13b498f7cd67c336afdec6b1e3c50af0113718f5813d0ca347e006c03a94",
+      "sizeBytes": 226
+    },
+    {
+      "path": "research/source_equivalence_matrix.csv",
+      "sha256": "36c36be3131d2fde75653e79e2eb7b7e4d5dacc53bcaccaf2608981ddf381219",
+      "sizeBytes": 654
+    },
+    {
+      "path": "research/source_inventory.json",
+      "sha256": "8fdb9518ca194b6cc2539954c3beb48949e8d9c406482859a902a119287f835c",
+      "sizeBytes": 12600
+    },
+    {
+      "path": "research/statistical_matrix.json",
+      "sha256": "1078384d529e51b280dea12f6653f1d7052d0eb57a576c025c38951dd61180cb",
+      "sizeBytes": 208
+    },
+    {
+      "path": "screenshots/formal_gate_matrix.png",
+      "sha256": "5977be4530b7b4aa248a0f761a5b7f8268981e4b2c68cbb75172dade3d8df411",
+      "sizeBytes": 281615
+    }
+  ]
+}

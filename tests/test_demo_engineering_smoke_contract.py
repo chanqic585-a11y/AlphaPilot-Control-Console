@@ -7,7 +7,10 @@ from pathlib import Path
 
 from alphapilot_control_console.demo_engineering_smoke_contract import (
     build_demo_engineering_smoke_contract,
+    build_v41_v45_engineering_smoke_approval_overlay,
+    build_v41_v45_engineering_smoke_contract,
     validate_demo_engineering_smoke_contract,
+    validate_v41_v45_engineering_smoke_contract,
 )
 
 
@@ -67,6 +70,93 @@ class DemoEngineeringSmokeContractTests(unittest.TestCase):
             validate_demo_engineering_smoke_contract(changed)
         with self.assertRaises(ValueError):
             validate_demo_engineering_smoke_contract({**contract, "apiKey": "forbidden"})
+
+    def test_builds_v41_v45_exact_instrument_contract(self) -> None:
+        instrument = {
+            "instId": "BTC-USDT-SWAP",
+            "tickSz": "0.1",
+            "lotSz": "0.01",
+            "minSz": "0.01",
+            "ctVal": "0.01",
+            "ctType": "linear",
+            "state": "live",
+        }
+        first = build_v41_v45_engineering_smoke_contract(
+            createdAt="2026-07-20T00:00:00+00:00",
+            instrument=instrument,
+            accountMode="multi-currency",
+            positionMode="net_mode",
+        )
+        second = build_v41_v45_engineering_smoke_contract(
+            createdAt="2026-07-20T00:00:00+00:00",
+            instrument=instrument,
+            accountMode="multi-currency",
+            positionMode="net_mode",
+        )
+
+        self.assertEqual(first, second)
+        self.assertEqual(first["maximumSize"], instrument["minSz"])
+        self.assertEqual(first["maximumConcurrentPositions"], 1)
+        self.assertEqual(first["maximumOpenPositions"], 1)
+        self.assertFalse(first["releaseQualification"])
+        self.assertFalse(first["strategyQualification"])
+        self.assertEqual(first["xSimulatedTrading"], "1")
+        self.assertEqual(len(first["contractHash"]), 64)
+        validate_v41_v45_engineering_smoke_contract(first)
+
+    def test_v41_v45_contract_rejects_tampering_and_sensitive_fields(self) -> None:
+        contract = build_v41_v45_engineering_smoke_contract(
+            createdAt="2026-07-20T00:00:00+00:00",
+            instrument={
+                "instId": "BTC-USDT-SWAP",
+                "tickSz": "0.1",
+                "lotSz": "0.01",
+                "minSz": "0.01",
+                "ctVal": "0.01",
+                "ctType": "linear",
+                "state": "live",
+            },
+            accountMode="multi-currency",
+            positionMode="net_mode",
+        )
+        with self.assertRaises(ValueError):
+            validate_v41_v45_engineering_smoke_contract({**contract, "maximumSize": "1"})
+        with self.assertRaises(ValueError):
+            validate_v41_v45_engineering_smoke_contract({**contract, "apiSecret": "forbidden"})
+
+    def test_v41_v45_approval_requires_exact_process_hash(self) -> None:
+        contract = build_v41_v45_engineering_smoke_contract(
+            createdAt="2026-07-20T00:00:00+00:00",
+            instrument={
+                "instId": "BTC-USDT-SWAP",
+                "tickSz": "0.1",
+                "lotSz": "0.01",
+                "minSz": "0.01",
+                "ctVal": "0.01",
+                "ctType": "linear",
+                "state": "live",
+            },
+            accountMode="multi-currency",
+            positionMode="net_mode",
+        )
+        overlay = build_v41_v45_engineering_smoke_approval_overlay(
+            contract,
+            environment={
+                "ALPHAPILOT_ENGINEERING_SMOKE_APPROVED": contract["contractHash"],
+            },
+        )
+        self.assertEqual(overlay["status"], "approved")
+        self.assertEqual(overlay["approvedContractHash"], contract["contractHash"])
+        self.assertTrue(overlay["processOnly"])
+        self.assertNotIn("apiKey", json.dumps(overlay))
+
+        with self.assertRaises(PermissionError):
+            build_v41_v45_engineering_smoke_approval_overlay(contract, environment={})
+        with self.assertRaises(PermissionError):
+            build_v41_v45_engineering_smoke_approval_overlay(
+                contract,
+                environment={"ALPHAPILOT_ENGINEERING_SMOKE_APPROVED": "wrong"},
+            )
 
 
 if __name__ == "__main__":

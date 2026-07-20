@@ -8128,6 +8128,8 @@ function renderStrategyLab(payload = {}) {
   const lineage = Array.isArray(payload.candidateLineage) ? payload.candidateLineage : [];
   const factors = Array.isArray(payload.factorRegistry) ? payload.factorRegistry : [];
   const similarities = Array.isArray(payload.similarityMatrix) ? payload.similarityMatrix : [];
+  const mechanismCampaign = payload.mechanismCampaign || {};
+  const formalGateMatrix = Array.isArray(payload.formalGateMatrix) ? payload.formalGateMatrix : [];
   const status = el("strategyLabStatus");
   if (status) {
     const ready = payload.status === "ready";
@@ -8168,6 +8170,22 @@ function renderStrategyLab(payload = {}) {
     failureTarget.innerHTML = rows.length
       ? rows.map(([reason, count]) => `<div><span>${escapeHtml(reason)}</span><strong>${escapeHtml(count)}</strong></div>`).join("")
       : '<div><span>失败记录</span><strong>0</strong></div>';
+  }
+  const formalGateTarget = el("strategyLabFormalGateMatrix");
+  if (formalGateTarget) {
+    if (formalGateMatrix.length) {
+      formalGateTarget.innerHTML = formalGateMatrix.slice(0, 24).map((row) => `
+        <div>
+          <span>${escapeHtml(row.candidateId || "--")} · ${escapeHtml(row.gateName || "--")}</span>
+          <strong>${String(row.passed).toLowerCase() === "true" ? "通过" : "未通过"}</strong>
+        </div>`).join("");
+    } else if (mechanismCampaign.formalGateStatus === "not_run_zero_prefilter_survivors") {
+      formalGateTarget.innerHTML = `
+        <div><span>Formal 未运行：预筛没有幸存候选</span><strong>0 条</strong></div>
+        <div><span>Locked OOS 读取</span><strong>${escapeHtml(Number(mechanismCampaign.lockedOosReadCount || 0))}</strong></div>`;
+    } else {
+      formalGateTarget.innerHTML = '<div><span>Formal Gate 证据</span><strong>尚未生成</strong></div>';
+    }
   }
   const details = el("strategyLabEvidenceDetails");
   if (details) {
