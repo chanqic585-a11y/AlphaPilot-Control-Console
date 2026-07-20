@@ -59,6 +59,10 @@ from .execution_outcome_export import (
     build_execution_outcome_status,
     write_execution_outcome_export,
 )
+from .execution_control import (
+    get_execution_control_status,
+    run_execution_control_action,
+)
 from .forward_review import build_forward_review, refresh_forward_review
 from .importer import build_mobile_status, import_now, scan_quant_engine
 from .live_readiness import build_live_readiness, create_manual_execution_ticket
@@ -148,6 +152,7 @@ from .strategy_validation_status import (
     run_strategy_validation_approval_action,
     run_strategy_validation_runtime_action,
 )
+from .strategy_lab_projection import build_strategy_lab_projection
 from .state_store import (
     ALLOWED_ARTIFACT_REVIEW_STATUSES,
     ALLOWED_PAPER_OBSERVATION_LOG_TYPES,
@@ -173,6 +178,7 @@ from .unified_auto_execution_runner import (
     stop_unified_auto_execution_runner,
     wake_unified_auto_execution_runner,
 )
+from .workflow_validation_demo import run_workflow_validation_demo_fixture
 
 
 def _json_bytes(payload: object) -> bytes:
@@ -332,6 +338,14 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             campaign_id = str((query.get("campaignId") or [""])[0] or "").strip() or None
             self._send_json(build_strategy_validation_status(campaign_id=campaign_id))
             return
+        if path == "/api/strategy-lab":
+            self._send_json(_cached_payload(
+                "strategy-lab",
+                30,
+                build_strategy_lab_projection,
+                fresh=fresh,
+            ))
+            return
         if path == "/api/shadow-observation":
             release_id = str((query.get("releaseId") or [""])[0] or "").strip() or None
             try:
@@ -404,6 +418,17 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/auto-execution/runtime":
             self._send_json(get_unified_auto_execution_status())
+            return
+        if path == "/api/execution-control/status":
+            self._send_json(_cached_payload(
+                "execution-control-status",
+                1,
+                get_execution_control_status,
+                fresh=fresh,
+            ))
+            return
+        if path == "/api/execution-control/workflow-validation-demo":
+            self._send_json(run_workflow_validation_demo_fixture())
             return
         if path == "/api/runtime":
             payload = scan_quant_engine()
@@ -1322,6 +1347,13 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 self._send_json({"ok": False, "error": type(error).__name__, "message": str(error)}, 409)
                 return
             self._send_json(result, 200 if result.get("ok") else 409)
+            return
+        if parsed.path == "/api/execution-control/action":
+            payload = self._read_body_json()
+            _RESPONSE_CACHE.clear()
+            result = run_execution_control_action(payload)
+            status_code = 200 if result.get("ok") else (409 if result.get("status") == "conflict" else 422)
+            self._send_json(result, status_code)
             return
         if parsed.path == "/api/no-key-pre-live/scan":
             payload = self._read_body_json()

@@ -86,6 +86,16 @@ class UnifiedAutoExecutionStore:
             );
             CREATE INDEX IF NOT EXISTS idx_auto_execution_events_environment
               ON AutoExecutionEvents(environment, eventId DESC);
+            CREATE TABLE IF NOT EXISTS AutoExecutionActionRequests (
+              requestId TEXT PRIMARY KEY,
+              environment TEXT NOT NULL,
+              action TEXT NOT NULL,
+              payloadHash TEXT NOT NULL,
+              status TEXT NOT NULL,
+              resultJson TEXT,
+              createdAt TEXT NOT NULL,
+              completedAt TEXT
+            );
             """
         )
         self.connection.commit()
@@ -287,3 +297,84 @@ class UnifiedAutoExecutionStore:
                 }
                 for row in rows
             ]
+
+    def claim_action_request(
+        self,
+        *,
+        request_id: str,
+        environment: str,
+        action: str,
+        payload_hash: str,
+    ) -> dict[str, Any]:
+        environment = _environment(environment)
+        request_id = str(request_id).strip()
+        action = str(action).strip()
+        payload_hash = str(payload_hash).strip()
+        if not request_id or not action or not payload_hash:
+            raise ValueError("Action request identity is incomplete")
+        with self._lock:
+            row = self.connection.execute(
+                "SELECT * FROM AutoExecutionActionRequests WHERE requestId = ?",
+                (request_id,),
+            ).fetchone()
+            if row is None:
+                with self.connection:
+                    self.connection.execute(
+                        """
+                        INSERT INTO AutoExecutionActionRequests(
+                          requestId, environment, action, payloadHash, status, createdAt
+                        ) VALUES (?, ?, ?, ?, 'pending', ?)
+                        """,
+                        (request_id, environment, action, payload_hash, _now()),
+                    )
+                return {"state": "claimed", "requestId": request_id}
+            if (
+                row["environment"] != environment
+                or row["action"] != action
+                or row["payloadHash"] != payload_hash
+            ):
+                return {"state": "conflict", "requestId": request_id}
+            if row["status"] == "completed":
+                return {
+                    "state": "replay",
+                    "requestId": request_id,
+                    "result": json.loads(row["resultJson"] or "{}"),
+                }
+            return {"state": "in_progress", "requestId": request_id}
+
+    def complete_action_request(self, request_id: str, result: dict[str, Any]) -> None:
+        request_id = str(request_id).strip()
+        if not request_id:
+            raise ValueError("Action request id is required")
+        _reject_sensitive(result)
+        with self._lock:
+            with self.connection:
+                cursor = self.connection.execute(
+                    """
+                    UPDATE AutoExecutionActionRequests
+                    SET status = 'completed', resultJson = ?, completedAt = ?
+                    WHERE requestId = ?
+                    """,
+                    (_json(result), _now(), request_id),
+                )
+            if not cursor.rowcount:
+                raise KeyError(f"Unknown action request: {request_id}")
+
+    def action_request(self, request_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self.connection.execute(
+                "SELECT * FROM AutoExecutionActionRequests WHERE requestId = ?",
+                (str(request_id),),
+            ).fetchone()
+            if row is None:
+                return None
+            return {
+                "requestId": row["requestId"],
+                "environment": row["environment"],
+                "action": row["action"],
+                "payloadHash": row["payloadHash"],
+                "status": row["status"],
+                "result": json.loads(row["resultJson"] or "{}"),
+                "createdAt": row["createdAt"],
+                "completedAt": row["completedAt"],
+            }

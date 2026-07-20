@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "alphapilot_v38_release_inventory_v1",
+  "generatedAt": "2026-07-19T22:36:41.707073+00:00",
+  "releaseCount": 0,
+  "releases": [],
+  "sourceRoute": {
+    "approved": false,
+    "demoArm": false,
+    "formalCandidateCount": 0,
+    "formalCandidateIds": [],
+    "formalRunCount": 0,
+    "formalSequence": [
+      "code_commit_push",
+      "candidate_freeze",
+      "panel_freeze",
+      "preregistration_commit_push",
+      "future_locked_oos_identity",
+      "one_shot_authorization",
+      "formal_execution"
+    ],
+    "lockedOosReadCount": 0,
+    "orders": 0,
+    "privateAccountReadUsed": false,
+    "releaseCount": 0,
+    "resultReadCount": 0,
+    "schemaVersion": "alphapilot_v37j_formal_route_v1",
+    "status": "zero_qualified_candidates",
+    "tradeApiUsed": false,
+    "withdrawApiUsed": false
+  }
+}

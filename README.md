@@ -11,6 +11,28 @@ AlphaPilot Control Console is a local desktop web console for reviewing
 AlphaPilot Quant Engine research outputs and preparing a mobile-safe control
 status bridge.
 
+## V37A Execution Function Core
+
+V37A strengthens the existing Console execution stack without changing its
+trading boundaries:
+
+- A single redacted `execution-control.v1` projection summarizes Demo and Live
+  runtime identity, market-feed state, immutable releases, orders, positions,
+  reconciliation, risk, kill switches, blockers, and deterministic next steps.
+- A bounded idempotent action facade delegates only to existing runtime
+  services. Demo supports start/pause/stop/emergency stop; Live remains
+  default OFF and exposes no new start or ARM path.
+- A deterministic Workflow Validation Demo exercises discovery through
+  reconciliation without exchange network access, credentials, or orders.
+- Demo and Live use one compact Chinese information architecture while keeping
+  credentials, adapters, ledgers, approvals, ARM, risk profiles, kill switches,
+  and runtime identity isolated.
+
+V37A stores no credentials, adds no Withdraw integration, creates no real
+account or order integration, and does not bypass immutable Release, Approval,
+ARM, reconciliation, or risk gates. FinceptTerminal is retained only as
+citation/reference metadata under `docs/references/`.
+
 ## Current Strategy Family Status
 
 The Strategy page now distinguishes immutable workflow history from the
@@ -2468,3 +2490,33 @@ Legacy v1 imports keep their existing >=2R behavior byte-for-byte. Live
 admission remains unchanged and still uses its existing gate. This version
 adds schema and scanner compatibility only: it does not create a release, ARM
 the runtime, submit an order, or access credentials.
+
+## V37F-V38 Selective Vibe Integration
+
+AlphaPilot selectively adopts research-workflow ideas from the MIT-licensed
+`HKUDS/Vibe-Trading` repository at pinned commit
+`7d42de944466e1a1f12f0df3933624fe665dee3c`. The source is treated as a
+reference artifact only: AlphaPilot does not merge the repository, migrate its
+frontend, depend on its runtime, or reuse its broker/live connectors.
+
+V38 adds a read-only Strategy Lab to the existing Console stack. It projects
+the pinned source registry, candidate lineage, factor bench, bounded campaign
+budget, failure attribution, and final route without allowing frozen-candidate
+edits, gate changes, approvals, or orders.
+
+The Demo execution core now includes:
+
+- public OKX server-time synchronization applied to private REST signatures;
+- allowlisted pending-order and fill reads for authoritative reconciliation;
+- process-only OKX Demo private WebSocket login and subscriptions for orders,
+  positions, and account updates;
+- WS plus REST reconciliation for partial fills, unknown orders, and orphan
+  positions;
+- fail-closed guards for stale market/account data, authentication failure,
+  release/approval checksum drift, risk limits, and reconciliation failures.
+
+The generated V38 evidence is written to `reports/v38/`. Its network audit is
+explicit: implementation and deterministic tests are verified, while private
+network verification remains false unless a user starts a process-only Demo
+session. The current V37I/J route has zero qualified Formal candidates, so V39
+is not run, Demo is not armed, no order is created, and V40 remains disabled.
