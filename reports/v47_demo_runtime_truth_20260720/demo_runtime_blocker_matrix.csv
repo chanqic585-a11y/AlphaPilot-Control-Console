@@ -1,0 +1,12 @@
+﻿eventType,blocker,count,latestAt
+heartbeat_blocked,OKX Demo network request failed: TimeoutError,1,2026-07-13T20:03:18.693539+00:00
+heartbeat_blocked,automatic_execution_gate_failed,2,2026-07-14T19:00:05.992641+00:00
+heartbeat_blocked,demo_market_runtime_not_warm,156,2026-07-16T01:35:23.337959+00:00
+heartbeat_blocked,demo_runtime_paused,5371,2026-07-16T01:46:03.548854+00:00
+heartbeat_blocked,okx_demo_automation_gate_disabled,74,2026-07-11T21:59:49.494735+00:00
+heartbeat_blocked,okx_demo_credentials_missing,74,2026-07-11T21:59:49.494735+00:00
+heartbeat_blocked,okx_demo_order_gate_disabled,74,2026-07-11T21:59:49.494735+00:00
+heartbeat_blocked,okx_demo_private_connection_disabled,74,2026-07-11T21:59:49.494735+00:00
+heartbeat_degraded,OKX Demo network request failed: TimeoutError,4,2026-07-15T21:31:47.044073+00:00
+heartbeat_degraded,OKX Demo network request failed: URLError,2,2026-07-15T22:18:29.424891+00:00
+heartbeat_failed,controller_exception:MemoryError,1,2026-07-14T21:24:03.092032+00:00

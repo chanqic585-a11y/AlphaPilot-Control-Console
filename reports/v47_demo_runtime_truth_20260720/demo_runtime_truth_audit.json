@@ -1,0 +1,39 @@
+{
+  "auditMode": "read_only",
+  "generatedAt": "2026-07-20T05:42:38.980503Z",
+  "immutableReleaseFilesChanged": false,
+  "latestCompletedBatch": {
+    "closeSequenceId": "1h:1784160000000",
+    "createdAt": "2026-07-16T01:00:09.324300+00:00",
+    "createdOrderCount": 0,
+    "deepScreenCount": 485,
+    "evaluatedReleaseCount": 5,
+    "eventType": "heartbeat_completed",
+    "exchangeAcceptedEvidence": "not_reached",
+    "liquidityEligibleCount": 376,
+    "marketInstrumentCount": 423,
+    "matchedSignalCount": 0,
+    "orderAttemptCount": 0,
+    "timeframe": "1h"
+  },
+  "legacyReleaseCount": 10,
+  "releaseCount": 10,
+  "runtime": {
+    "armedProcessId": "24128",
+    "desiredEnabled": 1,
+    "environment": "okx_demo",
+    "lastError": null,
+    "lastHeartbeatAt": "2026-07-20T05:42:36.427716+00:00",
+    "nextEvaluationAt": null,
+    "pauseReason": "process_arm_required",
+    "status": "disarmed",
+    "updatedAt": "2026-07-20T05:42:36.427716+00:00"
+  },
+  "universe": {
+    "authenticatedEligibleInstrumentCount": 8,
+    "demoAccountInstrumentCount": 116,
+    "publicUniverseCount": 20,
+    "rawPrivatePayloadStored": false,
+    "status": "usable"
+  }
+}

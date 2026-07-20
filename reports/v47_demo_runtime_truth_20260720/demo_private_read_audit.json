@@ -1,0 +1,9 @@
+{
+  "currentAuditNetworkRequestMade": false,
+  "currentAuditStatus": "not_attempted_read_only_audit",
+  "generatedAt": "2026-07-20T05:42:38.980503Z",
+  "historicalEvidenceNetworkRequestMade": false,
+  "historicalEvidenceStatus": "blocked_demo_credentials_not_injected",
+  "privateReadClaimedByCurrentAudit": false,
+  "rawPrivatePayloadStored": false
+}

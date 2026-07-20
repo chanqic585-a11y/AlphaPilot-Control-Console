@@ -1,0 +1,7 @@
+{
+  "classification": "windows_credential_manager",
+  "currentAuditProcessOnly": true,
+  "generatedAt": "2026-07-20T05:42:38.980503Z",
+  "historicalBlockedCredentialStatusMeaning": "The evidence process did not bootstrap the vault; it does not mean Demo integration is absent.",
+  "rawCredentialMaterialIncluded": false
+}

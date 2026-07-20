@@ -1,0 +1,46 @@
+{
+  "artifactCount": 8,
+  "artifacts": [
+    {
+      "bytes": 493,
+      "path": "demo_credential_source_audit.json",
+      "sha256": "7fa9f09ad912a6b6e687028ddc2886d155f812910fa095f9e6ba6a7c574b47e2"
+    },
+    {
+      "bytes": 361,
+      "path": "demo_private_read_audit.json",
+      "sha256": "92aae2be02f30301b40721878064a362c6099def3ddf7aa33d2b75cb94ea4740"
+    },
+    {
+      "bytes": 1018,
+      "path": "demo_runtime_blocker_matrix.csv",
+      "sha256": "d29a9f84136daf8d06bad9213a19f786c25ec04aa5506a0f32e383a80168e9da"
+    },
+    {
+      "bytes": 1200,
+      "path": "demo_runtime_truth_audit.json",
+      "sha256": "09ee853b07f76758595e7de25233df5c27c5d6cca2b13963cb97dbe54f6637fd"
+    },
+    {
+      "bytes": 329,
+      "path": "demo_vault_vs_process_classification_sidecar.json",
+      "sha256": "bfbd8f474d19a50d5556fb012f018273cbd1a79b51ae75785c6d87b625fa296c"
+    },
+    {
+      "bytes": 4829,
+      "path": "legacy_demo_release_inventory.csv",
+      "sha256": "a1c85f4d831bf0655a099c58539ddc5cf07e2d74891443d3f03673608c84abc3"
+    },
+    {
+      "bytes": 4397,
+      "path": "release_scan_funnel.csv",
+      "sha256": "95c989a3d20892bd37f8d1b265185e20f988320a8a116c1bea3354d5ccde422a"
+    },
+    {
+      "bytes": 1798,
+      "path": "release_symbol_compatibility_matrix.csv",
+      "sha256": "f0366e7301ad7958b4fe3510bffe1186719b17318d082987dab42b5ed36c356e"
+    }
+  ],
+  "generatedAt": "2026-07-20T05:42:38.980503Z"
+}
