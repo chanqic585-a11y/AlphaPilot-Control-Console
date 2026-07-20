@@ -40,6 +40,18 @@ def snapshot(instrument: str, price: float) -> dict:
 
 
 class DemoPrewarmedMarketStateTests(unittest.TestCase):
+    def test_top200_screening_limit_is_not_clamped_to_legacy_top100(self) -> None:
+        state = DemoPrewarmedMarketState(screening_limit=200)
+        instruments = [f"C{index:03d}-USDT-SWAP" for index in range(150)]
+
+        state.seed_universe(
+            {"screeningPool": [{"instId": value} for value in instruments]},
+            timeframes=["1h", "1d"],
+        )
+
+        self.assertEqual(state.screening_limit, 200)
+        self.assertEqual(state.status()["screeningInstrumentCount"], 150)
+
     def build_state(self) -> DemoPrewarmedMarketState:
         state = DemoPrewarmedMarketState(
             screening_limit=2,

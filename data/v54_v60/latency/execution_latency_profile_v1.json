@@ -1,0 +1,10 @@
+{
+  "executionLatencyProfileVersion": "v55-default-1",
+  "signalToOrderSendTargetMs": 750,
+  "signalToOrderSendSoftWarnMs": 1500,
+  "maximumSignalAgeMs": 3000,
+  "exchangeAckTimeoutMs": 2000,
+  "orderRequestExpiryMs": 3000,
+  "orderTransportMode": "auto",
+  "criticalLatencyFailureMs": 20000
+}

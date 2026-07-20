@@ -10,6 +10,7 @@ from typing import Any, Callable
 from .config import DATA_DIR
 from .demo_market_runtime_registry import start_demo_market_runtime
 from .evolution_demo_service import resume_evolution_demo_runtime
+from .exchange_connectors.okx_demo_private_ws import start_okx_demo_private_order_runtime
 from .live_canary_service import arm_live_canary
 from .unified_auto_execution_adapters import (
     OkxDemoAutoExecutionAdapter,
@@ -32,12 +33,16 @@ class UnifiedAutoExecutionRunner:
         live_arm: Callable[[dict[str, Any]], dict[str, Any]] = arm_live_canary,
         demo_resume: Callable[[], None] = resume_evolution_demo_runtime,
         demo_market_start: Callable[[], dict[str, Any]] | None = None,
+        demo_private_start: Callable[[], dict[str, Any]] | None = None,
     ):
         self.controller = controller
         self.interval_seconds = max(0.01, float(interval_seconds))
         self.live_arm = live_arm
         self.demo_resume = demo_resume
         self.demo_market_start = demo_market_start or (
+            lambda: {"started": True, "blockers": []}
+        )
+        self.demo_private_start = demo_private_start or (
             lambda: {"started": True, "blockers": []}
         )
         self._lock = threading.Lock()
@@ -186,6 +191,7 @@ class UnifiedAutoExecutionRunner:
         body = payload if isinstance(payload, dict) else {}
         arm_result: dict[str, Any] | None = None
         market_startup: dict[str, Any] | None = None
+        private_startup: dict[str, Any] | None = None
         if environment not in ENVIRONMENTS:
             return {"ok": False, "blockers": ["unsupported_auto_execution_environment"]}
         if action == "start":
@@ -204,6 +210,22 @@ class UnifiedAutoExecutionRunner:
                         "environment": environment,
                         "blockers": blockers or ["demo_market_runtime_not_ready"],
                         "marketRuntime": market_startup,
+                        "runtime": self.status(),
+                    }
+                private_startup = self.demo_private_start()
+                if not private_startup.get("started"):
+                    blockers = [
+                        str(value)
+                        for value in private_startup.get("blockers", [])
+                        if str(value)
+                    ]
+                    return {
+                        "ok": False,
+                        "action": action,
+                        "environment": environment,
+                        "blockers": blockers or ["demo_private_runtime_not_ready"],
+                        "marketRuntime": market_startup,
+                        "privateRuntime": private_startup,
                         "runtime": self.status(),
                     }
                 if not self.controller.status(environment).get("armedForCurrentProcess"):
@@ -249,6 +271,7 @@ class UnifiedAutoExecutionRunner:
             "result": result,
             "armResult": arm_result,
             "marketRuntime": market_startup,
+            "privateRuntime": private_startup,
             "runtime": self.status(),
         }
 
@@ -273,6 +296,7 @@ def _build_default_runner(
         demo_market_start=lambda: start_demo_market_runtime(
             close_listener=wake_unified_auto_execution_runner,
         ),
+        demo_private_start=start_okx_demo_private_order_runtime,
     )
 
 

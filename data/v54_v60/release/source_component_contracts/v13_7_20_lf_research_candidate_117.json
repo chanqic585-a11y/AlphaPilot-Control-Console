@@ -1,0 +1,119 @@
+{
+  "bypassedEvidence": [
+    "local_forward_samples"
+  ],
+  "createdAt": "2026-07-11T06:23:42.444445+00:00",
+  "executionBoundary": {
+    "automaticDemoExecutionAllowed": true,
+    "environment": "okx_demo_only",
+    "liveExecutionAllowed": false,
+    "rawCredentialFieldsAllowed": false,
+    "withdrawAllowed": false
+  },
+  "formalCandidateRegistration": {
+    "registeredBy": "controlled_demo_override",
+    "strategyCandidateId": "v13_7_20_lf_research_candidate_117"
+  },
+  "livePromotionAllowed": false,
+  "overrideAudit": {
+    "actor": "user_manual",
+    "bypassedEvidence": [
+      "local_forward_samples"
+    ],
+    "confirmationMatched": true,
+    "reason": "1"
+  },
+  "reason": "1",
+  "releaseMode": "experimental_override",
+  "riskEnvelope": {
+    "allowNewEntries": true,
+    "allowedStrategyIds": [],
+    "canaryLossStopUsdt": 25.0,
+    "capitalLimitUsdt": 1000.0,
+    "cooldownAfterLossMinutes": 60,
+    "dailyLossStopPercent": 2.0,
+    "defaultMaxLeverage": 2,
+    "environment": "okx_demo",
+    "feeRate": 0.0005,
+    "initialEquityUsdt": 1000.0,
+    "marginMode": "isolated",
+    "maxActiveStrategies": 4,
+    "maxConcurrentPositions": 3,
+    "maxCorrelatedOpenRiskPercent": 1.0,
+    "maxDirectionOpenRiskPercent": 1.0,
+    "maxDrawdownStopPercent": 5.0,
+    "maxLeverage": 2,
+    "maxOpenRiskPercent": 1.0,
+    "maxOrderNotionalUsdt": 250.0,
+    "maxPositionsPerStrategy": 2,
+    "maxPositionsPerSymbol": 1,
+    "maxStrategyOpenRiskPercent": 1.0,
+    "maxSymbolOpenRiskPercent": 0.5,
+    "name": "Okx Demo Conservative",
+    "profileKey": "okx_demo_conservative",
+    "rewardRiskRatio": 2.0,
+    "riskPerTradePercent": 0.25,
+    "riskProfileHash": "fa915903d610cb17759e2bd386c8c8f87e9cf8cbf18983af17b97f197ff7abc9",
+    "riskProfileId": "risk_profile_fa915903d610cb17759e2bd386c8c8f87e9cf8cbf18983af17b97f197ff7abc9",
+    "schemaVersion": "risk_profile_v1",
+    "slippageRate": 0.0002,
+    "version": 1
+  },
+  "schemaVersion": "alphapilot_control_console_demo_v1",
+  "status": "demo_eligible",
+  "strategy": {
+    "familyKey": "mean_reversion",
+    "forwardSignalPolicy": {
+      "direction": "long",
+      "family": "mean_reversion",
+      "parameters": {
+        "atrMultiplier": 1.2,
+        "bbWidthMultiplier": 1.35,
+        "breakoutMultiplier": 1.0,
+        "btcRegimes": [
+          "sideways"
+        ],
+        "btcReturn24hMinPct": -8.0,
+        "btcReturn3dMinPct": -10.0,
+        "candidateId": "lf_research_candidate_117",
+        "displayName": "1d sideways oversold reclaim ATR1.2",
+        "ema200FloorMultiplier": 0.86,
+        "family": "mean_reversion",
+        "maxHoldBars": 18,
+        "meanReversionLowMultiplier": 1.02,
+        "minVolumeRatio": 0.7,
+        "momentumReturnMin": 0.0,
+        "pullbackHigh": 1.02,
+        "pullbackLow": 0.98,
+        "rsiMax": 40,
+        "rsiMin": null,
+        "targetRewardRiskRatio": 2.0,
+        "timeframe": "1d"
+      },
+      "policyType": "strategy_family_params_v1"
+    },
+    "marketDefinition": {
+      "exchange": "okx",
+      "instrumentType": "SWAP",
+      "settleCurrency": "USDT",
+      "timeframe": "1d",
+      "universePolicy": {
+        "mode": "okx_usdt_linear_perpetual_full_market",
+        "policyVersion": "okx_full_market_policy_v2_top100",
+        "ranking": "public_quote_volume_proxy_then_spread",
+        "screeningLimit": 100
+      }
+    },
+    "strategyContentHash": "legacy_content_8b400c9bfa2e6339aa198363dc6e277b6d70c56f8beb48be48710665e473d20d"
+  },
+  "strategyCandidateId": "v13_7_20_lf_research_candidate_117",
+  "supersedesDemoReleaseId": "demo_release_override_15efb05e4d3e307263b59ca4",
+  "successorMetadata": {
+    "migrationReason": "top100_low_latency_public_market_runtime",
+    "createdAt": "2026-07-13T02:20:19.150931+00:00",
+    "predecessorContractHash": "console_contract_93710007927011731383e2bd42cc51640d16b3605cf1cfdda076d5ef751afc19"
+  },
+  "releaseContentHash": "demo_release_content_c2ac7451ce0d8773fb1a383760cb8df2e8f64cbca6955e1993e2ded7d4831c6d",
+  "demoReleaseId": "demo_release_top100_b8d58642cb97e8faf7ce98a24b86b395",
+  "contractHash": "console_contract_b040995c2db9c24115eaa62014f436b855aa6bb736ea88992561e9a793bda366"
+}

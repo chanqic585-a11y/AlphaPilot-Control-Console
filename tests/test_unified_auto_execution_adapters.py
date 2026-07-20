@@ -11,21 +11,24 @@ from alphapilot_control_console.unified_auto_execution_adapters import (
 
 class UnifiedAutoExecutionAdapterTests(unittest.TestCase):
     def test_demo_adapter_lists_only_frozen_release_schedules(self) -> None:
-        contracts = [
-            {
-                "demoReleaseId": "release-1",
-                "strategyCandidateId": "strategy-1",
-                "strategy": {"marketDefinition": {"timeframe": "1h"}},
-            },
-            {
-                "demoReleaseId": "release-2",
-                "strategyCandidateId": "strategy-2",
-                "strategy": {"marketDefinition": {}},
-            },
-        ]
+        runtime = {
+            "approved": True,
+            "schedules": [
+                {
+                    "releaseId": "release-1",
+                    "strategyId": "portfolio:1h",
+                    "timeframe": "1h",
+                },
+                {
+                    "releaseId": "release-1",
+                    "strategyId": "portfolio:invalid",
+                    "timeframe": "invalid",
+                },
+            ],
+        }
         with patch(
-            "alphapilot_control_console.unified_auto_execution_adapters.discover_demo_contracts",
-            return_value=(contracts, []),
+            "alphapilot_control_console.unified_auto_execution_adapters.load_approved_top200_demo_runtime",
+            return_value=runtime,
         ):
             schedules = OkxDemoAutoExecutionAdapter().list_releases()
 
@@ -35,6 +38,9 @@ class UnifiedAutoExecutionAdapterTests(unittest.TestCase):
 
     def test_demo_preflight_requires_both_runtime_and_readonly_success(self) -> None:
         with patch(
+            "alphapilot_control_console.unified_auto_execution_adapters.load_approved_top200_demo_runtime",
+            return_value={"blockers": [], "componentContracts": []},
+        ), patch(
             "alphapilot_control_console.unified_auto_execution_adapters.build_evolution_demo_status",
             return_value={"summary": {"ready": True}, "blockers": []},
         ), patch(
@@ -50,6 +56,9 @@ class UnifiedAutoExecutionAdapterTests(unittest.TestCase):
         self.assertIn("okx_demo_readonly_preflight_required", blocked["blockers"])
 
         with patch(
+            "alphapilot_control_console.unified_auto_execution_adapters.load_approved_top200_demo_runtime",
+            return_value={"blockers": [], "componentContracts": []},
+        ), patch(
             "alphapilot_control_console.unified_auto_execution_adapters.build_evolution_demo_status",
             return_value={"summary": {"ready": True}, "blockers": []},
         ), patch(
@@ -65,6 +74,9 @@ class UnifiedAutoExecutionAdapterTests(unittest.TestCase):
 
     def test_demo_preflight_fails_closed_when_public_market_runtime_is_not_warm(self) -> None:
         with patch(
+            "alphapilot_control_console.unified_auto_execution_adapters.load_approved_top200_demo_runtime",
+            return_value={"blockers": [], "componentContracts": []},
+        ), patch(
             "alphapilot_control_console.unified_auto_execution_adapters.build_evolution_demo_status",
             return_value={"summary": {"ready": True}, "blockers": []},
         ), patch(
@@ -86,6 +98,18 @@ class UnifiedAutoExecutionAdapterTests(unittest.TestCase):
             type("Release", (), {"releaseId": "release-2"})(),
         ]
         with patch(
+            "alphapilot_control_console.unified_auto_execution_adapters.load_approved_top200_demo_runtime",
+            return_value={
+                "executionEnabled": True,
+                "blockers": [],
+                "componentContracts": [
+                    {
+                        "strategyCandidateId": "strategy-1",
+                        "strategy": {"marketDefinition": {"timeframe": "1h"}},
+                    }
+                ],
+            },
+        ), patch(
             "alphapilot_control_console.unified_auto_execution_adapters.run_evolution_demo_batch_cycle",
             return_value={"ok": True},
         ) as batch, patch(
@@ -97,13 +121,30 @@ class UnifiedAutoExecutionAdapterTests(unittest.TestCase):
             "alphapilot_control_console.unified_auto_execution_adapters.activate_evolution_demo_kill_switch",
             return_value={"ok": True},
         ) as stop:
-            self.assertTrue(adapter.run_batch(releases, {})["ok"])
+            close_event = {"timeframe": "1h"}
+            self.assertTrue(adapter.run_batch(releases, {}, close_event=close_event)["ok"])
             self.assertTrue(adapter.reconcile()["ok"])
             adapter.pause("unit_test")
             self.assertTrue(adapter.emergency_stop("emergency")["ok"])
 
-        batch.assert_called_once_with(["release-1", "release-2"], close_event=None)
-        reconcile.assert_called_once_with()
+        batch.assert_called_once_with(
+            ["release-1", "release-2"],
+            close_event={"timeframe": "1h"},
+            contracts_override=[
+                {
+                    "strategyCandidateId": "strategy-1",
+                    "strategy": {"marketDefinition": {"timeframe": "1h"}},
+                }
+            ],
+        )
+        reconcile.assert_called_once_with(
+            contracts_override=[
+                {
+                    "strategyCandidateId": "strategy-1",
+                    "strategy": {"marketDefinition": {"timeframe": "1h"}},
+                }
+            ]
+        )
         pause.assert_called_once_with("unit_test")
         stop.assert_called_once_with("emergency")
 

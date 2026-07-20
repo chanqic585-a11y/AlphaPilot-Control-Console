@@ -120,6 +120,23 @@ class OkxDemoClientTests(unittest.TestCase):
         self.assertEqual(request.body["clOrdId"], "apdemo123")
         self.assertIn("OK-ACCESS-SIGN", request.headers)
 
+    def test_place_order_adds_bounded_exchange_expiry_header(self) -> None:
+        self.client.place_order(
+            {
+                "instId": "BTC-USDT-SWAP",
+                "tdMode": "isolated",
+                "side": "buy",
+                "ordType": "market",
+                "sz": "1",
+                "clOrdId": "apexpiry123",
+            },
+            expireAtEpochMs=1783987203000,
+        )
+
+        request = self.transport.requests[0]
+        self.assertEqual(request.headers["expTime"], "1783987203000")
+        self.assertNotIn("expTime", request.body)
+
     def test_account_instruments_uses_read_only_demo_endpoint(self) -> None:
         response = self.client.get_account_instruments("SWAP")
 

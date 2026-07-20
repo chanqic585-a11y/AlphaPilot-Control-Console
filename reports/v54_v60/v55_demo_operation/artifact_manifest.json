@@ -1,0 +1,33 @@
+{
+  "fileCount": 5,
+  "files": [
+    {
+      "bytes": 421,
+      "path": "execution_latency_profile.json",
+      "sha256": "17fa190d8d098f714ea63db042fe390dfb3529350c90f7b1a417ede0d52aeda5"
+    },
+    {
+      "bytes": 4077,
+      "path": "latency_benchmark.json",
+      "sha256": "2285696c77b4aa89e2ec8db006142b21403f8c668355b941d39ff70ffeac9039"
+    },
+    {
+      "bytes": 3144,
+      "path": "latency_ledger.jsonl",
+      "sha256": "9be1ee96f2e36bedd2ca20997dc2a9ba191daf530fbed5f7e833e3edb9ca9cf9"
+    },
+    {
+      "bytes": 328,
+      "path": "stale_signal_audit.json",
+      "sha256": "0fd7d97001d37a3dad246c3f7ec8fff26d66e250724349e964bcc1645e7a5f89"
+    },
+    {
+      "bytes": 547,
+      "path": "first_scan_audit.json",
+      "sha256": "4dcce7b1a96e943800cf5c738fa0f034a443182d8e72ea315978823cf51601ea"
+    }
+  ],
+  "generatedAt": "2026-07-20T20:56:37.594893Z",
+  "schemaVersion": "alphapilot_v55_demo_operation_manifest_v1",
+  "status": "complete_pre_arm"
+}

@@ -1,0 +1,104 @@
+{
+  "bypassedEvidence": [
+    "local_forward_samples"
+  ],
+  "createdAt": "2026-07-11T06:24:31.545617+00:00",
+  "executionBoundary": {
+    "automaticDemoExecutionAllowed": true,
+    "environment": "okx_demo_only",
+    "liveExecutionAllowed": false,
+    "rawCredentialFieldsAllowed": false,
+    "withdrawAllowed": false
+  },
+  "formalCandidateRegistration": {
+    "registeredBy": "controlled_demo_override",
+    "strategyCandidateId": "v13_7_40_1h_short_rejection_2149_asset_filter_top10"
+  },
+  "livePromotionAllowed": false,
+  "overrideAudit": {
+    "actor": "user_manual",
+    "bypassedEvidence": [
+      "local_forward_samples"
+    ],
+    "confirmationMatched": true,
+    "reason": "1"
+  },
+  "reason": "1",
+  "releaseMode": "experimental_override",
+  "riskEnvelope": {
+    "allowNewEntries": true,
+    "allowedStrategyIds": [],
+    "canaryLossStopUsdt": 25.0,
+    "capitalLimitUsdt": 1000.0,
+    "cooldownAfterLossMinutes": 60,
+    "dailyLossStopPercent": 2.0,
+    "defaultMaxLeverage": 2,
+    "environment": "okx_demo",
+    "feeRate": 0.0005,
+    "initialEquityUsdt": 1000.0,
+    "marginMode": "isolated",
+    "maxActiveStrategies": 4,
+    "maxConcurrentPositions": 3,
+    "maxCorrelatedOpenRiskPercent": 1.0,
+    "maxDirectionOpenRiskPercent": 1.0,
+    "maxDrawdownStopPercent": 5.0,
+    "maxLeverage": 2,
+    "maxOpenRiskPercent": 1.0,
+    "maxOrderNotionalUsdt": 250.0,
+    "maxPositionsPerStrategy": 2,
+    "maxPositionsPerSymbol": 1,
+    "maxStrategyOpenRiskPercent": 1.0,
+    "maxSymbolOpenRiskPercent": 0.5,
+    "name": "Okx Demo Conservative",
+    "profileKey": "okx_demo_conservative",
+    "rewardRiskRatio": 2.0,
+    "riskPerTradePercent": 0.25,
+    "riskProfileHash": "fa915903d610cb17759e2bd386c8c8f87e9cf8cbf18983af17b97f197ff7abc9",
+    "riskProfileId": "risk_profile_fa915903d610cb17759e2bd386c8c8f87e9cf8cbf18983af17b97f197ff7abc9",
+    "schemaVersion": "risk_profile_v1",
+    "slippageRate": 0.0002,
+    "version": 1
+  },
+  "schemaVersion": "alphapilot_control_console_demo_v1",
+  "status": "demo_eligible",
+  "strategy": {
+    "familyKey": "short_rejection",
+    "forwardSignalPolicy": {
+      "direction": "short",
+      "family": "short_rejection",
+      "parameters": {
+        "max_hold": 12,
+        "rsi_high": 60,
+        "stop_atr": 1.0,
+        "targetRewardRiskRatio": 2.0,
+        "trend_tolerance": 1.0,
+        "upper_buffer": 0.006,
+        "volume_min": 1.2
+      },
+      "policyType": "strategy_family_params_v1"
+    },
+    "marketDefinition": {
+      "exchange": "okx",
+      "instrumentType": "SWAP",
+      "settleCurrency": "USDT",
+      "timeframe": "1h",
+      "universePolicy": {
+        "mode": "okx_usdt_linear_perpetual_full_market",
+        "policyVersion": "okx_full_market_policy_v2_top100",
+        "ranking": "public_quote_volume_proxy_then_spread",
+        "screeningLimit": 100
+      }
+    },
+    "strategyContentHash": "legacy_content_ae63ee7f53c7eaee9466487df79966b9d8f3a654efc174816ddefdce9ccd2aec"
+  },
+  "strategyCandidateId": "v13_7_40_1h_short_rejection_2149_asset_filter_top10",
+  "supersedesDemoReleaseId": "demo_release_override_dd975cf9ac202810d68c8e02",
+  "successorMetadata": {
+    "migrationReason": "top100_low_latency_public_market_runtime",
+    "createdAt": "2026-07-13T02:20:19.150931+00:00",
+    "predecessorContractHash": "console_contract_8a93c3f2297f354f0878cc2fef3c7a51edf577885462eec8b3fbd71717a6b1c6"
+  },
+  "releaseContentHash": "demo_release_content_964825c820b8a7ff4a5aec03260d6c777b16a8aa3feb906c6916555d23950d17",
+  "demoReleaseId": "demo_release_top100_101a9c3a91a1199213edd0454f33d033",
+  "contractHash": "console_contract_861e8257a0997e0ea5f3a82aff039b251da0f7ad1692b825da461e0438cf11cd"
+}

@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from .approved_top200_demo_runtime import load_approved_top200_demo_runtime
 from .auto_execution_schedule import TIMEFRAME_SECONDS
 from .evolution_demo_service import (
     activate_evolution_demo_kill_switch,
     build_evolution_demo_status,
-    discover_demo_contracts,
     pause_evolution_demo_runtime,
     reconcile_evolution_demo_runtime,
     run_evolution_demo_batch_cycle,
@@ -30,32 +30,40 @@ class OkxDemoAutoExecutionAdapter:
     environment = "okx_demo"
 
     def list_releases(self) -> list[ReleaseSchedule]:
-        contracts, _ = discover_demo_contracts()
+        runtime = load_approved_top200_demo_runtime()
+        if runtime.get("approved") is not True:
+            return []
         releases: list[ReleaseSchedule] = []
-        for contract in contracts:
-            strategy = contract.get("strategy") if isinstance(contract.get("strategy"), dict) else {}
-            market = (
-                strategy.get("marketDefinition")
-                if isinstance(strategy.get("marketDefinition"), dict)
-                else {}
-            )
-            timeframe = str(market.get("timeframe") or "")
+        for row in runtime.get("schedules") or []:
+            if not isinstance(row, dict):
+                continue
+            timeframe = str(row.get("timeframe") or "")
             if timeframe not in TIMEFRAME_SECONDS:
                 continue
             releases.append(
                 ReleaseSchedule(
-                    releaseId=str(contract.get("demoReleaseId") or ""),
-                    strategyId=str(contract.get("strategyCandidateId") or ""),
+                    releaseId=str(row.get("releaseId") or ""),
+                    strategyId=str(row.get("strategyId") or ""),
                     timeframe=timeframe,
                 )
             )
         return [release for release in releases if release.releaseId and release.strategyId]
 
     def preflight(self) -> dict[str, Any]:
-        runtime = build_evolution_demo_status()
+        portfolio = load_approved_top200_demo_runtime()
+        components = [
+            row
+            for row in portfolio.get("componentContracts") or []
+            if isinstance(row, dict)
+        ]
+        runtime = build_evolution_demo_status(contracts_override=components)
         exchange = build_exchange_demo_simulation()
         market_runtime = get_demo_market_runtime_status()
-        blockers = [str(value) for value in runtime.get("blockers", []) if str(value)]
+        blockers = [
+            str(value)
+            for value in (*portfolio.get("blockers", []), *runtime.get("blockers", []))
+            if str(value)
+        ]
         readonly = exchange.get("readonlySummary") if isinstance(exchange.get("readonlySummary"), dict) else {}
         public_market = (
             market_runtime.get("runtime")
@@ -70,12 +78,19 @@ class OkxDemoAutoExecutionAdapter:
             "ok": bool(runtime.get("summary", {}).get("ready")) and not blockers,
             "blockers": blockers,
             "runtime": runtime,
+            "approvedPortfolioRuntime": portfolio,
             "readonlySummary": readonly,
             "marketRuntimeStatus": market_runtime,
         }
 
     def reconcile(self) -> dict[str, Any]:
-        return reconcile_evolution_demo_runtime()
+        runtime = load_approved_top200_demo_runtime()
+        components = [
+            row
+            for row in runtime.get("componentContracts") or []
+            if isinstance(row, dict)
+        ]
+        return reconcile_evolution_demo_runtime(contracts_override=components)
 
     def run_batch(
         self,
@@ -84,9 +99,34 @@ class OkxDemoAutoExecutionAdapter:
         close_event: Any | None = None,
     ) -> dict[str, Any]:
         del candle_keys
+        runtime = load_approved_top200_demo_runtime()
+        if runtime.get("executionEnabled") is not True:
+            return {
+                "ok": False,
+                "blockers": list(runtime.get("blockers") or ["approved_demo_runtime_not_enabled"]),
+                "approvedPortfolioRuntime": runtime,
+            }
+        timeframe = str(
+            close_event.get("timeframe")
+            if isinstance(close_event, dict)
+            else getattr(close_event, "timeframe", "")
+        )
+        contracts = [
+            contract
+            for contract in runtime.get("componentContracts") or []
+            if isinstance(contract, dict)
+            and str(
+                ((contract.get("strategy") or {}).get("marketDefinition") or {}).get(
+                    "timeframe"
+                )
+                or ""
+            )
+            == timeframe
+        ]
         result = run_evolution_demo_batch_cycle(
             [release.releaseId for release in releases],
             close_event=close_event,
+            contracts_override=contracts,
         )
         return {
             **result,

@@ -9,9 +9,9 @@ import json
 import threading
 import time
 from types import MappingProxyType
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
-from ..credential_runtime import OkxDemoCredentials
+from ..credential_runtime import OkxDemoCredentials, load_okx_demo_credentials
 
 
 OKX_DEMO_PRIVATE_WS_URLS = MappingProxyType({
@@ -25,6 +25,17 @@ _SUBSCRIPTIONS = (
     {"channel": "account", "ccy": "USDT"},
 )
 _SENSITIVE_KEYS = {"apikey", "secretkey", "passphrase", "sign", "signature"}
+_DEFAULT_RUNTIME_LOCK = threading.Lock()
+_DEFAULT_RUNTIME: "OkxDemoPrivateWsRuntime | None" = None
+_DEFAULT_RUNTIME_IDENTITY: str | None = None
+
+
+class OkxPrivateWsUnavailable(RuntimeError):
+    """Private order channel is unavailable before any request is sent."""
+
+
+class OkxPrivateWsOrderUnknown(RuntimeError):
+    """A private order request may have been sent but has no authoritative ack."""
 
 
 def resolve_okx_demo_private_ws_url(site: str = "global") -> str:
@@ -94,6 +105,7 @@ class OkxDemoPrivateWsRuntime:
         self._subscribed = False
         self._last_error: str | None = None
         self._last_channel: str | None = None
+        self._pending_orders: dict[str, dict[str, Any]] = {}
 
     def create_app(self) -> Any:
         factory = self._websocket_factory
@@ -139,6 +151,14 @@ class OkxDemoPrivateWsRuntime:
             with self._lock:
                 self._last_error = "private_ws_invalid_payload"
             return
+        request_id = str(payload.get("id") or "")
+        if request_id:
+            with self._lock:
+                pending = self._pending_orders.get(request_id)
+                if pending is not None:
+                    pending["response"] = _redact(payload)
+                    pending["event"].set()
+                    return
         event = str(payload.get("event") or "")
         if event == "login":
             code = str(payload.get("code") or "")
@@ -178,6 +198,9 @@ class OkxDemoPrivateWsRuntime:
             self._connected = False
             self._authenticated = False
             self._subscribed = False
+            for pending in self._pending_orders.values():
+                pending["error"] = "private_ws_closed_before_order_ack"
+                pending["event"].set()
 
     def _run(self) -> None:
         attempt = 0
@@ -217,6 +240,59 @@ class OkxDemoPrivateWsRuntime:
         if thread is not None and thread.is_alive():
             thread.join(timeout=2.0)
 
+    def is_order_ready(self) -> bool:
+        with self._lock:
+            return bool(
+                self._connected
+                and self._authenticated
+                and self._subscribed
+                and self._app is not None
+            )
+
+    def place_order(
+        self,
+        payload: dict[str, Any],
+        *,
+        timeoutSeconds: float = 2.0,
+    ) -> dict[str, Any]:
+        """Submit one Demo order over private WS with correlated ack handling."""
+
+        request_id = str(payload.get("clOrdId") or "").strip()
+        if not request_id:
+            raise ValueError("Private WebSocket order requires clOrdId")
+        timeout = float(timeoutSeconds)
+        if timeout <= 0:
+            raise ValueError("Private WebSocket order timeout must be positive")
+        with self._lock:
+            if not self.is_order_ready():
+                raise OkxPrivateWsUnavailable("private_ws_order_channel_not_ready")
+            if request_id in self._pending_orders:
+                raise OkxPrivateWsOrderUnknown("private_ws_duplicate_request_id")
+            app = self._app
+            pending = {"event": threading.Event(), "response": None, "error": None}
+            self._pending_orders[request_id] = pending
+        try:
+            try:
+                app.send(json.dumps(
+                    {"id": request_id, "op": "order", "args": [dict(payload)]},
+                    separators=(",", ":"),
+                ))
+            except Exception as error:
+                raise OkxPrivateWsOrderUnknown(
+                    f"private_ws_order_send_unknown:{type(error).__name__}"
+                ) from error
+            if not pending["event"].wait(timeout):
+                raise OkxPrivateWsOrderUnknown("private_ws_order_ack_timeout")
+            if pending.get("error"):
+                raise OkxPrivateWsOrderUnknown(str(pending["error"]))
+            response = pending.get("response")
+            if not isinstance(response, dict):
+                raise OkxPrivateWsOrderUnknown("private_ws_order_ack_invalid")
+            return response
+        finally:
+            with self._lock:
+                self._pending_orders.pop(request_id, None)
+
     def status(self) -> dict[str, Any]:
         with self._lock:
             return {
@@ -226,6 +302,71 @@ class OkxDemoPrivateWsRuntime:
                 "channels": ["orders", "positions", "account"],
                 "lastChannel": self._last_channel,
                 "lastError": self._last_error,
+                "orderTransportReady": bool(
+                    self._connected
+                    and self._authenticated
+                    and self._subscribed
+                    and self._app is not None
+                ),
+                "pendingOrderAckCount": len(self._pending_orders),
                 "credentialsStored": False,
                 "demoOnly": True,
             }
+
+
+def get_or_start_okx_demo_private_ws_runtime(
+    credentials: OkxDemoCredentials,
+    *,
+    site: str = "global",
+) -> OkxDemoPrivateWsRuntime:
+    """Return one process-only private runtime for the active Demo credential set."""
+
+    global _DEFAULT_RUNTIME, _DEFAULT_RUNTIME_IDENTITY
+    identity = hashlib.sha256(
+        f"{site}:{credentials.apiKey}".encode("utf-8")
+    ).hexdigest()
+    with _DEFAULT_RUNTIME_LOCK:
+        if _DEFAULT_RUNTIME is None or _DEFAULT_RUNTIME_IDENTITY != identity:
+            if _DEFAULT_RUNTIME is not None:
+                _DEFAULT_RUNTIME.stop()
+            _DEFAULT_RUNTIME = OkxDemoPrivateWsRuntime(credentials, site=site)
+            _DEFAULT_RUNTIME_IDENTITY = identity
+        runtime = _DEFAULT_RUNTIME
+        runtime.start()
+        return runtime
+
+
+def start_okx_demo_private_order_runtime(
+    environment: Mapping[str, str] | None = None,
+    *,
+    site: str = "global",
+) -> dict[str, Any]:
+    """Start the process-only Demo private channel without exposing credentials."""
+
+    try:
+        credentials = load_okx_demo_credentials(environment)
+    except RuntimeError:
+        return {
+            "started": False,
+            "blockers": ["okx_demo_runtime_credentials_incomplete"],
+            "credentialsStored": False,
+            "demoOnly": True,
+        }
+    runtime = get_or_start_okx_demo_private_ws_runtime(credentials, site=site)
+    return {
+        "started": True,
+        "blockers": [],
+        "credentialsStored": False,
+        "demoOnly": True,
+        "transport": runtime.status(),
+    }
+
+
+def stop_okx_demo_private_ws_runtime() -> None:
+    global _DEFAULT_RUNTIME, _DEFAULT_RUNTIME_IDENTITY
+    with _DEFAULT_RUNTIME_LOCK:
+        runtime = _DEFAULT_RUNTIME
+        _DEFAULT_RUNTIME = None
+        _DEFAULT_RUNTIME_IDENTITY = None
+    if runtime is not None:
+        runtime.stop()

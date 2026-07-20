@@ -158,6 +158,7 @@ class OkxDemoClient:
         *,
         query: dict[str, Any] | None = None,
         body: dict[str, Any] | None = None,
+        extraHeaders: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         normalized_method = method.upper()
         if (normalized_method, path) not in _ALLOWED_ENDPOINTS:
@@ -184,6 +185,10 @@ class OkxDemoClient:
             "OK-ACCESS-PASSPHRASE": self._credentials.passphrase,
             "x-simulated-trading": "1",
         }
+        for key, value in (extraHeaders or {}).items():
+            if key != "expTime" or not str(value).isdigit():
+                raise ValueError("Only a numeric expTime request header is supported")
+            headers[key] = str(value)
         response = self._transport.send(
             OkxDemoRequest(
                 method=normalized_method,
@@ -349,14 +354,29 @@ class OkxDemoClient:
             body["posSide"] = position_side
         return self.request("POST", "/api/v5/account/set-leverage", body=body)
 
-    def place_order(self, payload: dict[str, Any]) -> dict[str, Any]:
+    def place_order(
+        self,
+        payload: dict[str, Any],
+        *,
+        expireAtEpochMs: int | None = None,
+    ) -> dict[str, Any]:
         required = ("instId", "tdMode", "side", "ordType", "sz", "clOrdId")
         missing = [key for key in required if not str(payload.get(key, "")).strip()]
         if missing:
             raise ValueError(f"OKX Demo order is missing required fields: {', '.join(missing)}")
         if not _CLIENT_ID.fullmatch(str(payload["clOrdId"])):
             raise ValueError("clOrdId must contain 1-32 case-sensitive alphanumeric characters")
-        return self.request("POST", "/api/v5/trade/order", body=payload)
+        extra_headers = None
+        if expireAtEpochMs is not None:
+            if isinstance(expireAtEpochMs, bool) or int(expireAtEpochMs) <= 0:
+                raise ValueError("expireAtEpochMs must be a positive integer")
+            extra_headers = {"expTime": str(int(expireAtEpochMs))}
+        return self.request(
+            "POST",
+            "/api/v5/trade/order",
+            body=payload,
+            extraHeaders=extra_headers,
+        )
 
     def get_order(
         self, *, instId: str, ordId: str | None = None, clOrdId: str | None = None

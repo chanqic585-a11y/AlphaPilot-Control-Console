@@ -314,6 +314,52 @@ class DemoReleaseScannerTests(unittest.TestCase):
         self.assertEqual(result["progress"]["percent"], 100)
         self.assertEqual(result["progress"]["status"], "completed")
 
+    def test_approved_portfolio_binding_expands_scanner_beyond_legacy_top100(self) -> None:
+        release = contract()
+        release["strategy"]["marketDefinition"] = {
+            "timeframe": "1h",
+            "universePolicy": {
+                "mode": "okx_usdt_linear_perpetual_full_market",
+                "screeningLimit": 100,
+            },
+        }
+        release["portfolioRuntimeBinding"] = {
+            "snapshotBindingMode": "policy_bound_daily_snapshot",
+            "universePolicy": {
+                "mode": "daily_frozen_top200",
+                "policyId": "okx_demo_top200_liquid_usdt_swap_forward_v1",
+                "policyHash": "top200-policy-hash",
+                "maximumInstrumentCount": 200,
+            },
+        }
+        instruments = [f"C{index:03d}-USDT-SWAP" for index in range(101)]
+        calls: list[int] = []
+
+        def universe_loader(limit: int) -> dict:
+            calls.append(limit)
+            return {
+                "marketScope": "daily_frozen_top200",
+                "totalInstrumentCount": 405,
+                "liveUsdtLinearSwapCount": 375,
+                "liquidityEligibleCount": 200,
+                "screeningPool": [
+                    {"instId": instrument, "quoteVolumeProxy": 200 - index}
+                    for index, instrument in enumerate(instruments)
+                ],
+                "errors": [],
+            }
+
+        result = scan_immutable_demo_release(
+            release,
+            snapshot_loader=snapshot,
+            metadata_loader=dynamic_metadata,
+            universe_loader=universe_loader,
+        )
+
+        self.assertEqual(calls, [200])
+        self.assertEqual(result["progress"]["required"], 101)
+        self.assertEqual(result["universe"]["screeningLimit"], 200)
+
     def test_strategy_family_policy_scans_without_generic_placeholder_rules(self) -> None:
         release = contract()
         release["strategy"]["marketDefinition"] = {

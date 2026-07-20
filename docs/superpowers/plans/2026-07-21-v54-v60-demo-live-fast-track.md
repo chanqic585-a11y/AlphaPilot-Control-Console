@@ -73,12 +73,12 @@
 - Test: `tests/test_demo_approved_run_all.py`
 - Test: `tests/test_demo_evaluation_audit.py`
 
-- [ ] Add failing tests for approved-only run-all behavior and closed-candle scheduling.
-- [ ] Add failing tests for the complete funnel: universe, liquidity, depth, component signals, arbitration, risk, order, fill, and position.
-- [ ] Preserve zero-natural-signal truth; add only evidence-ineligible engineering fixtures.
-- [ ] Implement full funnel ledgers and a first-scan audit.
-- [ ] Verify strategy orders remain zero until a natural signal passes every gate.
-- [ ] Commit V55 normal Demo operation.
+- [x] Add failing tests for approved-only run-all behavior and closed-candle scheduling.
+- [x] Add failing tests for the complete funnel: universe, liquidity, depth, component signals, arbitration, risk, order, fill, and position.
+- [x] Preserve zero-natural-signal truth; add only evidence-ineligible engineering fixtures.
+- [x] Implement full funnel ledgers and a first-scan audit.
+- [x] Verify strategy orders remain zero until a natural signal passes every gate.
+- [x] Commit V55 normal Demo operation.
 
 ## Task 5: Harden the ultra-low-latency hot path
 
@@ -92,13 +92,13 @@
 - Test: `tests/test_demo_entry_latency_policy.py`
 - Test: `tests/test_demo_latency_observability.py`
 
-- [ ] Add failing tests for versioned latency profiles and stale-signal fail-closed behavior.
-- [ ] Add failing tests for market-state reuse and no public-data download in the order hot path.
-- [ ] Instrument candle-close, signal, risk, submit, acknowledge, fill, and reconciliation timestamps.
-- [ ] Prefer a healthy private WebSocket order path with bounded REST fallback.
-- [ ] Reject critical latency and record every fallback/rejection reason.
-- [ ] Generate latency profile, benchmark, ledger, and stale-signal audit artifacts.
-- [ ] Commit V55 latency hardening.
+- [x] Add failing tests for versioned latency profiles and stale-signal fail-closed behavior.
+- [x] Add failing tests for market-state reuse and no public-data download in the order hot path.
+- [x] Instrument candle-close, signal, risk, submit, acknowledge, fill, and reconciliation timestamps.
+- [x] Prefer a healthy private WebSocket order path with bounded REST fallback.
+- [x] Reject critical latency and record every fallback/rejection reason.
+- [x] Generate latency profile, benchmark, ledger, and stale-signal audit artifacts.
+- [x] Commit V55 latency hardening.
 
 ## Task 6: Version runtime risk and strategy switching
 
@@ -221,4 +221,3 @@
 - [ ] Commit Console, Quant, and Docs independently.
 - [ ] Tag each repository with the corresponding V54-V60 tag and push branches/tags without force.
 - [ ] Report the exact Demo approval/ARM state and the exact blocked Live approval state.
-

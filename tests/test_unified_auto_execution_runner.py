@@ -96,10 +96,15 @@ class UnifiedAutoExecutionRunnerTests(unittest.TestCase):
         controller = FakeController()
         resume_calls: list[str] = []
         market_start_calls: list[str] = []
+        private_start_calls: list[str] = []
         runner = UnifiedAutoExecutionRunner(
             controller=controller,
             demo_resume=lambda: resume_calls.append("resume"),
             demo_market_start=lambda: market_start_calls.append("start") or {
+                "started": True,
+                "blockers": [],
+            },
+            demo_private_start=lambda: private_start_calls.append("start") or {
                 "started": True,
                 "blockers": [],
             },
@@ -111,12 +116,33 @@ class UnifiedAutoExecutionRunnerTests(unittest.TestCase):
         self.assertEqual(result["blockers"], ["exact_demo_release_arm_required"])
         self.assertEqual(resume_calls, ["resume"])
         self.assertEqual(market_start_calls, ["start"])
+        self.assertEqual(private_start_calls, ["start"])
         self.assertEqual(controller.actions, [])
 
         controller.armed["okx_demo"] = True
         ready = runner.action("okx_demo", "start", {})
         self.assertTrue(ready["ok"])
         self.assertEqual(controller.actions, [("okx_demo", "start")])
+
+    def test_demo_start_fails_closed_when_private_order_runtime_cannot_start(self) -> None:
+        controller = FakeController()
+        controller.armed["okx_demo"] = True
+        runner = UnifiedAutoExecutionRunner(
+            controller=controller,
+            demo_resume=lambda: None,
+            demo_market_start=lambda: {"started": True, "blockers": []},
+            demo_private_start=lambda: {
+                "started": False,
+                "blockers": ["okx_demo_runtime_credentials_incomplete"],
+            },
+        )
+
+        result = runner.action("okx_demo", "start", {})
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["blockers"], ["okx_demo_runtime_credentials_incomplete"])
+        self.assertEqual(controller.actions, [])
+        self.assertFalse(result["privateRuntime"]["started"])
 
     def test_generic_demo_arm_route_cannot_bypass_exact_release_control(self) -> None:
         controller = FakeController()

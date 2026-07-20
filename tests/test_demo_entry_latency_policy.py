@@ -33,7 +33,7 @@ def quote(
     *,
     bid: float = 100.01,
     ask: float = 100.02,
-    received_after_seconds: float = 11.5,
+    received_after_seconds: float = 1.5,
     spread_pct: float = 0.0001,
     liquidity_passed: bool = True,
 ) -> dict:
@@ -65,42 +65,56 @@ class DemoEntryLatencyPolicyTests(unittest.TestCase):
             slippage_rate=0.0002,
         )
 
-    def test_under_five_seconds_is_on_target(self) -> None:
-        decision = self.evaluate(ready_after_seconds=4.999)
+    def test_under_750_milliseconds_is_on_target(self) -> None:
+        decision = self.evaluate(ready_after_seconds=0.749)
 
         self.assertTrue(decision.passed)
         self.assertEqual(decision.latencyClass, "on_target")
-        self.assertEqual(decision.closeToReadyMs, 4999)
+        self.assertEqual(decision.closeToReadyMs, 749)
+        self.assertEqual(decision.signalToOrderSendMs, 749)
+        self.assertEqual(decision.executionLatencyProfileVersion, "v55-default-1")
+        self.assertTrue(decision.executionLatencyProfileHash.startswith("execution_latency_profile_"))
 
-    def test_between_five_and_ten_seconds_is_delayed_but_eligible(self) -> None:
-        decision = self.evaluate(ready_after_seconds=7.0)
+    def test_between_target_and_soft_warning_is_delayed_but_eligible(self) -> None:
+        decision = self.evaluate(ready_after_seconds=1.0)
 
         self.assertTrue(decision.passed)
         self.assertEqual(decision.latencyClass, "delayed")
         self.assertIsNone(decision.reasonCode)
 
-    def test_twelve_second_entry_passes_with_small_drift_and_net_two_r(self) -> None:
-        decision = self.evaluate(ready_after_seconds=12.0)
+    def test_two_second_entry_passes_with_small_drift_and_positive_net_reward(self) -> None:
+        decision = self.evaluate(
+            signal=long_signal(take_profit=101.0),
+            ready_after_seconds=2.0,
+        )
 
         self.assertTrue(decision.passed)
         self.assertEqual(decision.latencyClass, "conditional")
         self.assertAlmostEqual(decision.adverseDriftPercent or 0.0, 0.02, places=6)
         self.assertAlmostEqual(decision.allowedAdverseDriftPercent or 0.0, 0.2, places=6)
-        self.assertGreaterEqual(decision.recalculatedNetRewardRisk or 0.0, 2.0)
+        self.assertGreater(decision.recalculatedNetRewardRisk or 0.0, 0.0)
+        self.assertLess(decision.recalculatedNetRewardRisk or 99.0, 2.0)
 
-    def test_more_than_thirty_seconds_expires_even_when_price_did_not_move(self) -> None:
-        decision = self.evaluate(ready_after_seconds=30.001)
+    def test_more_than_three_seconds_is_stale_even_when_price_did_not_move(self) -> None:
+        decision = self.evaluate(ready_after_seconds=3.001)
 
         self.assertFalse(decision.passed)
-        self.assertEqual(decision.latencyClass, "expired")
-        self.assertEqual(decision.reasonCode, "signal_expired")
+        self.assertEqual(decision.latencyClass, "stale")
+        self.assertEqual(decision.reasonCode, "stale_signal_rejected")
+
+    def test_twenty_seconds_is_a_non_adjustable_critical_failure(self) -> None:
+        decision = self.evaluate(ready_after_seconds=20.0)
+
+        self.assertFalse(decision.passed)
+        self.assertEqual(decision.latencyClass, "critical")
+        self.assertEqual(decision.reasonCode, "critical_latency_failure")
 
     def test_long_higher_and_short_lower_entries_are_adverse(self) -> None:
-        long_decision = self.evaluate(ready_after_seconds=12.0)
+        long_decision = self.evaluate(ready_after_seconds=2.0)
         short_decision = self.evaluate(
             signal=short_signal(),
             current_quote=quote(bid=99.98, ask=99.99),
-            ready_after_seconds=12.0,
+            ready_after_seconds=2.0,
         )
 
         self.assertAlmostEqual(long_decision.adverseDriftPercent or 0.0, 0.02, places=6)
@@ -108,8 +122,8 @@ class DemoEntryLatencyPolicyTests(unittest.TestCase):
 
     def test_conditional_entry_rejects_stale_quote(self) -> None:
         decision = self.evaluate(
-            current_quote=quote(received_after_seconds=9.0),
-            ready_after_seconds=12.0,
+            current_quote=quote(received_after_seconds=-1.0),
+            ready_after_seconds=2.0,
         )
 
         self.assertFalse(decision.passed)
@@ -118,11 +132,11 @@ class DemoEntryLatencyPolicyTests(unittest.TestCase):
     def test_conditional_entry_rejects_liquidity_or_spread_failure(self) -> None:
         illiquid = self.evaluate(
             current_quote=quote(liquidity_passed=False),
-            ready_after_seconds=12.0,
+            ready_after_seconds=2.0,
         )
         wide_spread = self.evaluate(
             current_quote=quote(spread_pct=0.0021),
-            ready_after_seconds=12.0,
+            ready_after_seconds=2.0,
         )
 
         self.assertEqual(illiquid.reasonCode, "conditional_liquidity_failed")
@@ -131,7 +145,7 @@ class DemoEntryLatencyPolicyTests(unittest.TestCase):
     def test_conditional_entry_rejects_excessive_adverse_drift(self) -> None:
         decision = self.evaluate(
             current_quote=quote(bid=100.29, ask=100.30),
-            ready_after_seconds=12.0,
+            ready_after_seconds=2.0,
         )
 
         self.assertFalse(decision.passed)
@@ -141,20 +155,20 @@ class DemoEntryLatencyPolicyTests(unittest.TestCase):
         signal = long_signal()
         signal["stopLossPrice"] = None
 
-        decision = self.evaluate(signal=signal, ready_after_seconds=12.0)
+        decision = self.evaluate(signal=signal, ready_after_seconds=2.0)
 
         self.assertFalse(decision.passed)
         self.assertEqual(decision.reasonCode, "conditional_stop_distance_missing")
 
-    def test_conditional_entry_recalculates_net_reward_risk(self) -> None:
+    def test_conditional_entry_rejects_non_positive_net_reward(self) -> None:
         decision = self.evaluate(
-            signal=long_signal(take_profit=104.0),
-            ready_after_seconds=12.0,
+            signal=long_signal(take_profit=100.10),
+            ready_after_seconds=2.0,
         )
 
         self.assertFalse(decision.passed)
-        self.assertEqual(decision.reasonCode, "conditional_reward_risk_below_2r")
-        self.assertLess(decision.recalculatedNetRewardRisk or 99.0, 2.0)
+        self.assertEqual(decision.reasonCode, "conditional_non_positive_net_reward")
+        self.assertEqual(decision.recalculatedNetRewardRisk, 0.0)
 
 
 if __name__ == "__main__":

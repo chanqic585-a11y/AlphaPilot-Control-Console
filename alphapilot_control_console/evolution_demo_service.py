@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from .config import DATA_DIR, get_quant_engine_path
-from .credential_runtime import load_okx_demo_credentials, runtime_credential_status
+from .credential_runtime import OkxDemoCredentials, load_okx_demo_credentials, runtime_credential_status
 from .demo_arbitrator import arbitrate_demo_signals
 from .demo_market_scan_service import save_demo_release_scan
 from .demo_execution_engine import DemoExecutionEngine
@@ -32,6 +32,9 @@ from .demo_strategy_runtime_settings import (
 )
 from .shadow_observer import record_shadow_scan_nonblocking
 from .exchange_connectors.okx_demo_client import OkxDemoClient, OkxDemoError
+from .exchange_connectors.okx_demo_private_ws import (
+    get_or_start_okx_demo_private_ws_runtime,
+)
 from .execution_outcome_store import ExecutionOutcomeStore
 from .portfolio_risk import normalize_risk_profile
 from .risk_profile_store import RISK_PROFILE_STORE_PATH, RiskProfileStore
@@ -251,8 +254,15 @@ def _outcome_payload(outcome: Any) -> dict[str, Any]:
     return payload
 
 
-def build_evolution_demo_status() -> dict[str, Any]:
-    contracts, rejected = discover_demo_contracts()
+def build_evolution_demo_status(
+    *,
+    contracts_override: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    if contracts_override is None:
+        contracts, rejected = discover_demo_contracts()
+    else:
+        contracts = list(contracts_override)
+        rejected = []
     store = DemoExecutionStore(STORE_PATH)
     try:
         records = store.list_records()
@@ -436,11 +446,15 @@ def run_evolution_demo_batch_cycle(
     release_ids: list[str],
     *,
     close_event: Any | None = None,
+    contracts_override: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    status = build_evolution_demo_status()
+    status = build_evolution_demo_status(contracts_override=contracts_override)
     if status["blockers"]:
         return {"ok": False, "blockers": status["blockers"], "status": status}
-    contracts, _ = discover_demo_contracts()
+    if contracts_override is None:
+        contracts, _ = discover_demo_contracts()
+    else:
+        contracts = list(contracts_override)
     requested = [str(value) for value in release_ids if str(value)]
     selected_contracts = [
         contract
@@ -473,6 +487,23 @@ def run_evolution_demo_batch_cycle(
             "blockers": ["confirmed_close_event_required"],
             "status": status,
         }
+    selected_contracts = [
+        contract
+        for contract in selected_contracts
+        if str(
+            ((contract.get("strategy") or {}).get("marketDefinition") or {}).get(
+                "timeframe"
+            )
+            or ""
+        )
+        == close_timeframe
+    ]
+    if not selected_contracts:
+        return {
+            "ok": False,
+            "blockers": ["confirmed_close_timeframe_has_no_component"],
+            "status": status,
+        }
     selected_timeframes = {
         str(((contract.get("strategy") or {}).get("marketDefinition") or {}).get("timeframe") or "")
         for contract in selected_contracts
@@ -484,20 +515,26 @@ def run_evolution_demo_batch_cycle(
             "status": status,
         }
     try:
-        client = OkxDemoClient(load_okx_demo_credentials())
+        credentials = load_okx_demo_credentials()
+        client = OkxDemoClient(credentials)
+        private_order_transport = (
+            get_or_start_okx_demo_private_ws_runtime(credentials)
+            if isinstance(credentials, OkxDemoCredentials)
+            else None
+        )
         account_instrument_ids = _demo_account_instrument_ids(client)
     except OkxDemoError as error:
         return {
             "ok": False,
             "transient": True,
             "blockers": [str(error)],
-            "status": build_evolution_demo_status(),
+            "status": build_evolution_demo_status(contracts_override=contracts_override),
         }
     except RuntimeError as error:
         return {
             "ok": False,
             "blockers": [str(error)],
-            "status": build_evolution_demo_status(),
+            "status": build_evolution_demo_status(contracts_override=contracts_override),
         }
     confirmed_set = set(confirmed_instrument_ids)
     eligible_close_instruments = tuple(sorted(
@@ -509,7 +546,9 @@ def run_evolution_demo_batch_cycle(
         return {
             "ok": False,
             "blockers": ["demo_confirmed_instrument_intersection_empty"],
-            "status": build_evolution_demo_status(),
+            "status": build_evolution_demo_status(
+                contracts_override=contracts_override,
+            ),
         }
     market_runtime = get_demo_market_runtime()
     market_runtime_status = market_runtime.status()
@@ -547,13 +586,33 @@ def run_evolution_demo_batch_cycle(
     scan_rejections: list[dict[str, Any]] = []
     for contract in selected_contracts:
         release_id = str(contract.get("demoReleaseId") or "")
+        strategy_id = str(contract.get("strategyCandidateId") or "")
+        market_definition = (
+            contract.get("strategy", {}).get("marketDefinition", {})
+            if isinstance(contract.get("strategy"), dict)
+            else {}
+        )
         scan = scan_immutable_demo_release(
             contract,
             snapshot_loader=frozen_market.load_snapshot,
             metadata_loader=frozen_market.load_metadata,
             universe_loader=frozen_market.load_universe,
         )
-        scans[release_id] = scan
+        scan = {
+            **scan,
+            "demoReleaseId": release_id,
+            "strategyCandidateId": strategy_id,
+            "timeframe": str(market_definition.get("timeframe") or close_timeframe),
+        }
+        scan_key = strategy_id or release_id
+        if not scan_key or scan_key in scans:
+            return {
+                "ok": False,
+                "blockers": ["duplicate_or_missing_demo_component_identity"],
+                "scans": scans,
+                "status": status,
+            }
+        scans[scan_key] = scan
         try:
             record_shadow_scan_nonblocking(
                 contract,
@@ -575,7 +634,6 @@ def run_evolution_demo_batch_cycle(
                 "scans": scans,
                 "status": status,
             }
-        strategy_id = str(contract.get("strategyCandidateId") or "")
         if strategy_id:
             try:
                 save_demo_release_scan(strategy_id, scan)
@@ -584,7 +642,9 @@ def run_evolution_demo_batch_cycle(
                     "ok": False,
                     "blockers": ["demo_market_scan_persistence_failed"],
                     "scans": scans,
-                    "status": build_evolution_demo_status(),
+                    "status": build_evolution_demo_status(
+                        contracts_override=contracts_override,
+                    ),
                 }
         signals = scan.get("signals") if isinstance(scan.get("signals"), list) else []
         for signal in signals:
@@ -595,7 +655,11 @@ def run_evolution_demo_batch_cycle(
                     "strategyCandidateId": signal.get("strategyCandidateId") or strategy_id,
                 })
         scan_rejections.extend(
-            {**row, "demoReleaseId": release_id}
+            {
+                **row,
+                "demoReleaseId": release_id,
+                "strategyCandidateId": row.get("strategyCandidateId") or strategy_id,
+            }
             for row in scan.get("rejections", [])
             if isinstance(row, dict)
         )
@@ -604,7 +668,11 @@ def run_evolution_demo_batch_cycle(
     first_contract = selected_contracts[0]
     store = DemoExecutionStore(STORE_PATH)
     try:
-        engine = DemoExecutionEngine(client=client, store=store)
+        engine = DemoExecutionEngine(
+            client=client,
+            store=store,
+            orderTransport=private_order_transport,
+        )
         recovered: list[Any] = []
         try:
             recovered = engine.recover_open_records()
@@ -621,7 +689,9 @@ def run_evolution_demo_batch_cycle(
                 "transient": True,
                 "blockers": [str(error)],
                 "scans": scans,
-                "status": build_evolution_demo_status(),
+                "status": build_evolution_demo_status(
+                    contracts_override=contracts_override,
+                ),
             }
         except RuntimeError as error:
             engine.pause("demo_private_read_failed")
@@ -629,7 +699,9 @@ def run_evolution_demo_batch_cycle(
                 "ok": False,
                 "blockers": [str(error)],
                 "scans": scans,
-                "status": build_evolution_demo_status(),
+                "status": build_evolution_demo_status(
+                    contracts_override=contracts_override,
+                ),
             }
         unavailable_instrument_rejections = [
             {
@@ -662,12 +734,19 @@ def run_evolution_demo_batch_cycle(
                 "ok": False,
                 "blockers": list(guard.reasonCodes),
                 "scans": scans,
-                "status": build_evolution_demo_status(),
+                "status": build_evolution_demo_status(
+                    contracts_override=contracts_override,
+                ),
             }
         base_result = {
             "scannedReleaseCount": len(selected_contracts),
             "matchedSignalCount": len(all_signals),
             "tradableSignalCount": len(tradable_signals),
+            "unavailableInstrumentCount": len(unavailable_instrument_rejections),
+            "arbitratedSignalCount": 0,
+            "latencyPassedSignalCount": 0,
+            "filledOrderCount": 0,
+            "openPositionCount": int(portfolio.get("openPositionCount") or 0),
             "scans": scans,
             "recovered": [_record_payload(record) for record in recovered],
             "closeReceivedAt": str(close_received_at),
@@ -699,7 +778,9 @@ def run_evolution_demo_batch_cycle(
                     *scan_rejections,
                     *unavailable_instrument_rejections,
                 ],
-                "status": build_evolution_demo_status(),
+                "status": build_evolution_demo_status(
+                    contracts_override=contracts_override,
+                ),
             }
 
         envelopes = [
@@ -847,6 +928,7 @@ def run_evolution_demo_batch_cycle(
                 order_ready_at=ready_at,
                 fee_rate=float(limits.get("feeRate") or 0.0005),
                 slippage_rate=float(limits.get("slippageRate") or 0.0002),
+                signal_completed_at=arbitration_finished_at,
             )
             decision_payload = asdict(decision)
             timing_payload = {
@@ -855,6 +937,13 @@ def run_evolution_demo_batch_cycle(
                 **decision_payload,
                 "closeReceivedAt": str(close_received_at),
                 "orderReadyAt": ready_at.isoformat(),
+                "barCloseExchangeTs": (
+                    _close_event_value(close_event, "barCloseExchangeTs")
+                    or _close_event_value(close_event, "closedAt")
+                    or str(close_received_at)
+                ),
+                "marketEventReceivedTs": str(close_received_at),
+                "signalCompletedTs": arbitration_finished_at.isoformat(),
             }
             if not decision.passed:
                 rejected = {
@@ -864,7 +953,10 @@ def run_evolution_demo_batch_cycle(
                     "latency": timing_payload,
                 }
                 execution_rejections.append(rejected)
-                if decision.reasonCode == "signal_expired":
+                if decision.reasonCode in {
+                    "stale_signal_rejected",
+                    "critical_latency_failure",
+                }:
                     expired_signals.append(rejected)
                 continue
             selected_latency.append(timing_payload)
@@ -943,6 +1035,17 @@ def run_evolution_demo_batch_cycle(
                     order_ready_at=ready_at,
                     order_sent_at=exchange_timing.get("orderSentAt"),
                     exchange_response_at=exchange_timing.get("exchangeResponseReceivedAt"),
+                    bar_close_exchange_ts=exchange_timing.get("barCloseExchangeTs"),
+                    market_event_received_ts=exchange_timing.get("marketEventReceivedTs"),
+                    signal_completed_ts=exchange_timing.get("signalCompletedTs"),
+                    risk_completed_ts=exchange_timing.get("riskCompletedTs"),
+                    order_intent_durable_ts=exchange_timing.get("orderIntentDurableTs"),
+                    order_send_ts=exchange_timing.get("orderSendTs"),
+                    gateway_in_time=exchange_timing.get("gatewayInTime"),
+                    gateway_out_time=exchange_timing.get("gatewayOutTime"),
+                    exchange_order_created_ts=exchange_timing.get("exchangeOrderCreatedTs"),
+                    first_fill_ts=exchange_timing.get("firstFillTs"),
+                    final_fill_ts=exchange_timing.get("finalFillTs"),
                 )
                 timing_payload.update(
                     {
@@ -993,10 +1096,17 @@ def run_evolution_demo_batch_cycle(
                 if store.get_runtime_flag("paused", False):
                     break
         paused = bool(store.get_runtime_flag("paused", False))
+        filled_order_count = sum(
+            1 for row in order_outcomes if str(row.get("status") or "") == "filled"
+        )
         return {
             "ok": not paused,
             **base_result,
+            "arbitratedSignalCount": len(globally_selected),
+            "latencyPassedSignalCount": len(selected_latency),
             "createdOrderCount": len(created),
+            "filledOrderCount": filled_order_count,
+            "openPositionCount": int(rolling_portfolio.get("openPositionCount") or 0),
             "orderAttemptCount": order_attempt_count,
             "orderOutcomes": order_outcomes,
             "created": [_record_payload(record) for record in created],
@@ -1014,7 +1124,9 @@ def run_evolution_demo_batch_cycle(
             "expiredSignals": expired_signals,
             "conditionalLateEntries": conditional_late_entries,
             "marketRuntimeStatus": market_runtime.status(),
-            "status": build_evolution_demo_status(),
+            "status": build_evolution_demo_status(
+                contracts_override=contracts_override,
+            ),
         }
     finally:
         store.close()
@@ -1038,17 +1150,23 @@ def run_evolution_demo_cycle(payload: dict[str, Any]) -> dict[str, Any]:
     return {
         **result,
         "externalSignalsIgnored": external_count,
-        "scan": scans.get(release_id, {}),
+        "scan": scans.get(strategy_id) or scans.get(release_id, {}),
         "symbolLimit": symbol_limits.get(strategy_id),
     }
 
 
-def reconcile_evolution_demo_runtime() -> dict[str, Any]:
+def reconcile_evolution_demo_runtime(
+    *,
+    contracts_override: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """Reconcile existing Demo orders and positions without creating entries."""
-    status = build_evolution_demo_status()
+    status = build_evolution_demo_status(contracts_override=contracts_override)
     if status["blockers"]:
         return {"ok": False, "blockers": status["blockers"], "status": status}
-    contracts, _ = discover_demo_contracts()
+    if contracts_override is None:
+        contracts, _ = discover_demo_contracts()
+    else:
+        contracts = list(contracts_override)
     if not contracts:
         return {"ok": False, "blockers": ["no_eligible_demo_release"], "status": status}
 
@@ -1072,7 +1190,9 @@ def reconcile_evolution_demo_runtime() -> dict[str, Any]:
                 "transient": True,
                 "blockers": [str(error)],
                 "recoveredCount": len(recovered),
-                "status": build_evolution_demo_status(),
+                "status": build_evolution_demo_status(
+                    contracts_override=contracts_override,
+                ),
             }
         except RuntimeError as error:
             engine.pause("demo_private_read_failed")
@@ -1080,7 +1200,9 @@ def reconcile_evolution_demo_runtime() -> dict[str, Any]:
                 "ok": False,
                 "blockers": [str(error)],
                 "recoveredCount": len(recovered),
-                "status": build_evolution_demo_status(),
+                "status": build_evolution_demo_status(
+                    contracts_override=contracts_override,
+                ),
             }
         guard = evaluate_demo_runtime_guard(
             portfolio,
@@ -1094,14 +1216,18 @@ def reconcile_evolution_demo_runtime() -> dict[str, Any]:
                 "blockers": list(guard.reasonCodes),
                 "recoveredCount": len(recovered),
                 "openPositionCount": int(portfolio.get("openPositionCount") or 0),
-                "status": build_evolution_demo_status(),
+                "status": build_evolution_demo_status(
+                    contracts_override=contracts_override,
+                ),
             }
         return {
             "ok": True,
             "blockers": [],
             "recoveredCount": len(recovered),
             "openPositionCount": int(portfolio.get("openPositionCount") or 0),
-            "status": build_evolution_demo_status(),
+            "status": build_evolution_demo_status(
+                contracts_override=contracts_override,
+            ),
         }
     finally:
         store.close()

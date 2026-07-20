@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from typing import Any, Callable, Iterable
 
 from .demo_release_scanner import calculate_demo_factors
+from .dynamic_top200_universe import MAXIMUM_INSTRUMENT_COUNT
 
 
 _SENSITIVE_KEYS = {
@@ -175,7 +176,10 @@ class DemoPrewarmedMarketState:
         max_quote_age_seconds: float = 2.0,
         clock: Callable[[], datetime] = _utc_now,
     ) -> None:
-        self.screening_limit = max(1, min(int(screening_limit), 100))
+        self.screening_limit = max(
+            1,
+            min(int(screening_limit), MAXIMUM_INSTRUMENT_COUNT),
+        )
         self.minimum_history = max(1, int(minimum_history))
         self.max_quote_age_seconds = max(0.1, float(max_quote_age_seconds))
         self._clock = clock

@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from statistics import median
 from typing import Any, Callable
 
+from .dynamic_top200_universe import MAXIMUM_INSTRUMENT_COUNT
 from .advisory_r_exit_policy import (
     advisory_target_r,
     is_advisory_definition,
@@ -399,15 +400,42 @@ def scan_immutable_demo_release(
     policy = strategy.get("forwardSignalPolicy") if isinstance(strategy.get("forwardSignalPolicy"), dict) else {}
     instruments = market.get("eligibleInstruments")
     universe_policy = market.get("universePolicy") if isinstance(market.get("universePolicy"), dict) else {}
+    runtime_binding = (
+        contract.get("portfolioRuntimeBinding")
+        if isinstance(contract.get("portfolioRuntimeBinding"), dict)
+        else {}
+    )
+    bound_universe_policy = (
+        runtime_binding.get("universePolicy")
+        if isinstance(runtime_binding.get("universePolicy"), dict)
+        else {}
+    )
+    portfolio_top200 = (
+        runtime_binding.get("snapshotBindingMode") == "policy_bound_daily_snapshot"
+        and bound_universe_policy.get("mode") == "daily_frozen_top200"
+    )
+    if portfolio_top200:
+        universe_policy = bound_universe_policy
     timeframe = str(market.get("timeframe") or "")
     direction = str(policy.get("direction") or "")
     rules = policy.get("rules")
     family_policy = str(policy.get("policyType") or "") == "strategy_family_params_v1"
-    dynamic_universe = str(universe_policy.get("mode") or "") == "okx_usdt_linear_perpetual_full_market"
+    dynamic_universe = str(universe_policy.get("mode") or "") in {
+        "okx_usdt_linear_perpetual_full_market",
+        "daily_frozen_top200",
+    }
     universe: dict[str, Any]
     ranked_candidates: list[dict[str, Any]] = []
     if dynamic_universe:
-        screening_limit = max(1, min(int(universe_policy.get("screeningLimit") or 20), 100))
+        requested_limit = (
+            universe_policy.get("maximumInstrumentCount")
+            if portfolio_top200
+            else universe_policy.get("screeningLimit")
+        )
+        screening_limit = max(
+            1,
+            min(int(requested_limit or 20), MAXIMUM_INSTRUMENT_COUNT),
+        )
         universe_payload = universe_loader(screening_limit)
         pool = universe_payload.get("screeningPool") if isinstance(universe_payload.get("screeningPool"), list) else []
         instruments = [
@@ -459,7 +487,7 @@ def scan_immutable_demo_release(
     signals: list[dict[str, Any]] = []
     rejections: list[dict[str, Any]] = []
     now_ms = int(datetime.now(UTC).timestamp() * 1000)
-    instrument_cap = 100 if dynamic_universe else 20
+    instrument_cap = screening_limit if dynamic_universe else 20
     ordered_instruments = list(dict.fromkeys(str(item).upper() for item in instruments))[:instrument_cap]
     candidate_by_id = {str(row.get("instId")): row for row in ranked_candidates}
     completed = 0

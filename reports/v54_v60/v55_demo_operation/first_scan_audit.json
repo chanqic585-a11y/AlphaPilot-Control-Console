@@ -1,0 +1,11 @@
+{
+  "engineeringSmokeExcluded": true,
+  "generatedAt": "2026-07-20T20:56:37.594893Z",
+  "reason": "exact_demo_release_not_armed",
+  "releaseHash": "provisional_demo_release_ac2ce50562b4c83743636fe38984bb5d370a9eb1a5eef12de0eeda4d9b29ea44",
+  "releaseId": "provisional_research_demo_top200_policy_bound_9f623ab76aafd8cc7cd4c6e6",
+  "riskOverlayHash": "risk_overlay_7221d23144dcd0a357136f6e9587a505d81c86439e223457d2d7393d287b8218",
+  "schemaVersion": "alphapilot_v55_first_scan_audit_v1",
+  "status": "not_run_pre_arm",
+  "strategyOrderCount": 0
+}

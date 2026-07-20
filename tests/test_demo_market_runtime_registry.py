@@ -62,6 +62,36 @@ class WarmingRuntime(FakeRuntime):
 
 
 class DemoMarketRuntimeRegistryTests(unittest.TestCase):
+    def test_build_runtime_uses_top200_capacity_for_the_approved_portfolio(self) -> None:
+        with patch.object(registry, "OkxPublicMarketRuntime") as runtime_type:
+            registry._build_runtime()
+
+        state = runtime_type.call_args.kwargs["state"]
+        self.assertEqual(state.screening_limit, 200)
+
+    def test_start_seeds_only_the_approved_portfolio_components(self) -> None:
+        fake = FakeRuntime()
+        approved_components = [{"demoReleaseId": "approved-release"}]
+        with patch.object(registry, "_RUNTIME", fake), patch.object(
+            registry, "_LAST_STARTUP", {"started": False}
+        ), patch(
+            "alphapilot_control_console.approved_top200_demo_runtime.load_approved_top200_demo_runtime",
+            return_value={
+                "approved": True,
+                "componentContracts": approved_components,
+                "blockers": ["exact_demo_arm_required"],
+            },
+            create=True,
+        ), patch(
+            "alphapilot_control_console.evolution_demo_service.discover_demo_contracts",
+            side_effect=AssertionError("legacy Demo releases must not seed V55 runtime"),
+        ), patch.dict(
+            os.environ, {"ALPHAPILOT_OKX_DEMO_AUTOMATION_ENABLED": "1"}, clear=False
+        ):
+            result = registry.start_demo_market_runtime(warm_timeout_seconds=0.2)
+
+        self.assertTrue(result["started"])
+
     def test_start_waits_for_warm_public_runtime_before_reporting_ready(self) -> None:
         fake = FakeRuntime()
         listener = lambda _event: None

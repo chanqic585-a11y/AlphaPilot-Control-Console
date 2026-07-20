@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
+import time
 from datetime import UTC, datetime
 from typing import Any
 from typing import Callable
@@ -11,6 +13,11 @@ from typing import Callable
 from .demo_execution_store import DemoExecutionRecord, DemoExecutionStore
 from .demo_risk_envelope import evaluate_demo_order_risk
 from .execution_outcome_store import ExecutionOutcomeStore, FormalExecutionOutcome
+from .execution_latency_profile import build_execution_latency_profile
+from .exchange_connectors.okx_demo_private_ws import (
+    OkxPrivateWsOrderUnknown,
+    OkxPrivateWsUnavailable,
+)
 
 
 _TERMINAL = {"filled", "canceled", "rejected", "mmp_canceled"}
@@ -35,6 +42,34 @@ def _rejection_code(response: dict[str, Any], order: dict[str, Any]) -> str:
     return str(order.get("sCode") or response.get("code") or "")
 
 
+def _exchange_timestamp(value: Any) -> str | None:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return None
+    if numeric <= 0:
+        return None
+    if numeric >= 1_000_000_000_000_000:
+        numeric /= 1_000_000.0
+    elif numeric >= 1_000_000_000_000:
+        numeric /= 1_000.0
+    try:
+        return datetime.fromtimestamp(numeric, tz=UTC).isoformat()
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
+def _accepts_keyword(callable_value: Any, keyword: str) -> bool:
+    try:
+        parameters = inspect.signature(callable_value).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    return any(
+        parameter.kind == inspect.Parameter.VAR_KEYWORD or parameter.name == keyword
+        for parameter in parameters
+    )
+
+
 def _reject_sensitive_fields(value: Any, path: str) -> None:
     if isinstance(value, dict):
         for key, child in value.items():
@@ -56,11 +91,17 @@ class DemoExecutionEngine:
         store: DemoExecutionStore,
         outcomeStore: ExecutionOutcomeStore | None = None,
         clock: Callable[[], datetime] = _utc_now,
+        monotonicClock: Callable[[], float] = time.perf_counter,
+        orderTransport: Any | None = None,
+        latencyProfile: dict[str, Any] | None = None,
     ):
         self.client = client
         self.store = store
         self.outcomeStore = outcomeStore
         self.clock = clock
+        self.monotonicClock = monotonicClock
+        self.orderTransport = orderTransport
+        self.latencyProfile = build_execution_latency_profile(latencyProfile)
 
     def execute(
         self,
@@ -109,6 +150,7 @@ class DemoExecutionEngine:
         )
         if not risk.passed:
             raise RuntimeError("OKX Demo risk gate blocked: " + ",".join(risk.reasonCodes))
+        risk_completed_at = self.clock().astimezone(UTC)
         if not str(signal.get("candidateId") or "").strip() or not str(signal.get("signalTime") or "").strip():
             raise ValueError("Demo signal requires candidateId and signalTime for idempotency")
         idempotency_key = hashlib.sha256(
@@ -131,15 +173,37 @@ class DemoExecutionEngine:
             signal=signal,
             orderPayload=order_payload,
         )
+        order_intent_durable_at = self.clock().astimezone(UTC)
         if record.status != "prepared":
             return record
         order_sent_at = self.clock().astimezone(UTC)
+        request_expiry_epoch_ms = (
+            int(order_sent_at.timestamp() * 1000)
+            + int(self.latencyProfile["orderRequestExpiryMs"])
+        )
+        transport_mode = "rest"
+        fallback_reason: str | None = None
+        monotonic_started = self.monotonicClock()
         try:
-            response = self.client.place_order(order_payload)
+            response, transport_mode, fallback_reason = self._place_order(
+                order_payload,
+                request_expiry_epoch_ms=request_expiry_epoch_ms,
+            )
             response_received_at = self.clock().astimezone(UTC)
+            gateway_elapsed_ms = round(
+                max(0.0, self.monotonicClock() - monotonic_started) * 1000.0,
+                3,
+            )
             order = _first_order(response)
             accepted = str(response.get("code")) == "0" and str(order.get("sCode", "0")) == "0"
             status = "submitted" if accepted else "rejected"
+            latency_audit = signal.get("latencyAudit") if isinstance(signal.get("latencyAudit"), dict) else {}
+            exchange_created_at = (
+                _exchange_timestamp(order.get("ts"))
+                or _exchange_timestamp(response.get("ts"))
+                or response_received_at.isoformat()
+            )
+            first_fill_at = _exchange_timestamp(order.get("fillTime"))
             updated = self.store.update_record(
                 record.recordId,
                 status=status,
@@ -149,6 +213,23 @@ class DemoExecutionEngine:
                     "_alphaPilotTiming": {
                         "orderSentAt": order_sent_at.isoformat(),
                         "exchangeResponseReceivedAt": response_received_at.isoformat(),
+                        "barCloseExchangeTs": latency_audit.get("barCloseExchangeTs") or latency_audit.get("closeReceivedAt"),
+                        "marketEventReceivedTs": latency_audit.get("marketEventReceivedTs") or latency_audit.get("closeReceivedAt"),
+                        "signalCompletedTs": latency_audit.get("signalCompletedTs") or latency_audit.get("orderReadyAt"),
+                        "riskCompletedTs": risk_completed_at.isoformat(),
+                        "orderIntentDurableTs": order_intent_durable_at.isoformat(),
+                        "orderSendTs": order_sent_at.isoformat(),
+                        "gatewayInTime": _exchange_timestamp(response.get("inTime")) or order_sent_at.isoformat(),
+                        "gatewayOutTime": _exchange_timestamp(response.get("outTime")) or response_received_at.isoformat(),
+                        "exchangeOrderCreatedTs": exchange_created_at,
+                        "firstFillTs": first_fill_at,
+                        "finalFillTs": first_fill_at if status == "filled" else None,
+                        "gatewayRoundTripMonotonicMs": gateway_elapsed_ms,
+                        "orderTransportMode": transport_mode,
+                        "orderTransportFallbackReason": fallback_reason,
+                        "orderRequestExpiryEpochMs": request_expiry_epoch_ms,
+                        "executionLatencyProfileVersion": self.latencyProfile["executionLatencyProfileVersion"],
+                        "executionLatencyProfileHash": self.latencyProfile["executionLatencyProfileHash"],
                     },
                 },
             )
@@ -168,11 +249,64 @@ class DemoExecutionEngine:
                     "_alphaPilotTiming": {
                         "orderSentAt": order_sent_at.isoformat(),
                         "exchangeResponseReceivedAt": response_received_at.isoformat(),
+                        "riskCompletedTs": risk_completed_at.isoformat(),
+                        "orderIntentDurableTs": order_intent_durable_at.isoformat(),
+                        "orderSendTs": order_sent_at.isoformat(),
+                        "orderTransportMode": transport_mode,
+                        "orderTransportFallbackReason": fallback_reason,
+                        "orderRequestExpiryEpochMs": request_expiry_epoch_ms,
+                        "executionLatencyProfileVersion": self.latencyProfile["executionLatencyProfileVersion"],
+                        "executionLatencyProfileHash": self.latencyProfile["executionLatencyProfileHash"],
                     },
                 },
             )
             self.pause("order_state_unknown")
             raise
+
+    def _place_order(
+        self,
+        payload: dict[str, Any],
+        *,
+        request_expiry_epoch_ms: int,
+    ) -> tuple[dict[str, Any], str, str | None]:
+        mode = str(self.latencyProfile["orderTransportMode"])
+        if mode in {"auto", "websocket"}:
+            transport = self.orderTransport
+            if transport is not None and bool(transport.is_order_ready()):
+                try:
+                    return (
+                        transport.place_order(
+                            payload,
+                            timeoutSeconds=(
+                                int(self.latencyProfile["exchangeAckTimeoutMs"]) / 1000.0
+                            ),
+                        ),
+                        "websocket",
+                        None,
+                    )
+                except OkxPrivateWsUnavailable:
+                    if mode == "websocket":
+                        raise
+                    fallback_reason = "private_ws_unavailable_before_send"
+            elif mode == "websocket":
+                raise OkxPrivateWsUnavailable("private_ws_order_channel_not_ready")
+            else:
+                fallback_reason = (
+                    "private_ws_not_configured"
+                    if transport is None
+                    else "private_ws_not_ready"
+                )
+        else:
+            fallback_reason = None
+        place_order = self.client.place_order
+        if _accepts_keyword(place_order, "expireAtEpochMs"):
+            response = place_order(
+                payload,
+                expireAtEpochMs=request_expiry_epoch_ms,
+            )
+        else:
+            response = place_order(payload)
+        return response, "rest", fallback_reason
 
     def reconcile(self, recordId: str) -> DemoExecutionRecord:
         record = self.store.get_record(recordId)
@@ -188,11 +322,27 @@ class DemoExecutionEngine:
         if str(response.get("code")) != "0" or state == "unknown":
             self.pause("order_query_unknown")
             state = "unknown"
+        previous_timing = (
+            record.exchangeResponse.get("_alphaPilotTiming")
+            if isinstance(record.exchangeResponse, dict)
+            and isinstance(record.exchangeResponse.get("_alphaPilotTiming"), dict)
+            else {}
+        )
+        reconciliation_at = self.clock().astimezone(UTC).isoformat()
+        fill_at = _exchange_timestamp(order.get("fillTime"))
         return self.store.update_record(
             recordId,
             status=state,
             exchangeOrderId=str(order.get("ordId") or record.exchangeOrderId or "") or None,
-            exchangeResponse=response,
+            exchangeResponse={
+                **response,
+                "_alphaPilotTiming": {
+                    **previous_timing,
+                    "firstFillTs": previous_timing.get("firstFillTs") or fill_at,
+                    "finalFillTs": fill_at if state == "filled" else previous_timing.get("finalFillTs"),
+                    "reconciliationCompletedTs": reconciliation_at,
+                },
+            },
         )
 
     def recover_open_records(self) -> list[DemoExecutionRecord]:

@@ -69,6 +69,9 @@ class DemoEvaluationAuditTests(unittest.TestCase):
         rejected = build_demo_evaluation_audit(
             {
                 "matchedSignalCount": 2,
+                "tradableSignalCount": 2,
+                "arbitratedSignalCount": 1,
+                "latencyPassedSignalCount": 1,
                 "createdOrderCount": 0,
                 "scans": {},
                 "rejectedSignals": [
@@ -82,7 +85,12 @@ class DemoEvaluationAuditTests(unittest.TestCase):
         submitted = build_demo_evaluation_audit(
             {
                 "matchedSignalCount": 1,
+                "tradableSignalCount": 1,
+                "arbitratedSignalCount": 1,
+                "latencyPassedSignalCount": 1,
                 "createdOrderCount": 1,
+                "filledOrderCount": 0,
+                "openPositionCount": 1,
                 "scans": {},
                 "rejectedSignals": [],
                 "orderOutcomes": [{"status": "submitted", "exchangeCode": "0"}],
@@ -95,6 +103,60 @@ class DemoEvaluationAuditTests(unittest.TestCase):
         self.assertEqual(submitted["state"], "order_submitted")
         self.assertEqual(submitted["orderAttemptCount"], 1)
         self.assertEqual(submitted["exchangeCodeCounts"], {"0": 1})
+        self.assertEqual(
+            submitted["funnel"],
+            {
+                "marketInstrumentCount": 0,
+                "liquidityEligibleInstrumentCount": 0,
+                "componentInstrumentEvaluationCount": 0,
+                "matchedSignalCount": 1,
+                "demoTradableSignalCount": 1,
+                "arbitratedSignalCount": 1,
+                "latencyPassedSignalCount": 1,
+                "orderAttemptCount": 1,
+                "orderAcceptedCount": 1,
+                "filledOrderCount": 0,
+                "openPositionCount": 1,
+            },
+        )
+        self.assertTrue(all(submitted["conservationChecks"].values()))
+
+    def test_keeps_component_audits_distinct_under_one_portfolio_release(self) -> None:
+        audit = build_demo_evaluation_audit(
+            {
+                "matchedSignalCount": 0,
+                "createdOrderCount": 0,
+                "scans": {
+                    "component-a": {
+                        "demoReleaseId": "portfolio-release",
+                        "strategyCandidateId": "component-a",
+                        "timeframe": "1d",
+                        "signals": [],
+                        "rejections": [],
+                        "universe": {"totalInstrumentCount": 200},
+                        "progress": {"completed": 200, "required": 200},
+                    },
+                    "component-b": {
+                        "demoReleaseId": "portfolio-release",
+                        "strategyCandidateId": "component-b",
+                        "timeframe": "1d",
+                        "signals": [],
+                        "rejections": [],
+                        "universe": {"totalInstrumentCount": 200},
+                        "progress": {"completed": 200, "required": 200},
+                    },
+                },
+            },
+            releases=[ReleaseSchedule("portfolio-release", "portfolio", "1d")],
+        )
+
+        self.assertEqual(audit["evaluatedReleaseCount"], 1)
+        self.assertEqual(audit["evaluatedComponentCount"], 2)
+        self.assertEqual(
+            {row["strategyId"] for row in audit["releaseAudits"]},
+            {"component-a", "component-b"},
+        )
+        self.assertEqual(audit["marketSummary"]["deepScreenCount"], 400)
 
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@ from .demo_release_scanner import (
     fetch_okx_public_market_snapshot,
     fetch_okx_usdt_swap_universe,
 )
-from .demo_universe_policy import DEMO_DEEP_SCREENING_LIMIT
+from .dynamic_top200_universe import MAXIMUM_INSTRUMENT_COUNT
 from .okx_public_market_runtime import OkxPublicMarketRuntime
 
 
@@ -31,7 +31,7 @@ def _enabled(name: str) -> bool:
 
 def _build_runtime() -> OkxPublicMarketRuntime:
     return OkxPublicMarketRuntime(
-        state=DemoPrewarmedMarketState(screening_limit=DEMO_DEEP_SCREENING_LIMIT),
+        state=DemoPrewarmedMarketState(screening_limit=MAXIMUM_INSTRUMENT_COUNT),
         universe_loader=fetch_okx_usdt_swap_universe,
         snapshot_loader=fetch_okx_public_market_snapshot,
         metadata_loader=fetch_okx_public_instrument_metadata,
@@ -63,14 +63,18 @@ def start_demo_market_runtime(
         }
         return dict(_LAST_STARTUP)
     try:
-        from .evolution_demo_service import discover_demo_contracts
+        from .approved_top200_demo_runtime import load_approved_top200_demo_runtime
 
-        contracts, invalid = discover_demo_contracts()
-        if invalid or not contracts:
+        approved_runtime = load_approved_top200_demo_runtime()
+        contracts = [
+            row
+            for row in approved_runtime.get("componentContracts") or []
+            if isinstance(row, dict)
+        ]
+        if approved_runtime.get("approved") is not True or not contracts:
             _LAST_STARTUP = {
                 "started": False,
-                "blockers": ["immutable_demo_release_unavailable"],
-                "invalidReleaseCount": len(invalid),
+                "blockers": ["approved_top200_demo_runtime_unavailable"],
             }
             return dict(_LAST_STARTUP)
         runtime = get_demo_market_runtime()

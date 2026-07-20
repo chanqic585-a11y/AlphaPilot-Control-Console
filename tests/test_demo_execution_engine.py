@@ -8,6 +8,10 @@ from pathlib import Path
 from alphapilot_control_console.demo_execution_engine import DemoExecutionEngine
 from alphapilot_control_console.demo_execution_store import DemoExecutionStore
 from alphapilot_control_console.execution_outcome_store import ExecutionOutcomeStore
+from alphapilot_control_console.exchange_connectors.okx_demo_private_ws import (
+    OkxPrivateWsOrderUnknown,
+    OkxPrivateWsUnavailable,
+)
 
 
 class FakeDemoClient:
@@ -28,6 +32,23 @@ class FakeDemoClient:
     def cancel_all_after(self, timeoutSeconds: int) -> dict:
         self.killCalls += 1
         return {"code": "0", "data": [{"triggerTime": "1"}]}
+
+
+class FakePrivateOrderTransport:
+    def __init__(self, *, ready: bool = True, failure: Exception | None = None) -> None:
+        self.ready = ready
+        self.failure = failure
+        self.calls = 0
+
+    def is_order_ready(self) -> bool:
+        return self.ready
+
+    def place_order(self, payload: dict, *, timeoutSeconds: float) -> dict:
+        del timeoutSeconds
+        self.calls += 1
+        if self.failure is not None:
+            raise self.failure
+        return {"code": "0", "data": [{"ordId": "ws-1", "clOrdId": payload["clOrdId"], "sCode": "0"}]}
 
 
 def contract() -> dict:
@@ -127,6 +148,8 @@ class DemoExecutionEngineTests(unittest.TestCase):
     def test_order_send_and_exchange_response_timestamps_are_persisted(self) -> None:
         timestamps = iter(
             (
+                datetime(2026, 7, 13, 0, 0, 3, 800000, tzinfo=UTC),
+                datetime(2026, 7, 13, 0, 0, 3, 900000, tzinfo=UTC),
                 datetime(2026, 7, 13, 0, 0, 4, tzinfo=UTC),
                 datetime(2026, 7, 13, 0, 0, 4, 120000, tzinfo=UTC),
             )
@@ -145,7 +168,81 @@ class DemoExecutionEngineTests(unittest.TestCase):
                 timing = record.exchangeResponse["_alphaPilotTiming"]
                 self.assertEqual(timing["orderSentAt"], "2026-07-13T00:00:04+00:00")
                 self.assertEqual(timing["exchangeResponseReceivedAt"], "2026-07-13T00:00:04.120000+00:00")
+                self.assertEqual(timing["riskCompletedTs"], "2026-07-13T00:00:03.800000+00:00")
+                self.assertEqual(timing["orderIntentDurableTs"], "2026-07-13T00:00:03.900000+00:00")
+                self.assertEqual(timing["orderTransportMode"], "rest")
+                self.assertEqual(timing["orderTransportFallbackReason"], "private_ws_not_configured")
                 self.assertNotIn("apiKey", str(timing))
+            finally:
+                store.close()
+
+    def test_auto_transport_prefers_healthy_private_websocket(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = DemoExecutionStore(Path(directory) / "demo.sqlite")
+            try:
+                client = FakeDemoClient()
+                private_transport = FakePrivateOrderTransport()
+                engine = DemoExecutionEngine(
+                    client=client,
+                    store=store,
+                    orderTransport=private_transport,
+                )
+
+                record = engine.execute(contract=contract(), signal=signal(), portfolio={})
+
+                self.assertEqual(record.status, "submitted")
+                self.assertEqual(private_transport.calls, 1)
+                self.assertEqual(client.placeCalls, 0)
+                self.assertEqual(record.exchangeResponse["_alphaPilotTiming"]["orderTransportMode"], "websocket")
+            finally:
+                store.close()
+
+    def test_auto_transport_falls_back_only_when_websocket_is_unavailable_before_send(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = DemoExecutionStore(Path(directory) / "demo.sqlite")
+            try:
+                client = FakeDemoClient()
+                private_transport = FakePrivateOrderTransport(
+                    ready=True,
+                    failure=OkxPrivateWsUnavailable("not ready"),
+                )
+                engine = DemoExecutionEngine(
+                    client=client,
+                    store=store,
+                    orderTransport=private_transport,
+                )
+
+                record = engine.execute(contract=contract(), signal=signal(), portfolio={})
+
+                timing = record.exchangeResponse["_alphaPilotTiming"]
+                self.assertEqual(private_transport.calls, 1)
+                self.assertEqual(client.placeCalls, 1)
+                self.assertEqual(timing["orderTransportMode"], "rest")
+                self.assertEqual(timing["orderTransportFallbackReason"], "private_ws_unavailable_before_send")
+            finally:
+                store.close()
+
+    def test_websocket_unknown_state_never_retries_over_rest(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = DemoExecutionStore(Path(directory) / "demo.sqlite")
+            try:
+                client = FakeDemoClient()
+                private_transport = FakePrivateOrderTransport(
+                    failure=OkxPrivateWsOrderUnknown("ack timeout"),
+                )
+                engine = DemoExecutionEngine(
+                    client=client,
+                    store=store,
+                    orderTransport=private_transport,
+                )
+
+                with self.assertRaises(OkxPrivateWsOrderUnknown):
+                    engine.execute(contract=contract(), signal=signal(), portfolio={})
+
+                self.assertEqual(private_transport.calls, 1)
+                self.assertEqual(client.placeCalls, 0)
+                self.assertTrue(store.get_runtime_flag("paused"))
+                self.assertEqual(store.list_records()[0].status, "unknown")
             finally:
                 store.close()
 

@@ -5,17 +5,15 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Mapping
+
+from .execution_latency_profile import build_execution_latency_profile
 
 
-TARGET_LATENCY_MS = 5_000
-CONDITIONAL_LATENCY_MS = 10_000
-ABSOLUTE_EXPIRY_MS = 30_000
 MAX_QUOTE_AGE_MS = 2_000
 MAX_SPREAD_FRACTION = 0.002
 MAX_ADVERSE_DRIFT_PERCENT = 0.20
 STOP_DISTANCE_DRIFT_FRACTION = 0.10
-MIN_NET_REWARD_RISK = 2.0
 
 
 @dataclass(frozen=True)
@@ -24,6 +22,9 @@ class DemoEntryLatencyDecision:
     latencyClass: str
     reasonCode: str | None
     closeToReadyMs: int
+    signalToOrderSendMs: int
+    executionLatencyProfileVersion: str
+    executionLatencyProfileHash: str
     quoteAgeMs: int | None = None
     adverseDriftPercent: float | None = None
     allowedAdverseDriftPercent: float | None = None
@@ -59,6 +60,8 @@ def _decision(
     latency_class: str,
     reason_code: str | None,
     close_to_ready_ms: int,
+    signal_to_order_send_ms: int,
+    profile: Mapping[str, Any],
     quote_age_ms: int | None = None,
     adverse_drift_percent: float | None = None,
     allowed_adverse_drift_percent: float | None = None,
@@ -69,6 +72,9 @@ def _decision(
         latencyClass=latency_class,
         reasonCode=reason_code,
         closeToReadyMs=close_to_ready_ms,
+        signalToOrderSendMs=signal_to_order_send_ms,
+        executionLatencyProfileVersion=str(profile["executionLatencyProfileVersion"]),
+        executionLatencyProfileHash=str(profile["executionLatencyProfileHash"]),
         quoteAgeMs=quote_age_ms,
         adverseDriftPercent=adverse_drift_percent,
         allowedAdverseDriftPercent=allowed_adverse_drift_percent,
@@ -84,39 +90,69 @@ def evaluate_demo_entry_latency(
     order_ready_at: datetime | str,
     fee_rate: float,
     slippage_rate: float,
+    signal_completed_at: datetime | str | None = None,
+    latency_profile: Mapping[str, Any] | None = None,
 ) -> DemoEntryLatencyDecision:
     """Classify latency and fail closed when a late entry would chase price."""
 
+    profile = build_execution_latency_profile(latency_profile)
     close_time = _datetime(close_received_at)
     ready_time = _datetime(order_ready_at)
+    signal_time = _datetime(signal_completed_at) if signal_completed_at is not None else close_time
     if close_time is None or ready_time is None or ready_time < close_time:
         return _decision(
             passed=False,
             latency_class="invalid",
             reason_code="latency_timestamp_invalid",
             close_to_ready_ms=-1,
+            signal_to_order_send_ms=-1,
+            profile=profile,
+        )
+    if signal_time is None or signal_time < close_time or ready_time < signal_time:
+        return _decision(
+            passed=False,
+            latency_class="invalid",
+            reason_code="latency_timestamp_invalid",
+            close_to_ready_ms=-1,
+            signal_to_order_send_ms=-1,
+            profile=profile,
         )
     close_to_ready_ms = int(round((ready_time - close_time).total_seconds() * 1000))
-    if close_to_ready_ms <= TARGET_LATENCY_MS:
+    signal_to_order_send_ms = int(round((ready_time - signal_time).total_seconds() * 1000))
+    common = {
+        "close_to_ready_ms": close_to_ready_ms,
+        "signal_to_order_send_ms": signal_to_order_send_ms,
+        "profile": profile,
+    }
+    if close_to_ready_ms >= int(profile["criticalLatencyFailureMs"]):
+        return _decision(
+            passed=False,
+            latency_class="critical",
+            reason_code="critical_latency_failure",
+            **common,
+        )
+    if close_to_ready_ms > int(profile["maximumSignalAgeMs"]):
+        return _decision(
+            passed=False,
+            latency_class="stale",
+            reason_code="stale_signal_rejected",
+            **common,
+        )
+    # The signal is derived from the just-closed bar, so the execution gate uses
+    # close-to-ready age while retaining signal-complete timing for diagnostics.
+    if close_to_ready_ms <= int(profile["signalToOrderSendTargetMs"]):
         return _decision(
             passed=True,
             latency_class="on_target",
             reason_code=None,
-            close_to_ready_ms=close_to_ready_ms,
+            **common,
         )
-    if close_to_ready_ms <= CONDITIONAL_LATENCY_MS:
+    if close_to_ready_ms <= int(profile["signalToOrderSendSoftWarnMs"]):
         return _decision(
             passed=True,
             latency_class="delayed",
             reason_code=None,
-            close_to_ready_ms=close_to_ready_ms,
-        )
-    if close_to_ready_ms > ABSOLUTE_EXPIRY_MS:
-        return _decision(
-            passed=False,
-            latency_class="expired",
-            reason_code="signal_expired",
-            close_to_ready_ms=close_to_ready_ms,
+            **common,
         )
 
     quote_time = _datetime(quote.get("receivedAt"))
@@ -128,7 +164,7 @@ def evaluate_demo_entry_latency(
     conditional_values = {
         "passed": False,
         "latency_class": "conditional",
-        "close_to_ready_ms": close_to_ready_ms,
+        **common,
         "quote_age_ms": quote_age_ms,
     }
     if quote_age_ms is None or quote_age_ms < 0 or quote_age_ms > MAX_QUOTE_AGE_MS:
@@ -206,10 +242,10 @@ def evaluate_demo_entry_latency(
     net_reward = gross_reward - round_trip_cost
     net_risk = gross_risk + round_trip_cost
     reward_risk = net_reward / net_risk if net_reward > 0 and net_risk > 0 else 0.0
-    if not math.isfinite(reward_risk) or reward_risk < MIN_NET_REWARD_RISK:
+    if not math.isfinite(reward_risk) or net_reward <= 0 or net_risk <= 0:
         return _decision(
             **drift_values,
-            reason_code="conditional_reward_risk_below_2r",
+            reason_code="conditional_non_positive_net_reward",
             reward_risk=reward_risk,
         )
     passed_values = {**drift_values, "passed": True}
