@@ -1,0 +1,83 @@
+{
+  "orders": {
+    "engineeringSmokeExcluded": true,
+    "orders": [],
+    "readOnly": true,
+    "source": "strategy_order_ledger",
+    "strategyOrderCount": 0
+  },
+  "positions": {
+    "engineeringSmokeExcluded": true,
+    "openPositionCount": 0,
+    "positions": [],
+    "readOnly": true,
+    "source": "strategy_position_ledger"
+  },
+  "reconciliation": {
+    "duplicateOrderCount": 0,
+    "engineeringOnly": true,
+    "nonzeroPositionCount": 0,
+    "orphanPositionCount": 0,
+    "pendingOrderCount": 0,
+    "readOnly": true,
+    "status": "passed",
+    "strategyEvidenceDelta": 0,
+    "unknownOrderCount": 0
+  },
+  "strategies": {
+    "readOnly": true,
+    "strategies": [
+      {
+        "approved": false,
+        "demoArm": false,
+        "latestScanAt": null,
+        "latestSignalAt": null,
+        "name": "V46 三机制 TOP200 组合",
+        "openPositionCount": 0,
+        "releaseHash": "provisional_demo_release_96aa2aa4bdb320e91745474f287dda9e4836b8a901910f252bcf447d718010d0",
+        "releaseId": "provisional_research_demo_top200_1fc1e9895d79de78e457bc9c",
+        "scanInstrumentCount": 82,
+        "status": "waiting_approval",
+        "timeframes": [
+          "1h",
+          "1d"
+        ],
+        "todayPnl": null
+      }
+    ]
+  },
+  "summary": {
+    "approvedStrategyCount": 0,
+    "canRunApprovedStrategies": false,
+    "connectionStatus": "engineering_smoke_passed",
+    "engineeringSmoke": {
+      "duplicateOrderCount": 0,
+      "orphanOrderCount": 0,
+      "orphanPositionCount": 0,
+      "ready": true,
+      "recentFillCount": 2,
+      "status": "passed",
+      "strategyEvidenceDelta": 0,
+      "strategyOrdersExcluded": true,
+      "unknownStateCount": 0
+    },
+    "equity": null,
+    "floatingPnl": null,
+    "issues": [
+      {
+        "code": "exact_release_approval_required",
+        "message": "TOP200 Release 已冻结，等待精确批准。",
+        "severity": "warning"
+      }
+    ],
+    "openPositionCount": 0,
+    "readOnly": true,
+    "route": "blocked_waiting_exact_release_approval",
+    "runningStrategyCount": 0,
+    "strategyOrderCount": 0,
+    "todayPnl": null,
+    "universeCount": 82,
+    "universeMaximum": 200,
+    "updatedAt": "2026-07-20T16:59:12.899103Z"
+  }
+}

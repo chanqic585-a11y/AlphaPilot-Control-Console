@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "status": "passed",
+  "results": {
+    "quantFull": {
+      "command": "python -m pytest tests -q --import-mode=importlib",
+      "environment": "bundled git prepended to PATH",
+      "passed": 1353,
+      "subtestsPassed": 164,
+      "failed": 0,
+      "durationSeconds": 117.41
+    },
+    "consoleFull": {
+      "command": "python -m pytest -q",
+      "passed": 500,
+      "subtestsPassed": 83,
+      "failed": 0,
+      "durationSeconds": 23.56
+    },
+    "quantCompileall": "passed",
+    "consoleCompileall": "passed",
+    "javascriptSyntax": "passed",
+    "quantDiffCheck": "passed",
+    "consoleDiffCheck": "passed",
+    "browserQa": "passed"
+  },
+  "environmentNotes": [
+    "Running pytest from the repository root without the established importlib mode collected duplicate module basenames and third_party tests.",
+    "The first importlib-mode run exposed five environment-only failures because git was absent from PATH.",
+    "The authoritative full run passed after the bundled git path was injected; no code or frozen artifact changed between those runs."
+  ]
+}

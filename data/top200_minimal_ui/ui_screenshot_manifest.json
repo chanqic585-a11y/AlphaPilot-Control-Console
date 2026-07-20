@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "browserQaStatus": "passed",
+  "consoleErrorCount": 0,
+  "horizontalOverflowDetected": false,
+  "screenshots": [
+    {
+      "file": "screenshots/strategy_desktop_1440.png",
+      "viewport": "1440x1000",
+      "sha256": "12415013e73579e802359cf3af4d1749d95e74b5425fa0f204d763876cba1d8c"
+    },
+    {
+      "file": "screenshots/demo_desktop_1440.png",
+      "viewport": "1440x1000",
+      "sha256": "ef0d2e141285e7bcb91c7d23189baef655bebeaca2dd5bd3496f76c5f8b2bb9c"
+    },
+    {
+      "file": "screenshots/strategy_mobile_390.png",
+      "viewport": "390px",
+      "sha256": "ca080426ab56142c3e50466b3b5fd7c66960d2e65547c24fe5f3e09865a2788b"
+    },
+    {
+      "file": "screenshots/demo_mobile_390.png",
+      "viewport": "390px",
+      "sha256": "a020b5c96ee6e8375a6ad021801e9b549235c2bb0f3080e5670d02a1115b3d53"
+    }
+  ]
+}

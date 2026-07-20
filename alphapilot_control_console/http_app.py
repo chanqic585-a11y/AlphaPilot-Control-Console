@@ -135,6 +135,7 @@ from .testnet_small_order_simulation import (
     build_testnet_small_order_simulation,
     create_testnet_small_order_simulation,
 )
+from .top200_minimal_ui_projection import build_top200_minimal_ui_projection
 from .usable_strategy_catalog import build_usable_strategy_catalog
 from .weakness_action_board import build_weakness_action_board
 from .workflow_client import (
@@ -278,6 +279,62 @@ def _find_task_pack_task(payload: dict, task_id: str) -> dict | None:
     return None
 
 
+_TOP200_MINIMAL_UI_EXACT_ROUTES = {
+    "/api/research-factory/summary",
+    "/api/research-factory/runs",
+    "/api/strategy/summary",
+    "/api/strategy/releases",
+    "/api/demo/summary",
+    "/api/demo/strategies",
+    "/api/demo/positions",
+    "/api/demo/orders",
+    "/api/demo/universe",
+    "/api/demo/reconciliation",
+}
+
+
+def _is_top200_minimal_ui_route(path: str) -> bool:
+    return (
+        path in _TOP200_MINIMAL_UI_EXACT_ROUTES
+        or path.startswith("/api/research-factory/runs/")
+        or path.startswith("/api/strategy/releases/")
+    )
+
+
+def _build_top200_minimal_ui_payload(path: str) -> dict:
+    projection = build_top200_minimal_ui_projection()
+    if path == "/api/research-factory/summary":
+        return projection.research_factory_summary()
+    if path == "/api/research-factory/runs":
+        return projection.research_factory_runs()
+    if path.startswith("/api/research-factory/runs/"):
+        return projection.research_factory_run(path.rsplit("/", 1)[-1])
+    if path == "/api/strategy/summary":
+        return projection.strategy_summary()
+    if path == "/api/strategy/releases":
+        return projection.strategy_releases()
+    if path.startswith("/api/strategy/releases/"):
+        suffix = path.removeprefix("/api/strategy/releases/")
+        if suffix.endswith("/forward-validation"):
+            return projection.forward_validation(
+                suffix.removesuffix("/forward-validation").rstrip("/")
+            )
+        return projection.strategy_release(suffix)
+    if path == "/api/demo/summary":
+        return projection.demo_summary()
+    if path == "/api/demo/strategies":
+        return projection.demo_strategies()
+    if path == "/api/demo/positions":
+        return projection.demo_positions()
+    if path == "/api/demo/orders":
+        return projection.demo_orders()
+    if path == "/api/demo/universe":
+        return projection.demo_universe()
+    if path == "/api/demo/reconciliation":
+        return projection.demo_reconciliation()
+    raise KeyError(path)
+
+
 class ConsoleHandler(BaseHTTPRequestHandler):
     server_version = "AlphaPilotControlConsole/13.27.1.6"
 
@@ -321,6 +378,21 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         fresh = _is_fresh_query(query)
         if path == "/api/health":
             self._send_json(build_health_payload())
+            return
+        if _is_top200_minimal_ui_route(path):
+            try:
+                self._send_json(_build_top200_minimal_ui_payload(path))
+            except KeyError:
+                self._send_json({"ok": False, "error": "top200_projection_not_found"}, 404)
+            except (OSError, RuntimeError, ValueError):
+                self._send_json(
+                    {
+                        "ok": False,
+                        "error": "top200_projection_unavailable",
+                        "message": "TOP200 projection evidence is unavailable.",
+                    },
+                    503,
+                )
             return
         if path == "/api/backtest-screening":
             campaign_id = str((query.get("campaignId") or [""])[0] or "").strip()

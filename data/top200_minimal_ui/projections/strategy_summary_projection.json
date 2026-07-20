@@ -1,0 +1,64 @@
+{
+  "releases": {
+    "activeReleaseCount": 1,
+    "readOnly": true,
+    "releases": [
+      {
+        "actualInstrumentCount": 82,
+        "approved": false,
+        "componentIds": [
+          "v13_7_40_1h_short_rejection_2149_asset_filter_top10",
+          "v13_7_20_lf_research_candidate_117",
+          "v13_7_20_lf_research_candidate_090"
+        ],
+        "demoArm": false,
+        "formalPass": false,
+        "generatedAt": "2026-07-20T16:59:12.899103Z",
+        "maximumInstrumentCount": 200,
+        "name": "V46 三机制 TOP200 组合",
+        "primaryAction": "查看并批准",
+        "releaseHash": "provisional_demo_release_96aa2aa4bdb320e91745474f287dda9e4836b8a901910f252bcf447d718010d0",
+        "releaseId": "provisional_research_demo_top200_1fc1e9895d79de78e457bc9c",
+        "riskOverlayHash": "risk_overlay_7221d23144dcd0a357136f6e9587a505d81c86439e223457d2d7393d287b8218",
+        "route": "blocked_waiting_exact_release_approval",
+        "status": "can_enter_demo",
+        "statusLabel": "可进入 Demo",
+        "supersedesReleaseHash": "provisional_demo_release_c1e28ecf59fb7fcc2b4876eec5e6fd04c50002bef28c69c03bedf164af7cd225",
+        "supersedesReleaseId": "provisional_research_demo_v46_a3669d95101ba65f68fa89b1",
+        "type": "portfolio",
+        "universePolicyHash": "top200_universe_policy_2bf7e14ddf8f3f38ead07d26b60d5935feeb2a1019292392bb530fc8d824b45a",
+        "universePolicyId": "okx_demo_top200_liquid_usdt_swap_forward_v1",
+        "universeSnapshotHash": "demo_top200_universe_snapshot_5615357b51716e05159e3af6eee436d35ecd76083520a3578ea7bcbcf7adb594"
+      },
+      {
+        "approved": false,
+        "demoArm": false,
+        "readOnly": true,
+        "releaseHash": "provisional_demo_release_c1e28ecf59fb7fcc2b4876eec5e6fd04c50002bef28c69c03bedf164af7cd225",
+        "releaseId": "provisional_research_demo_v46_a3669d95101ba65f68fa89b1",
+        "status": "superseded_unapproved"
+      }
+    ]
+  },
+  "summary": {
+    "approved": false,
+    "approvedReleaseCount": 0,
+    "armedReleaseCount": 0,
+    "componentStrategyCount": 3,
+    "demoArm": false,
+    "formalPassCount": 0,
+    "portfolioCandidateCount": 1,
+    "readOnly": true,
+    "releaseReadyCount": 1,
+    "resultCounts": {
+      "canEnterDemo": 1,
+      "dataInsufficient": 0,
+      "failed": 0,
+      "needsForwardValidation": 0,
+      "systemIssue": 0
+    },
+    "route": "blocked_waiting_exact_release_approval",
+    "strategyOrderCount": 0,
+    "updatedAt": "2026-07-20T16:59:12.899103Z"
+  }
+}

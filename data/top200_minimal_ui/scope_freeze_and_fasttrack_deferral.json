@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "phase": "current_top200_minimal_ui",
+  "scopeStatus": "frozen",
+  "executionInputs": {
+    "top200PatchSha256": "48766959eaff4c798c01e907581caf49c44dd7a5dd1f9a4011cbe35d28435bb5",
+    "scopeFreezeSha256": "5e990566e5fee0a62557917eed86d3be2be13fceb8a374e3c3623c8758a84021"
+  },
+  "completedScope": [
+    "okx_demo_engineering_smoke",
+    "dynamic_top200_universe_policy",
+    "top200_snapshot_and_scan_funnel",
+    "superseding_provisional_demo_release",
+    "minimal_strategy_and_demo_ui",
+    "read_only_state_order_position_pnl_problem_projection"
+  ],
+  "deferredWork": [
+    {"name": "v54_v58_fast_track", "status": "deferred_not_started"},
+    {"name": "live_client", "status": "deferred_not_started"},
+    {"name": "live_api", "status": "deferred_not_started"},
+    {"name": "live_canary", "status": "deferred_not_started"},
+    {"name": "live_risk_budget_1000_usdt", "status": "deferred_not_started"},
+    {"name": "manual_live_release", "status": "deferred_not_started"},
+    {"name": "new_approval_type", "status": "deferred_not_started"},
+    {"name": "new_primary_navigation", "status": "deferred_not_started"},
+    {"name": "additional_strategy_research_chain", "status": "deferred_not_started"}
+  ],
+  "mechanicalState": {
+    "releaseApprovalGranted": false,
+    "demoArm": false,
+    "strategyOrderCount": 0,
+    "liveEnabled": false,
+    "withdrawEnabled": false
+  }
+}

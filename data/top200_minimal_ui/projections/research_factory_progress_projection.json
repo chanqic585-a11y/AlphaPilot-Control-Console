@@ -1,0 +1,19 @@
+{
+  "completedCount": 6,
+  "currentCandidate": "provisional_research_demo_top200_1fc1e9895d79de78e457bc9c",
+  "mode": "portfolio_supersession",
+  "nextAction": "review_exact_release",
+  "primaryBlocker": "blocked_waiting_exact_release_approval",
+  "progressPercent": 86,
+  "readOnly": true,
+  "researchRunId": "top200_minimal_ui_20260720",
+  "resultClass": "can_enter_demo",
+  "source": "frozen_top200_artifacts",
+  "stage": "release_ready",
+  "stageCount": 7,
+  "stageIndex": 6,
+  "startedAt": "2026-07-20T16:50:16Z",
+  "status": "waiting_exact_release_approval",
+  "totalCount": 7,
+  "updatedAt": "2026-07-20T16:59:12.899103Z"
+}

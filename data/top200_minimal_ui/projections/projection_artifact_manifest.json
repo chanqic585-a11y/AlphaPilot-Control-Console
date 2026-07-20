@@ -1,0 +1,31 @@
+{
+  "approved": false,
+  "artifactCount": 4,
+  "artifacts": [
+    {
+      "bytes": 631,
+      "path": "research_factory_progress_projection.json",
+      "sha256": "e2e3f248e6158d95f16f60efc9a7585a6119e87dce929b0e028d4187023a37e7"
+    },
+    {
+      "bytes": 2517,
+      "path": "strategy_summary_projection.json",
+      "sha256": "66d7edb646b5e963cd19c66dcdb0d1d0f0f17b248b9696265018059d3231fbfb"
+    },
+    {
+      "bytes": 2230,
+      "path": "demo_summary_projection.json",
+      "sha256": "729b89406c5435a9f3a1ff232bec02b9892f1a4e689e0af77ae84cd696d93003"
+    },
+    {
+      "bytes": 28716,
+      "path": "demo_scan_funnel_projection.json",
+      "sha256": "76331241e94a915b277f550f71c71b681b3ac6dd8b289224a2cadd8e3400d4db"
+    }
+  ],
+  "demoArm": false,
+  "readOnlyProjection": true,
+  "route": "blocked_waiting_exact_release_approval",
+  "schemaVersion": "alphapilot_top200_minimal_ui_projection_manifest_v1",
+  "strategyOrderCount": 0
+}

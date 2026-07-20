@@ -71,6 +71,52 @@
             </div>
             <span id="simpleConsoleBadge" class="status-pill ok">单一阶段</span>
           </div>
+          <section id="top200MinimalStrategy" class="top200-minimal top200-minimal-strategy" aria-labelledby="top200StrategyTitle">
+            <div class="top200-minimal-head">
+              <div>
+                <p class="panel-eyebrow">STRATEGY FACTORY</p>
+                <h2 id="top200StrategyTitle">策略</h2>
+              </div>
+              <button id="top200StrategyGenerateButton" type="button" disabled title="本阶段已冻结研究结果，不启动新的研究 Campaign">生成 / 组合策略</button>
+            </div>
+            <div class="top200-progress-block" aria-live="polite">
+              <div class="top200-progress-meta">
+                <strong id="top200ResearchStage">读取真实进度</strong>
+                <span id="top200ResearchProgressLabel">--</span>
+              </div>
+              <div class="top200-progress-track" role="progressbar" aria-label="策略研究进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <span id="top200ResearchProgressBar"></span>
+              </div>
+              <small id="top200ResearchCurrent">正在读取冻结 Campaign。</small>
+            </div>
+            <div id="top200StrategyIssue" class="top200-issue-banner" hidden></div>
+            <div class="top200-result-grid" aria-label="研究结果状态">
+              <div><span>可进入 Demo</span><strong id="top200CanEnterDemo">0</strong></div>
+              <div><span>需要向前验证</span><strong id="top200NeedsForward">0</strong></div>
+              <div><span>未通过</span><strong id="top200Failed">0</strong></div>
+              <div><span>数据不足</span><strong id="top200DataInsufficient">0</strong></div>
+              <div><span>系统问题</span><strong id="top200SystemIssue">0</strong></div>
+            </div>
+            <section class="top200-result-section" aria-labelledby="top200ResultTitle">
+              <div class="top200-section-title">
+                <h3 id="top200ResultTitle">当前结果</h3>
+                <span id="top200ResultRoute">--</span>
+              </div>
+              <div id="top200StrategyResults" class="top200-strategy-results"></div>
+            </section>
+            <section class="top200-forward-section" aria-labelledby="top200ForwardTitle">
+              <div class="top200-section-title">
+                <h3 id="top200ForwardTitle">向前验证</h3>
+                <span id="top200ForwardCount">0</span>
+              </div>
+              <div id="top200ForwardList" class="top200-empty-state">当前没有正在收集的闭合策略交易。</div>
+            </section>
+            <details class="top200-audit-details">
+              <summary>Release、Hash 与审计</summary>
+              <pre id="top200StrategyAudit">正在读取。</pre>
+            </details>
+            <small id="top200StrategyUpdatedAt" class="top200-updated-at">最后更新 --</small>
+          </section>
           <section id="strategyValidationResearchPanel" class="strategy-validation-panel" aria-labelledby="strategyValidationResearchTitle">
             <div class="strategy-validation-head">
               <div>
@@ -605,6 +651,47 @@
             </div>
             <span id="exchangeDemoModeBadge" class="status-pill danger">Demo &#38145;&#23450;</span>
           </div>
+          <section id="top200MinimalDemo" class="top200-minimal top200-minimal-demo" aria-labelledby="top200DemoTitle">
+            <div class="top200-minimal-head">
+              <div>
+                <p class="panel-eyebrow">OKX DEMO</p>
+                <h2 id="top200DemoTitle">Demo 模拟</h2>
+              </div>
+              <button id="top200RunApprovedButton" type="button" disabled>运行所有已批准策略</button>
+            </div>
+            <div id="top200DemoIssue" class="top200-issue-banner" hidden></div>
+            <div class="top200-demo-metrics">
+              <div><span>连接</span><strong id="top200DemoConnection">--</strong></div>
+              <div><span>账户权益</span><strong id="top200DemoEquity">--</strong></div>
+              <div><span>今日盈亏</span><strong id="top200DemoTodayPnl">--</strong></div>
+              <div><span>浮动盈亏</span><strong id="top200DemoFloatingPnl">--</strong></div>
+              <div><span>运行策略</span><strong id="top200DemoRunningCount">0</strong></div>
+              <div><span>开放持仓</span><strong id="top200DemoPositionCount">0</strong></div>
+            </div>
+            <section class="top200-result-section" aria-labelledby="top200DemoStrategyTitle">
+              <div class="top200-section-title">
+                <h3 id="top200DemoStrategyTitle">策略</h3>
+                <span id="top200DemoUniverseCount">-- / 200</span>
+              </div>
+              <div id="top200DemoStrategyList" class="top200-strategy-results"></div>
+            </section>
+            <section class="top200-result-section" aria-labelledby="top200DemoPositionsTitle">
+              <div class="top200-section-title">
+                <h3 id="top200DemoPositionsTitle">持仓</h3>
+                <span id="top200DemoPositionsCount">0</span>
+              </div>
+              <div id="top200DemoPositions" class="top200-table-wrap"></div>
+            </section>
+            <details id="top200DemoOrdersDetails" class="top200-audit-details">
+              <summary>异常订单 <span id="top200DemoOrderCount">0</span></summary>
+              <div id="top200DemoOrders" class="top200-table-wrap"></div>
+            </details>
+            <details class="top200-audit-details">
+              <summary>TOP200 扫描漏斗与对账</summary>
+              <pre id="top200DemoAudit">正在读取。</pre>
+            </details>
+            <small id="top200DemoUpdatedAt" class="top200-updated-at">最后更新 --</small>
+          </section>
           <section
             class="execution-control-shell"
             data-execution-control-panel
@@ -2876,5 +2963,6 @@
     </dialog>
     <script src="/issue-guidance.js?v=20260715-demo-runtime-recovery"></script>
     <script src="/app.js?v=20260715-demo-runtime-recovery"></script>
+    <script src="/top200-minimal-ui.js?v=20260720-scope-freeze"></script>
   </body>
 </html>
