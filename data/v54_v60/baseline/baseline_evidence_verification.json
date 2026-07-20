@@ -1,0 +1,15 @@
+{
+  "blockers": [],
+  "crcPassed": true,
+  "declaredArtifactCount": 96,
+  "hashMismatches": [],
+  "manifestDeclaredFileCount": 96,
+  "manifestStatus": "complete_waiting_exact_release_approval",
+  "missingArtifacts": [],
+  "schemaVersion": "v54_baseline_evidence_verification_v1",
+  "sizeMismatches": [],
+  "status": "passed",
+  "verifiedArtifactCount": 96,
+  "zipPath": "D:\\Codex-Workspace\\deliveries\\AlphaPilot_TOP200_Minimal_UI_Closeout_20260720.zip",
+  "zipSha256": "1bfb99554b57dc1a623d657e23c8f583ed104ed49a8d878e38bb924645076a56"
+}

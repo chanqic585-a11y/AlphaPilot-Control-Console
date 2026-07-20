@@ -1,0 +1,16 @@
+{
+  "blockers": [],
+  "engineeringSmokeScope": {
+    "excludedFromStrategyEvidence": true,
+    "fillCount": 2,
+    "orderAttemptCount": 3
+  },
+  "schemaVersion": "v54_strategy_order_scope_reconciliation_v1",
+  "status": "passed",
+  "strategyScope": {
+    "approvalOrderCount": 0,
+    "approvalStrategyOrderCount": 0,
+    "manifestOrderCount": 0,
+    "orderCount": 0
+  }
+}
