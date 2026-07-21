@@ -172,6 +172,10 @@ from .workflow_client import (
 )
 from .backtest_screening_projection import build_backtest_screening_projection
 from .strategy_validation_hashing import reject_sensitive_fields
+from .strategy_execution_policy_api import (
+    read_strategy_execution_policy_api,
+    write_strategy_execution_policy_api,
+)
 from .strategy_validation_status import (
     build_strategy_validation_status,
     import_strategy_validation_campaign,
@@ -317,6 +321,10 @@ _TOP200_MINIMAL_UI_EXACT_ROUTES = {
     "/api/demo/orders",
     "/api/demo/universe",
     "/api/demo/reconciliation",
+    "/api/live/summary",
+    "/api/live/strategies",
+    "/api/live/positions",
+    "/api/live/orders",
     "/api/live/canary-readiness",
 }
 
@@ -360,13 +368,21 @@ def _build_top200_minimal_ui_payload(path: str) -> dict:
         return projection.demo_universe()
     if path == "/api/demo/reconciliation":
         return projection.demo_reconciliation()
+    if path == "/api/live/summary":
+        return projection.live_summary()
+    if path == "/api/live/strategies":
+        return projection.live_strategies()
+    if path == "/api/live/positions":
+        return projection.live_positions()
+    if path == "/api/live/orders":
+        return projection.live_orders()
     if path == "/api/live/canary-readiness":
         return projection.live_canary_readiness()
     raise KeyError(path)
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
-    server_version = "AlphaPilotControlConsole/13.27.1.6"
+    server_version = "AlphaPilotControlConsole/13.27.1.62"
 
     def _send_json(self, payload: object, status: int = 200) -> None:
         body = _json_bytes(payload)
@@ -416,6 +432,22 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 build_adaptive_learning_status,
                 fresh=fresh,
             ))
+            return
+        if path == "/api/strategy-execution-policies" or path.startswith(
+            "/api/strategy-execution-policies/"
+        ):
+            try:
+                self._send_json(read_strategy_execution_policy_api(path, query))
+            except KeyError as error:
+                self._send_json(
+                    {"ok": False, "error": "strategy_policy_not_found", "message": str(error)},
+                    404,
+                )
+            except (OSError, RuntimeError, ValueError) as error:
+                self._send_json(
+                    {"ok": False, "error": type(error).__name__, "message": str(error)},
+                    409,
+                )
             return
         if _is_top200_minimal_ui_route(path):
             try:
@@ -1053,7 +1085,10 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/ui-preview/live-v2":
             self._send_static(WEB_DIR / "preview-live-v2.html")
             return
-        if path in {"/", "/index.html"}:
+        if path == "/ui-preview/strategy-v2" or path == "/":
+            self._send_static(WEB_DIR / "preview-strategy-v2.html")
+            return
+        if path in {"/legacy", "/index.html"}:
             self._send_static(WEB_DIR / "index.html")
             return
         static_path = (WEB_DIR / path.lstrip("/")).resolve()
@@ -1080,6 +1115,27 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             return
         if write_decision.mode == "authenticated_remote":
             append_audit("http_write_authorized", write_decision.audit_payload())
+        if parsed.path == "/api/strategy-execution-policies" or parsed.path.startswith(
+            "/api/strategy-execution-policies/"
+        ):
+            payload = self._read_body_json()
+            try:
+                result = write_strategy_execution_policy_api(parsed.path, payload)
+            except KeyError as error:
+                self._send_json(
+                    {"ok": False, "error": "strategy_policy_not_found", "message": str(error)},
+                    404,
+                )
+                return
+            except (OSError, RuntimeError, ValueError, PermissionError) as error:
+                self._send_json(
+                    {"ok": False, "error": type(error).__name__, "message": str(error)},
+                    409,
+                )
+                return
+            _RESPONSE_CACHE.clear()
+            self._send_json(result)
+            return
         if parsed.path == "/api/live/private-read-audit":
             self._read_body_json()
             if not _request_is_loopback(str(self.client_address[0])):
@@ -1825,8 +1881,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
 def build_health_payload() -> dict[str, object]:
     return {
         "ok": True,
-        "version": "V13.27.9",
-        "source": "alphapilot_control_console_v13_27_9",
+        "version": "V13.27.1.62",
+        "source": "alphapilot_control_console_v13_27_1_62",
         "workflowRecovery": get_startup_workflow_recovery_status(),
         "safetyBoundary": SAFETY_BOUNDARY,
     }

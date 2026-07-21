@@ -1,0 +1,76 @@
+{
+  "schemaVersion": "ui_preview_v2_acceptance_v1",
+  "status": "passed",
+  "fixtureData": true,
+  "fixturePurpose": "layout_and_browser_acceptance_only",
+  "productionRoutesUseReadOnlyLedgerProjection": true,
+  "writeActions": 0,
+  "checks": [
+    {
+      "page": "strategy",
+      "screenshot": "strategy_v2_desktop.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "reviewReminderShown": true,
+      "horizontalOverflow": false,
+      "browserErrors": []
+    },
+    {
+      "page": "strategy",
+      "screenshot": "strategy_v2_mobile_390.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "reviewReminderShown": true,
+      "horizontalOverflow": false,
+      "browserErrors": []
+    },
+    {
+      "page": "demo",
+      "screenshot": "demo_v2_desktop.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "reviewReminderShown": null,
+      "horizontalOverflow": false,
+      "browserErrors": []
+    },
+    {
+      "page": "demo",
+      "screenshot": "demo_v2_mobile_390.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "reviewReminderShown": null,
+      "horizontalOverflow": false,
+      "browserErrors": []
+    },
+    {
+      "page": "live",
+      "screenshot": "live_v2_desktop.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "reviewReminderShown": null,
+      "horizontalOverflow": false,
+      "browserErrors": []
+    },
+    {
+      "page": "live",
+      "screenshot": "live_v2_mobile_390.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "reviewReminderShown": null,
+      "horizontalOverflow": false,
+      "browserErrors": []
+    }
+  ]
+}

@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-Control Console runtime: AlphaPilot V13.27.9
+Control Console runtime: AlphaPilot V13.27.1.62
 Quant workflow compatibility: V13.27.11 formal-backtest progress semantics
 ```
 
@@ -2659,3 +2659,25 @@ python scripts/build_global_remediation_evidence.py `
   --output-dir <empty-evidence-directory> `
   --output-zip <evidence.zip>
 ```
+
+## V13.27.1.62 Runtime Truth Control Plane
+
+V13.27.1.62 keeps the currently armed Demo process untouched while preparing
+the next control-plane release in an isolated worktree. Strategy, Demo, and
+Live preview pages now read sanitized account snapshots, execution ledgers,
+positions, orders, PnL, immutable releases, and runtime blockers instead of
+using static placeholder values.
+
+Strategy business parameters are editable only by creating a new immutable
+`StrategyExecutionPolicy` version and content hash. A first safe draft can be
+bootstrapped from the active account `RiskProfile`; credential-like fields are
+rejected, and bootstrap or revision never approves, ARM, or executes a
+strategy. Account-level hard limits remain authoritative above per-strategy
+settings.
+
+The Strategy Factory remains bounded and research-only. It may preregister,
+run, archive failures, and publish an approval request, but it cannot force a
+pass, approve itself, ARM Demo or Live, or place an order. The current Demo
+runtime stays on its existing frozen code until a zero-order, zero-position
+checkpoint permits a deliberate restart with process-only credentials and a
+fresh process ARM. Live and Withdraw remain disabled.

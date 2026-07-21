@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN" data-preview-page="strategy">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="data:," />
+    <title>AlphaPilot 策略研究与发布</title>
+    <link rel="stylesheet" href="/ui-preview-v2.css" />
+  </head>
+  <body>
+    <aside class="rail" aria-label="主导航">
+      <a class="brand" href="/" aria-label="AlphaPilot 策略主页">AP</a>
+      <nav>
+        <a class="active" href="/">策略</a>
+        <a href="/ui-preview/demo-v2">Demo</a>
+        <a href="/ui-preview/live-v2">实盘</a>
+      </nav>
+      <span class="rail-status"><i></i>本机</span>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">STRATEGY FACTORY</p>
+          <h1>策略研究与发布</h1>
+        </div>
+        <div class="top-actions">
+          <a class="quiet-label" href="/legacy">旧控制台</a>
+          <button id="refreshButton" class="icon-button" type="button" title="刷新状态" aria-label="刷新状态">↻</button>
+        </div>
+      </header>
+
+      <div id="issueBanner" class="issue-banner" hidden></div>
+
+      <section class="factory-command" aria-label="策略工厂控制">
+        <div>
+          <p class="eyebrow">BOUNDED RESEARCH</p>
+          <h2>生成 / 组合策略</h2>
+          <p>后台研究与当前 Demo 运行隔离；通过回测只会生成候选和批准请求，不会自动批准或 ARM。</p>
+        </div>
+        <button id="runFactoryButton" class="primary-button" type="button">生成 / 组合策略</button>
+      </section>
+
+      <details class="settings-details">
+        <summary>研究范围与预算</summary>
+        <div class="settings-grid">
+          <label>操作<select id="factoryOperation"><option value="generate">生成</option><option value="combine">组合</option></select></label>
+          <label>周期<select id="factoryTimeframe"><option>5m</option><option>15m</option><option selected>1h</option><option>4h</option><option>1d</option></select></label>
+          <label>模式<select id="factoryMode"><option value="quick">快速</option><option value="standard" selected>标准</option></select></label>
+          <label>候选上限<input id="factoryCandidateCount" type="number" min="1" max="12" value="6" /></label>
+          <label>试验预算<input id="factoryTrialBudget" type="number" min="1" max="96" value="48" /></label>
+        </div>
+      </details>
+
+      <section class="work-section">
+        <div class="section-head">
+          <div><p class="eyebrow">CURRENT RUN</p><h2>后台进度</h2></div>
+          <span id="factoryStatus" class="quiet-label">读取中</span>
+        </div>
+        <div class="progress-track" aria-label="策略研究进度"><span id="factoryProgressBar"></span></div>
+        <div class="progress-meta"><strong id="factoryProgressText">--</strong><span id="factoryCurrentCandidate">等待任务</span></div>
+      </section>
+
+      <section class="work-section">
+        <div class="section-head"><div><p class="eyebrow">RESULTS</p><h2>候选结果</h2></div><span id="strategyUpdatedAt" class="quiet-label">--</span></div>
+        <div class="result-state-grid">
+          <div><span>可进入 Demo</span><strong id="canEnterDemoCount">0</strong></div>
+          <div><span>需向前验证</span><strong id="needsForwardCount">0</strong></div>
+          <div><span>未通过</span><strong id="failedCount">0</strong></div>
+          <div><span>数据不足</span><strong id="dataInsufficientCount">0</strong></div>
+          <div><span>系统问题</span><strong id="systemIssueCount">0</strong></div>
+        </div>
+      </section>
+
+      <div class="split-layout">
+        <section class="work-section">
+          <div class="section-head"><div><p class="eyebrow">RELEASES</p><h2>候选与 Release</h2></div><strong id="releaseCount">0</strong></div>
+          <div id="releaseList" class="strategy-grid"><p class="empty">正在读取 Release。</p></div>
+        </section>
+        <section class="work-section">
+          <div class="section-head"><div><p class="eyebrow">FORWARD</p><h2>向前验证</h2></div><span class="quiet-label">真实证据</span></div>
+          <div id="forwardValidation" class="empty-state">选择一个候选查看验证状态。</div>
+        </section>
+      </div>
+
+      <details class="audit-details">
+        <summary>Hash、Gate 与研究审计</summary>
+        <pre id="auditSummary">等待状态。</pre>
+      </details>
+
+      <aside id="strategyDrawer" class="strategy-drawer" hidden aria-label="策略详情与参数版本">
+        <button id="closeDrawer" class="icon-button drawer-close" type="button" aria-label="关闭策略详情">×</button>
+        <p class="eyebrow">STRATEGY DETAIL</p>
+        <h2 id="drawerTitle">策略详情</h2>
+        <dl id="drawerSummary" class="risk-grid"></dl>
+        <details class="settings-details" open>
+          <summary>当前参数版本</summary>
+          <div id="policyEditor" class="policy-editor"><p class="empty">正在读取参数。</p></div>
+        </details>
+      </aside>
+      <div id="drawerBackdrop" class="drawer-backdrop" hidden></div>
+      <footer><span id="updatedAt">--</span><span>研究任务不会自动批准 Release、ARM 或创建订单</span></footer>
+    </main>
+    <script src="/ui-preview-v2.js" defer></script>
+  </body>
+</html>

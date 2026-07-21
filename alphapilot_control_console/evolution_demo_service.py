@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from .account_snapshot_projection import build_sanitized_account_snapshot
 from .config import DATA_DIR, get_quant_engine_path
 from .credential_runtime import OkxDemoCredentials, load_okx_demo_credentials, runtime_credential_status
 from .demo_arbitrator import arbitrate_demo_signals
@@ -139,24 +140,37 @@ def _portfolio_from_demo_account(
     positions = client.get_positions(instrumentType="SWAP")
     if str(balance.get("code")) != "0" or str(positions.get("code")) != "0":
         raise RuntimeError("OKX Demo private read failed before execution")
-    balance_rows = balance.get("data") if isinstance(balance.get("data"), list) else []
-    balance_row = balance_rows[0] if balance_rows and isinstance(balance_rows[0], dict) else {}
-    details = balance_row.get("details") if isinstance(balance_row.get("details"), list) else []
-    usdt = next(
-        (item for item in details if isinstance(item, dict) and str(item.get("ccy")) == "USDT"),
-        {},
-    )
-    available = float(usdt.get("availEq") or usdt.get("availBal") or balance_row.get("availEq") or 0)
-    position_rows = positions.get("data") if isinstance(positions.get("data"), list) else []
-    open_positions = [
-        item
-        for item in position_rows
-        if isinstance(item, dict) and abs(float(item.get("pos") or 0)) > 0
-    ]
-    limits = normalize_risk_profile(risk_profile)
     attributed_records = store.list_records(
         {"prepared", "submitted", "live", "partially_filled", "filled", "unknown"}
     )
+    strategy_ids_by_instrument: dict[str, list[str]] = {}
+    for record in attributed_records:
+        instrument_id = str(
+            record.signal.get("instrumentId")
+            or record.signal.get("instId")
+            or record.orderPayload.get("instId")
+            or record.orderPayload.get("instrumentId")
+            or ""
+        )
+        strategy_id = str(
+            record.signal.get("strategyId")
+            or record.signal.get("releaseId")
+            or record.signal.get("strategyCandidateId")
+            or record.signal.get("candidateId")
+            or ""
+        )
+        if instrument_id and strategy_id:
+            strategy_ids_by_instrument.setdefault(instrument_id, []).append(strategy_id)
+    account_snapshot = build_sanitized_account_snapshot(
+        balance_response=balance,
+        positions_response=positions,
+        strategy_ids_by_instrument=strategy_ids_by_instrument,
+        updated_at=_utc_now().isoformat(),
+    )
+    store.set_runtime_flag("lastPortfolioSnapshot", account_snapshot)
+    available = float(account_snapshot["availableEquityUsdt"])
+    open_positions = list(account_snapshot["positions"])
+    limits = normalize_risk_profile(risk_profile)
     positions_by_strategy: dict[str, int] = {}
     positions_by_symbol: dict[str, int] = {}
     risk_by_strategy: dict[str, float] = {}

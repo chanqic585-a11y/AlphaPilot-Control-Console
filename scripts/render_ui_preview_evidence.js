@@ -10,6 +10,60 @@ const WEB = path.join(ROOT, "web");
 const outputArg = process.argv.indexOf("--output");
 const OUTPUT = path.resolve(outputArg >= 0 ? process.argv[outputArg + 1] : path.join(ROOT, "reports", "ui-preview-v2"));
 
+const strategy = {
+  "/api/research-factory/summary": {
+    status: "running",
+    progressPercent: 64,
+    stage: "正式回测与证据归档",
+    currentCandidate: "1h 趋势回撤组合 v3",
+    updatedAt: "2026-07-22T04:30:00Z",
+  },
+  "/api/strategy/summary": {
+    resultCounts: {
+      canEnterDemo: 2,
+      needsForwardValidation: 3,
+      failed: 11,
+      dataInsufficient: 1,
+      systemIssue: 0,
+    },
+    updatedAt: "2026-07-22T04:30:00Z",
+  },
+  "/api/strategy/releases": {
+    releases: [{
+      releaseId: "candidate-release-preview",
+      strategyId: "candidate-strategy-preview",
+      displayName: "1h 趋势回撤组合 v3",
+      status: "can_enter_demo",
+      timeframes: ["1h"],
+      scanInstrumentCount: 200,
+      openPositionCount: 0,
+      todayPnl: null,
+    }],
+    candidateReviews: [{
+      candidateReviewId: "candidate-review-preview",
+      candidateId: "candidate-review-strategy-preview",
+      strategyId: "candidate-review-strategy-preview",
+      displayName: "15m 波动收缩突破候选 v1",
+      status: "pending_human_review",
+      timeframe: "15m",
+      scanInstrumentCount: 200,
+      openPositionCount: 0,
+      todayPnl: null,
+      approvalRequestActionable: true,
+      automaticApprovalAllowed: false,
+      approved: false,
+      demoArm: false,
+      orderCount: 0,
+    }],
+  },
+  "/api/strategy/releases/candidate-release-preview/forward-validation": {
+    status: "running",
+    closedTradeCount: 18,
+    runningDayCount: 12,
+    blocker: "继续收集冻结后闭合交易证据",
+  },
+};
+
 const demo = {
   "/api/demo/summary": {
     connectionStatus: "Demo 已连接",
@@ -41,7 +95,7 @@ const demo = {
     }],
   },
   "/api/demo/positions": {
-    positions: [{ instrumentId: "ETH-USDT-SWAP", side: "多", quantity: "0.02", entryPrice: "3512.4", unrealizedPnl: 1.35 }],
+    positions: [{ instrumentId: "ETH-USDT-SWAP", side: "多", quantity: "0.02", entryPrice: "3512.4", unrealizedPnlUsdt: 1.35 }],
   },
   "/api/demo/orders": { orders: [] },
   "/api/demo/universe": {
@@ -84,6 +138,23 @@ const live = {
   readOnly: true,
 };
 
+const liveProjection = {
+  "/api/live/summary": {
+    connectionStatus: "disabled",
+    equity: null,
+    availableBalance: null,
+    todayPnl: null,
+    floatingPnl: null,
+    strategyOrderCount: 0,
+    openPositionCount: 0,
+    issues: [{ code: "adaptive_learning_not_ready", message: "自适应学习实盘证据尚未完成，Live 保持关闭。" }],
+    updatedAt: "2026-07-22T04:30:00Z",
+  },
+  "/api/live/strategies": { strategies: [] },
+  "/api/live/positions": { positions: [] },
+  "/api/live/orders": { orders: [] },
+};
+
 function contentType(file) {
   if (file.endsWith(".html")) return "text/html; charset=utf-8";
   if (file.endsWith(".css")) return "text/css; charset=utf-8";
@@ -108,8 +179,11 @@ async function render() {
   fs.mkdirSync(OUTPUT, { recursive: true });
   const server = http.createServer((request, response) => {
     const requestPath = new URL(request.url, "http://127.0.0.1").pathname;
+    if (strategy[requestPath]) return responseJson(response, strategy[requestPath]);
     if (demo[requestPath]) return responseJson(response, demo[requestPath]);
+    if (liveProjection[requestPath]) return responseJson(response, liveProjection[requestPath]);
     if (requestPath === "/api/live/canary-readiness") return responseJson(response, live);
+    if (requestPath === "/ui-preview/strategy-v2") return serveStatic(response, "preview-strategy-v2.html");
     if (requestPath === "/ui-preview/demo-v2") return serveStatic(response, "preview-demo-v2.html");
     if (requestPath === "/ui-preview/live-v2") return serveStatic(response, "preview-live-v2.html");
     if (requestPath === "/ui-preview-v2.css") return serveStatic(response, "ui-preview-v2.css");
@@ -126,6 +200,8 @@ async function render() {
   const checks = [];
   try {
     for (const item of [
+      { page: "strategy", viewport: { width: 1440, height: 1000 }, file: "strategy_v2_desktop.png" },
+      { page: "strategy", viewport: { width: 390, height: 844 }, file: "strategy_v2_mobile_390.png" },
       { page: "demo", viewport: { width: 1440, height: 1000 }, file: "demo_v2_desktop.png" },
       { page: "demo", viewport: { width: 390, height: 844 }, file: "demo_v2_mobile_390.png" },
       { page: "live", viewport: { width: 1440, height: 1000 }, file: "live_v2_desktop.png" },
@@ -146,6 +222,13 @@ async function render() {
         undefined,
         { timeout: 10000 },
       );
+      let reviewReminderShown = null;
+      if (item.page === "strategy") {
+        const reminder = page.locator("#issueDialog");
+        await reminder.waitFor({ state: "visible", timeout: 5000 });
+        reviewReminderShown = await reminder.isVisible();
+        if (reviewReminderShown) await page.locator("#dismissIssueButton").click();
+      }
       const dimensions = await page.evaluate(() => ({
         viewportWidth: window.innerWidth,
         documentWidth: document.documentElement.scrollWidth,
@@ -157,6 +240,7 @@ async function render() {
         page: item.page,
         screenshot: item.file,
         viewport: item.viewport,
+        reviewReminderShown,
         horizontalOverflow: dimensions.documentWidth > dimensions.viewportWidth || dimensions.bodyWidth > dimensions.viewportWidth,
         browserErrors: errors,
       });
@@ -168,7 +252,11 @@ async function render() {
   }
   const acceptance = {
     schemaVersion: "ui_preview_v2_acceptance_v1",
-    status: checks.every((item) => !item.horizontalOverflow && item.browserErrors.length === 0) ? "passed" : "failed",
+    status: checks.every((item) => (
+      !item.horizontalOverflow
+      && item.browserErrors.length === 0
+      && (item.page !== "strategy" || item.reviewReminderShown === true)
+    )) ? "passed" : "failed",
     fixtureData: true,
     fixturePurpose: "layout_and_browser_acceptance_only",
     productionRoutesUseReadOnlyLedgerProjection: true,

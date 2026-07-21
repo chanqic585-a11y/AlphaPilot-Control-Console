@@ -52,6 +52,97 @@ class FakeMarketRuntime:
 
 
 class EvolutionDemoServiceTests(unittest.TestCase):
+    def test_portfolio_read_persists_only_sanitized_account_snapshot(self) -> None:
+        class FakeClient:
+            @staticmethod
+            def get_balance(_currency: str) -> dict:
+                return {
+                    "code": "0",
+                    "apiKey": "must-not-survive",
+                    "data": [{"details": [{"ccy": "USDT", "eq": "1001", "availEq": "950"}]}],
+                }
+
+            @staticmethod
+            def get_positions(*, instrumentType: str) -> dict:
+                self.assertEqual(instrumentType, "SWAP")
+                return {
+                    "code": "0",
+                    "data": [
+                        {
+                            "instId": "BTC-USDT-SWAP",
+                            "pos": "1",
+                            "posSide": "long",
+                            "avgPx": "60000",
+                            "markPx": "60500",
+                            "upl": "5",
+                            "secret": "must-not-survive",
+                        }
+                    ],
+                }
+
+        with tempfile.TemporaryDirectory() as directory:
+            store = DemoExecutionStore(Path(directory) / "demo.sqlite")
+            store.create_intent(
+                idempotencyKey="snapshot-test",
+                demoReleaseId="release-a",
+                signal={"strategyCandidateId": "strategy-a", "instId": "BTC-USDT-SWAP", "side": "buy"},
+                orderPayload={"instId": "BTC-USDT-SWAP", "side": "buy", "sz": "1"},
+            )
+
+            portfolio = service._portfolio_from_demo_account(FakeClient(), store, {})
+            snapshot = store.get_runtime_flag("lastPortfolioSnapshot")
+            store.close()
+
+        self.assertEqual(portfolio["availableEquityUsdt"], 950.0)
+        self.assertEqual(snapshot["accountEquityUsdt"], 1001.0)
+        self.assertEqual(snapshot["positions"][0]["strategyId"], "strategy-a")
+        self.assertNotIn("must-not-survive", str(snapshot))
+
+    def test_portfolio_attribution_accepts_normalized_signal_field_names(self) -> None:
+        class FakeClient:
+            @staticmethod
+            def get_balance(_currency: str) -> dict:
+                return {
+                    "code": "0",
+                    "data": [{"details": [{"ccy": "USDT", "eq": "1000", "availEq": "900"}]}],
+                }
+
+            @staticmethod
+            def get_positions(*, instrumentType: str) -> dict:
+                self.assertEqual(instrumentType, "SWAP")
+                return {
+                    "code": "0",
+                    "data": [
+                        {
+                            "instId": "ETH-USDT-SWAP",
+                            "pos": "2",
+                            "posSide": "short",
+                            "avgPx": "3000",
+                            "markPx": "2990",
+                            "upl": "20",
+                        }
+                    ],
+                }
+
+        with tempfile.TemporaryDirectory() as directory:
+            store = DemoExecutionStore(Path(directory) / "demo.sqlite")
+            store.create_intent(
+                idempotencyKey="normalized-snapshot-test",
+                demoReleaseId="release-normalized",
+                signal={
+                    "strategyId": "strategy-normalized",
+                    "instrumentId": "ETH-USDT-SWAP",
+                    "side": "sell",
+                },
+                orderPayload={"instId": "ETH-USDT-SWAP", "side": "sell", "sz": "2"},
+            )
+
+            service._portfolio_from_demo_account(FakeClient(), store, {})
+            snapshot = store.get_runtime_flag("lastPortfolioSnapshot")
+            store.close()
+
+        self.assertEqual(snapshot["positions"][0]["strategyId"], "strategy-normalized")
+
     def test_account_instrument_ids_use_shared_authenticated_intersection(self) -> None:
         with patch.object(
             service,

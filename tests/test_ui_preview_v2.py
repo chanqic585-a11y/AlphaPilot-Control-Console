@@ -31,11 +31,20 @@ class UiPreviewV2Tests(unittest.TestCase):
             self.assertIn("text/html", response.headers.get("Content-Type", ""))
             return response.read().decode("utf-8")
 
-    def test_demo_preview_is_read_only_and_operational(self) -> None:
+    def test_root_is_the_minimal_strategy_console_and_legacy_is_preserved(self) -> None:
+        root = self._html("/")
+        legacy = self._html("/legacy")
+
+        self.assertIn('data-preview-page="strategy"', root)
+        self.assertIn("策略研究与发布", root)
+        self.assertIn("生成 / 组合策略", root)
+        self.assertIn("AlphaPilot", legacy)
+
+    def test_demo_preview_is_chinese_and_operational(self) -> None:
         html = self._html("/ui-preview/demo-v2")
 
         self.assertIn('data-preview-page="demo"', html)
-        self.assertIn("Demo 交易控制台", html)
+        self.assertIn("Demo 模拟控制台", html)
         self.assertIn("当前策略", html)
         self.assertIn("当前持仓", html)
         self.assertIn("扫描漏斗", html)
@@ -51,19 +60,36 @@ class UiPreviewV2Tests(unittest.TestCase):
         self.assertIn("精确批准", html)
         self.assertIn("运行 ARM", html)
         self.assertIn("Withdraw 关闭", html)
-        self.assertIn("持仓行情", html)
+        self.assertIn("当前持仓", html)
         self.assertNotIn('method="post"', html.lower())
 
-    def test_shared_preview_assets_exist_and_only_fetch_read_routes(self) -> None:
+    def test_shared_assets_use_runtime_truth_and_versioned_policy_api(self) -> None:
         script = (ROOT / "web" / "ui-preview-v2.js").read_text(encoding="utf-8")
         styles = (ROOT / "web" / "ui-preview-v2.css").read_text(encoding="utf-8")
 
+        self.assertIn("/api/research-factory/summary", script)
+        self.assertIn("item.floatingPnl", script)
         self.assertIn("/api/demo/summary", script)
+        self.assertIn("/api/live/summary", script)
         self.assertIn("/api/live/canary-readiness", script)
-        self.assertNotIn('method: "POST"', script)
+        self.assertIn("/api/strategy-execution-policies", script)
+        self.assertIn("/api/strategy-execution-policies/bootstrap", script)
+        self.assertIn("生成初始参数版本", script)
+        self.assertIn("unrealizedPnlUsdt", script)
         self.assertIn("escapeHtml", script)
         self.assertIn("readiness.adaptiveLearning?.blockers", script)
+        self.assertIn('rows(releases, "candidateReviews")', script)
+        self.assertIn("pending_human_review", script)
+        self.assertIn("系统不会自动批准或 ARM", script)
         self.assertIn("@media (max-width: 760px)", styles)
+
+    def test_demo_and_live_pages_do_not_expose_execution_write_actions(self) -> None:
+        script = (ROOT / "web" / "ui-preview-v2.js").read_text(encoding="utf-8")
+
+        self.assertNotIn("/api/auto-execution/action", script)
+        self.assertNotIn("/api/live-auto-execution/action", script)
+        self.assertNotIn("/api/demo/orders/create", script)
+        self.assertNotIn("/api/live/orders/create", script)
 
     def test_screenshot_harness_is_fixture_only_and_cannot_write(self) -> None:
         harness = (ROOT / "scripts" / "render_ui_preview_evidence.js").read_text(
@@ -72,6 +98,11 @@ class UiPreviewV2Tests(unittest.TestCase):
 
         self.assertIn('fixturePurpose: "layout_and_browser_acceptance_only"', harness)
         self.assertIn("writeActions: 0", harness)
+        self.assertIn('{ page: "strategy"', harness)
+        self.assertIn('"/api/research-factory/summary"', harness)
+        self.assertIn("candidateReviews", harness)
+        self.assertIn("reviewReminderShown", harness)
+        self.assertIn("unrealizedPnlUsdt", harness)
         self.assertNotIn('method: "POST"', harness)
         self.assertNotIn("/api/auto-execution/action", harness)
 

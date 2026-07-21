@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from typing import Any, Mapping
 
+from .account_snapshot_projection import build_sanitized_account_snapshot
 from .credential_runtime import live_runtime_credential_status, load_okx_live_credentials
 from .demo_arbitrator import arbitrate_demo_signals
 from .demo_release_scanner import scan_immutable_demo_release
@@ -127,17 +128,24 @@ def _portfolio_snapshot(
     open_orders = client.get_open_orders()
     if any(str(response.get("code") or "") != "0" for response in (balance, positions, open_orders)):
         raise RuntimeError("live_private_state_endpoint_failed")
-    balance_rows = balance.get("data") if isinstance(balance.get("data"), list) else []
-    first_balance = balance_rows[0] if balance_rows and isinstance(balance_rows[0], dict) else {}
-    details = first_balance.get("details") if isinstance(first_balance.get("details"), list) else []
-    usdt = next((row for row in details if isinstance(row, dict) and str(row.get("ccy")) == "USDT"), {})
-    available = float(usdt.get("availEq") or usdt.get("availBal") or first_balance.get("availEq") or 0)
-    position_rows = positions.get("data") if isinstance(positions.get("data"), list) else []
-    actual_positions = [
-        row for row in position_rows
-        if isinstance(row, dict) and abs(float(row.get("pos") or 0)) > 0
-    ]
     active_records = store.list_records({"prepared", "submitted", "live", "partially_filled", "filled", "unknown"})
+    strategy_ids_by_instrument: dict[str, list[str]] = {}
+    for record in active_records:
+        if record.instrumentId and record.strategyCandidateId:
+            strategy_ids_by_instrument.setdefault(record.instrumentId, []).append(record.strategyCandidateId)
+    for signal in signals:
+        instrument_id = str(signal.get("instId") or "")
+        strategy_id = str(signal.get("candidateId") or signal.get("strategyCandidateId") or "")
+        if instrument_id and strategy_id:
+            strategy_ids_by_instrument.setdefault(instrument_id, []).append(strategy_id)
+    account_snapshot = build_sanitized_account_snapshot(
+        balance_response=balance,
+        positions_response=positions,
+        strategy_ids_by_instrument=strategy_ids_by_instrument,
+    )
+    store.set_runtime_flag("lastPortfolioSnapshot", account_snapshot)
+    available = float(account_snapshot["availableEquityUsdt"])
+    actual_positions = list(account_snapshot["positions"])
     positions_by_strategy: dict[str, int] = {}
     positions_by_symbol: dict[str, int] = {}
     risk_by_strategy: dict[str, float] = {}

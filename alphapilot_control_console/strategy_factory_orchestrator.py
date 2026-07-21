@@ -13,6 +13,10 @@ from uuid import uuid4
 
 from .config import DATA_DIR, get_quant_engine_path
 from .sqlite_runtime_policy import open_sqlite
+from .strategy_factory_outcomes import (
+    build_strategy_factory_outcome,
+    read_strategy_factory_outcome,
+)
 
 
 DEFAULT_STATE_PATH = DATA_DIR / "strategy_factory" / "strategy_factory.sqlite"
@@ -587,6 +591,7 @@ class StrategyFactoryOrchestrator:
             "research_blocked_data": "data_insufficient",
             "no_stable_candidates": "failed",
             "no_survivor": "failed",
+            "research_zero_qualified": "failed",
         }.get(status, "system_issue" if status in {"failed", "error"} else "needs_forward_validation")
         survivor_count = int(
             receipt.get("releaseCount")
@@ -594,6 +599,16 @@ class StrategyFactoryOrchestrator:
             or 0
         )
         now = _iso(self.clock())
+        config = json.loads(row["configJson"])
+        outcome = build_strategy_factory_outcome(
+            run_id=run_id,
+            campaign_id=str(row["campaignId"]),
+            candidate_ids=config["candidateIds"],
+            receipt=receipt,
+            output_root=Path(row["artifactPath"]),
+            outcome_root=Path(row["jobJsonPath"]).parent / "outcome",
+            created_at=now,
+        )
         self.connection.execute(
             """
             UPDATE StrategyFactoryRuns
@@ -617,6 +632,29 @@ class StrategyFactoryOrchestrator:
             ),
         )
         self._append_event(run_id, "completed", receipt, created_at=now)
+        if int(outcome["candidateReviewRequestCount"]):
+            self._append_event(
+                run_id,
+                "candidate_review_required",
+                {
+                    "requestCount": outcome["candidateReviewRequestCount"],
+                    "requestPath": outcome["candidateReviewRequestPath"],
+                    "approvalCount": 0,
+                    "demoArm": False,
+                    "orderCount": 0,
+                },
+                created_at=now,
+            )
+        if int(outcome["archivedFailureCount"]):
+            self._append_event(
+                run_id,
+                "candidate_failures_archived",
+                {
+                    "archivedFailureCount": outcome["archivedFailureCount"],
+                    "archivePath": outcome["failureArchivePath"],
+                },
+                created_at=now,
+            )
         self.connection.commit()
         return self.get_run(run_id)
 
@@ -675,6 +713,9 @@ class StrategyFactoryOrchestrator:
     def _project(row: sqlite3.Row) -> dict[str, Any]:
         config = json.loads(row["configJson"])
         receipt = json.loads(row["receiptJson"]) if row["receiptJson"] else {}
+        outcome = read_strategy_factory_outcome(
+            Path(row["jobJsonPath"]).parent / "outcome"
+        )
         return {
             "runId": row["runId"],
             "researchRunId": row["runId"],
@@ -718,6 +759,7 @@ class StrategyFactoryOrchestrator:
             "readOnly": False,
             "executionBoundary": config["executionBoundary"],
             "workerPolicy": config.get("workerPolicy") or {},
+            **outcome,
         }
 
     def get_run(self, run_id: str) -> dict[str, Any]:
@@ -729,6 +771,43 @@ class StrategyFactoryOrchestrator:
             (max(1, min(int(limit), 100)),),
         ).fetchall()
         return [self._project(row) for row in rows]
+
+    def list_candidate_review_requests(self, limit: int = 100) -> list[dict[str, Any]]:
+        rows = self.connection.execute(
+            "SELECT * FROM StrategyFactoryRuns ORDER BY createdAt DESC, runId DESC LIMIT 100"
+        ).fetchall()
+        pending: list[dict[str, Any]] = []
+        for row in rows:
+            request_path = (
+                Path(row["jobJsonPath"]).parent
+                / "outcome"
+                / "candidate_review_requests.json"
+            )
+            if not request_path.is_file():
+                continue
+            payload = json.loads(request_path.read_text(encoding="utf-8"))
+            requests = payload.get("requests") if isinstance(payload, dict) else None
+            if not isinstance(requests, list):
+                raise ValueError("strategy_factory_candidate_review_requests_invalid")
+            for request in requests:
+                if not isinstance(request, dict):
+                    raise ValueError("strategy_factory_candidate_review_request_invalid")
+                if request.get("status") != "pending_human_review":
+                    continue
+                pending.append(
+                    {
+                        **request,
+                        "runId": row["runId"],
+                        "campaignId": row["campaignId"],
+                        "timeframe": row["timeframe"],
+                        "mode": row["mode"],
+                    }
+                )
+        pending.sort(
+            key=lambda item: (str(item.get("createdAt") or ""), str(item.get("requestHash") or "")),
+            reverse=True,
+        )
+        return pending[: max(1, min(int(limit), 500))]
 
     def summary(self) -> dict[str, Any]:
         runs = self.list_runs(limit=20)

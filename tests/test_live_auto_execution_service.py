@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from alphapilot_control_console.live_auto_execution_service import (
+    _portfolio_snapshot,
     run_live_auto_execution_batch,
     scan_live_release,
 )
@@ -120,6 +121,46 @@ class LiveAutoExecutionServiceTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.directory.cleanup()
+
+    def test_private_read_persists_sanitized_live_account_snapshot(self) -> None:
+        class PositionClient(FakeLiveClient):
+            def get_balance(self, _currency: str = "USDT") -> dict:
+                return {
+                    "code": "0",
+                    "apiKey": "must-not-survive",
+                    "data": [{"details": [{"ccy": "USDT", "eq": "1000", "availEq": "975"}]}],
+                }
+
+            def get_positions(self) -> dict:
+                return {
+                    "code": "0",
+                    "data": [
+                        {
+                            "instId": "BTC-USDT-SWAP",
+                            "pos": "1",
+                            "posSide": "long",
+                            "avgPx": "60000",
+                            "markPx": "60200",
+                            "upl": "2",
+                            "secret": "must-not-survive",
+                        }
+                    ],
+                }
+
+        store = LiveExecutionStore(self.store_path)
+        portfolio = _portfolio_snapshot(
+            PositionClient(),
+            store,
+            profile(),
+            [{"candidateId": "candidate-1", "instId": "BTC-USDT-SWAP", "dataFresh": True, "liquidityPassed": True}],
+        )
+        snapshot = store.get_runtime_flag("lastPortfolioSnapshot")
+        store.close()
+
+        self.assertEqual(portfolio["availableEquityUsdt"], 975.0)
+        self.assertEqual(snapshot["positions"][0]["instrumentId"], "BTC-USDT-SWAP")
+        self.assertEqual(snapshot["floatingPnlUsdt"], 2.0)
+        self.assertNotIn("must-not-survive", str(snapshot))
 
     def test_release_without_frozen_strategy_definition_fails_before_order(self) -> None:
         client = FakeLiveClient()

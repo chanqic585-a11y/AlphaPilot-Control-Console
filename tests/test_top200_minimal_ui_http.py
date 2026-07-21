@@ -57,6 +57,10 @@ class Top200MinimalUiHttpTests(unittest.TestCase):
             "demo_orders": {"kind": "demo-orders"},
             "demo_universe": {"kind": "demo-universe"},
             "demo_reconciliation": {"kind": "demo-reconciliation"},
+            "live_summary": {"kind": "live-summary"},
+            "live_strategies": {"kind": "live-strategies"},
+            "live_positions": {"kind": "live-positions"},
+            "live_orders": {"kind": "live-orders"},
             "live_canary_readiness": {"kind": "live-canary-readiness"},
         }
         for name, payload in methods.items():
@@ -76,6 +80,10 @@ class Top200MinimalUiHttpTests(unittest.TestCase):
             "/api/demo/orders": "demo-orders",
             "/api/demo/universe": "demo-universe",
             "/api/demo/reconciliation": "demo-reconciliation",
+            "/api/live/summary": "live-summary",
+            "/api/live/strategies": "live-strategies",
+            "/api/live/positions": "live-positions",
+            "/api/live/orders": "live-orders",
             "/api/live/canary-readiness": "live-canary-readiness",
         }
         with patch(
@@ -104,6 +112,32 @@ class Top200MinimalUiHttpTests(unittest.TestCase):
         serialized = json.dumps(payload).lower()
         self.assertNotIn("apikey", serialized)
         self.assertNotIn("passphrase", serialized)
+
+    def test_strategy_execution_policy_routes_are_local_versioned_controls(self) -> None:
+        with patch(
+            "alphapilot_control_console.http_app.read_strategy_execution_policy_api",
+            return_value={"policies": [{"policyId": "policy-a"}], "readOnly": True},
+        ) as read_api:
+            payload = self._get(
+                "/api/strategy-execution-policies?environment=okx_demo"
+            )
+        self.assertEqual(payload["policies"][0]["policyId"], "policy-a")
+        read_api.assert_called_once()
+
+        with patch(
+            "alphapilot_control_console.http_app.write_strategy_execution_policy_api",
+            return_value={"ok": True, "executionEnabled": False},
+        ) as write_api:
+            payload = self._post(
+                "/api/strategy-execution-policies/policy-a/activate",
+                {
+                    "confirmation": "ACTIVATE_STRATEGY_EXECUTION_POLICY",
+                    "reason": "operator_activation",
+                },
+            )
+        self.assertTrue(payload["ok"])
+        self.assertFalse(payload["executionEnabled"])
+        write_api.assert_called_once()
 
     def test_exact_demo_release_approval_and_arm_are_separate_local_routes(self) -> None:
         approval = {"ok": True, "approved": True, "demoArm": False}

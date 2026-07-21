@@ -4,6 +4,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import Mock
 
 from alphapilot_control_console.top200_minimal_ui_projection import (
     Top200MinimalUiProjection,
@@ -227,6 +228,106 @@ class Top200MinimalUiProjectionTests(unittest.TestCase):
         summary = projection.research_factory_summary()
         self.assertEqual(summary["researchRunId"], created["runId"])
         self.assertEqual(summary["status"], "queued")
+
+    def test_strategy_projection_includes_factory_reviews_and_archived_failures(self) -> None:
+        quant_root = self.root / "quant-outcomes"
+        registry_path = quant_root / "research/source_registry/strategy_research_source_registry.json"
+        registry_path.parent.mkdir(parents=True)
+        registry_path.write_text(
+            json.dumps(
+                {
+                    "families": [
+                        {
+                            "familyId": "family-a",
+                            "variants": [
+                                {"candidateId": "candidate-a"},
+                                {"candidateId": "candidate-b"},
+                            ],
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        state_path = self.root / "factory-outcomes.sqlite"
+        artifact_root = self.root / "factory-outcomes"
+        factory = StrategyFactoryOrchestrator(
+            state_path=state_path,
+            artifact_root=artifact_root,
+            quant_root=quant_root,
+            source_registry_path=registry_path,
+            launcher=lambda **_kwargs: {"pid": 1, "started": True},
+        )
+        created = factory.create_run(
+            {
+                "operation": "generate",
+                "timeframe": "15m",
+                "mode": "quick",
+                "maxCandidateCount": 2,
+                "maxTrialBudget": 8,
+            }
+        )
+        campaign_root = Path(created["artifactPath"]) / created["campaignId"]
+        campaign_root.mkdir(parents=True)
+        summary_path = campaign_root / "campaign_summary.json"
+        summary_path.write_text("{}\n", encoding="utf-8")
+        _write_json(
+            campaign_root,
+            "immutable_releases.json",
+            {
+                "campaignId": created["campaignId"],
+                "releaseCount": 1,
+                "approved": False,
+                "demoArm": False,
+                "orders": 0,
+                "releases": [
+                    {
+                        "candidateId": "candidate-a",
+                        "trialId": "trial-a",
+                        "outcome": "formal_pass",
+                        "immutableReleaseHash": "immutable-release-a",
+                        "approved": False,
+                        "demoArm": False,
+                        "orders": 0,
+                    }
+                ],
+            },
+        )
+        factory.record_receipt(
+            created["runId"],
+            {
+                "status": "immutable_release_ready",
+                "campaignId": created["campaignId"],
+                "releaseCount": 1,
+                "eligibleCandidateCount": 1,
+                "artifactPath": str(summary_path),
+                "receiptHash": "receipt-a",
+                "approvalCount": 0,
+                "demoArm": False,
+                "orderCount": 0,
+            },
+        )
+        factory.close()
+
+        projection = Top200MinimalUiProjection(
+            self.root,
+            strategy_factory_state_path=state_path,
+            strategy_factory_artifact_root=artifact_root,
+            strategy_factory_quant_root=quant_root,
+        )
+
+        summary = projection.strategy_summary()
+        self.assertEqual(summary["resultCounts"]["canEnterDemo"], 2)
+        self.assertEqual(summary["resultCounts"]["failed"], 1)
+        self.assertEqual(summary["pendingCandidateReviewCount"], 1)
+        self.assertEqual(summary["archivedFailureCount"], 1)
+        reviews = projection.strategy_releases()["candidateReviews"]
+        self.assertEqual(len(reviews), 1)
+        self.assertEqual(reviews[0]["candidateId"], "candidate-a")
+        self.assertEqual(reviews[0]["status"], "pending_human_review")
+        self.assertFalse(reviews[0]["automaticApprovalAllowed"])
+        self.assertFalse(reviews[0]["demoArm"])
+        self.assertEqual(reviews[0]["orderCount"], 0)
         runs = projection.research_factory_runs()["runs"]
         self.assertEqual(runs[0]["runId"], created["runId"])
         self.assertEqual(
@@ -247,6 +348,69 @@ class Top200MinimalUiProjectionTests(unittest.TestCase):
         self.assertEqual(summary["engineeringSmoke"]["recentFillCount"], 2)
         self.assertEqual(self.projection.demo_positions()["positions"], [])
         self.assertEqual(self.projection.demo_orders()["orders"], [])
+
+    def test_runtime_terminal_projection_replaces_static_demo_and_live_state(self) -> None:
+        terminal = Mock()
+        terminal.summary.side_effect = lambda environment: {
+            "environment": environment,
+            "runtimeStatus": "waiting" if environment == "okx_demo" else "disabled",
+            "desiredEnabled": environment == "okx_demo",
+            "armed": environment == "okx_demo",
+            "equity": 1000.0 if environment == "okx_demo" else None,
+            "availableBalance": 975.0 if environment == "okx_demo" else None,
+            "todayPnl": 8.0 if environment == "okx_demo" else None,
+            "floatingPnl": -1.5 if environment == "okx_demo" else None,
+            "openPositionCount": 1 if environment == "okx_demo" else None,
+            "runningStrategyCount": 3 if environment == "okx_demo" else 0,
+            "strategyOrderCount": 2 if environment == "okx_demo" else 0,
+            "scanFunnel": {"marketInstrumentCount": 200},
+            "issues": [],
+            "updatedAt": "2026-07-22T01:00:00Z",
+            "source": "runtime_and_execution_ledgers",
+            "readOnly": True,
+        }
+        terminal.strategies.side_effect = lambda environment: {
+            "environment": environment,
+            "strategies": [{"strategyId": "strategy-a", "status": "running"}],
+            "readOnly": True,
+        }
+        terminal.positions.side_effect = lambda environment: {
+            "environment": environment,
+            "positions": [{"instrumentId": "BTC-USDT-SWAP"}],
+            "openPositionCount": 1,
+            "readOnly": True,
+        }
+        terminal.orders.side_effect = lambda environment: {
+            "environment": environment,
+            "orders": [{"recordId": "order-a"}],
+            "strategyOrderCount": 1,
+            "readOnly": True,
+        }
+        projection = Top200MinimalUiProjection(
+            self.root,
+            terminal_projection=terminal,
+        )
+
+        demo = projection.demo_summary()
+        live = projection.live_summary()
+
+        self.assertEqual(demo["connectionStatus"], "connected_armed")
+        self.assertEqual(demo["equity"], 1000.0)
+        self.assertEqual(demo["availableBalance"], 975.0)
+        self.assertEqual(demo["scanFunnel"]["marketInstrumentCount"], 200)
+        self.assertTrue(
+            any(
+                issue["code"] == "exact_release_approval_required"
+                for issue in demo["issues"]
+            )
+        )
+        self.assertEqual(projection.demo_strategies()["strategies"][0]["strategyId"], "strategy-a")
+        self.assertEqual(projection.demo_positions()["positions"][0]["instrumentId"], "BTC-USDT-SWAP")
+        self.assertEqual(projection.demo_orders()["orders"][0]["recordId"], "order-a")
+        self.assertEqual(live["connectionStatus"], "disabled")
+        self.assertEqual(projection.live_positions()["positions"][0]["instrumentId"], "BTC-USDT-SWAP")
+        terminal.summary.assert_any_call("okx_demo")
+        terminal.summary.assert_any_call("okx_live")
 
     def test_demo_projection_exposes_only_four_matchability_headlines(self) -> None:
         _write_json(

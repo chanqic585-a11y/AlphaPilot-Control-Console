@@ -12,6 +12,7 @@ from .strategy_factory_orchestrator import (
     DEFAULT_STATE_PATH as DEFAULT_STRATEGY_FACTORY_STATE_PATH,
     StrategyFactoryOrchestrator,
 )
+from .trading_terminal_projection import TradingTerminalProjection
 
 
 DEFAULT_TOP200_MINIMAL_UI_EVIDENCE_ROOT = DATA_DIR / "top200_minimal_ui"
@@ -42,6 +43,7 @@ class Top200MinimalUiProjection:
         strategy_factory_artifact_root: Path | None = None,
         strategy_factory_quant_root: Path | None = None,
         live_readiness_root: Path | None = None,
+        terminal_projection: TradingTerminalProjection | None = None,
     ) -> None:
         self.evidence_root = Path(evidence_root)
         self.matchability_root = (
@@ -69,6 +71,17 @@ class Top200MinimalUiProjection:
         self.live_readiness_root = (
             Path(live_readiness_root) if live_readiness_root is not None else None
         )
+        self.terminal_projection = terminal_projection
+
+    @staticmethod
+    def _terminal_connection_status(summary: dict[str, Any]) -> str:
+        if summary.get("lastError"):
+            return "runtime_error"
+        if summary.get("desiredEnabled") and summary.get("armed"):
+            return "connected_armed"
+        if summary.get("desiredEnabled"):
+            return "waiting_for_arm"
+        return str(summary.get("runtimeStatus") or "offline")
 
     def _load(self, name: str) -> dict[str, Any]:
         path = self.evidence_root / name
@@ -213,24 +226,106 @@ class Top200MinimalUiProjection:
             raise KeyError(research_run_id)
         return self.research_factory_summary()
 
+    def _strategy_factory_outcomes(self) -> dict[str, Any]:
+        runs = self._read_strategy_factory("list_runs", 100) or []
+        requests = self._read_strategy_factory("list_candidate_review_requests", 500) or []
+        counts = {key: 0 for key in self.RESULT_CLASSES}
+        archived_failure_count = 0
+        updated_at = None
+        for run in runs:
+            updated = run.get("updatedAt")
+            if updated and (updated_at is None or str(updated) > str(updated_at)):
+                updated_at = updated
+            result_class = str(run.get("resultClass") or "")
+            if not result_class:
+                continue
+            review_count = int(run.get("candidateReviewRequestCount") or 0)
+            archived_count = int(run.get("archivedFailureCount") or 0)
+            archived_failure_count += archived_count
+            if result_class == "can_enter_demo":
+                counts["canEnterDemo"] += review_count
+                counts["failed"] += archived_count
+            elif result_class == "needs_forward_validation":
+                counts["needsForwardValidation"] += max(
+                    review_count,
+                    int(run.get("survivorCount") or 0),
+                )
+                counts["failed"] += archived_count
+            elif result_class == "data_insufficient":
+                counts["dataInsufficient"] += max(
+                    archived_count,
+                    int(run.get("maxCandidateCount") or 0),
+                    1,
+                )
+            elif result_class == "system_issue":
+                counts["systemIssue"] += max(
+                    archived_count,
+                    int(run.get("maxCandidateCount") or 0),
+                    1,
+                )
+            elif result_class == "failed":
+                counts["failed"] += max(
+                    archived_count,
+                    int(run.get("maxCandidateCount") or 0),
+                    1,
+                )
+        review_projections = [
+            {
+                "candidateReviewId": request.get("requestHash"),
+                "candidateId": request.get("candidateId"),
+                "strategyId": request.get("candidateId"),
+                "displayName": request.get("candidateId"),
+                "releaseId": request.get("candidateId"),
+                "releaseHash": request.get("immutableReleaseHash"),
+                "immutableResearchCandidateHash": request.get("immutableReleaseHash"),
+                "runId": request.get("runId"),
+                "campaignId": request.get("campaignId"),
+                "timeframe": request.get("timeframe"),
+                "status": "pending_human_review",
+                "resultClass": "can_enter_demo",
+                "approvalRequestActionable": bool(request.get("approvalRequestActionable")),
+                "automaticApprovalAllowed": False,
+                "approved": False,
+                "demoArm": False,
+                "strategyOrderCount": 0,
+                "orderCount": 0,
+                "createdAt": request.get("createdAt"),
+                "readOnly": True,
+                "source": "strategy_factory_candidate_review_ledger",
+            }
+            for request in requests
+        ]
+        return {
+            "resultCounts": counts,
+            "pendingCandidateReviewCount": len(review_projections),
+            "archivedFailureCount": archived_failure_count,
+            "candidateReviews": review_projections,
+            "updatedAt": updated_at,
+        }
+
     def strategy_summary(self) -> dict[str, Any]:
         release = self._release()
         approval = self._approval()
+        factory = self._strategy_factory_outcomes()
         result_counts = {key: 0 for key in self.RESULT_CLASSES}
         result_counts["canEnterDemo"] = 1
+        for key, count in factory["resultCounts"].items():
+            result_counts[key] += int(count)
         return {
             "componentStrategyCount": len(release.get("componentIds") or []),
-            "portfolioCandidateCount": 1,
+            "portfolioCandidateCount": 1 + sum(factory["resultCounts"].values()),
             "formalPassCount": int(bool(release.get("formalPass"))),
             "resultCounts": result_counts,
-            "releaseReadyCount": 1,
+            "releaseReadyCount": 1 + int(factory["pendingCandidateReviewCount"]),
+            "pendingCandidateReviewCount": factory["pendingCandidateReviewCount"],
+            "archivedFailureCount": factory["archivedFailureCount"],
             "approvedReleaseCount": int(bool(approval.get("approved"))),
             "armedReleaseCount": int(bool(approval.get("demoArm"))),
             "strategyOrderCount": int(approval.get("strategyOrderCount") or 0),
             "approved": bool(approval.get("approved")),
             "demoArm": bool(approval.get("demoArm")),
             "route": approval.get("route"),
-            "updatedAt": release.get("generatedAt"),
+            "updatedAt": factory["updatedAt"] or release.get("generatedAt"),
             "readOnly": True,
         }
 
@@ -264,6 +359,7 @@ class Top200MinimalUiProjection:
         }
 
     def strategy_releases(self) -> dict[str, Any]:
+        factory = self._strategy_factory_outcomes()
         old = self._load("old_release_supersession_overlay.json")
         historical = {
             "releaseId": old.get("oldReleaseId"),
@@ -275,6 +371,8 @@ class Top200MinimalUiProjection:
         }
         return {
             "releases": [self._current_release_projection(), historical],
+            "candidateReviews": factory["candidateReviews"],
+            "candidateReviewCount": factory["pendingCandidateReviewCount"],
             "activeReleaseCount": 1,
             "readOnly": True,
         }
@@ -315,7 +413,7 @@ class Top200MinimalUiProjection:
         smoke_passed = smoke.get("status") == "passed" and bool(
             smoke.get("engineeringSmokeReady")
         )
-        return {
+        static_summary = {
             "connectionStatus": (
                 "engineering_smoke_passed" if smoke_passed else "engineering_smoke_blocked"
             ),
@@ -362,6 +460,35 @@ class Top200MinimalUiProjection:
             "updatedAt": release.get("generatedAt"),
             "readOnly": True,
         }
+        if self.terminal_projection is None:
+            return static_summary
+        terminal = self.terminal_projection.summary("okx_demo")
+        return {
+            **static_summary,
+            **terminal,
+            "connectionStatus": self._terminal_connection_status(terminal),
+            "approvedStrategyCount": int(bool(approval.get("approved"))),
+            "universeCount": int(release.get("actualInstrumentCount") or 0),
+            "universeMaximum": int(release.get("maximumInstrumentCount") or 0),
+            "route": approval.get("route"),
+            "canRunApprovedStrategies": bool(
+                approval.get("approved")
+                and terminal.get("armed")
+                and smoke_passed
+                and release.get("actualInstrumentCount")
+            ),
+            "engineeringSmoke": static_summary["engineeringSmoke"],
+            "matchability": static_summary["matchability"],
+            "issues": [
+                *static_summary["issues"],
+                *list(terminal.get("issues") or []),
+            ],
+            "equitySource": terminal.get("source"),
+            "releaseId": release.get("releaseId"),
+            "releaseHash": release.get("releaseHash"),
+            "riskOverlayHash": release.get("riskOverlayHash"),
+            "readOnly": True,
+        }
 
     def demo_matchability(self) -> dict[str, Any]:
         window_30d = self._load_matchability("signal_matchability_30d.json")
@@ -388,6 +515,8 @@ class Top200MinimalUiProjection:
         }
 
     def demo_strategies(self) -> dict[str, Any]:
+        if self.terminal_projection is not None:
+            return self.terminal_projection.strategies("okx_demo")
         release = self._current_release_projection()
         if release["demoArm"]:
             status = "armed"
@@ -416,6 +545,8 @@ class Top200MinimalUiProjection:
         }
 
     def demo_positions(self) -> dict[str, Any]:
+        if self.terminal_projection is not None:
+            return self.terminal_projection.positions("okx_demo")
         return {
             "positions": [],
             "openPositionCount": 0,
@@ -425,11 +556,60 @@ class Top200MinimalUiProjection:
         }
 
     def demo_orders(self) -> dict[str, Any]:
+        if self.terminal_projection is not None:
+            return self.terminal_projection.orders("okx_demo")
         return {
             "orders": [],
             "strategyOrderCount": 0,
             "source": "strategy_order_ledger",
             "engineeringSmokeExcluded": True,
+            "readOnly": True,
+        }
+
+    def live_summary(self) -> dict[str, Any]:
+        if self.terminal_projection is not None:
+            terminal = self.terminal_projection.summary("okx_live")
+            return {
+                **terminal,
+                "connectionStatus": self._terminal_connection_status(terminal),
+                "equitySource": terminal.get("source"),
+                "readOnly": True,
+            }
+        return {
+            "connectionStatus": "readiness_only",
+            "equity": None,
+            "availableBalance": None,
+            "todayPnl": None,
+            "floatingPnl": None,
+            "openPositionCount": 0,
+            "runningStrategyCount": 0,
+            "strategyOrderCount": 0,
+            "issues": [],
+            "readOnly": True,
+        }
+
+    def live_strategies(self) -> dict[str, Any]:
+        if self.terminal_projection is not None:
+            return self.terminal_projection.strategies("okx_live")
+        return {"environment": "okx_live", "strategies": [], "readOnly": True}
+
+    def live_positions(self) -> dict[str, Any]:
+        if self.terminal_projection is not None:
+            return self.terminal_projection.positions("okx_live")
+        return {
+            "environment": "okx_live",
+            "positions": [],
+            "openPositionCount": 0,
+            "readOnly": True,
+        }
+
+    def live_orders(self) -> dict[str, Any]:
+        if self.terminal_projection is not None:
+            return self.terminal_projection.orders("okx_live")
+        return {
+            "environment": "okx_live",
+            "orders": [],
+            "strategyOrderCount": 0,
             "readOnly": True,
         }
 
@@ -617,6 +797,7 @@ def build_top200_minimal_ui_projection() -> Top200MinimalUiProjection:
             if (live_readiness_root / "experimental_live_release.json").is_file()
             else None
         ),
+        terminal_projection=TradingTerminalProjection(),
     )
 
 
