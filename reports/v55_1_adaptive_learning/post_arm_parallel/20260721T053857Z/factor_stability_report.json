@@ -1,0 +1,8 @@
+{
+  "generatedAt": "2026-07-21T05:38:57.976523Z",
+  "nextAction": "Research a bounded successor factor set before stability promotion.",
+  "passed": null,
+  "reason": "no_validated_factor_subset_for_stability_promotion",
+  "schemaVersion": "factor_stability_report_v1",
+  "status": "not_run"
+}

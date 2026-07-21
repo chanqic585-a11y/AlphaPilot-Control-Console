@@ -6,6 +6,8 @@ import unittest
 import zipfile
 from pathlib import Path
 
+import pandas
+
 from alphapilot_control_console.adaptive_learning_contracts import stable_hash
 from alphapilot_control_console.v55_adaptive_learning_evidence import (
     generate_v55_adaptive_learning_evidence,
@@ -118,6 +120,73 @@ class V55AdaptiveLearningEvidenceTests(unittest.TestCase):
             with zipfile.ZipFile(archive) as bundle:
                 self.assertIn("artifact_manifest.json", bundle.namelist())
                 self.assertIn("final_closeout_cn.md", bundle.namelist())
+
+    def test_binds_completed_offline_bench_without_claiming_model_readiness(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "evidence"
+            result = generate_v55_adaptive_learning_evidence(
+                root,
+                generated_at="2026-07-21T05:10:00Z",
+                factor_registry=factor_registry(),
+                release_identity={
+                    "releaseId": "release-fixture",
+                    "releaseHash": "release-hash-fixture",
+                    "riskOverlayHash": "risk-hash-fixture",
+                    "demoArm": False,
+                },
+                insertion_receipt={
+                    "originalV55Commit": "commit-fixture",
+                    "demoArm": True,
+                },
+                offline_evidence={
+                    "schemaVersion": "adaptive_learning_offline_evidence_v1",
+                    "status": "blocked_no_validated_factor_subset",
+                    "offlineEvidenceHash": "adaptive_offline_evidence_fixture",
+                    "factorShortlistId": "factor-shortlist-fixture",
+                    "dataSnapshotId": "snapshot-fixture",
+                    "formalTrialCount": 32,
+                    "eligibleFactorCount": 0,
+                    "pitStatus": "diagnostic_proxy",
+                    "qlibBlockers": ["fresh_holdout_ready"],
+                    "evidence": {
+                        "realFactorBenchReady": True,
+                        "validatedCryptoFactorSubsetReady": False,
+                        "qlibCampaignReady": False,
+                    },
+                },
+            )
+
+            binding = json.loads(
+                (root / "adaptive_learning_offline_evidence_binding.json").read_text(encoding="utf-8")
+            )
+            readiness = json.loads(
+                (root / "adaptive_learning_live_readiness.json").read_text(encoding="utf-8")
+            )
+            matrix = pandas.read_parquet(root / "real_factor_bench_matrix.parquet")
+
+            self.assertEqual(binding["offlineEvidenceHash"], "adaptive_offline_evidence_fixture")
+            self.assertEqual(matrix.iloc[0]["status"], "completed")
+            self.assertTrue(matrix.iloc[0]["realFactorBenchReady"])
+            self.assertFalse(readiness["passed"])
+            self.assertNotIn(
+                "adaptive_evidence_not_ready:realFactorBenchReady",
+                readiness["blockers"],
+            )
+            qlib = json.loads((root / "qlib_campaign_manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(qlib["status"], "not_run")
+            self.assertEqual(qlib["blockers"], ["fresh_holdout_ready"])
+            receipt = json.loads(
+                (root / "adaptive_learning_insertion_receipt.json").read_text(encoding="utf-8")
+            )
+            architecture = json.loads(
+                (root / "adaptive_learning_architecture_contract.json").read_text(encoding="utf-8")
+            )
+            closeout = (root / "final_closeout_cn.md").read_text(encoding="utf-8")
+            self.assertEqual(result["status"], "complete_post_arm_observer")
+            self.assertTrue(receipt["demoArm"])
+            self.assertEqual(architecture["status"], "implemented_post_arm")
+            self.assertIn("Demo 已 ARM", closeout)
+            self.assertIn("Live 与 Withdraw 保持关闭", closeout)
 
 
 if __name__ == "__main__":

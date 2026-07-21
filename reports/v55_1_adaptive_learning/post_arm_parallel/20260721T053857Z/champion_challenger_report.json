@@ -1,0 +1,8 @@
+{
+  "generatedAt": "2026-07-21T05:38:57.976523Z",
+  "nextAction": "Compare only reproducible validated models.",
+  "passed": null,
+  "reason": "no_trained_challenger",
+  "schemaVersion": "champion_challenger_report_v1",
+  "status": "not_run"
+}

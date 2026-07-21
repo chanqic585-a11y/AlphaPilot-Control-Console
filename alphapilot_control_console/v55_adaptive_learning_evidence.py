@@ -1,4 +1,4 @@
-"""Build the truthful pre-ARM V55.1 adaptive-learning evidence package."""
+"""Build truthful V55.1 adaptive-learning evidence before or after Demo ARM."""
 
 from __future__ import annotations
 
@@ -68,7 +68,7 @@ def _not_run(
     }
 
 
-def _manifest(root: Path, *, generated_at: str) -> dict[str, Any]:
+def _manifest(root: Path, *, generated_at: str, status: str) -> dict[str, Any]:
     paths = sorted(
         path for path in root.rglob("*")
         if path.is_file() and path.name != "artifact_manifest.json"
@@ -76,7 +76,7 @@ def _manifest(root: Path, *, generated_at: str) -> dict[str, Any]:
     return {
         "schemaVersion": "alphapilot_v55_1_adaptive_learning_manifest_v1",
         "generatedAt": generated_at,
-        "status": "complete_pre_arm_observer",
+        "status": status,
         "selfReferenceExclusions": ["artifact_manifest.json", "outer ZIP"],
         "fileCount": len(paths),
         "files": [
@@ -97,6 +97,7 @@ def generate_v55_adaptive_learning_evidence(
     factor_registry: Mapping[str, Any],
     release_identity: Mapping[str, Any],
     insertion_receipt: Mapping[str, Any],
+    offline_evidence: Mapping[str, Any] | None = None,
     ui_screenshots: Sequence[Mapping[str, Any]] | None = None,
     test_results: Mapping[str, Any] | None = None,
     git_receipt: Mapping[str, Any] | None = None,
@@ -112,6 +113,11 @@ def generate_v55_adaptive_learning_evidence(
         release_hash=str(release_identity.get("releaseHash") or ""),
         model_policy=observer_policy,
     )
+    offline = dict(offline_evidence or {})
+    if offline and offline.get("schemaVersion") != "adaptive_learning_offline_evidence_v1":
+        raise ValueError("Unsupported adaptive-learning offline evidence schema")
+    offline_readiness = dict(offline.get("evidence") or {}) if offline else {}
+    demo_arm = bool(insertion_receipt.get("demoArm", release_identity.get("demoArm")))
 
     _write_json(root / "adaptive_learning_insertion_receipt.json", {
         "schemaVersion": "adaptive_learning_insertion_receipt_v1",
@@ -120,7 +126,7 @@ def generate_v55_adaptive_learning_evidence(
         "releaseId": release_identity.get("releaseId"),
         "releaseHash": release_identity.get("releaseHash"),
         "riskOverlayHash": release_identity.get("riskOverlayHash"),
-        "demoArm": bool(release_identity.get("demoArm")),
+        "demoArm": demo_arm,
         "observerOnlyInsertion": True,
         "releaseMutation": False,
         **dict(insertion_receipt),
@@ -128,7 +134,7 @@ def generate_v55_adaptive_learning_evidence(
     _write_json(root / "adaptive_learning_architecture_contract.json", {
         "schemaVersion": "adaptive_learning_architecture_contract_v1",
         "generatedAt": generated_at,
-        "status": "implemented_pre_arm",
+        "status": "implemented_post_arm" if demo_arm else "implemented_pre_arm",
         "sharedCore": "AdaptiveLearningCore",
         "environments": ["okx_demo", "okx_live"],
         "sharedContracts": ["Factor Registry", "Feature Schema", "Model Registry"],
@@ -148,17 +154,41 @@ def generate_v55_adaptive_learning_evidence(
     _write_json(root / "production_feature_schema.json", feature_schema)
     _write_json(root / "model_registry.json", model_registry)
     _write_json(root / "observer_sidecar_binding.json", observer_binding)
+    if offline:
+        _write_json(root / "adaptive_learning_offline_evidence_binding.json", offline)
 
-    _write_parquet(root / "real_factor_bench_matrix.parquet", [{
-        "status": "not_run",
-        "reason": "demo_observer_infrastructure_precedes_real_factor_bench",
-        "passed": None,
-    }])
+    if offline:
+        _write_parquet(root / "real_factor_bench_matrix.parquet", [{
+            "status": "completed" if offline_readiness.get("realFactorBenchReady") is True else "blocked",
+            "offlineEvidenceHash": offline.get("offlineEvidenceHash"),
+            "dataSnapshotId": offline.get("dataSnapshotId"),
+            "factorShortlistId": offline.get("factorShortlistId"),
+            "formalTrialCount": int(offline.get("formalTrialCount") or 0),
+            "eligibleFactorCount": int(offline.get("eligibleFactorCount") or 0),
+            "pitStatus": offline.get("pitStatus"),
+            "realFactorBenchReady": offline_readiness.get("realFactorBenchReady") is True,
+            "validatedCryptoFactorSubsetReady": offline_readiness.get("validatedCryptoFactorSubsetReady") is True,
+            "passed": offline_readiness.get("validatedCryptoFactorSubsetReady") is True,
+        }])
+    else:
+        _write_parquet(root / "real_factor_bench_matrix.parquet", [{
+            "status": "not_run",
+            "reason": "demo_observer_infrastructure_precedes_real_factor_bench",
+            "passed": None,
+        }])
     _write_json(root / "factor_stability_report.json", _not_run(
         schema_version="factor_stability_report_v1",
         generated_at=generated_at,
-        reason="real_factor_bench_not_run",
-        next_action="Run bounded point-in-time factor bench during Demo observation.",
+        reason=(
+            "no_validated_factor_subset_for_stability_promotion"
+            if offline_readiness.get("realFactorBenchReady") is True
+            else "real_factor_bench_not_run"
+        ),
+        next_action=(
+            "Research a bounded successor factor set before stability promotion."
+            if offline_readiness.get("realFactorBenchReady") is True
+            else "Run bounded point-in-time factor bench during Demo observation."
+        ),
     ))
     _write_parquet(root / "factor_mining_trial_ledger.parquet", [{
         "status": "not_run",
@@ -189,12 +219,19 @@ def generate_v55_adaptive_learning_evidence(
         ("live_feature_pipeline_parity.json", "live_feature_pipeline_parity_v1", "live_feature_runtime_not_armed", "Replay identical snapshots through Demo and Live adapters."),
         ("live_model_inference_audit.json", "live_model_inference_audit_v1", "live_decision_model_not_registered", "Validate deterministic rank, veto or meta-label inference."),
     ):
-        _write_json(root / name, _not_run(
+        payload = _not_run(
             schema_version=schema_version,
             generated_at=generated_at,
             reason=reason,
             next_action=next_action,
-        ))
+        )
+        if name == "qlib_campaign_manifest.json" and offline:
+            payload.update({
+                "offlineEvidenceHash": offline.get("offlineEvidenceHash"),
+                "blockers": list(offline.get("qlibBlockers") or []),
+                "qlibCampaignMayRun": offline_readiness.get("qlibCampaignReady") is True,
+            })
+        _write_json(root / name, payload)
 
     _write_parquet(root / "demo_feature_snapshot_sample.parquet", [{
         "status": "not_run",
@@ -232,7 +269,10 @@ def generate_v55_adaptive_learning_evidence(
 
     readiness = AdaptiveLearningLiveReadinessGate().evaluate(
         model_policy=observer_policy,
-        evidence={},
+        evidence={
+            "productionFactorRegistryReady": bool(factor_registry.get("factorRegistryHash")),
+            **offline_readiness,
+        },
     )
     _write_json(root / "adaptive_learning_live_readiness.json", {
         **readiness,
@@ -259,6 +299,7 @@ def generate_v55_adaptive_learning_evidence(
         **dict(git_receipt or {}),
     })
 
+    demo_state = "Demo 已 ARM，Observer 与 Demo 执行并行运行" if demo_arm else "Demo 尚未 ARM"
     closeout = f"""# AlphaPilot V55.1 自适应学习安全点 Closeout
 
 - 状态：Demo Observer 基础设施已就绪，决策模型训练尚未运行。
@@ -269,12 +310,16 @@ def generate_v55_adaptive_learning_evidence(
 - Observer Model Hash：`{observer_policy.get('modelHash', '--')}`。
 - Observer Policy Hash：`{observer_policy.get('modelPolicyHash', '--')}`。
 - 当前旁路不排序、不否决、不改变风险、不创建订单。
-- Demo 未由本补丁 ARM；Live 与 Withdraw 保持关闭。
+- {demo_state}；Live 与 Withdraw 保持关闭。
 - Live Readiness：blocked。必须训练并验证 rank_only / veto_only / meta_label 模型，生成新 Model Hash 与新 Release Hash，再进行精确人工批准。
 """
     (root / "final_closeout_cn.md").write_text(closeout, encoding="utf-8", newline="\n")
 
-    manifest = _manifest(root, generated_at=generated_at)
+    manifest = _manifest(
+        root,
+        generated_at=generated_at,
+        status="complete_post_arm_observer" if demo_arm else "complete_pre_arm_observer",
+    )
     _write_json(root / "artifact_manifest.json", manifest)
     return manifest
 

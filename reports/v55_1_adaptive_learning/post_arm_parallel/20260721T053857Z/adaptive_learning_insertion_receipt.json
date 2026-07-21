@@ -1,0 +1,21 @@
+{
+  "approvalPreserved": true,
+  "consoleAndQuantCleanBeforeInsertion": true,
+  "demoArm": true,
+  "exactDemoApprovalPreexisted": true,
+  "firstStrategyDemoOrderCreated": false,
+  "generatedAt": "2026-07-21T05:38:57.976523Z",
+  "inFlightOrderCount": 0,
+  "nonzeroPositionCount": 0,
+  "observerOnlyInsertion": true,
+  "originalV55Commit": "af3560e2944592019e461056ba12d3c0aac548d0",
+  "releaseHash": "provisional_demo_release_ac2ce50562b4c83743636fe38984bb5d370a9eb1a5eef12de0eeda4d9b29ea44",
+  "releaseId": "provisional_research_demo_top200_policy_bound_9f623ab76aafd8cc7cd4c6e6",
+  "releaseMutation": false,
+  "riskOverlayHash": "risk_overlay_7221d23144dcd0a357136f6e9587a505d81c86439e223457d2d7393d287b8218",
+  "safeCheckpointPassed": true,
+  "schemaVersion": "adaptive_learning_insertion_receipt_v1",
+  "status": "safe_checkpoint_applied",
+  "strategyOrderCount": 0,
+  "targetedAndFullTestsPassedBeforeInsertion": true
+}

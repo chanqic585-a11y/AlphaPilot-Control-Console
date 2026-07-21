@@ -1,0 +1,11 @@
+{
+  "altersOrderSemantics": false,
+  "changesRisk": false,
+  "createsOrders": false,
+  "modelHash": "model_0d91a8259db62dee05843a8476dc099e88c6c501814d3480de9b14f06c8ad9d7",
+  "modelPolicyHash": "model_policy_42b050b38cb37eef57c5192feb2c595bf7c34b041c0092f0c4dd51c464d855aa",
+  "releaseHash": "provisional_demo_release_ac2ce50562b4c83743636fe38984bb5d370a9eb1a5eef12de0eeda4d9b29ea44",
+  "releaseId": "provisional_research_demo_top200_policy_bound_9f623ab76aafd8cc7cd4c6e6",
+  "schemaVersion": "adaptive_observer_sidecar_binding_v1",
+  "sidecarBindingHash": "observer_sidecar_ce0e0e523b5a58452f0a86747cccbfc6b3e7454b19d577e9771b772a2ae99d74"
+}

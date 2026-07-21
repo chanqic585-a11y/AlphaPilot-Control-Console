@@ -1,0 +1,8 @@
+{
+  "generatedAt": "2026-07-21T05:38:57.976523Z",
+  "nextAction": "Benchmark preloaded decision model before any Live eligibility.",
+  "passed": null,
+  "reason": "observer_has_no_decision_authority",
+  "schemaVersion": "online_inference_latency_audit_v1",
+  "status": "not_run"
+}

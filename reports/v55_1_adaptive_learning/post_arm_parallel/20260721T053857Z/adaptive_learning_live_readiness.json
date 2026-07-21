@@ -1,0 +1,27 @@
+{
+  "blockers": [
+    "live_model_mode_not_decision_participating",
+    "adaptive_evidence_not_ready:alpha191CompatibilityReady",
+    "adaptive_evidence_not_ready:validatedCryptoFactorSubsetReady",
+    "adaptive_evidence_not_ready:trainingDatasetReady",
+    "adaptive_evidence_not_ready:purgedWalkForwardReady",
+    "adaptive_evidence_not_ready:modelValidationReady",
+    "adaptive_evidence_not_ready:qlibCampaignReady",
+    "adaptive_evidence_not_ready:featurePipelineParityReady",
+    "adaptive_evidence_not_ready:driftWithinLimits",
+    "adaptive_evidence_not_ready:rollbackReady",
+    "adaptive_evidence_not_ready:modelArtifactFresh",
+    "adaptive_evidence_not_ready:modelHashVerified",
+    "adaptive_evidence_not_ready:releaseHashBindsModelPolicy",
+    "adaptive_evidence_not_ready:exactHumanApproval",
+    "adaptive_evidence_not_ready:riskOverlayVerified"
+  ],
+  "changesRisk": false,
+  "createsOrders": false,
+  "exactApprovalRequired": true,
+  "generatedAt": "2026-07-21T05:38:57.976523Z",
+  "modelMode": "observer",
+  "passed": false,
+  "schemaVersion": "adaptive_learning_live_readiness_v1",
+  "status": "blocked_not_ready"
+}

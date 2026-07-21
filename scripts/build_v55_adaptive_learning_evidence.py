@@ -34,6 +34,8 @@ def main() -> int:
     parser.add_argument("--test-results-path")
     parser.add_argument("--ui-screenshot-manifest-path")
     parser.add_argument("--git-receipt-path")
+    parser.add_argument("--offline-evidence-path")
+    parser.add_argument("--demo-arm", action="store_true")
     arguments = parser.parse_args()
 
     quant_root = Path(arguments.quant_root).expanduser().resolve()
@@ -45,6 +47,7 @@ def main() -> int:
     test_results = _load_optional_json(arguments.test_results_path)
     ui_screenshots = _load_optional_json(arguments.ui_screenshot_manifest_path)
     git_receipt = _load_optional_json(arguments.git_receipt_path)
+    offline_evidence = _load_optional_json(arguments.offline_evidence_path)
     if ui_screenshots is not None and not isinstance(ui_screenshots, list):
         raise ValueError("UI screenshot manifest input must be a JSON list")
     manifest = generate_v55_adaptive_learning_evidence(
@@ -62,9 +65,10 @@ def main() -> int:
             "nonzeroPositionCount": 0,
             "exactDemoApprovalPreexisted": True,
             "approvalPreserved": True,
-            "demoArm": False,
+            "demoArm": arguments.demo_arm,
             "firstStrategyDemoOrderCreated": False,
         },
+        offline_evidence=offline_evidence if isinstance(offline_evidence, dict) else None,
         test_results=test_results if isinstance(test_results, dict) else None,
         ui_screenshots=ui_screenshots,
         git_receipt=git_receipt if isinstance(git_receipt, dict) else None,

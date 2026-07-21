@@ -1,0 +1,15 @@
+{
+  "blockers": [
+    "c_formal_ready",
+    "pit_median_at_least_30",
+    "fresh_holdout_ready"
+  ],
+  "generatedAt": "2026-07-21T05:38:57.976523Z",
+  "nextAction": "Start only after a reproducible training dataset is frozen.",
+  "offlineEvidenceHash": "adaptive_offline_evidence_8be9fa35060a823a147f7533c4631c14cd0c3a8158f9a32c9448b828af78650d",
+  "passed": null,
+  "qlibCampaignMayRun": false,
+  "reason": "qlib_campaign_not_started",
+  "schemaVersion": "qlib_campaign_manifest_v1",
+  "status": "not_run"
+}
