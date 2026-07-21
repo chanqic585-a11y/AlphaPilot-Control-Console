@@ -2573,3 +2573,25 @@ The V55.1 Qlib campaign, decision-model training, Factor Bench, drift test,
 rollback test, and Live inference remain truthfully `not_run`. They must pass
 `AdaptiveLearningLiveReadinessGate` individually before any future Live route.
 See `docs/V13.27.1.56-runtime-policy-and-strategy-factory.md`.
+
+## V13.27.1.58-V13.27.1.60 Live Readiness Closeout
+
+V58 completed one explicitly approved, bounded OKX Live engineering smoke. The
+order was canceled and reconciled to zero open orders and zero positions. The
+result is engineering-only evidence and cannot qualify a strategy.
+
+V59/V60 create immutable experimental Live Canary identities and a compact,
+read-only readiness projection. Live approval, ARM, and strategy orders remain
+`not_run` because `AdaptiveLearningLiveReadinessGate` is not yet satisfied.
+Live and Withdraw remain disabled. See
+`docs/V13.27.1.54-V13.27.1.60-closeout.md` for exact hashes and current truth.
+
+To create the redacted total evidence delivery after final validation:
+
+```powershell
+python scripts/build_v54_v60_evidence.py --git "<path-to-git.exe>"
+```
+
+The ZIP and its SHA-256 file are written to
+`D:\Codex-Workspace\deliveries`. Runtime databases, environment files, and
+credentials are intentionally excluded.

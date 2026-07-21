@@ -74,7 +74,7 @@ class WorkflowUiContractTests(unittest.TestCase):
         self.assertIn("strategy-optimization-dialog", self.css)
 
     def test_static_asset_cachebuster_matches_patch(self) -> None:
-        self.assertIn("20260721-v56-runtime-controls", self.html)
+        self.assertIn("20260721-v60-live-readiness", self.html)
 
     def test_patch_version_and_documentation_are_consistent(self) -> None:
         self.assertIn('version: "V13.27.9"', self.js)
