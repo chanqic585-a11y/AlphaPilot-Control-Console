@@ -79,6 +79,7 @@ def _runtime_readiness(release: Mapping[str, Any]) -> dict[str, Any]:
     known = {
         "okx_demo_credentials_missing",
         "demo_kill_switch_active",
+        "no_eligible_demo_release",
     }
     runtime_blockers = [
         str(value)
