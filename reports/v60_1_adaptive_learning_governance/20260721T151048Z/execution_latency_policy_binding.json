@@ -1,0 +1,19 @@
+{
+  "criticalLatencyFailureMeaning": "fail_closed_critical_latency_only",
+  "criticalLatencyFailureMs": 20000,
+  "exchangeAckTimeoutMs": 2000,
+  "executionLatencyProfileHash": "execution_latency_profile_628765fb8bf78948797f29f844943dc457406584bd346c73487a2603abc89fb4",
+  "executionLatencyProfileVersion": "v55-default-1",
+  "generatedAt": "2026-07-21T15:10:48Z",
+  "maximumSignalAgeMs": 3000,
+  "maximumSignalAgeSecondsAllowed": false,
+  "operatorConfigurableWithNewVersionAndHash": [
+    "signalToOrderSendTargetMs",
+    "maximumSignalAgeMs",
+    "exchangeAckTimeoutMs"
+  ],
+  "orderRequestExpiryMs": 3000,
+  "orderTransportMode": "auto",
+  "signalToOrderSendSoftWarnMs": 1500,
+  "signalToOrderSendTargetMs": 750
+}

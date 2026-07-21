@@ -1,0 +1,66 @@
+{
+  "gaps": [
+    {
+      "capability": "validatedCryptoFactorSubsetReady",
+      "nextAction": "Freeze the validated crypto factor shortlist.",
+      "ready": false
+    },
+    {
+      "capability": "adaptiveMlTrainingReady",
+      "nextAction": "Train and validate a decision-participating model.",
+      "ready": false
+    },
+    {
+      "capability": "qlibOfflineCampaignReady",
+      "nextAction": "Complete the registered Qlib offline campaign.",
+      "ready": false
+    },
+    {
+      "capability": "modelRegistryReady",
+      "nextAction": "Register the validated model and immutable hashes.",
+      "ready": false
+    },
+    {
+      "capability": "continuousLearningDatasetReady",
+      "nextAction": "Freeze a reconciled learning dataset.",
+      "ready": false
+    },
+    {
+      "capability": "demoOutcomeToTrainingSampleReady",
+      "nextAction": "Bind reconciled Demo outcomes to samples.",
+      "ready": false
+    },
+    {
+      "capability": "demoDecisionModeValidated",
+      "nextAction": "Validate rank_only, veto_only, or meta_label in Demo.",
+      "ready": false
+    },
+    {
+      "capability": "modelDriftMonitoringReady",
+      "nextAction": "Validate drift thresholds and monitoring.",
+      "ready": false
+    },
+    {
+      "capability": "modelRollbackReady",
+      "nextAction": "Rehearse exact model rollback.",
+      "ready": false
+    },
+    {
+      "capability": "liveModelInferenceReady",
+      "nextAction": "Prove deterministic Live decision inference.",
+      "ready": false
+    },
+    {
+      "capability": "modelReleaseBindingReady",
+      "nextAction": "Bind new model and policy hashes to a new Live Release.",
+      "ready": false
+    }
+  ],
+  "generatedAt": "2026-07-21T15:10:48Z",
+  "modelModeBlocker": true,
+  "observerModelMayEnterLive": false,
+  "readyCount": 8,
+  "requiredCount": 19,
+  "schemaVersion": "adaptive_learning_technical_gap_matrix_v1",
+  "status": "blocked_not_ready"
+}

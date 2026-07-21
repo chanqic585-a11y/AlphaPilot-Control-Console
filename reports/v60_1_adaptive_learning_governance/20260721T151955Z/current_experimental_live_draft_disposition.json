@@ -1,0 +1,53 @@
+{
+  "approvalRequestActionable": false,
+  "approvalRequestHash": "live_approval_request_49668ef97c816dc50ef4ec9672d63dc7f899503ad0be94067bc6929e52189c27",
+  "dispositionHash": "adaptive_live_disposition_460ed37e8b990d801d6f6cc03f1d586e78749824c5bda982d891991598d3e1ed",
+  "exactLiveReleaseApprovalRequested": false,
+  "generatedAt": "2026-07-21T15:19:55Z",
+  "immutableSourceArtifactsPreserved": true,
+  "liveArmAllowed": false,
+  "liveEnabled": false,
+  "mechanicalExecutionAllowedAfterExactApproval": false,
+  "modelHash": "model_0d91a8259db62dee05843a8476dc099e88c6c501814d3480de9b14f06c8ad9d7",
+  "modelMode": "observer",
+  "modelPolicyHash": "model_policy_42b050b38cb37eef57c5192feb2c595bf7c34b041c0092f0c4dd51c464d855aa",
+  "releaseHash": "experimental_live_release_4fae24cd43884c95637856ce530cce18eedfdb1b2bd592c0b77947c571866635",
+  "releaseId": "experimental_live_canary_2bd592c0b77947c571866635",
+  "riskOverlayHash": "live_risk_overlay_e513f50a096567806b8c2e095e308a68a747be91a91d7de261d2480cfd549531",
+  "schemaVersion": "adaptive_learning_live_draft_disposition_v1",
+  "sourceArtifacts": [
+    {
+      "path": "adaptive_learning_live_readiness.json",
+      "sha256": "6ad0e1ecca23c7188a243fda477915586a1ef1d1685856670e9bda72f16005c4"
+    },
+    {
+      "path": "exact_live_approval_request.json",
+      "sha256": "df9fce8c05cbd61a2cc0347fd1a5b1cd39e05493fad68174a54396c880955696"
+    },
+    {
+      "path": "experimental_live_release.json",
+      "sha256": "b85e17fa5b5c0f7cbf2b8159db1385fbce81e4a52e49172eed7257265678d312"
+    },
+    {
+      "path": "experimental_live_risk_overlay.json",
+      "sha256": "f7ea9ca4ffb5f7a2f1cf57067473cd22a20c397826d2e8f1bf6a817d8c83b096"
+    },
+    {
+      "path": "observer_sidecar_binding.json",
+      "sha256": "e9faf81c02a71db580e213773c53cc26ab1ff943bd17b2195fbdb0f704ffa34a"
+    }
+  ],
+  "status": "draft_blocked_adaptive_learning_not_ready",
+  "strategyLiveOrdersAllowed": false,
+  "successorIdentityRequiredAfterTechnicalReadiness": {
+    "newApprovalRequestHash": true,
+    "newLiveReleaseHash": true,
+    "newModelHash": true,
+    "newModelPolicyHash": true
+  },
+  "technicalSnapshotSource": {
+    "path": "D:\\Codex-Workspace\\worktrees\\alphapilot-v54-v60\\quant\\reports\\v60_2_adaptive_learning_technical_closure\\20260721T151955Z\\adaptive_learning_technical_closure_matrix.json",
+    "sha256": "0bcb8246784022d12596acd53e2f89f705e0747ec308375fda5618c0575884a2"
+  },
+  "withdrawAllowed": false
+}

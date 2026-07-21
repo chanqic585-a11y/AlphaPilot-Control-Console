@@ -2616,3 +2616,18 @@ python scripts/build_v54_v60_evidence.py --git "<path-to-git.exe>"
 The ZIP and its SHA-256 file are written to
 `D:\Codex-Workspace\deliveries`. Runtime databases, environment files, and
 credentials are intentionally excluded.
+
+## V60.2 Adaptive Learning Governance Projection
+
+The three-gate governance split remains authoritative:
+`AdaptiveLearningTechnicalReadinessGate` evaluates only technical evidence,
+`ExactLiveReleaseApprovalGate` evaluates an exact actionable approval after
+technical readiness, and `LiveArmGate` evaluates final mechanical state.
+Human approval is not a technical prerequisite.
+
+The latest non-mutating projection consumes the Quant V60.2 evidence matrix.
+Technical readiness is 9 of 19, so the current experimental Live Release stays
+`draft_blocked_adaptive_learning_not_ready`. The approval request is not
+actionable, mechanical execution after approval is false, Live ARM is
+`not_run`, and no strategy Live order is permitted. The observer model cannot
+enter Live. Live and Withdraw remain disabled.

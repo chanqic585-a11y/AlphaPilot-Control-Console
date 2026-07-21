@@ -1,0 +1,17 @@
+{
+  "approvalRequestActionable": false,
+  "armsRuntime": false,
+  "blockers": [
+    "adaptive_learning_technical_readiness_not_passed",
+    "approval_request_not_actionable",
+    "mechanical_execution_not_allowed_after_approval",
+    "exact_live_release_approval_missing"
+  ],
+  "createsOrders": false,
+  "generatedAt": "2026-07-21T15:19:55Z",
+  "passed": false,
+  "releaseHash": "experimental_live_release_4fae24cd43884c95637856ce530cce18eedfdb1b2bd592c0b77947c571866635",
+  "riskOverlayHash": "live_risk_overlay_e513f50a096567806b8c2e095e308a68a747be91a91d7de261d2480cfd549531",
+  "schemaVersion": "exact_live_release_approval_gate_v1",
+  "status": "not_actionable"
+}
