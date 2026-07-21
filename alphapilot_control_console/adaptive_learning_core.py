@@ -8,6 +8,7 @@ from typing import Any, Mapping
 
 from .adaptive_learning_contracts import LIVE_DECISION_MODES, stable_hash
 from .adaptive_learning_store import AdaptiveLearningStore
+from .point_in_time_contract import validate_point_in_time
 
 
 class AdaptiveLearningCore:
@@ -53,6 +54,11 @@ class AdaptiveLearningCore:
         factors: Mapping[str, Any],
         rule_decision: str = "signal_matched",
     ) -> dict[str, Any]:
+        validate_point_in_time(
+            source_timestamp=signal_at,
+            available_at=available_at,
+            decision_at=observed_at,
+        )
         started = time.perf_counter()
         values: dict[str, float | int | bool | None] = {}
         factor_snapshots: list[dict[str, Any]] = []
@@ -231,19 +237,23 @@ class AdaptiveLearningCore:
                 "modelScore": decision.get("modelScore"),
                 "modelSuggestedAction": decision.get("modelSuggestedAction"),
                 "ruleDecision": decision.get("ruleDecision"),
-                "feePaid": float(trade.get("feePaid") or 0.0),
+                "feePaid": float(trade["feePaid"]) if trade.get("feePaid") is not None else None,
                 "funding": float(funding) if funding is not None else None,
-                "slippagePaid": float(trade.get("slippagePaid") or 0.0),
+                "slippagePaid": float(trade["slippagePaid"]) if trade.get("slippagePaid") is not None else None,
                 "mfe": float(mfe) if mfe is not None else None,
                 "mae": float(mae) if mae is not None else None,
                 "exitReason": str(trade.get("exitReason") or ""),
-                "netR": float(trade.get("netR") or 0.0),
-                "accountPnl": float(trade.get("netPnl") or 0.0),
+                "netR": float(trade["netR"]) if trade.get("netR") is not None else None,
+                "accountPnl": float(trade["netPnl"]) if trade.get("netPnl") is not None else None,
                 "marketState": str(market_state),
                 "metricAvailability": {
+                    "feePaid": trade.get("feePaid") is not None,
                     "funding": funding is not None,
+                    "slippagePaid": trade.get("slippagePaid") is not None,
                     "mfe": mfe is not None,
                     "mae": mae is not None,
+                    "netR": trade.get("netR") is not None,
+                    "accountPnl": trade.get("netPnl") is not None,
                 },
                 "manuallyIntervened": bool(manually_intervened),
                 "engineeringOnly": False,

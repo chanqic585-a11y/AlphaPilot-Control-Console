@@ -16,7 +16,7 @@ from .execution_latency_profile import build_execution_latency_profile
 from .live_arm_gate import LiveArmGate
 
 
-BLOCKED_STATUS = "draft_blocked_adaptive_learning_not_ready"
+BLOCKED_STATUS = "draft_blocked_technical_readiness"
 
 
 def _read_json(path: Path) -> dict[str, Any]:

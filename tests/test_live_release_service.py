@@ -58,15 +58,24 @@ class LiveReleaseServiceTests(unittest.TestCase):
         with self.assertRaises(PermissionError):
             validate_live_release_export(withdraw)
 
-    def test_advisory_r_demo_changes_do_not_relax_live_two_r_boundary(self) -> None:
+    def test_live_release_accepts_versioned_positive_reward_risk_below_two_r(self) -> None:
         low_r = valid_export()
         low_r["release"]["protectionPolicy"]["minimumRewardRiskRatio"] = 1.25
         low_r["liveReleaseHash"] = hashlib.sha256(
             canonical(low_r["release"]).encode("utf-8")
         ).hexdigest()
 
-        with self.assertRaisesRegex(PermissionError, "below 2R"):
-            validate_live_release_export(low_r)
+        validate_live_release_export(low_r)
+
+    def test_live_release_rejects_non_positive_reward_risk(self) -> None:
+        invalid = valid_export()
+        invalid["release"]["protectionPolicy"]["minimumRewardRiskRatio"] = 0
+        invalid["liveReleaseHash"] = hashlib.sha256(
+            canonical(invalid["release"]).encode("utf-8")
+        ).hexdigest()
+
+        with self.assertRaisesRegex(PermissionError, "must be positive"):
+            validate_live_release_export(invalid)
 
     def test_status_is_explicitly_live_only_and_fail_closed(self) -> None:
         status = build_live_release_status()

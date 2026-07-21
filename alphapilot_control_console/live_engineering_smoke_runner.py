@@ -5,10 +5,15 @@ from __future__ import annotations
 import hashlib
 import json
 from decimal import Decimal, ROUND_UP
+import os
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 from .exchange_connectors.okx_live_client import OkxLiveClient
+from .execution_runtime_lease import (
+    EXECUTION_RUNTIME_LEASE_PATH,
+    ExecutionRuntimeLeaseStore,
+)
 from .exchange_connectors.public_exchange_registry import fetch_okx_public_payload
 from .live_engineering_smoke_service import (
     LiveSmokePreflightError,
@@ -122,48 +127,68 @@ def run_approved_live_engineering_smoke(
     approval: Mapping[str, Any],
     result_path: Path,
     attempt_path: Path,
+    lease_store_path: Path | str = EXECUTION_RUNTIME_LEASE_PATH,
 ) -> dict[str, Any]:
+    lease_store = ExecutionRuntimeLeaseStore(lease_store_path)
     try:
-        account_instruments = _payload_rows(
-            client.get_account_instruments("SWAP"),
-            "account instruments",
-        )
-    except Exception as error:
-        raise LiveSmokePreflightError("account_instruments_unavailable") from error
-    account_instrument_ids = {
-        str(row.get("instId") or "")
-        for row in account_instruments
-        if str(row.get("instId") or "").endswith("-USDT-SWAP")
-    }
-    try:
-        public_instruments = [
-            row
-            for row in _public_instruments()
-            if str(row.get("instId") or "") in account_instrument_ids
-        ]
-    except Exception as error:
-        raise LiveSmokePreflightError("public_instruments_unavailable") from error
-    try:
-        public_tickers = _public_tickers()
-    except Exception as error:
-        raise LiveSmokePreflightError("public_tickers_unavailable") from error
-    try:
-        instrument, quote = select_live_smoke_instrument(
-            public_instruments,
-            public_tickers,
-            maximum_notional_usdt=float(contract["maximumNotionalUsdt"]),
-        )
-    except Exception as error:
-        raise LiveSmokePreflightError("no_eligible_bounded_instrument") from error
-    return run_live_engineering_smoke(
-        client=client,
-        contract=contract,
-        approval=approval,
-        instrument=instrument,
-        quote=quote,
-        output_path=result_path,
-        attempt_path=attempt_path,
-    )
+        try:
+            lease_claim = lease_store.acquire(
+                environment="okx_live",
+                owner_id=f"live-engineering-smoke:{os.getpid()}",
+                ttl_seconds=300,
+            )
+        except PermissionError as error:
+            raise LiveSmokePreflightError("execution_runtime_lease_unavailable") from error
+        try:
+            try:
+                account_instruments = _payload_rows(
+                    client.get_account_instruments("SWAP"),
+                    "account instruments",
+                )
+            except Exception as error:
+                raise LiveSmokePreflightError("account_instruments_unavailable") from error
+            account_instrument_ids = {
+                str(row.get("instId") or "")
+                for row in account_instruments
+                if str(row.get("instId") or "").endswith("-USDT-SWAP")
+            }
+            try:
+                public_instruments = [
+                    row
+                    for row in _public_instruments()
+                    if str(row.get("instId") or "") in account_instrument_ids
+                ]
+            except Exception as error:
+                raise LiveSmokePreflightError("public_instruments_unavailable") from error
+            try:
+                public_tickers = _public_tickers()
+            except Exception as error:
+                raise LiveSmokePreflightError("public_tickers_unavailable") from error
+            try:
+                instrument, quote = select_live_smoke_instrument(
+                    public_instruments,
+                    public_tickers,
+                    maximum_notional_usdt=float(contract["maximumNotionalUsdt"]),
+                )
+            except Exception as error:
+                raise LiveSmokePreflightError("no_eligible_bounded_instrument") from error
+            return run_live_engineering_smoke(
+                client=client,
+                contract=contract,
+                approval=approval,
+                instrument=instrument,
+                quote=quote,
+                output_path=result_path,
+                attempt_path=attempt_path,
+                authority_assertion=lambda: lease_store.assert_authority(lease_claim),
+            )
+        finally:
+            try:
+                lease_store.release(lease_claim)
+            except PermissionError:
+                pass
+    finally:
+        lease_store.close()
 
 
 def build_artifact_manifest(root: Path, *, generated_at: str, status: str) -> dict[str, Any]:

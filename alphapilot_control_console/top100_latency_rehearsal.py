@@ -10,6 +10,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from .advisory_r_exit_policy import exit_policy_hash
 from .config import DATA_DIR
 from .demo_arbitrator import arbitrate_demo_signals
 from .demo_entry_latency_policy import evaluate_demo_entry_latency
@@ -26,6 +27,13 @@ def _instrument(index: int) -> str:
 
 
 def _release(index: int) -> dict[str, Any]:
+    exit_policy = {
+        "version": "advisory_r_exit_policy_v1",
+        "mode": "fixed_r",
+        "maximumHoldBars": 24,
+        "initialStopMayWiden": False,
+        "parameters": {"targetR": 1.5},
+    }
     return {
         "demoReleaseId": f"rehearsal-release-{index}",
         "strategyCandidateId": f"rehearsal-strategy-{index}",
@@ -36,7 +44,10 @@ def _release(index: int) -> dict[str, Any]:
             "defaultMaxLeverage": 1,
         },
         "strategy": {
+            "schemaVersion": "strategy_workflow_definition_v2",
             "familyKey": f"rehearsal-family-{index}",
+            "exitPolicy": exit_policy,
+            "exitPolicyHash": exit_policy_hash(exit_policy),
             "marketDefinition": {
                 "timeframe": "5m",
                 "universePolicy": {

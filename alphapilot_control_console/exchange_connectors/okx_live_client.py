@@ -34,6 +34,7 @@ _ALLOWED_ENDPOINTS = _READ_ONLY_ENDPOINTS | {
     ("POST", "/api/v5/trade/order"),
     ("POST", "/api/v5/trade/cancel-order"),
     ("POST", "/api/v5/trade/cancel-all-after"),
+    ("POST", "/api/v5/trade/close-position"),
 }
 
 
@@ -239,3 +240,25 @@ class OkxLiveClient:
         if timeoutSeconds != 0 and not 10 <= timeoutSeconds <= 120:
             raise ValueError("Cancel-all-after timeout must be 0 or between 10 and 120 seconds")
         return self.request("POST", "/api/v5/trade/cancel-all-after", body={"timeOut": str(timeoutSeconds), "tag": "alphapilot"})
+
+    def close_position(
+        self,
+        *,
+        instId: str,
+        marginMode: str,
+        posSide: str | None = None,
+    ) -> dict[str, Any]:
+        if not str(instId).endswith("-SWAP"):
+            raise ValueError("Emergency close is limited to OKX swap instruments")
+        if marginMode != "isolated":
+            raise ValueError("Emergency close is limited to isolated positions")
+        if posSide not in {None, "", "net", "long", "short"}:
+            raise ValueError("Unsupported OKX position side")
+        body = {
+            "instId": str(instId),
+            "mgnMode": "isolated",
+            "posSide": posSide if posSide not in {None, "", "net"} else None,
+            "autoCxl": True,
+            "tag": "alphapilot",
+        }
+        return self.request("POST", "/api/v5/trade/close-position", body=body)

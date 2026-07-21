@@ -276,7 +276,7 @@ def _release_readiness(item: dict[str, Any], exchange_demo: dict[str, Any]) -> d
         "reviewStartSamples": 30,
         "localForwardReviewStartReached": closed_samples >= 30,
         "targetR": target_r,
-        "targetRPassed": target_r >= 2.0 if not advisory_definition else None,
+        "targetRPassed": target_r > 0 if not advisory_definition else None,
         "advisoryR": advisory_definition,
         "exitPolicyComplete": exit_policy_complete if advisory_definition else None,
         "exitPolicyMode": exit_policy.get("mode") if exit_policy else None,
@@ -325,7 +325,7 @@ def run_demo_workflow_action(payload: dict[str, Any] | None = None) -> dict[str,
         if readiness["advisoryR"] and not readiness["exitPolicyComplete"]:
             blockers.append("exit_policy_incomplete")
         if not readiness["advisoryR"] and not readiness["targetRPassed"]:
-            blockers.append("target_r_below_2r")
+            blockers.append("legacy_exit_target_missing")
         if not readiness["strategyDefinitionComplete"]:
             blockers.append("strategy_definition_incomplete")
         if not readiness["formalStrategyCandidateRegistered"]:

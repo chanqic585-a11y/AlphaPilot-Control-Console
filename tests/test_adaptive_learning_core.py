@@ -304,6 +304,66 @@ class AdaptiveLearningCoreTests(unittest.TestCase):
             finally:
                 store.close()
 
+    def test_missing_cost_and_outcome_metrics_remain_null(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = AdaptiveLearningStore(Path(directory) / "adaptive.sqlite")
+            try:
+                core = AdaptiveLearningCore(
+                    factor_registry=FACTOR_REGISTRY,
+                    feature_schema=FEATURE_SCHEMA,
+                    model_policy=_observer_policy(),
+                    store=store,
+                )
+                observed = core.observe_signal(
+                    environment="okx_demo",
+                    release_id="release-null-metrics",
+                    release_hash="release-hash",
+                    strategy_candidate_id="candidate-1",
+                    risk_overlay_hash="risk-hash",
+                    symbol="BTC-USDT-SWAP",
+                    timeframe="1h",
+                    signal_at="2026-07-21T00:00:00+00:00",
+                    observed_at="2026-07-21T00:00:01+00:00",
+                    available_at="2026-07-21T00:00:00+00:00",
+                    source_event_hash="event-hash",
+                    universe_snapshot_hash="universe-hash",
+                    factors={"rsi14": 57.0},
+                )
+                sample = core.record_closed_trade(
+                    {
+                        "status": "closed",
+                        "environment": "okx_demo",
+                        "sourceEntityId": "record-null-metrics",
+                        "releaseId": "release-null-metrics",
+                        "releaseHash": "release-hash",
+                        "strategyCandidateId": "candidate-1",
+                        "instrumentId": "BTC-USDT-SWAP",
+                        "timeframe": "1h",
+                        "direction": "long",
+                        "decisionAt": "2026-07-21T00:00:00+00:00",
+                        "entryAt": "2026-07-21T00:01:00+00:00",
+                        "exitAt": "2026-07-21T01:00:00+00:00",
+                        "trade": {"exitReason": "manual_review"},
+                    },
+                    feature_snapshot_id=observed["featureSnapshotId"],
+                    model_decision_id=observed["modelDecisionId"],
+                    market_state="unknown",
+                    funding=None,
+                    mfe=None,
+                    mae=None,
+                    manually_intervened=True,
+                )
+            finally:
+                store.close()
+
+        self.assertIsNone(sample["feePaid"])
+        self.assertIsNone(sample["slippagePaid"])
+        self.assertIsNone(sample["netR"])
+        self.assertIsNone(sample["accountPnl"])
+        self.assertFalse(sample["metricAvailability"]["feePaid"])
+        self.assertFalse(sample["metricAvailability"]["slippagePaid"])
+        self.assertFalse(sample["metricAvailability"]["netR"])
+
     def test_feature_vector_hash_is_environment_neutral(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             store = AdaptiveLearningStore(Path(directory) / "adaptive.sqlite")

@@ -184,6 +184,37 @@ class StrategyLifecycleProjectionTests(unittest.TestCase):
         self.assertEqual(context["definition"]["targetR"], 2.0)
         self.assertEqual(context["validationMetrics"]["profitFactor"], 0.9)
 
+    def test_legacy_target_is_preserved_without_two_r_clamp(self) -> None:
+        result = self.build(
+            catalog={
+                "strategies": [
+                    {
+                        "strategyId": "strategy-1",
+                        "name": "Versioned exit target",
+                        "targetR": 1.5,
+                        "params": {},
+                    }
+                ],
+                "summary": {},
+            },
+        )
+
+        context = result["items"][0]["optimizationContext"]
+        self.assertEqual(context["definition"]["targetR"], 1.5)
+        self.assertEqual(context["parameters"]["targetRewardRiskRatio"], 1.5)
+
+    def test_missing_legacy_target_is_not_synthesized_as_two_r(self) -> None:
+        result = self.build(
+            catalog={
+                "strategies": [{"strategyId": "strategy-1", "name": "No fixed target"}],
+                "summary": {},
+            },
+        )
+
+        context = result["items"][0]["optimizationContext"]
+        self.assertIsNone(context["definition"]["targetR"])
+        self.assertNotIn("targetRewardRiskRatio", context["parameters"])
+
     def test_formal_demo_release_supersedes_demo_trial_assignment(self) -> None:
         result = self.build(
             catalog={

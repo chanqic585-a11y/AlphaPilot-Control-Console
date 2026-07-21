@@ -84,8 +84,8 @@ def _hard_gate_blockers(lifecycle_item: dict[str, Any]) -> tuple[list[str], dict
             exit_policy_complete = True
         except ValueError:
             blockers.append("exit_policy_incomplete")
-    elif target_r < 2.0:
-        blockers.append("target_r_below_2r")
+    elif target_r <= 0:
+        blockers.append("exit_target_missing")
     if not all(
         (
             str(definition.get("family") or "").strip(),

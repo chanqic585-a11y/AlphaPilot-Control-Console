@@ -114,7 +114,7 @@ class DemoOverrideReleaseTests(unittest.TestCase):
         self.assertFalse(wrong_confirmation["ok"])
         self.assertIn("override_confirmation_mismatch", wrong_confirmation["blockers"])
 
-    def test_override_cannot_bypass_formal_backtest_or_two_r(self) -> None:
+    def test_override_cannot_bypass_formal_backtest_or_missing_exit_target(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             no_backtest = authorize_demo_override(
                 lifecycle_item(trade_count=0),
@@ -124,8 +124,8 @@ class DemoOverrideReleaseTests(unittest.TestCase):
                 risk_profile_record=risk_record(),
                 audit_writer=lambda *_args: {},
             )
-            low_r = authorize_demo_override(
-                lifecycle_item(target_r=1.5),
+            missing_target = authorize_demo_override(
+                lifecycle_item(target_r=0),
                 reason="Demo research",
                 confirmation=DEMO_OVERRIDE_CONFIRMATION,
                 contract_dir=Path(directory),
@@ -134,7 +134,7 @@ class DemoOverrideReleaseTests(unittest.TestCase):
             )
 
         self.assertIn("formal_backtest_evidence_missing", no_backtest["blockers"])
-        self.assertIn("target_r_below_2r", low_r["blockers"])
+        self.assertIn("exit_target_missing", missing_target["blockers"])
 
     def test_advisory_override_requires_valid_exit_policy_instead_of_two_r(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

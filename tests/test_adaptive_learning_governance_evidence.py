@@ -92,7 +92,7 @@ class AdaptiveLearningGovernanceEvidenceTests(unittest.TestCase):
                 generated_at="2026-07-21T08:00:00Z",
             )
 
-            self.assertEqual(result["status"], "draft_blocked_adaptive_learning_not_ready")
+            self.assertEqual(result["status"], "draft_blocked_technical_readiness")
             self.assertEqual(
                 source_hashes,
                 {
@@ -109,7 +109,7 @@ class AdaptiveLearningGovernanceEvidenceTests(unittest.TestCase):
             self.assertEqual(disposition["releaseHash"], "experimental-live-hash")
             self.assertEqual(
                 disposition["status"],
-                "draft_blocked_adaptive_learning_not_ready",
+                "draft_blocked_technical_readiness",
             )
             self.assertFalse(disposition["approvalRequestActionable"])
             self.assertFalse(

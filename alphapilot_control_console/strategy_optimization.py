@@ -62,8 +62,8 @@ def validate_optimization_parameters(
             target_values.append(value)
     if not target_values:
         raise ValueError("target_r_required")
-    if min(target_values) < 2.0:
-        raise ValueError("minimum_target_r_is_2")
+    if min(target_values) <= 0:
+        raise ValueError("target_r_must_be_positive")
     return deepcopy(parameters)
 
 

@@ -2631,3 +2631,31 @@ Technical readiness is 9 of 19, so the current experimental Live Release stays
 actionable, mechanical execution after approval is false, Live ARM is
 `not_run`, and no strategy Live order is permitted. The observer model cannot
 enter Live. Live and Withdraw remain disabled.
+
+## V13.27.1.61 Global Remediation
+
+V13.27.1.61 is implemented in an isolated worktree and does not hot-patch or
+restart the production Demo runtime. It adds one execution-runtime lease,
+ordered Live admission gates, point-in-time feature contracts, null-preserving
+learning samples, explicit risk units and exit policies, protected remote HTTP
+writes, SQLite runtime governance, and a no-order Shadow Parity harness.
+
+The bounded Strategy Factory worker receives read-only public-market access,
+one campaign slot, below-normal process priority, and no private API, approval,
+ARM, or order authority. The preview-only routes `/ui-preview/demo-v2` and
+`/ui-preview/live-v2` project concise read-only ledger state for desktop and
+mobile acceptance. They do not approve, ARM, or trade.
+
+The current Adaptive Learning status remains truthfully
+`blocked_not_ready`; the observer model is not Live eligible. Live stays
+disabled, Withdraw stays absent, and no strategy Live order is created.
+
+Build the final redacted evidence package with:
+
+```powershell
+python scripts/build_global_remediation_evidence.py `
+  --input <redacted-input.json> `
+  --screenshots <ui-screenshot-directory> `
+  --output-dir <empty-evidence-directory> `
+  --output-zip <evidence.zip>
+```

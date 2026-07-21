@@ -166,13 +166,19 @@ def _load_source(
 def _new_record(row: dict[str, Any], source_kind: str) -> dict[str, Any]:
     strategy_id = _strategy_id(row)
     content_hash = _content_hash(row)
-    target_r = _first_text(row, "targetR", "targetRewardRiskRatio") or "2.0"
-    try:
-        target_r_value = max(2.0, float(target_r))
-    except ValueError:
-        target_r_value = 2.0
+    target_r = _first_text(row, "targetR", "targetRewardRiskRatio")
+    target_r_value: float | None = None
+    if target_r:
+        try:
+            parsed_target_r = float(target_r)
+        except ValueError:
+            parsed_target_r = 0.0
+        if parsed_target_r > 0:
+            target_r_value = parsed_target_r
     parameters = dict(row.get("params") or {}) if isinstance(row.get("params"), dict) else {}
-    if not any(key in parameters for key in ("targetR", "targetRMultiple", "targetRewardRiskRatio")):
+    if target_r_value is not None and not any(
+        key in parameters for key in ("targetR", "targetRMultiple", "targetRewardRiskRatio")
+    ):
         parameters["targetRewardRiskRatio"] = target_r_value
     return {
         "lifecycleId": _hash({"strategyId": strategy_id, "contentHash": content_hash}, "lifecycle")[:42],

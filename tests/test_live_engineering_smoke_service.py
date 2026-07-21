@@ -171,6 +171,28 @@ class LiveEngineeringSmokeServiceTests(unittest.TestCase):
             )
         self.assertEqual(client.calls, [])
 
+    def test_order_authority_is_checked_before_private_or_order_calls(self) -> None:
+        contract = build_live_engineering_smoke_contract(
+            created_at="2026-07-21T06:00:00Z",
+            maximum_notional_usdt=10.0,
+        )
+        request = build_live_engineering_smoke_approval_request(contract)
+        client = FakeLiveSmokeClient()
+        with self.assertRaises(PermissionError):
+            run_live_engineering_smoke(
+                client=client,
+                contract=contract,
+                approval={
+                    "actor": "user_explicit",
+                    "contractHash": contract["contractHash"],
+                    "confirmation": request["requiredConfirmation"],
+                },
+                instrument={"instId": "BTC-USDT-SWAP"},
+                quote={"bidPx": "100000", "askPx": "100001"},
+                authority_assertion=lambda: (_ for _ in ()).throw(PermissionError("lease missing")),
+            )
+        self.assertEqual(client.calls, [])
+
     def test_non_1x_leverage_blocks_before_attempt_reservation_or_order(self) -> None:
         contract = build_live_engineering_smoke_contract(
             created_at="2026-07-21T06:00:00Z",

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import unittest
+import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
+from alphapilot_control_console.execution_runtime_lease import ExecutionRuntimeLeaseStore
 from alphapilot_control_console.live_engineering_smoke_runner import (
     run_approved_live_engineering_smoke,
     select_live_smoke_instrument,
@@ -64,6 +66,40 @@ class LiveEngineeringSmokeRunnerTests(unittest.TestCase):
                 [{"instId": "ETH-USDT-SWAP", "bidPx": "3500", "askPx": "3501"}],
                 maximum_notional_usdt=10,
             )
+
+    def test_existing_live_execution_lease_blocks_smoke_before_private_request(self) -> None:
+        class Client:
+            called = False
+
+            def get_account_instruments(self, _inst_type: str) -> dict:
+                self.called = True
+                return {"code": "0", "data": []}
+
+        with tempfile.TemporaryDirectory() as directory:
+            lease_path = Path(directory) / "lease.sqlite"
+            lease_store = ExecutionRuntimeLeaseStore(lease_path)
+            claim = lease_store.acquire(
+                environment="okx_live",
+                owner_id="live-strategy-runtime",
+                ttl_seconds=60,
+            )
+            client = Client()
+            try:
+                with self.assertRaises(RuntimeError) as caught:
+                    run_approved_live_engineering_smoke(
+                        client=client,
+                        contract={"maximumNotionalUsdt": 10},
+                        approval={"actor": "user_explicit"},
+                        result_path=Path(directory) / "result.json",
+                        attempt_path=Path(directory) / "attempt.json",
+                        lease_store_path=lease_path,
+                    )
+            finally:
+                lease_store.release(claim)
+                lease_store.close()
+
+        self.assertEqual(caught.exception.safe_code, "execution_runtime_lease_unavailable")
+        self.assertFalse(client.called)
 
     @patch("alphapilot_control_console.live_engineering_smoke_runner.run_live_engineering_smoke")
     @patch("alphapilot_control_console.live_engineering_smoke_runner._public_tickers")

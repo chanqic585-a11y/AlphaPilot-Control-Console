@@ -70,6 +70,23 @@ class RiskProfileStoreTests(unittest.TestCase):
                 )
             store.close()
 
+    def test_reward_risk_is_versioned_and_may_be_below_two_r(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = RiskProfileStore(Path(directory) / "risk.sqlite")
+            try:
+                base = store.get_active_profile("live_canary")
+                created = store.create_profile({
+                    **base["profile"],
+                    "version": None,
+                    "profileKey": "live_canary_rr_125",
+                    "name": "Live Canary RR 1.25",
+                    "rewardRiskRatio": 1.25,
+                })
+            finally:
+                store.close()
+
+        self.assertEqual(created["profile"]["rewardRiskRatio"], 1.25)
+
     def test_revised_default_preset_creates_new_version_without_replacing_active_profile(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "risk.sqlite"

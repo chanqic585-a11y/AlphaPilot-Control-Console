@@ -306,8 +306,10 @@ def _size_signal(
     target_r = (
         advisory_target_r(exit_policy)
         if exit_policy is not None
-        else max(2.0, float(factor_context.get("targetRewardRiskRatio") or 2.0))
+        else float(factor_context.get("targetRewardRiskRatio") or 0)
     )
+    if exit_policy is None and target_r <= 0:
+        return None, "exit_target_missing"
     risk_distance = atr * atr_multiplier
     ct_val = float(metadata.get("ctVal") or 0)
     lot_size = float(metadata.get("lotSz") or 0)
@@ -582,7 +584,7 @@ def scan_immutable_demo_release(
                 "factors": factors,
                 "btcContext": btc_context,
                 "atrMultiplier": parameters.get("atrMultiplier") or parameters.get("stop_atr") or 1.0,
-                "targetRewardRiskRatio": parameters.get("targetRewardRiskRatio") or parameters.get("targetR") or 2.0,
+                "targetRewardRiskRatio": parameters.get("targetRewardRiskRatio") or parameters.get("targetR"),
             }
         else:
             matched = True
@@ -605,7 +607,12 @@ def scan_immutable_demo_release(
                     {"factorId": factor_id, "operator": operator, "threshold": threshold, "value": value, "matched": rule_matched}
                 )
                 matched = matched and rule_matched
-            factor_context = {"rules": evaluations, "factors": factors}
+            factor_context = {
+                "rules": evaluations,
+                "factors": factors,
+                "targetRewardRiskRatio": parameters.get("targetRewardRiskRatio")
+                or parameters.get("targetR"),
+            }
         if not matched:
             if instrument in candidate_by_id:
                 candidate_by_id[instrument]["scanStatus"] = "rejected"

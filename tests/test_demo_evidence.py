@@ -170,6 +170,20 @@ class DemoEvidenceTests(unittest.TestCase):
         self.assertEqual(item["status"], "missing")
         self.assertTrue(item["blocking"])
 
+    def test_legacy_positive_target_is_not_forced_to_two_r(self) -> None:
+        result = build_demo_evidence_checklist(
+            lifecycle_item(target_r=1.25),
+            contract=None,
+            runtime={"automationReady": False, "closedTradeCount": 0},
+        )
+
+        item = {row["evidenceId"]: row for row in result["items"]}["target_reward_risk"]
+        self.assertEqual(item["status"], "passed")
+        self.assertFalse(item["blocking"])
+        self.assertEqual(item["current"], 1.25)
+        self.assertEqual(item["target"], "Versioned positive exit target")
+        self.assertNotIn("2R", item["nextAction"])
+
 
 if __name__ == "__main__":
     unittest.main()

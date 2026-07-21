@@ -106,7 +106,7 @@ class V59V60LiveCanaryReadinessBuilderTests(unittest.TestCase):
             status = json.loads(completed.stdout)
             self.assertEqual(
                 status["status"],
-                "draft_blocked_adaptive_learning_not_ready",
+                "draft_blocked_technical_readiness",
             )
             release = json.loads((output / "experimental_live_release.json").read_text(encoding="utf-8"))
             self.assertFalse(release["adaptiveLearningReadinessPassed"])

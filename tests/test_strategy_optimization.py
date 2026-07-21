@@ -111,7 +111,7 @@ class StrategyOptimizationModuleTests(unittest.TestCase):
         self.assertEqual(context["proposedParameters"]["maxHoldBars"], 13)
         self.assertIn("maxHoldBars", [row["key"] for row in context["changedFields"]])
 
-    def test_submission_rejects_unchanged_or_below_two_r_parameters(self) -> None:
+    def test_submission_requires_changed_and_positive_exit_target(self) -> None:
         validator = getattr(optimization, "validate_optimization_parameters", None)
         self.assertTrue(callable(validator), "optimization validator is missing")
         definition = {"targetR": 2.0}
@@ -119,19 +119,20 @@ class StrategyOptimizationModuleTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "optimized_parameters_unchanged"):
             validator(definition, base, dict(base))
-        with self.assertRaisesRegex(ValueError, "minimum_target_r_is_2"):
+        with self.assertRaisesRegex(ValueError, "target_r_must_be_positive"):
             validator(
                 definition,
                 base,
-                {"volume_min": 1.3, "targetRMultiple": 1.5},
+                {"volume_min": 1.3, "targetRMultiple": 0},
             )
 
         validated = validator(
             definition,
             base,
-            {"volume_min": 1.3, "targetRMultiple": 2.0},
+            {"volume_min": 1.3, "targetRMultiple": 1.5},
         )
         self.assertEqual(validated["volume_min"], 1.3)
+        self.assertEqual(validated["targetRMultiple"], 1.5)
 
 
 if __name__ == "__main__":

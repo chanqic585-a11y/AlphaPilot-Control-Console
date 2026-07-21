@@ -10,6 +10,7 @@ from .credential_runtime import live_runtime_credential_status, load_okx_live_cr
 from .demo_arbitrator import arbitrate_demo_signals
 from .demo_release_scanner import scan_immutable_demo_release
 from .exchange_connectors.okx_live_client import OkxLiveClient
+from .execution_runtime_lease import ExecutionRuntimeLeaseStore
 from .live_canary_service import (
     build_exact_live_canary_arm_readiness,
     live_runtime_gates,
@@ -260,48 +261,75 @@ def run_live_auto_execution_batch(
                 "rejectedSignals": rejection_rows,
                 "scans": scans,
             }
-        live_client = client or OkxLiveClient(
-            load_okx_live_credentials(source),
-            site=str(source.get("ALPHAPILOT_OKX_SITE", "global")),
-        )
-        portfolio = _portfolio_snapshot(live_client, store, active_profile, fresh_signals)
-        limits = normalize_risk_profile(active_profile.get("profile") if isinstance(active_profile.get("profile"), dict) else {})
-        available_slots = max(0, int(limits["maxConcurrentPositions"]) - int(portfolio["openPositionCount"]))
-        # One fresh Live entry per heartbeat keeps private-state reconciliation strict.
-        arbitration = arbitrate_demo_signals(
-            fresh_signals,
-            maxPositions=min(1, available_slots),
-            allowSameFamilyMultipleSymbols=True,
-        )
-        engine = LiveExecutionEngine(client=live_client, store=store)
-        created = []
-        for signal in arbitration.selected:
-            export = export_by_release.get(str(signal.get("liveReleaseId") or ""))
-            if export is None:
-                export = export_by_strategy.get(str(signal.get("candidateId") or ""))
-            if export is None:
-                engine.pause("live_signal_release_binding_missing")
-                return {"ok": False, "blockers": ["live_signal_release_binding_missing"], "createdOrderCount": 0, "scans": scans}
+        lease_store = ExecutionRuntimeLeaseStore(store_path)
+        try:
             try:
-                created.append(engine.execute(contract=export, activeProfile=active_profile, signal=signal, portfolio=portfolio))
-            except (PermissionError, RuntimeError, ValueError) as error:
-                engine.pause(f"live_batch_execution_failed:{type(error).__name__}")
+                lease_claim = lease_store.acquire(
+                    environment="okx_live",
+                    owner_id=f"live-strategy-runtime:{os.getpid()}",
+                    ttl_seconds=300,
+                )
+            except PermissionError:
                 return {
                     "ok": False,
-                    "blockers": [str(error)],
-                    "createdOrderCount": len(created),
+                    "blockers": ["execution_runtime_lease_unavailable"],
+                    "createdOrderCount": 0,
                     "scans": scans,
                 }
-        return {
-            "ok": True,
-            "blockers": [],
-            "scannedReleaseCount": len(selected),
-            "matchedSignalCount": len(all_signals),
-            "createdOrderCount": len(created),
-            "created": [{"recordId": record.recordId, "status": record.status} for record in created],
-            "rejectedSignals": [*rejection_rows, *arbitration.rejected],
-            "scans": scans,
-        }
+            try:
+                live_client = client or OkxLiveClient(
+                    load_okx_live_credentials(source),
+                    site=str(source.get("ALPHAPILOT_OKX_SITE", "global")),
+                )
+                portfolio = _portfolio_snapshot(live_client, store, active_profile, fresh_signals)
+                limits = normalize_risk_profile(active_profile.get("profile") if isinstance(active_profile.get("profile"), dict) else {})
+                available_slots = max(0, int(limits["maxConcurrentPositions"]) - int(portfolio["openPositionCount"]))
+                # One fresh Live entry per heartbeat keeps private-state reconciliation strict.
+                arbitration = arbitrate_demo_signals(
+                    fresh_signals,
+                    maxPositions=min(1, available_slots),
+                    allowSameFamilyMultipleSymbols=True,
+                )
+                engine = LiveExecutionEngine(
+                    client=live_client,
+                    store=store,
+                    authorityAssertion=lambda: lease_store.assert_authority(lease_claim),
+                )
+                created = []
+                for signal in arbitration.selected:
+                    export = export_by_release.get(str(signal.get("liveReleaseId") or ""))
+                    if export is None:
+                        export = export_by_strategy.get(str(signal.get("candidateId") or ""))
+                    if export is None:
+                        engine.pause("live_signal_release_binding_missing")
+                        return {"ok": False, "blockers": ["live_signal_release_binding_missing"], "createdOrderCount": 0, "scans": scans}
+                    try:
+                        created.append(engine.execute(contract=export, activeProfile=active_profile, signal=signal, portfolio=portfolio))
+                    except (PermissionError, RuntimeError, ValueError) as error:
+                        engine.pause(f"live_batch_execution_failed:{type(error).__name__}")
+                        return {
+                            "ok": False,
+                            "blockers": [str(error)],
+                            "createdOrderCount": len(created),
+                            "scans": scans,
+                        }
+                return {
+                    "ok": True,
+                    "blockers": [],
+                    "scannedReleaseCount": len(selected),
+                    "matchedSignalCount": len(all_signals),
+                    "createdOrderCount": len(created),
+                    "created": [{"recordId": record.recordId, "status": record.status} for record in created],
+                    "rejectedSignals": [*rejection_rows, *arbitration.rejected],
+                    "scans": scans,
+                }
+            finally:
+                try:
+                    lease_store.release(lease_claim)
+                except PermissionError:
+                    pass
+        finally:
+            lease_store.close()
     finally:
         store.close()
 

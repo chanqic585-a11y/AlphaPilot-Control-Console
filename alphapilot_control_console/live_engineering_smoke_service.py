@@ -6,7 +6,7 @@ import json
 from datetime import UTC, datetime
 from decimal import Decimal, ROUND_DOWN, ROUND_UP
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from .live_engineering_smoke_contract import (
     validate_live_engineering_smoke_approval,
@@ -218,11 +218,13 @@ def run_live_engineering_smoke(
     quote: Mapping[str, Any],
     output_path: Path | str | None = None,
     attempt_path: Path | str | None = None,
+    authority_assertion: Callable[[], None] | None = None,
 ) -> dict[str, Any]:
     """Run exactly one approved order lifecycle; never treat it as strategy evidence."""
 
     validated_contract = validate_live_engineering_smoke_contract(contract)
     validate_live_engineering_smoke_approval(validated_contract, approval)
+    (authority_assertion or (lambda: None))()
     attempt_state_path = Path(attempt_path) if attempt_path is not None else None
     if attempt_state_path is not None and attempt_state_path.exists():
         raise PermissionError("Live engineering smoke attempt has already been reserved")

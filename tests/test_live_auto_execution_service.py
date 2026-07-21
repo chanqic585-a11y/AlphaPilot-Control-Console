@@ -11,6 +11,7 @@ from alphapilot_control_console.live_auto_execution_service import (
     run_live_auto_execution_batch,
     scan_live_release,
 )
+from alphapilot_control_console.execution_runtime_lease import ExecutionRuntimeLeaseStore
 from alphapilot_control_console.live_execution_store import LiveExecutionStore
 
 
@@ -208,6 +209,63 @@ class LiveAutoExecutionServiceTests(unittest.TestCase):
         protection = client.orders[0]["attachAlgoOrds"][0]
         self.assertEqual(protection["tpTriggerPx"], "102.0")
         self.assertEqual(protection["slTriggerPx"], "99.0")
+
+    def test_existing_live_execution_lease_blocks_batch_before_order(self) -> None:
+        lease_store = ExecutionRuntimeLeaseStore(self.store_path)
+        claim = lease_store.acquire(
+            environment="okx_live",
+            owner_id="live-engineering-smoke",
+            ttl_seconds=60,
+        )
+        client = FakeLiveClient()
+        scanner_signal = {
+            "candidateId": "scanner-signal-1",
+            "signalTime": "2026-07-12T10:00:00+00:00",
+            "sourceTimestamp": "2026-07-12T09:59:00+00:00",
+            "availableAt": "2026-07-12T09:59:10+00:00",
+            "decisionAt": "2026-07-12T10:00:00+00:00",
+            "orderSendAt": "2026-07-12T10:00:01+00:00",
+            "instId": "BTC-USDT-SWAP",
+            "side": "buy",
+            "posSide": "long",
+            "tdMode": "isolated",
+            "ordType": "market",
+            "sz": "1",
+            "entryPrice": 100.0,
+            "takeProfitPrice": 102.0,
+            "stopLossPrice": 99.0,
+            "notionalUsdt": 50.0,
+            "leverage": 1,
+            "riskPercent": 0.25,
+            "strategyFamilyId": "breakout",
+            "correlationGroup": "BTC",
+            "dataFresh": True,
+            "liquidityPassed": True,
+        }
+        try:
+            with patch(
+                "alphapilot_control_console.live_auto_execution_service.discover_live_releases",
+                return_value=([release_export()], []),
+            ), patch(
+                "alphapilot_control_console.live_auto_execution_service._active_live_profile",
+                return_value=profile(),
+            ), patch(
+                "alphapilot_control_console.live_auto_execution_service.scan_immutable_demo_release",
+                return_value={"signals": [scanner_signal], "rejections": [], "blockers": []},
+            ):
+                result = run_live_auto_execution_batch(
+                    ["release-1"],
+                    client=client,
+                    store_path=self.store_path,
+                    environment=self.environment,
+                )
+        finally:
+            lease_store.release(claim)
+            lease_store.close()
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["blockers"], ["execution_runtime_lease_unavailable"])
+        self.assertEqual(client.orders, [])
 
 
 if __name__ == "__main__":

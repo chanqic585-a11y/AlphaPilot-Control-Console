@@ -111,8 +111,8 @@ def validate_demo_contract(contract: dict[str, Any]) -> None:
         raise ValueError("Demo release content hash is missing")
     limits = contract.get("riskEnvelope") if isinstance(contract.get("riskEnvelope"), dict) else {}
     normalized = normalize_risk_profile(limits)
-    if float(normalized["rewardRiskRatio"]) < 2.0:
-        raise ValueError("Demo RiskProfile reward/risk is below 2R")
+    if float(normalized["rewardRiskRatio"]) <= 0:
+        raise ValueError("Demo RiskProfile reward/risk must be positive")
     profile_id = str(limits.get("riskProfileId") or "")
     profile_hash = str(limits.get("riskProfileHash") or "")
     if bool(profile_id) != bool(profile_hash):

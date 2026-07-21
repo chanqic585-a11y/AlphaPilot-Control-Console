@@ -123,7 +123,7 @@ def _safety_envelope(environment: str) -> dict[str, Any]:
         "maxDrawdownStopPercent": 15.0 if live else 25.0,
         "maxPortfolioBeta": 2.0,
         "maxScanTopN": 200,
-        "minimumRewardRiskRatio": 2.0,
+        "minimumRewardRiskRatio": 0.01,
         "allowedMarginModes": ["isolated"],
         "routineUiCanChangeEnvelope": False,
     }
@@ -299,7 +299,7 @@ def validate_profile(profile: dict[str, Any], envelope: dict[str, Any] | None = 
     if not float(profile["scanTopN"]).is_integer():
         raise ValueError("RiskProfile scanTopN must be an integer")
     if float(profile["rewardRiskRatio"]) < float(limits["minimumRewardRiskRatio"]):
-        raise ValueError("RiskProfile reward/risk must remain at least 2R")
+        raise ValueError("RiskProfile reward/risk is below the versioned safety envelope")
     if float(profile.get("feeRate") or 0) < 0 or float(profile.get("slippageRate") or 0) < 0:
         raise ValueError("RiskProfile costs cannot be negative")
     if int(profile.get("cooldownAfterLossMinutes") or 0) < 0:

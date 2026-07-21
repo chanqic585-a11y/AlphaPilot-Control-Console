@@ -8,6 +8,7 @@ from pathlib import Path
 
 from alphapilot_control_console.strategy_factory_orchestrator import (
     StrategyFactoryOrchestrator,
+    build_research_worker_environment,
 )
 
 
@@ -99,6 +100,54 @@ class StrategyFactoryOrchestratorTests(unittest.TestCase):
         self.assertEqual(job["executionBoundary"]["approvalCount"], 0)
         self.assertFalse(job["executionBoundary"]["demoArm"])
         self.assertEqual(job["executionBoundary"]["orderCount"], 0)
+        self.assertEqual(job["workerPolicy"]["marketDataAccess"], "read_only")
+        self.assertFalse(job["workerPolicy"]["privateApiAccess"])
+        self.assertFalse(job["workerPolicy"]["orderAccess"])
+        self.assertEqual(job["workerPolicy"]["maximumConcurrentRuns"], 1)
+
+    def test_research_worker_environment_strips_private_credentials(self) -> None:
+        environment = build_research_worker_environment(
+            {
+                "PATH": "fixture",
+                "OKX_API_KEY": "secret",
+                "ALPHAPILOT_OKX_DEMO_SECRET_KEY": "secret",
+                "ALPHAPILOT_OKX_LIVE_PASSPHRASE": "secret",
+                "UNRELATED_VALUE": "kept",
+            }
+        )
+
+        self.assertEqual(environment["PATH"], "fixture")
+        self.assertEqual(environment["UNRELATED_VALUE"], "kept")
+        self.assertNotIn("OKX_API_KEY", environment)
+        self.assertNotIn("ALPHAPILOT_OKX_DEMO_SECRET_KEY", environment)
+        self.assertNotIn("ALPHAPILOT_OKX_LIVE_PASSPHRASE", environment)
+        self.assertEqual(environment["ALPHAPILOT_RESEARCH_WORKER"], "1")
+        self.assertEqual(environment["ALPHAPILOT_ORDER_ACCESS"], "0")
+        self.assertEqual(environment["ALPHAPILOT_PRIVATE_API_ACCESS"], "0")
+
+    def test_only_one_research_worker_can_run_at_a_time(self) -> None:
+        first = self.orchestrator.create_run(
+            {
+                "operation": "generate",
+                "timeframe": "5m",
+                "mode": "quick",
+                "maxCandidateCount": 1,
+                "maxTrialBudget": 4,
+            }
+        )
+        second = self.orchestrator.create_run(
+            {
+                "operation": "combine",
+                "timeframe": "15m",
+                "mode": "quick",
+                "maxCandidateCount": 1,
+                "maxTrialBudget": 4,
+            }
+        )
+
+        self.orchestrator.start_run(first["runId"])
+        with self.assertRaisesRegex(ValueError, "strategy_factory_concurrency_limit"):
+            self.orchestrator.start_run(second["runId"])
 
     def test_start_pause_resume_and_checkpoint_are_persistent(self) -> None:
         created = self.orchestrator.create_run(

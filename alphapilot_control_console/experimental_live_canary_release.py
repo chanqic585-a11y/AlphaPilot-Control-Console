@@ -296,7 +296,7 @@ def build_experimental_live_canary_bundle(
     release_status = (
         "blocked_waiting_exact_live_release_approval"
         if technical_ready
-        else "draft_blocked_adaptive_learning_not_ready"
+        else "draft_blocked_technical_readiness"
     )
     release_core = {
         "schemaVersion": RELEASE_SCHEMA,

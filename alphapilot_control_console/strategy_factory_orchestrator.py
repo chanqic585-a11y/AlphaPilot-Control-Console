@@ -12,6 +12,7 @@ from typing import Any, Callable
 from uuid import uuid4
 
 from .config import DATA_DIR, get_quant_engine_path
+from .sqlite_runtime_policy import open_sqlite
 
 
 DEFAULT_STATE_PATH = DATA_DIR / "strategy_factory" / "strategy_factory.sqlite"
@@ -21,6 +22,7 @@ ALLOWED_MODES = {"quick", "standard"}
 ALLOWED_TIMEFRAMES = {"5m", "15m", "1h", "4h", "1d"}
 MAX_CANDIDATES = 12
 MAX_TRIAL_BUDGET = 96
+MAX_CONCURRENT_RUNS = 1
 VISIBLE_STAGES = (
     "prepare_material",
     "generate_plan",
@@ -70,21 +72,42 @@ def _write_json_atomic(path: Path, payload: object) -> None:
     os.replace(temporary, path)
 
 
+def build_research_worker_environment(
+    source: dict[str, str] | os._Environ[str] | None = None,
+) -> dict[str, str]:
+    environment = dict(source or os.environ)
+    sensitive_markers = ("API_KEY", "SECRET", "PASSPHRASE", "CREDENTIAL")
+    for name in list(environment):
+        upper_name = name.upper()
+        if "OKX" in upper_name and any(marker in upper_name for marker in sensitive_markers):
+            environment.pop(name, None)
+    environment.update(
+        {
+            "ALPHAPILOT_RESEARCH_WORKER": "1",
+            "ALPHAPILOT_ORDER_ACCESS": "0",
+            "ALPHAPILOT_PRIVATE_API_ACCESS": "0",
+        }
+    )
+    return environment
+
+
 def _default_launcher(*, command: list[str], cwd: Path, log_path: Path) -> dict[str, Any]:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     log_handle = log_path.open("ab")
     try:
+        creation_flags = 0
+        if sys.platform == "win32":
+            creation_flags = subprocess.CREATE_NO_WINDOW | getattr(
+                subprocess, "BELOW_NORMAL_PRIORITY_CLASS", 0
+            )
         process = subprocess.Popen(
             command,
             cwd=cwd,
             stdin=subprocess.DEVNULL,
             stdout=log_handle,
             stderr=subprocess.STDOUT,
-            creationflags=(
-                subprocess.CREATE_NO_WINDOW
-                if sys.platform == "win32"
-                else 0
-            ),
+            creationflags=creation_flags,
+            env=build_research_worker_environment(),
         )
     finally:
         log_handle.close()
@@ -123,8 +146,7 @@ class StrategyFactoryOrchestrator:
         self.clock = clock
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
         self.artifact_root.mkdir(parents=True, exist_ok=True)
-        self.connection = sqlite3.connect(self.state_path)
-        self.connection.row_factory = sqlite3.Row
+        self.connection = open_sqlite(self.state_path)
         self._initialize()
 
     def close(self) -> None:
@@ -313,6 +335,15 @@ class StrategyFactoryOrchestrator:
                 "withdrawApiUsed": False,
                 "privateAccountReadUsed": False,
             },
+            "workerPolicy": {
+                "policyVersion": "strategy_research_worker_policy_v1",
+                "marketDataAccess": "read_only",
+                "privateApiAccess": False,
+                "orderAccess": False,
+                "automaticPromotionAllowed": False,
+                "maximumConcurrentRuns": MAX_CONCURRENT_RUNS,
+                "processPriority": "below_normal",
+            },
         }
         if payload.get("developmentReplay"):
             config["developmentReplay"] = payload["developmentReplay"]
@@ -428,6 +459,15 @@ class StrategyFactoryOrchestrator:
         if row["status"] == "paused" and row["pid"] is not None:
             if not self._worker_exit_marker(row).is_file():
                 raise ValueError("strategy_factory_pause_handoff_in_progress")
+        active_count = self.connection.execute(
+            """
+            SELECT COUNT(*) FROM StrategyFactoryRuns
+            WHERE runId <> ? AND status IN ('running', 'pause_requested')
+            """,
+            (run_id,),
+        ).fetchone()[0]
+        if int(active_count) >= MAX_CONCURRENT_RUNS:
+            raise ValueError("strategy_factory_concurrency_limit")
         return self._launch_run(row, event_type="started")
 
     def pause_run(self, run_id: str) -> dict[str, Any]:
@@ -677,6 +717,7 @@ class StrategyFactoryOrchestrator:
             "orderCount": int(receipt.get("orderCount") or 0),
             "readOnly": False,
             "executionBoundary": config["executionBoundary"],
+            "workerPolicy": config.get("workerPolicy") or {},
         }
 
     def get_run(self, run_id: str) -> dict[str, Any]:

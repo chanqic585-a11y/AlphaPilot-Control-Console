@@ -206,6 +206,7 @@ from .unified_auto_execution_runner import (
     wake_unified_auto_execution_runner,
 )
 from .workflow_validation_demo import run_workflow_validation_demo_fixture
+from .http_write_security import evaluate_http_write
 
 
 def _json_bytes(payload: object) -> bytes:
@@ -1046,6 +1047,12 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/strategy-slots":
             self._send_json(list_strategy_slots())
             return
+        if path == "/ui-preview/demo-v2":
+            self._send_static(WEB_DIR / "preview-demo-v2.html")
+            return
+        if path == "/ui-preview/live-v2":
+            self._send_static(WEB_DIR / "preview-live-v2.html")
+            return
         if path in {"/", "/index.html"}:
             self._send_static(WEB_DIR / "index.html")
             return
@@ -1057,6 +1064,22 @@ class ConsoleHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
+        client_host = str(self.client_address[0])
+        write_decision = evaluate_http_write(
+            client_host=client_host,
+            path=parsed.path,
+            headers=self.headers,
+            loopback=_request_is_loopback(client_host),
+        )
+        if not write_decision.allowed:
+            append_audit("http_write_rejected", write_decision.audit_payload())
+            self._send_json(
+                {"ok": False, "error": write_decision.reason or "write_forbidden"},
+                403,
+            )
+            return
+        if write_decision.mode == "authenticated_remote":
+            append_audit("http_write_authorized", write_decision.audit_payload())
         if parsed.path == "/api/live/private-read-audit":
             self._read_body_json()
             if not _request_is_loopback(str(self.client_address[0])):

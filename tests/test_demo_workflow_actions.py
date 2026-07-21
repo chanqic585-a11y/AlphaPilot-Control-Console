@@ -124,7 +124,7 @@ class DemoWorkflowActionTests(unittest.TestCase):
         self.assertEqual(result["status"], "blocked")
         self.assertIn("immutable_demo_release_missing", result["blockers"])
         self.assertIn("local_forward_evidence_incomplete", result["blockers"])
-        self.assertIn("target_r_below_2r", result["blockers"])
+        self.assertIn("legacy_exit_target_missing", result["blockers"])
         self.assertIn("strategy_definition_incomplete", result["blockers"])
         self.assertEqual(result["readiness"]["closedSamples"], 1)
         self.assertEqual(result["readiness"]["reviewStartSamples"], 30)
@@ -148,7 +148,7 @@ class DemoWorkflowActionTests(unittest.TestCase):
         self.assertEqual(result["status"], "ready")
         self.assertTrue(result["readiness"]["exitPolicyComplete"])
         self.assertEqual(result["readiness"]["exitPolicyMode"], "structure_or_time")
-        self.assertNotIn("target_r_below_2r", result.get("blockers", []))
+        self.assertNotIn("legacy_exit_target_missing", result.get("blockers", []))
 
     def test_running_release_calls_existing_demo_cycle_only_when_release_matches(self) -> None:
         ready_exchange = exchange_demo(candidate_status="market_ready", contract=True, ready=True)

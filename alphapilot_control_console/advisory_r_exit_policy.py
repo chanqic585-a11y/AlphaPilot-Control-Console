@@ -21,6 +21,7 @@ SUPPORTED_MODES = {
     "partial_then_trailing",
     "structure_or_time",
     "hybrid",
+    "trend_following_exit",
 }
 STRUCTURE_RULE_FIELDS = {
     "residual_neutral_zone": {"kind", "absoluteZscoreMaximum"},
@@ -116,7 +117,7 @@ def validate_canonical_exit_policy(payload: Any) -> dict[str, Any]:
     elif mode == "structure_or_time":
         _exact_fields(parameters, {"structureRule"}, "exit-policy parameters")
         _validate_structure_rule(parameters["structureRule"])
-    else:
+    elif mode == "hybrid":
         remainder_mode = str(parameters.get("remainderMode") or "")
         if remainder_mode == "trailing":
             _exact_fields(
@@ -135,6 +136,19 @@ def validate_canonical_exit_policy(payload: Any) -> dict[str, Any]:
         else:
             raise ValueError("remainderMode must be trailing or structure")
         _validate_partial(parameters)
+    else:
+        _exact_fields(
+            parameters,
+            {"trailingAtrMultiple", "trendRule"},
+            "exit-policy parameters",
+        )
+        _number(
+            parameters["trailingAtrMultiple"],
+            "trailingAtrMultiple",
+            minimum=0.01,
+            maximum=20.0,
+        )
+        _validate_structure_rule(parameters["trendRule"])
     return dict(payload)
 
 

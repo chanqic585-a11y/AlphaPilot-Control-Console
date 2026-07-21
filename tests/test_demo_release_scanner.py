@@ -27,6 +27,7 @@ def contract() -> dict:
             "forwardSignalPolicy": {
                 "direction": "long",
                 "rules": [{"factorId": "rsi_14", "operator": "gte", "threshold": 0}],
+                "parameters": {"targetRewardRiskRatio": 1.25},
             },
         },
     }
@@ -206,7 +207,7 @@ class DemoReleaseScannerTests(unittest.TestCase):
         self.assertEqual(signal["demoReleaseId"], "release-1")
         self.assertEqual(signal["strategyCandidateId"], "candidate-1")
         self.assertEqual(signal["source"], "immutable_release_scanner_v13_20")
-        self.assertEqual(signal["takeProfitPrice"] - signal["entryPrice"], 4.0)
+        self.assertEqual(signal["takeProfitPrice"] - signal["entryPrice"], 2.5)
         self.assertEqual(signal["entryPrice"] - signal["stopLossPrice"], 2.0)
         self.assertLessEqual(signal["notionalUsdt"], 250.0)
         self.assertFalse(result["createsOrder"])
@@ -377,6 +378,7 @@ class DemoReleaseScannerTests(unittest.TestCase):
                 "rsiMax": 100,
                 "breakoutMultiplier": 0.998,
                 "atrMultiplier": 2.0,
+                "targetRewardRiskRatio": 1.25,
                 "btcReturn24hMinPct": -100,
                 "btcReturn3dMinPct": -100,
             },

@@ -60,8 +60,8 @@ def validate_live_release_export(export: dict[str, Any]) -> None:
     )
     if any(protection.get(key) is not True for key in required_true):
         raise PermissionError("LiveRelease protection policy is incomplete")
-    if float(protection.get("minimumRewardRiskRatio") or 0) < 2.0:
-        raise PermissionError("LiveRelease reward/risk boundary is below 2R")
+    if float(protection.get("minimumRewardRiskRatio") or 0) <= 0:
+        raise PermissionError("LiveRelease reward/risk boundary must be positive")
     _reject_sensitive(export)
 
 

@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import Any
+from datetime import UTC, datetime
+from typing import Any, Callable
 
 from .execution_outcome_store import ExecutionOutcomeStore, FormalExecutionOutcome
 from .live_execution_store import LiveExecutionRecord, LiveExecutionStore
 from .portfolio_risk import evaluate_portfolio_risk
+from .point_in_time_contract import validate_point_in_time
 
 
 _TERMINAL = {"filled", "canceled", "rejected", "mmp_canceled"}
@@ -31,11 +33,13 @@ class LiveExecutionEngine:
         store: LiveExecutionStore,
         outcomeStore: ExecutionOutcomeStore | None = None,
         adaptiveAdapter: Any | None = None,
+        authorityAssertion: Callable[[], None] | None = None,
     ):
         self.client = client
         self.store = store
         self.outcomeStore = outcomeStore
         self.adaptiveAdapter = adaptiveAdapter
+        self.authorityAssertion = authorityAssertion or (lambda: None)
 
     def execute(
         self,
@@ -45,6 +49,7 @@ class LiveExecutionEngine:
         signal: dict[str, Any],
         portfolio: dict[str, Any],
     ) -> LiveExecutionRecord:
+        self.authorityAssertion()
         release = self._validate_contract(contract, activeProfile)
         if self.store.get_runtime_flag("killSwitch", True):
             raise RuntimeError("OKX Live kill switch is active")
@@ -55,6 +60,13 @@ class LiveExecutionEngine:
             raise RuntimeError("OKX Live private state reconciliation is required")
         portfolio = self._verify_private_state(portfolio)
         self._validate_signal(signal, release, activeProfile)
+        order_send_at = datetime.now(UTC).isoformat()
+        validate_point_in_time(
+            source_timestamp=signal.get("sourceTimestamp") or signal["signalTime"],
+            available_at=signal.get("availableAt") or signal["signalTime"],
+            decision_at=signal.get("decisionAt") or signal["signalTime"],
+            order_send_at=order_send_at,
+        )
         decision = evaluate_portfolio_risk(
             profile=dict(activeProfile.get("profile") or {}),
             intent=signal,
@@ -182,10 +194,85 @@ class LiveExecutionEngine:
         self.store.set_runtime_flag("pauseReason", reason)
         self.store.append_event(None, "live_paused", {"reason": reason})
 
+    def pause_new_entries(self, reason: str) -> dict[str, Any]:
+        self.pause(reason)
+        self.store.append_event(None, "live_new_entries_paused", {"reason": reason})
+        return {"status": "new_entries_paused", "reason": reason}
+
+    def cancel_open_orders(self, reason: str) -> dict[str, Any]:
+        self.authorityAssertion()
+        response = self.client.cancel_all_after(10)
+        self.store.append_event(None, "live_open_order_cancel_requested", {
+            "reason": reason,
+            "cancelAllAfterCode": str(response.get("code") or ""),
+        })
+        return response
+
+    def emergency_flatten_and_kill(
+        self,
+        *,
+        reason: str,
+        confirmation: str,
+    ) -> dict[str, Any]:
+        if confirmation != "FLATTEN_OKX_LIVE_AND_KILL":
+            raise PermissionError("Exact emergency flatten confirmation is required")
+        self.authorityAssertion()
+        self.store.set_runtime_flag("killSwitch", True)
+        self.pause_new_entries(reason)
+        cancel_response = self.cancel_open_orders(reason)
+        positions_response = self.client.get_positions()
+        if str(positions_response.get("code") or "") != "0":
+            raise RuntimeError("Unable to read OKX Live positions before emergency flatten")
+        positions = positions_response.get("data") if isinstance(positions_response.get("data"), list) else []
+        close_results: list[dict[str, Any]] = []
+        for position in positions:
+            if not isinstance(position, dict) or abs(float(position.get("pos") or 0)) <= 0:
+                continue
+            margin_mode = str(position.get("mgnMode") or "")
+            if margin_mode != "isolated":
+                raise RuntimeError("Emergency flatten encountered a non-isolated position")
+            response = self.client.close_position(
+                instId=str(position.get("instId") or ""),
+                marginMode=margin_mode,
+                posSide=str(position.get("posSide") or "net"),
+            )
+            if str(response.get("code") or "") != "0":
+                raise RuntimeError("OKX Live emergency close-position request failed")
+            close_results.append(response)
+        final_positions = self.client.get_positions()
+        final_orders = self.client.get_open_orders()
+        active_positions = [
+            row for row in (final_positions.get("data") or [])
+            if isinstance(row, dict) and abs(float(row.get("pos") or 0)) > 0
+        ]
+        open_orders = [row for row in (final_orders.get("data") or []) if isinstance(row, dict)]
+        reconciled = (
+            str(final_positions.get("code") or "") == "0"
+            and str(final_orders.get("code") or "") == "0"
+            and not active_positions
+            and not open_orders
+        )
+        status = "flattened_reconciled_zero" if reconciled else "flatten_incomplete_manual_recovery_required"
+        self.store.set_runtime_flag("lastReconciliationMatched", reconciled)
+        self.store.append_event(None, "live_emergency_flatten_completed", {
+            "reason": reason,
+            "status": status,
+            "closeRequestCount": len(close_results),
+            "remainingPositionCount": len(active_positions),
+            "remainingOpenOrderCount": len(open_orders),
+            "cancelAllAfterCode": str(cancel_response.get("code") or ""),
+        })
+        return {
+            "status": status,
+            "closeRequestCount": len(close_results),
+            "remainingPositionCount": len(active_positions),
+            "remainingOpenOrderCount": len(open_orders),
+        }
+
     def activate_kill_switch(self, reason: str) -> dict[str, Any]:
         self.store.set_runtime_flag("killSwitch", True)
         self.pause(reason)
-        response = self.client.cancel_all_after(10)
+        response = self.cancel_open_orders(reason)
         self.store.append_event(None, "live_kill_switch_activated", {
             "reason": reason,
             "cancelAllAfterCode": str(response.get("code") or ""),
@@ -263,7 +350,10 @@ class LiveExecutionEngine:
         side = str(signal["side"]).lower()
         reward = take_profit - entry if side in {"buy", "long"} else entry - take_profit
         risk = entry - stop_loss if side in {"buy", "long"} else stop_loss - entry
-        if risk <= 0 or reward <= 0 or reward / risk < float(profile.get("rewardRiskRatio") or 2.0):
+        minimum_reward_risk = float(profile.get("rewardRiskRatio") or 0)
+        if minimum_reward_risk <= 0:
+            raise ValueError("Live RiskProfile reward/risk must be positive")
+        if risk <= 0 or reward <= 0 or reward / risk < minimum_reward_risk:
             raise ValueError("Live signal attached protection does not satisfy the RiskProfile R multiple")
 
     @staticmethod

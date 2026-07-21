@@ -19,6 +19,8 @@ def canonical(value: object) -> str:
 class FakeClient:
     def __init__(self) -> None:
         self.orders: list[dict] = []
+        self.close_requests: list[dict] = []
+        self.positions: list[dict] = []
 
     def place_protected_order(self, payload: dict) -> dict:
         self.orders.append(payload)
@@ -28,7 +30,7 @@ class FakeClient:
         return {"code": "0", "data": [{"details": [{"ccy": "USDT", "availEq": "1000"}]}]}
 
     def get_positions(self) -> dict:
-        return {"code": "0", "data": []}
+        return {"code": "0", "data": list(self.positions)}
 
     def get_open_orders(self) -> dict:
         return {"code": "0", "data": []}
@@ -38,6 +40,11 @@ class FakeClient:
 
     def cancel_all_after(self, _: int) -> dict:
         return {"code": "0", "data": []}
+
+    def close_position(self, **payload: object) -> dict:
+        self.close_requests.append(dict(payload))
+        self.positions = []
+        return {"code": "0", "data": [{"sCode": "0"}]}
 
 
 class FakeAdaptiveAdapter:
@@ -118,6 +125,15 @@ class LiveExecutionEngineTests(unittest.TestCase):
         self.store.close()
         self.directory.cleanup()
 
+    def test_signal_uses_versioned_profile_reward_risk_without_global_two_r_floor(self) -> None:
+        profile = {
+            **self.profile,
+            "profile": {**self.profile["profile"], "rewardRiskRatio": 1.25},
+        }
+        signal = {**self.signal, "takeProfitPrice": 101.25}
+
+        LiveExecutionEngine._validate_signal(signal, self.contract["release"], profile)
+
     def test_approved_release_submits_one_idempotent_protected_order(self) -> None:
         first = self.engine.execute(contract=self.contract, activeProfile=self.profile, signal=self.signal, portfolio=self.portfolio)
         second = self.engine.execute(contract=self.contract, activeProfile=self.profile, signal=self.signal, portfolio=self.portfolio)
@@ -126,6 +142,25 @@ class LiveExecutionEngineTests(unittest.TestCase):
         self.assertEqual(len(self.client.orders), 1)
         self.assertEqual(first.status, "submitted")
         self.assertTrue(self.client.orders[0]["attachAlgoOrds"][0]["slTriggerPx"])
+
+    def test_order_authority_is_checked_before_an_intent_or_exchange_call(self) -> None:
+        def reject_authority() -> None:
+            raise PermissionError("lease missing")
+
+        engine = LiveExecutionEngine(
+            client=self.client,
+            store=self.store,
+            authorityAssertion=reject_authority,
+        )
+        with self.assertRaises(PermissionError):
+            engine.execute(
+                contract=self.contract,
+                activeProfile=self.profile,
+                signal=self.signal,
+                portfolio=self.portfolio,
+            )
+        self.assertEqual(self.client.orders, [])
+        self.assertEqual(self.store.list_records(), [])
 
     def test_profile_hash_mismatch_and_missing_reconciliation_fail_closed(self) -> None:
         wrong = {**self.profile, "contentHash": "wrong"}
@@ -146,6 +181,42 @@ class LiveExecutionEngineTests(unittest.TestCase):
             self.assertTrue(another.runtime_state()["paused"])
         finally:
             another.close()
+
+    def test_emergency_flatten_requires_exact_confirmation_and_reconciles_zero(self) -> None:
+        self.client.positions = [
+            {
+                "instId": "BTC-USDT-SWAP",
+                "mgnMode": "isolated",
+                "posSide": "long",
+                "pos": "1",
+            }
+        ]
+
+        with self.assertRaises(PermissionError):
+            self.engine.emergency_flatten_and_kill(
+                reason="operator_emergency",
+                confirmation="WRONG",
+            )
+
+        result = self.engine.emergency_flatten_and_kill(
+            reason="operator_emergency",
+            confirmation="FLATTEN_OKX_LIVE_AND_KILL",
+        )
+
+        self.assertEqual(result["status"], "flattened_reconciled_zero")
+        self.assertEqual(len(self.client.close_requests), 1)
+        self.assertEqual(self.client.close_requests[0]["marginMode"], "isolated")
+        self.assertTrue(self.store.runtime_state()["killSwitchActive"])
+        self.assertTrue(self.store.runtime_state()["paused"])
+
+    def test_pause_entries_and_cancel_orders_are_distinct_controls(self) -> None:
+        self.engine.pause_new_entries("operator_pause")
+        self.assertTrue(self.store.runtime_state()["paused"])
+        self.assertFalse(self.store.runtime_state()["killSwitchActive"])
+
+        response = self.engine.cancel_open_orders("operator_cancel")
+        self.assertEqual(response["code"], "0")
+        self.assertFalse(self.store.runtime_state()["killSwitchActive"])
 
     def test_closed_live_outcome_preserves_release_and_profile_lineage(self) -> None:
         outcome_store = ExecutionOutcomeStore(Path(self.directory.name) / "outcomes.sqlite")

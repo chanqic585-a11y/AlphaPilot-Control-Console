@@ -87,6 +87,27 @@ class OkxLiveClientTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.client.place_protected_order(payload)
 
+    def test_emergency_close_position_is_allowlisted_and_reduce_only(self) -> None:
+        self.client.close_position(
+            instId="BTC-USDT-SWAP",
+            marginMode="isolated",
+            posSide="long",
+        )
+
+        request = self.transport.requests[-1]
+        self.assertEqual(request.path, "/api/v5/trade/close-position")
+        self.assertEqual(request.body["instId"], "BTC-USDT-SWAP")
+        self.assertEqual(request.body["mgnMode"], "isolated")
+        self.assertEqual(request.body["posSide"], "long")
+
+    def test_emergency_close_position_rejects_cross_margin(self) -> None:
+        with self.assertRaises(ValueError):
+            self.client.close_position(
+                instId="BTC-USDT-SWAP",
+                marginMode="cross",
+                posSide="long",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

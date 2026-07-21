@@ -148,8 +148,8 @@ def _validate_v1_release(payload: Mapping[str, Any]) -> None:
         raise ValueError("risk profile hash mismatch")
     if payload.get("riskConfigHash") != expected_risk_hash:
         raise ValueError("release risk hash mismatch")
-    if float(risk_profile.get("minimumTargetR") or 0) < 2.0:
-        raise ValueError("minimum target must remain at least 2R")
+    if float(risk_profile.get("minimumTargetR") or 0) <= 0:
+        raise ValueError("minimum target must be positive")
     for key in (
         "stopWideningAllowed",
         "addingToLossAllowed",

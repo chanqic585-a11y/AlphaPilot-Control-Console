@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN" data-preview-page="demo">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="data:," />
+    <title>AlphaPilot Demo 交易控制台</title>
+    <link rel="stylesheet" href="/ui-preview-v2.css" />
+  </head>
+  <body>
+    <aside class="rail" aria-label="主导航">
+      <a class="brand" href="/" aria-label="返回主控制台">AP</a>
+      <nav>
+        <a href="/">策略</a>
+        <a class="active" href="/ui-preview/demo-v2">Demo</a>
+        <a href="/ui-preview/live-v2">实盘</a>
+      </nav>
+      <span class="rail-status"><i></i>本机</span>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">OKX DEMO</p>
+          <h1>Demo 交易控制台</h1>
+        </div>
+        <div class="top-actions">
+          <span class="mode-pill">模拟环境</span>
+          <button id="refreshButton" class="icon-button" type="button" title="刷新状态" aria-label="刷新状态">↻</button>
+        </div>
+      </header>
+
+      <div id="issueBanner" class="issue-banner" hidden></div>
+
+      <section class="metric-strip" aria-label="Demo 账户摘要">
+        <div><span>连接</span><strong id="connectionStatus">读取中</strong></div>
+        <div><span>账户权益</span><strong id="accountEquity">不可用</strong><small id="equityMeta">等待账户快照</small></div>
+        <div><span>可用余额</span><strong id="availableBalance">不可用</strong></div>
+        <div><span>今日盈亏</span><strong id="todayPnl">不可用</strong></div>
+        <div><span>浮动盈亏</span><strong id="floatingPnl">不可用</strong></div>
+        <div><span>运行策略</span><strong id="runningStrategies">0</strong></div>
+        <div><span>开放持仓</span><strong id="openPositions">0</strong></div>
+      </section>
+
+      <section class="work-section">
+        <div class="section-head">
+          <div><p class="eyebrow">SCAN FUNNEL</p><h2>扫描漏斗</h2></div>
+          <span id="scanUpdatedAt" class="quiet-label">等待快照</span>
+        </div>
+        <ol class="scan-funnel" aria-label="Demo 市场扫描漏斗">
+          <li><span>市场合约</span><strong id="marketCount">--</strong></li>
+          <li><span>Demo 可用</span><strong id="demoUniverseCount">--</strong></li>
+          <li><span>流动性合格</span><strong id="liquidityCount">--</strong></li>
+          <li><span>深度评估</span><strong id="deepScreenCount">--</strong></li>
+          <li><span>近期信号</span><strong id="signalCount">--</strong></li>
+        </ol>
+      </section>
+
+      <section class="work-section">
+        <div class="section-head">
+          <div><p class="eyebrow">STRATEGIES</p><h2>当前策略</h2></div>
+          <span id="universeStatus" class="quiet-label">TOP200 --</span>
+        </div>
+        <div id="strategyList" class="strategy-grid"><p class="empty">正在读取策略状态。</p></div>
+      </section>
+
+      <div class="split-layout">
+        <section class="work-section">
+          <div class="section-head"><div><p class="eyebrow">POSITIONS</p><h2>当前持仓</h2></div><strong id="positionCount">0</strong></div>
+          <div class="table-wrap"><table><thead><tr><th>币种</th><th>方向</th><th>数量</th><th>开仓价</th><th>浮动盈亏</th></tr></thead><tbody id="positionRows"></tbody></table></div>
+        </section>
+        <section class="work-section">
+          <div class="section-head"><div><p class="eyebrow">ORDERS</p><h2>异常订单</h2></div><strong id="orderCount">0</strong></div>
+          <div class="table-wrap"><table><thead><tr><th>时间</th><th>币种</th><th>状态</th><th>原因</th></tr></thead><tbody id="orderRows"></tbody></table></div>
+        </section>
+      </div>
+
+      <details class="audit-details">
+        <summary>运行审计</summary>
+        <pre id="auditSummary">等待状态。</pre>
+      </details>
+      <aside id="strategyDrawer" class="strategy-drawer" hidden aria-label="策略详情">
+        <button id="closeDrawer" class="icon-button drawer-close" type="button" aria-label="关闭策略详情">×</button>
+        <p class="eyebrow">STRATEGY DETAIL</p>
+        <h2 id="drawerTitle">策略详情</h2>
+        <div class="drawer-tabs" role="tablist" aria-label="策略详情视图">
+          <button class="active" type="button">概览</button><button type="button">参数</button><button type="button">活动</button><button type="button">高级</button>
+        </div>
+        <dl id="drawerSummary" class="risk-grid"></dl>
+      </aside>
+      <div id="drawerBackdrop" class="drawer-backdrop" hidden></div>
+      <footer><span id="updatedAt">--</span><span>只读预览 · 不包含批准、ARM 或下单操作</span></footer>
+    </main>
+    <script src="/ui-preview-v2.js" defer></script>
+  </body>
+</html>

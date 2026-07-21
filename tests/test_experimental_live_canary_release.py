@@ -173,14 +173,14 @@ class ExperimentalLiveCanaryReleaseTests(unittest.TestCase):
             generated_at="2026-07-21T06:00:00+00:00",
         )
 
-        self.assertEqual(bundle["status"], "draft_blocked_adaptive_learning_not_ready")
+        self.assertEqual(bundle["status"], "draft_blocked_technical_readiness")
         self.assertEqual(
             bundle["liveRelease"]["status"],
-            "draft_blocked_adaptive_learning_not_ready",
+            "draft_blocked_technical_readiness",
         )
         self.assertEqual(
             bundle["approvalRequest"]["status"],
-            "draft_blocked_adaptive_learning_not_ready",
+            "draft_blocked_technical_readiness",
         )
         self.assertFalse(bundle["approvalRequest"]["approvalRequestActionable"])
         self.assertIsNone(bundle["approvalRequest"]["requiredConfirmation"])

@@ -132,13 +132,13 @@ def build_demo_evidence_checklist(
             "退出策略完整性" if advisory_definition else "目标盈亏比",
             status=(
                 "passed"
-                if (exit_policy_complete if advisory_definition else target_r >= 2.0)
+                if (exit_policy_complete if advisory_definition else target_r > 0)
                 else "missing"
             ),
             current=(exit_policy.get("mode") if exit_policy else "缺失") if advisory_definition else target_r,
             target="完整且不可变的 Exit Policy" if advisory_definition else ">= 2R",
             source_type="automatic",
-            blocking=not exit_policy_complete if advisory_definition else target_r < 2.0,
+            blocking=not exit_policy_complete if advisory_definition else target_r <= 0,
             detail=(
                 "系统自动校验 Exit Policy 内容、不可放宽初始止损规则和内容哈希。"
                 if advisory_definition
@@ -247,6 +247,14 @@ def build_demo_evidence_checklist(
             next_action="继续 Demo 复盘。" if closed_demo_trades > 0 else "运行 Demo 周期并等待真实条件匹配。",
         ),
     ]
+    if not advisory_definition:
+        target_evidence = next(item for item in items if item["evidenceId"] == "target_reward_risk")
+        target_evidence["target"] = "Versioned positive exit target"
+        target_evidence["nextAction"] = (
+            "Versioned exit target is valid."
+            if target_r > 0
+            else "Create a new strategy version with an explicit positive exit target."
+        )
     return {
         "items": items,
         "summary": {
