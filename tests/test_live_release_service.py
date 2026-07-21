@@ -4,7 +4,10 @@ import hashlib
 import json
 import unittest
 
-from alphapilot_control_console.live_release_service import validate_live_release_export
+from alphapilot_control_console.live_release_service import (
+    build_live_release_status,
+    validate_live_release_export,
+)
 
 
 def canonical(value: object) -> str:
@@ -64,6 +67,13 @@ class LiveReleaseServiceTests(unittest.TestCase):
 
         with self.assertRaisesRegex(PermissionError, "below 2R"):
             validate_live_release_export(low_r)
+
+    def test_status_is_explicitly_live_only_and_fail_closed(self) -> None:
+        status = build_live_release_status()
+
+        self.assertEqual(status["environment"], "okx_live")
+        self.assertFalse(status["demoReleaseAccepted"])
+        self.assertFalse(status["withdrawAllowed"])
 
 
 if __name__ == "__main__":

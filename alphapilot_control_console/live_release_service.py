@@ -99,6 +99,9 @@ def build_live_release_status() -> dict[str, Any]:
     return {
         "version": "V13.25.0",
         "source": "live_release_discovery_v1",
+        "environment": "okx_live",
+        "demoReleaseAccepted": False,
+        "withdrawAllowed": False,
         "summary": {
             "approvedLiveReleaseCount": len(releases),
             "rejectedExportCount": len(rejected),

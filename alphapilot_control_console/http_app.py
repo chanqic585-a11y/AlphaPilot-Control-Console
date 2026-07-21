@@ -83,6 +83,12 @@ from .live_canary_service import (
     build_live_canary_status,
     run_live_readonly_reconciliation,
 )
+from .live_environment_contract import (
+    LIVE_PRIVATE_READ_AUDIT_PATH,
+    build_live_environment_contract,
+    build_live_private_read_audit_status,
+    run_live_private_read_audit,
+)
 from .local_demo_launcher import LOCAL_DEMO_LAUNCHER
 from .windows_demo_credential_vault import DEMO_CREDENTIAL_VAULT, DemoCredentialVaultError
 from .local_sandbox_concentration_review import build_local_sandbox_concentration_review
@@ -838,6 +844,12 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 fresh=fresh,
             ))
             return
+        if path == "/api/live/environment-contract":
+            self._send_json({
+                "contract": build_live_environment_contract(),
+                "privateReadAudit": build_live_private_read_audit_status(),
+            })
+            return
         if path == "/api/manual-interventions":
             self._send_json(_cached_payload(
                 "manual-interventions",
@@ -1036,6 +1048,24 @@ class ConsoleHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
+        if parsed.path == "/api/live/private-read-audit":
+            self._read_body_json()
+            if not _request_is_loopback(str(self.client_address[0])):
+                self._send_json({"ok": False, "error": "local_host_required"}, 403)
+                return
+            try:
+                result = run_live_private_read_audit(
+                    output_path=LIVE_PRIVATE_READ_AUDIT_PATH,
+                )
+            except (RuntimeError, ValueError, PermissionError) as error:
+                self._send_json(
+                    {"ok": False, "error": type(error).__name__, "message": str(error)},
+                    409,
+                )
+                return
+            _RESPONSE_CACHE.clear()
+            self._send_json(result)
+            return
         if parsed.path == "/api/research-factory/runs" or (
             parsed.path.startswith("/api/research-factory/runs/")
             and parsed.path.rsplit("/", 1)[-1] in {"start", "pause", "resume"}

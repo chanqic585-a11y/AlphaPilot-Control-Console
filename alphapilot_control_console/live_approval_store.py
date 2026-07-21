@@ -110,6 +110,7 @@ class LiveApprovalStore:
             status = "approved_for_future_release_review" if exact["action"] == "approved" else "revoked"
             return {
                 "status": status,
+                "environment": "okx_live",
                 "packageHash": exact["packageHash"],
                 "approvedAt": exact["createdAt"] if exact["action"] == "approved" else None,
                 "revokedAt": exact["createdAt"] if exact["action"] == "revoked" else None,
@@ -123,6 +124,7 @@ class LiveApprovalStore:
         if latest:
             return {
                 "status": "checksum_changed_approval_invalid",
+                "environment": "okx_live",
                 "packageHash": latest["packageHash"],
                 "approvedAt": None,
                 "revokedAt": None,
@@ -131,6 +133,7 @@ class LiveApprovalStore:
             }
         return {
             "status": "awaiting_manual_approval",
+            "environment": "okx_live",
             "packageHash": currentPackageHash,
             "approvedAt": None,
             "revokedAt": None,

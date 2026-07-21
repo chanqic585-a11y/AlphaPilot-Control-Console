@@ -237,6 +237,8 @@ class LiveExecutionStore:
 
     def runtime_state(self) -> dict[str, Any]:
         return {
+            "environment": "okx_live",
+            "withdrawAllowed": False,
             "killSwitchActive": bool(self.get_runtime_flag("killSwitch", True)),
             "paused": bool(self.get_runtime_flag("paused", True)),
             "pauseReason": str(self.get_runtime_flag("pauseReason", "initial_fail_closed_state")),

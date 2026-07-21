@@ -57,6 +57,15 @@ class OkxLiveClientTests(unittest.TestCase):
         with self.assertRaises(PermissionError):
             self.client.request("POST", "/api/v5/asset/withdrawal", body={"amt": "1"})
 
+    def test_read_only_surface_excludes_withdraw_transfer_and_post_methods(self) -> None:
+        paths = self.client.read_only_endpoint_paths()
+
+        self.assertIn("/api/v5/account/balance", paths)
+        self.assertNotIn("/api/v5/asset/withdrawal", paths)
+        self.assertNotIn("/api/v5/asset/transfer", paths)
+        self.assertFalse(hasattr(self.client, "withdraw"))
+        self.assertFalse(hasattr(self.client, "transfer"))
+
     def test_both_attached_protection_prices_are_required(self) -> None:
         payload = self.protected_order()
         del payload["attachAlgoOrds"][0]["slTriggerPx"]

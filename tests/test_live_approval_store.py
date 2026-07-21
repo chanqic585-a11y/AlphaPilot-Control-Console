@@ -28,8 +28,11 @@ class LiveApprovalStoreTests(unittest.TestCase):
 
             self.assertEqual(approved.action, "approved")
             self.assertEqual(current["status"], "approved_for_future_release_review")
+            self.assertEqual(current["environment"], "okx_live")
             self.assertFalse(current["executionEnabled"])
             self.assertEqual(changed["status"], "checksum_changed_approval_invalid")
+            self.assertEqual(changed["environment"], "okx_live")
+            self.assertFalse(changed["executionEnabled"])
             store.close()
 
     def test_ai_bandit_and_ml_cannot_write_approval(self) -> None:

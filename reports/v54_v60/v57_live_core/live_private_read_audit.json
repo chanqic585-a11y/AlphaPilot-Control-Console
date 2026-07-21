@@ -1,0 +1,11 @@
+{
+  "contractHash": "live_environment_contract_a4329ef6b7c813fdb8258be7cc4533dfc953acb0bc4a56268ef380fefc554d1f",
+  "generatedAt": "2026-07-21T05:41:19.774319Z",
+  "liveOrdersCreated": 0,
+  "privateAccountValuesPersisted": false,
+  "readOnly": true,
+  "reason": "live_runtime_credentials_missing",
+  "schemaVersion": "alphapilot_live_private_read_audit_v1",
+  "status": "not_run",
+  "withdrawAllowed": false
+}

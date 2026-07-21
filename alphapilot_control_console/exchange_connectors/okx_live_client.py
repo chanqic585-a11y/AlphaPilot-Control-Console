@@ -20,13 +20,15 @@ from .okx_demo_client import resolve_okx_rest_url
 
 OKX_LIVE_USER_AGENT = "AlphaPilot-Control-Console/13.25.0"
 _CLIENT_ID = re.compile(r"^[A-Za-z0-9]{1,32}$")
-_ALLOWED_ENDPOINTS = {
+_READ_ONLY_ENDPOINTS = {
     ("GET", "/api/v5/account/config"),
     ("GET", "/api/v5/account/balance"),
     ("GET", "/api/v5/account/positions"),
     ("GET", "/api/v5/trade/order"),
     ("GET", "/api/v5/trade/orders-pending"),
     ("GET", "/api/v5/trade/fills"),
+}
+_ALLOWED_ENDPOINTS = _READ_ONLY_ENDPOINTS | {
     ("POST", "/api/v5/trade/order"),
     ("POST", "/api/v5/trade/cancel-order"),
     ("POST", "/api/v5/trade/cancel-all-after"),
@@ -121,6 +123,10 @@ class OkxLiveClient:
     @property
     def site(self) -> str:
         return self._site
+
+    @staticmethod
+    def read_only_endpoint_paths() -> tuple[str, ...]:
+        return tuple(sorted(path for method, path in _READ_ONLY_ENDPOINTS if method == "GET"))
 
     def request(
         self,
