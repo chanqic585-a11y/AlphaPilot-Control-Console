@@ -8,6 +8,10 @@ import math
 from pathlib import Path
 from typing import Any, Mapping
 
+from .adaptive_learning_contracts import LIVE_DECISION_MODES
+from .exact_live_release_approval_gate import ExactLiveReleaseApprovalGate
+from .execution_latency_profile import build_execution_latency_profile
+
 
 PROFILE_SCHEMA = "alphapilot_live_experiment_profile_v1"
 RELEASE_SCHEMA = "alphapilot_experimental_live_canary_release_v1"
@@ -65,6 +69,7 @@ def build_live_experiment_profile(
     values: Mapping[str, Any],
     *,
     version: int,
+    latency_overrides: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Validate a UI-supplied profile and bind every effective value to a hash."""
 
@@ -74,6 +79,7 @@ def build_live_experiment_profile(
     if int(version) <= 0:
         raise ValueError("Live Experiment Profile version must be positive")
 
+    latency = build_execution_latency_profile(latency_overrides)
     profile = {
         "schemaVersion": PROFILE_SCHEMA,
         "version": int(version),
@@ -100,7 +106,15 @@ def build_live_experiment_profile(
         "hardKillLossLimit": _number(values["hardKillLossLimit"], "hardKillLossLimit"),
         "scanTopN": _integer(values["scanTopN"], "scanTopN"),
         "lossLimitUnit": "USDT",
-        "maximumSignalAgeSeconds": 20.0,
+        "executionLatencyProfileVersion": latency["executionLatencyProfileVersion"],
+        "executionLatencyProfileHash": latency["executionLatencyProfileHash"],
+        "signalToOrderSendTargetMs": latency["signalToOrderSendTargetMs"],
+        "signalToOrderSendSoftWarnMs": latency["signalToOrderSendSoftWarnMs"],
+        "maximumSignalAgeMs": latency["maximumSignalAgeMs"],
+        "exchangeAckTimeoutMs": latency["exchangeAckTimeoutMs"],
+        "orderRequestExpiryMs": latency["orderRequestExpiryMs"],
+        "criticalLatencyFailureMs": latency["criticalLatencyFailureMs"],
+        "orderTransportMode": latency["orderTransportMode"],
         "unknownOrderStateFailsClosed": True,
         "withdrawAllowed": False,
         "transferAllowed": False,
@@ -262,6 +276,7 @@ def build_experimental_live_canary_bundle(
     }
     risk_core = {
         "schemaVersion": "alphapilot_experimental_live_risk_overlay_v1",
+        "status": "draft",
         "profileId": profile["profileId"],
         "profileHash": profile["profileHash"],
         "profile": profile,
@@ -274,6 +289,15 @@ def build_experimental_live_canary_bundle(
         **risk_core,
         "riskOverlayHash": _stable_hash("live_risk_overlay_", risk_core),
     }
+    technical_ready = (
+        adaptive["passed"] is True
+        and adaptive["modelMode"] in LIVE_DECISION_MODES
+    )
+    release_status = (
+        "blocked_waiting_exact_live_release_approval"
+        if technical_ready
+        else "draft_blocked_adaptive_learning_not_ready"
+    )
     release_core = {
         "schemaVersion": RELEASE_SCHEMA,
         "releasePurpose": "operator_approved_live_canary",
@@ -289,9 +313,10 @@ def build_experimental_live_canary_bundle(
         "modelPolicyHash": observer["modelPolicyHash"],
         "adaptiveLearningReadinessHash": adaptive["readinessHash"],
         "adaptiveLearningReadinessPassed": adaptive["passed"],
+        "executionLatencyProfileHash": profile["executionLatencyProfileHash"],
         "executionBoundary": {
             "environment": "okx_live_canary_only",
-            "mechanicalExecutionAllowedAfterExactApproval": True,
+            "mechanicalExecutionAllowedAfterExactApproval": technical_ready,
             "manualOrderApprovalRequiredAfterArm": False,
             "withdrawAllowed": False,
             "transferAllowed": False,
@@ -311,13 +336,15 @@ def build_experimental_live_canary_bundle(
         "releaseId": "experimental_live_canary_" + release_hash[-24:],
         "releaseHash": release_hash,
         "generatedAt": str(generated_at),
-        "status": "blocked_waiting_exact_live_release_approval",
+        "status": release_status,
     }
-    required_confirmation = (
-        "APPROVE_EXPERIMENTAL_LIVE_CANARY "
-        f"{release_hash} {risk_overlay['riskOverlayHash']} "
-        f"MAX_LOSS_USDT {profile['maximumAcceptedLossUSDT']:g}"
-    )
+    required_confirmation = None
+    if technical_ready:
+        required_confirmation = (
+            "APPROVE_EXPERIMENTAL_LIVE_CANARY "
+            f"{release_hash} {risk_overlay['riskOverlayHash']} "
+            f"MAX_LOSS_USDT {profile['maximumAcceptedLossUSDT']:g}"
+        )
     approval_core = {
         "schemaVersion": APPROVAL_SCHEMA,
         "environment": "LIVE",
@@ -334,7 +361,9 @@ def build_experimental_live_canary_bundle(
         "maximumLeverage": profile["maximumLeverage"],
         "withdrawAllowed": False,
         "requiredConfirmation": required_confirmation,
-        "status": "blocked_waiting_exact_live_release_approval",
+        "approvalRequestActionable": technical_ready,
+        "mechanicalExecutionAllowedAfterExactApproval": technical_ready,
+        "status": release_status,
     }
     approval_request = {
         **approval_core,
@@ -345,7 +374,7 @@ def build_experimental_live_canary_bundle(
     return {
         "schemaVersion": "alphapilot_v59_v60_live_canary_readiness_bundle_v1",
         "generatedAt": str(generated_at),
-        "status": "blocked_waiting_exact_live_release_approval",
+        "status": release_status,
         "profile": profile,
         "riskOverlay": risk_overlay,
         "environment": environment,
@@ -362,6 +391,7 @@ def build_experimental_live_canary_bundle(
         "smokeEvidence": smoke,
         "observerBinding": observer,
         "adaptiveLearningReadiness": adaptive,
+        "adaptiveLearningTechnicalReadiness": adaptive,
         "executionState": {
             "approvalStatus": "not_run",
             "armStatus": "not_run",
@@ -379,20 +409,13 @@ def validate_exact_live_canary_approval(
     bundle: Mapping[str, Any],
     approval: Mapping[str, Any],
 ) -> dict[str, Any]:
+    gate = ExactLiveReleaseApprovalGate().evaluate(bundle=bundle, approval=approval)
+    if gate["passed"] is not True:
+        raise PermissionError("Exact Live Release, Risk Overlay, and maximum accepted loss approval is required")
     release = dict(bundle.get("liveRelease") or {})
     risk = dict(bundle.get("riskOverlay") or {})
     request = dict(bundle.get("approvalRequest") or {})
     profile = dict(bundle.get("profile") or {})
-    checks = (
-        str(approval.get("actor") or "") == "user_manual",
-        str(approval.get("confirmation") or "") == str(request.get("requiredConfirmation") or ""),
-        str(approval.get("releaseHash") or "") == str(release.get("releaseHash") or ""),
-        str(approval.get("riskOverlayHash") or "") == str(risk.get("riskOverlayHash") or ""),
-        float(approval.get("maximumAcceptedLossUSDT") or -1)
-        == float(profile.get("maximumAcceptedLossUSDT") or -2),
-    )
-    if not all(checks):
-        raise PermissionError("Exact Live Release, Risk Overlay, and maximum accepted loss approval is required")
     core = {
         "schemaVersion": "alphapilot_exact_live_canary_approval_v1",
         "actor": "user_manual",

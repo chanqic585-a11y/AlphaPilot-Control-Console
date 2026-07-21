@@ -66,8 +66,8 @@ def build_execution_latency_profile(
         raise ValueError("signal target cannot exceed the soft warning threshold")
     if profile["signalToOrderSendSoftWarnMs"] > profile["maximumSignalAgeMs"]:
         raise ValueError("signal soft warning cannot exceed maximum signal age")
-    if profile["maximumSignalAgeMs"] > 20_000:
-        raise ValueError("maximumSignalAgeMs cannot exceed the critical boundary")
+    if profile["maximumSignalAgeMs"] >= profile["criticalLatencyFailureMs"]:
+        raise ValueError("maximumSignalAgeMs must remain below the critical boundary")
     if profile["orderRequestExpiryMs"] > profile["maximumSignalAgeMs"]:
         raise ValueError("orderRequestExpiryMs cannot exceed maximumSignalAgeMs")
     if profile["criticalLatencyFailureMs"] != 20_000:

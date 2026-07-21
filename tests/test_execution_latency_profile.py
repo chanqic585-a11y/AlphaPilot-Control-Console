@@ -25,7 +25,15 @@ class ExecutionLatencyProfileTests(unittest.TestCase):
 
     def test_profile_hash_changes_with_a_valid_override(self) -> None:
         default = build_execution_latency_profile()
-        adjusted = build_execution_latency_profile({"signalToOrderSendSoftWarnMs": 1200})
+        adjusted = build_execution_latency_profile(
+            {
+                "signalToOrderSendTargetMs": 800,
+                "signalToOrderSendSoftWarnMs": 1600,
+                "maximumSignalAgeMs": 4000,
+                "exchangeAckTimeoutMs": 2500,
+                "orderRequestExpiryMs": 3500,
+            }
+        )
 
         self.assertNotEqual(
             default["executionLatencyProfileHash"],
@@ -35,6 +43,7 @@ class ExecutionLatencyProfileTests(unittest.TestCase):
     def test_invalid_expiry_mode_and_critical_boundary_fail_closed(self) -> None:
         invalid_profiles = (
             {"orderRequestExpiryMs": 3001},
+            {"maximumSignalAgeMs": 20000, "orderRequestExpiryMs": 3000},
             {"maximumSignalAgeMs": 20001},
             {"orderTransportMode": "fastest_magic"},
             {"criticalLatencyFailureMs": 21000},

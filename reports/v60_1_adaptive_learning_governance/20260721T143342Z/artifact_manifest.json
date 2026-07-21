@@ -1,0 +1,62 @@
+{
+  "fileCount": 10,
+  "files": [
+    {
+      "bytes": 2039,
+      "path": "adaptive_learning_technical_readiness_gate.json",
+      "sha256": "d636ca7b7f556ed1635e9bbf8bc74ad28456838b880b64f40d79332c63d7c0c7"
+    },
+    {
+      "bytes": 1023,
+      "path": "current_exact_live_approval_request_projection.json",
+      "sha256": "42add7242907284911944b5e5db4f7b9191dcfa18140bceff938ff6344262ad7"
+    },
+    {
+      "bytes": 2435,
+      "path": "current_experimental_live_draft_disposition.json",
+      "sha256": "db075c61a1fbabf00429ff1e0b52a0ed1918e823441cf4552fa8204df6d243e9"
+    },
+    {
+      "bytes": 2523,
+      "path": "current_experimental_live_release_projection.json",
+      "sha256": "98a4f4fb8d85a82a4a57563e1bbabde052c23a956bf05fd6496263a1f636f98c"
+    },
+    {
+      "bytes": 1577,
+      "path": "draft_risk_profile.json",
+      "sha256": "d44bb4af063e28ee0b980cb9c32ea28a4ce350611655db396cb947c37df4787e"
+    },
+    {
+      "bytes": 670,
+      "path": "exact_live_release_approval_gate.json",
+      "sha256": "357df3f5230c3fcb5be8e327a295b8ad317222e10027592907687af900b8127c"
+    },
+    {
+      "bytes": 717,
+      "path": "execution_latency_policy_binding.json",
+      "sha256": "17a1c7945f30b54a9d71da06cb58929ed33a4ab50ae0bdba625075b8fdcec893"
+    },
+    {
+      "bytes": 991,
+      "path": "final_closeout_cn.md",
+      "sha256": "cbf05b3c9772845c1fa8fc8cc015027c8f6db50ccc7aa871e4a63095321e95f2"
+    },
+    {
+      "bytes": 882,
+      "path": "live_arm_gate.json",
+      "sha256": "4bbdeebdbef053da40150822d2d166fe1303b406bcda52d68624c70fb798602f"
+    },
+    {
+      "bytes": 2076,
+      "path": "technical_gap_matrix.json",
+      "sha256": "36eba6e859728a9882216c6ef789fbd8d3447fdc7e9b3965cb38fa9ea01ec601"
+    }
+  ],
+  "generatedAt": "2026-07-21T14:33:42Z",
+  "manifestHash": "adaptive_governance_beb89f4d9a55e2de65d8c74f6d5e063c13d4601a140093a8d9d208b4ba846db1",
+  "schemaVersion": "adaptive_learning_governance_manifest_v1",
+  "selfReferenceExclusions": [
+    "artifact_manifest.json"
+  ],
+  "status": "draft_blocked_adaptive_learning_not_ready"
+}

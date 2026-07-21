@@ -13,6 +13,8 @@ from .credential_runtime import (
 )
 from .exchange_connectors.okx_live_client import OkxLiveClient
 from .live_execution_store import LIVE_EXECUTION_STORE_PATH, LiveExecutionStore
+from .exact_live_release_approval_gate import ExactLiveReleaseApprovalGate
+from .live_arm_gate import LiveArmGate
 from .live_release_service import build_live_release_status
 from .risk_profile_store import RISK_PROFILE_STORE_PATH, RiskProfileStore
 
@@ -226,31 +228,33 @@ def build_exact_live_canary_arm_readiness(
     *,
     bundle: Mapping[str, Any],
     approval: Mapping[str, Any] | None,
+    runtime_state: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Read-only exact-identity gate used before a V59/V60 ARM operation exists."""
 
-    blockers: list[str] = []
-    if str(bundle.get("status") or "") != "blocked_waiting_exact_live_release_approval":
-        blockers.append("experimental_live_release_readiness_invalid")
-    if approval is None:
-        blockers.append("exact_live_release_approval_missing")
-    else:
-        from .experimental_live_canary_release import validate_exact_live_canary_approval
-
-        try:
-            validate_exact_live_canary_approval(bundle, approval)
-        except (PermissionError, TypeError, ValueError):
-            blockers.append("exact_live_release_approval_mismatch")
-    adaptive = bundle.get("adaptiveLearningReadiness") or {}
-    if adaptive.get("passed") is not True:
-        blockers.append("adaptive_learning_live_readiness_not_passed")
+    approval_result = ExactLiveReleaseApprovalGate().evaluate(
+        bundle=bundle,
+        approval=approval,
+    )
+    arm_result = LiveArmGate().evaluate(
+        bundle=bundle,
+        approval_gate=approval_result,
+        runtime=dict(runtime_state or {}),
+    )
     return {
-        "canArm": not blockers,
-        "blockers": blockers,
-        "releaseHash": str((bundle.get("liveRelease") or {}).get("releaseHash") or ""),
-        "riskOverlayHash": str((bundle.get("riskOverlay") or {}).get("riskOverlayHash") or ""),
+        "canArm": arm_result["passed"],
+        "blockers": arm_result["blockers"],
+        "releaseHash": arm_result["releaseHash"],
+        "riskOverlayHash": arm_result["riskOverlayHash"],
         "armStatus": "not_run",
         "withdrawAllowed": False,
+        "technicalReadinessGate": dict(
+            bundle.get("adaptiveLearningTechnicalReadiness")
+            or bundle.get("adaptiveLearningReadiness")
+            or {}
+        ),
+        "exactApprovalGate": approval_result,
+        "liveArmGate": arm_result,
     }
 
 

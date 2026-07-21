@@ -1,0 +1,22 @@
+{
+  "allocatedCapitalUSDT": 1000.0,
+  "approvalRequestActionable": false,
+  "approvalRequestHash": "live_approval_request_49668ef97c816dc50ef4ec9672d63dc7f899503ad0be94067bc6929e52189c27",
+  "environment": "LIVE",
+  "generatedAt": "2026-07-21T07:00:20Z",
+  "maximumAcceptedLossUSDT": 1000.0,
+  "maximumConcurrentPositions": 1,
+  "maximumLeverage": 1,
+  "maximumPortfolioOpenRiskPercent": 1.0,
+  "maximumPortfolioOpenRiskUSDT": 10.0,
+  "mechanicalExecutionAllowedAfterExactApproval": false,
+  "releaseHash": "experimental_live_release_4fae24cd43884c95637856ce530cce18eedfdb1b2bd592c0b77947c571866635",
+  "releaseId": "experimental_live_canary_2bd592c0b77947c571866635",
+  "requiredConfirmation": null,
+  "riskOverlayHash": "live_risk_overlay_e513f50a096567806b8c2e095e308a68a747be91a91d7de261d2480cfd549531",
+  "riskPerTradePercent": 0.25,
+  "riskPerTradeUSDT": 2.5,
+  "schemaVersion": "alphapilot_exact_live_canary_approval_request_v1",
+  "status": "draft_blocked_adaptive_learning_not_ready",
+  "withdrawAllowed": false
+}

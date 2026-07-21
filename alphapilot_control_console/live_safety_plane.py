@@ -91,7 +91,8 @@ def evaluate_experimental_live_floors(
         reasons.append("live_maximum_concurrent_positions")
     if float(state.get("requestedLeverage") or 0.0) > float(profile["maximumLeverage"]):
         reasons.append("live_maximum_leverage")
-    if float(state.get("signalAgeSeconds") or 0.0) > float(profile["maximumSignalAgeSeconds"]):
+    maximum_signal_age_seconds = float(profile["maximumSignalAgeMs"]) / 1000.0
+    if float(state.get("signalAgeSeconds") or 0.0) > maximum_signal_age_seconds:
         reasons.append("live_signal_stale")
     if state.get("killSwitchActive") is True:
         reasons.append("live_kill_switch_active")

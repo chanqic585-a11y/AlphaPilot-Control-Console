@@ -78,6 +78,24 @@ ADAPTIVE_READY = {
     "blockers": [],
 }
 
+ADAPTIVE_BLOCKED_OBSERVER = {
+    "schemaVersion": "adaptive_learning_technical_readiness_v1",
+    "passed": False,
+    "status": "blocked_not_ready",
+    "modelMode": "observer",
+    "blockers": ["live_model_mode_not_decision_participating"],
+}
+
+ARM_RUNTIME_READY = {
+    "credentialsConfigured": True,
+    "privateReadReady": True,
+    "reconciliationMatched": True,
+    "zeroOpenPositions": True,
+    "zeroOpenOrders": True,
+    "liveEnabled": False,
+    "withdrawAllowed": False,
+}
+
 
 class ExperimentalLiveCanaryReleaseTests(unittest.TestCase):
     def test_profile_is_configurable_versioned_and_hashed(self) -> None:
@@ -89,6 +107,13 @@ class ExperimentalLiveCanaryReleaseTests(unittest.TestCase):
         self.assertEqual(first["maximumAcceptedLossUSDT"], 1000.0)
         self.assertEqual(first["lossLimitUnit"], "USDT")
         self.assertEqual(first["version"], 1)
+        self.assertEqual(first["maximumSignalAgeMs"], 3000)
+        self.assertEqual(first["criticalLatencyFailureMs"], 20000)
+        self.assertNotEqual(first["maximumSignalAgeMs"], first["criticalLatencyFailureMs"])
+        self.assertNotIn("maximumSignalAgeSeconds", first)
+        self.assertTrue(
+            first["executionLatencyProfileHash"].startswith("execution_latency_profile_")
+        )
         self.assertTrue(first["profileHash"].startswith("live_experiment_profile_"))
 
         changed = build_live_experiment_profile(
@@ -127,6 +152,7 @@ class ExperimentalLiveCanaryReleaseTests(unittest.TestCase):
         self.assertFalse(bundle["liveRelease"]["automaticPromotion"])
         self.assertTrue(bundle["liveRelease"]["releaseHash"].startswith("experimental_live_release_"))
         self.assertTrue(bundle["riskOverlay"]["riskOverlayHash"].startswith("live_risk_overlay_"))
+        self.assertEqual(bundle["riskOverlay"]["status"], "draft")
         self.assertTrue(bundle["environment"]["environmentHash"].startswith("live_environment_"))
         self.assertTrue(bundle["universePolicy"]["universePolicyHash"].startswith("live_universe_policy_"))
         self.assertFalse(bundle["environment"]["withdrawAllowed"])
@@ -136,6 +162,44 @@ class ExperimentalLiveCanaryReleaseTests(unittest.TestCase):
         for ledger in ("orderLedger", "fillLedger", "positionLedger"):
             self.assertEqual(bundle[ledger]["status"], "not_run")
             self.assertEqual(bundle[ledger]["records"], [])
+
+    def test_observer_bundle_is_non_actionable_draft_and_cannot_be_approved(self) -> None:
+        bundle = build_experimental_live_canary_bundle(
+            profile_input=PROFILE_INPUT,
+            source_demo_release=SOURCE_DEMO_RELEASE,
+            smoke_result=SMOKE_RESULT,
+            observer_binding=OBSERVER_BINDING,
+            adaptive_learning_readiness=ADAPTIVE_BLOCKED_OBSERVER,
+            generated_at="2026-07-21T06:00:00+00:00",
+        )
+
+        self.assertEqual(bundle["status"], "draft_blocked_adaptive_learning_not_ready")
+        self.assertEqual(
+            bundle["liveRelease"]["status"],
+            "draft_blocked_adaptive_learning_not_ready",
+        )
+        self.assertEqual(
+            bundle["approvalRequest"]["status"],
+            "draft_blocked_adaptive_learning_not_ready",
+        )
+        self.assertFalse(bundle["approvalRequest"]["approvalRequestActionable"])
+        self.assertIsNone(bundle["approvalRequest"]["requiredConfirmation"])
+        self.assertFalse(
+            bundle["liveRelease"]["executionBoundary"][
+                "mechanicalExecutionAllowedAfterExactApproval"
+            ]
+        )
+        with self.assertRaises(PermissionError):
+            validate_exact_live_canary_approval(
+                bundle,
+                {
+                    "actor": "user_manual",
+                    "confirmation": "not-actionable",
+                    "releaseHash": bundle["liveRelease"]["releaseHash"],
+                    "riskOverlayHash": bundle["riskOverlay"]["riskOverlayHash"],
+                    "maximumAcceptedLossUSDT": 1000.0,
+                },
+            )
 
     def test_exact_approval_requires_release_risk_and_maximum_loss(self) -> None:
         bundle = build_experimental_live_canary_bundle(
@@ -176,7 +240,11 @@ class ExperimentalLiveCanaryReleaseTests(unittest.TestCase):
             generated_at="2026-07-21T06:00:00+00:00",
         )
 
-        blocked = build_exact_live_canary_arm_readiness(bundle=bundle, approval=None)
+        blocked = build_exact_live_canary_arm_readiness(
+            bundle=bundle,
+            approval=None,
+            runtime_state=ARM_RUNTIME_READY,
+        )
         self.assertFalse(blocked["canArm"])
         self.assertIn("exact_live_release_approval_missing", blocked["blockers"])
 
@@ -187,7 +255,11 @@ class ExperimentalLiveCanaryReleaseTests(unittest.TestCase):
             "riskOverlayHash": bundle["riskOverlay"]["riskOverlayHash"],
             "maximumAcceptedLossUSDT": 1000.0,
         }
-        ready = build_exact_live_canary_arm_readiness(bundle=bundle, approval=exact)
+        ready = build_exact_live_canary_arm_readiness(
+            bundle=bundle,
+            approval=exact,
+            runtime_state=ARM_RUNTIME_READY,
+        )
         self.assertTrue(ready["canArm"])
         self.assertEqual(ready["blockers"], [])
 
@@ -213,9 +285,13 @@ class ExperimentalLiveCanaryReleaseTests(unittest.TestCase):
                 "releaseHash": blocked_bundle["liveRelease"]["releaseHash"],
                 "riskOverlayHash": blocked_bundle["riskOverlay"]["riskOverlayHash"],
             },
+            runtime_state=ARM_RUNTIME_READY,
         )
         self.assertFalse(blocked_adaptive["canArm"])
-        self.assertIn("adaptive_learning_live_readiness_not_passed", blocked_adaptive["blockers"])
+        self.assertIn(
+            "adaptive_learning_technical_readiness_not_passed",
+            blocked_adaptive["blockers"],
+        )
 
     def test_hard_floors_fail_closed(self) -> None:
         profile = build_live_experiment_profile(PROFILE_INPUT, version=1)
@@ -267,6 +343,7 @@ class ExperimentalLiveCanaryReleaseTests(unittest.TestCase):
             generated_at="2026-07-21T06:00:00+00:00",
         )
         runtime = {
+            **ARM_RUNTIME_READY,
             "dailyLossUSDT": 0.0,
             "programLossUSDT": 0.0,
             "openPositionCount": 0,

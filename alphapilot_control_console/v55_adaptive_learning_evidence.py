@@ -13,7 +13,9 @@ from .adaptive_learning_contracts import (
     build_observer_model_registry,
     build_observer_sidecar_binding,
 )
-from .adaptive_learning_live_readiness import AdaptiveLearningLiveReadinessGate
+from .adaptive_learning_technical_readiness import (
+    AdaptiveLearningTechnicalReadinessGate,
+)
 
 
 def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
@@ -267,17 +269,22 @@ def generate_v55_adaptive_learning_evidence(
         "passed": None,
     }])
 
-    readiness = AdaptiveLearningLiveReadinessGate().evaluate(
+    readiness = AdaptiveLearningTechnicalReadinessGate().evaluate(
         model_policy=observer_policy,
         evidence={
             "productionFactorRegistryReady": bool(factor_registry.get("factorRegistryHash")),
             **offline_readiness,
         },
     )
-    _write_json(root / "adaptive_learning_live_readiness.json", {
+    technical_readiness = {
         **readiness,
         "generatedAt": generated_at,
         "status": "blocked_not_ready",
+    }
+    _write_json(root / "adaptive_learning_technical_readiness.json", technical_readiness)
+    _write_json(root / "adaptive_learning_live_readiness.json", {
+        **technical_readiness,
+        "compatibilityFacade": True,
     })
 
     _write_json(root / "ui_screenshot_manifest.json", {

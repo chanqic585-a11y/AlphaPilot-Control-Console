@@ -39,7 +39,11 @@ def build_experimental_live_auto_execution_preflight(
 ) -> dict[str, Any]:
     """Evaluate frozen V59/V60 gates without arming or creating an order."""
 
-    readiness = build_exact_live_canary_arm_readiness(bundle=bundle, approval=approval)
+    readiness = build_exact_live_canary_arm_readiness(
+        bundle=bundle,
+        approval=approval,
+        runtime_state=runtime_state,
+    )
     profile = dict(bundle.get("profile") or {})
     floor_blockers = evaluate_experimental_live_floors(profile, dict(runtime_state))
     blockers = [*readiness["blockers"], *floor_blockers]

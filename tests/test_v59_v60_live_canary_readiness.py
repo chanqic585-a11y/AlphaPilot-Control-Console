@@ -104,10 +104,27 @@ class V59V60LiveCanaryReadinessBuilderTests(unittest.TestCase):
 
             self.assertEqual(completed.returncode, 0, completed.stderr)
             status = json.loads(completed.stdout)
-            self.assertEqual(status["status"], "blocked_waiting_exact_live_release_approval")
+            self.assertEqual(
+                status["status"],
+                "draft_blocked_adaptive_learning_not_ready",
+            )
             release = json.loads((output / "experimental_live_release.json").read_text(encoding="utf-8"))
             self.assertFalse(release["adaptiveLearningReadinessPassed"])
             self.assertFalse(release["executionBoundary"]["withdrawAllowed"])
+            self.assertFalse(
+                release["executionBoundary"][
+                    "mechanicalExecutionAllowedAfterExactApproval"
+                ]
+            )
+            approval = json.loads(
+                (output / "exact_live_approval_request.json").read_text(encoding="utf-8")
+            )
+            self.assertFalse(approval["approvalRequestActionable"])
+            self.assertIsNone(approval["requiredConfirmation"])
+            risk = json.loads(
+                (output / "experimental_live_risk_overlay.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(risk["status"], "draft")
             self.assertTrue((output / "artifact_manifest.json").is_file())
 
 

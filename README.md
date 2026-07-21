@@ -2571,8 +2571,12 @@ The authoritative safety checkpoint remains V55.1:
 
 The V55.1 Qlib campaign, decision-model training, Factor Bench, drift test,
 rollback test, and Live inference remain truthfully `not_run`. They must pass
-`AdaptiveLearningLiveReadinessGate` individually before any future Live route.
-See `docs/V13.27.1.56-runtime-policy-and-strategy-factory.md`.
+`AdaptiveLearningTechnicalReadinessGate` individually before any future Live
+route. Technical readiness does not read or require human approval. Exact
+approval is evaluated only by `ExactLiveReleaseApprovalGate`, and runtime ARM
+preconditions are evaluated only by `LiveArmGate`. This separation prevents an
+approval/readiness dependency cycle. See
+`docs/V13.27.1.56-runtime-policy-and-strategy-factory.md`.
 
 ## V13.27.1.58-V13.27.1.60 Live Readiness Closeout
 
@@ -2581,10 +2585,27 @@ order was canceled and reconciled to zero open orders and zero positions. The
 result is engineering-only evidence and cannot qualify a strategy.
 
 V59/V60 create immutable experimental Live Canary identities and a compact,
-read-only readiness projection. Live approval, ARM, and strategy orders remain
-`not_run` because `AdaptiveLearningLiveReadinessGate` is not yet satisfied.
-Live and Withdraw remain disabled. See
+read-only readiness projection. The current observer-bound identity is
+superseded by a non-mutating governance disposition with status
+`draft_blocked_adaptive_learning_not_ready`; its approval request is not
+actionable and mechanical execution is disabled. Live approval, ARM, and
+strategy orders remain `not_run` because
+`AdaptiveLearningTechnicalReadinessGate` is not yet satisfied. Live and
+Withdraw remain disabled. The current risk profile remains a draft; changing
+any risk parameter before eventual approval requires a new Risk Overlay Hash.
+
+Execution latency is a versioned policy. `criticalLatencyFailureMs=20000` means
+fail-closed critical latency only and is never an order-validity deadline.
+`maximumSignalAgeMs` must remain below that threshold; signal-to-order target,
+maximum signal age, and exchange acknowledgement timeout are configurable only
+through a new policy version and hash. See
 `docs/V13.27.1.54-V13.27.1.60-closeout.md` for exact hashes and current truth.
+
+To reproduce the non-mutating adaptive-learning governance evidence:
+
+```powershell
+python scripts/build_adaptive_learning_governance_evidence.py
+```
 
 To create the redacted total evidence delivery after final validation:
 

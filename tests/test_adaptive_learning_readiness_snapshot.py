@@ -96,7 +96,7 @@ class AdaptiveLearningReadinessSnapshotTests(unittest.TestCase):
         self.assertIn("live_model_mode_not_decision_participating", result["blockers"])
         self.assertFalse(result["grantsLiveAuthority"])
 
-    def test_explicit_completed_evidence_can_close_a_capability_but_not_exact_approval(self) -> None:
+    def test_explicit_completed_technical_evidence_does_not_wait_for_exact_approval(self) -> None:
         artifact_evidence = {
             capability: {
                 "status": "completed",
@@ -104,11 +104,6 @@ class AdaptiveLearningReadinessSnapshotTests(unittest.TestCase):
                 "evidenceRef": f"{capability}.json",
             }
             for capability in REQUIRED_CAPABILITIES
-        }
-        artifact_evidence["exactModelReleaseApprovalReady"] = {
-            "status": "not_run",
-            "passed": None,
-            "evidenceRef": "approval_request.json",
         }
         result = build_adaptive_learning_readiness_snapshot(
             generated_at="2026-07-21T12:00:00Z",
@@ -144,13 +139,10 @@ class AdaptiveLearningReadinessSnapshotTests(unittest.TestCase):
         )
 
         rows = {row["capability"]: row for row in result["capabilities"]}
-        self.assertEqual(rows["exactModelReleaseApprovalReady"]["status"], "not_run")
-        self.assertFalse(result["passed"])
-        self.assertEqual(result["readyCount"], len(REQUIRED_CAPABILITIES) - 1)
-        self.assertIn(
-            "adaptive_evidence_not_ready:exactModelReleaseApprovalReady",
-            result["blockers"],
-        )
+        self.assertNotIn("exactModelReleaseApprovalReady", rows)
+        self.assertIn("modelReleaseBindingReady", rows)
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["readyCount"], len(REQUIRED_CAPABILITIES))
 
     def test_alpha191_formula_compatibility_does_not_require_all_191_predictive_factors(self) -> None:
         result = build_adaptive_learning_readiness_snapshot(

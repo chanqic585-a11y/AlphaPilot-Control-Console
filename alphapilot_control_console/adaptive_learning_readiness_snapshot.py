@@ -5,13 +5,13 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 from .adaptive_learning_contracts import stable_hash
-from .adaptive_learning_live_readiness import (
-    REQUIRED_EVIDENCE,
-    AdaptiveLearningLiveReadinessGate,
+from .adaptive_learning_technical_readiness import (
+    REQUIRED_TECHNICAL_EVIDENCE,
+    AdaptiveLearningTechnicalReadinessGate,
 )
 
 
-REQUIRED_CAPABILITIES = REQUIRED_EVIDENCE
+REQUIRED_CAPABILITIES = REQUIRED_TECHNICAL_EVIDENCE
 
 _NEXT_ACTIONS = {
     "factorProductionReady": "Freeze a point-in-time production factor registry.",
@@ -32,7 +32,7 @@ _NEXT_ACTIONS = {
     "onlineInferenceLatencyReady": "Measure preloaded online inference latency.",
     "liveFeaturePipelineReady": "Prove Demo and Live feature pipeline parity.",
     "liveModelInferenceReady": "Prove deterministic Live inference with no order authority.",
-    "exactModelReleaseApprovalReady": "Generate a successor Release and obtain exact user approval.",
+    "modelReleaseBindingReady": "Bind the validated model, policy, feature schema and draft risk overlay into a successor Release.",
 }
 
 _READY_STATUSES = {"completed", "passed", "ready", "validated"}
@@ -129,14 +129,14 @@ def build_adaptive_learning_readiness_snapshot(
             }
         )
 
-    gate = AdaptiveLearningLiveReadinessGate().evaluate(
+    gate = AdaptiveLearningTechnicalReadinessGate().evaluate(
         model_policy=model_policy,
         evidence=evidence_flags,
     )
     ready_count = sum(row["ready"] for row in rows)
     core = {
-        "schemaVersion": "adaptive_learning_readiness_snapshot_v1",
-        "readinessContractVersion": "v2",
+        "schemaVersion": "adaptive_learning_technical_readiness_snapshot_v1",
+        "readinessContractVersion": "v3",
         "status": "ready_for_exact_release_approval" if gate["passed"] else "blocked_not_ready",
         "passed": gate["passed"],
         "readyCount": ready_count,
@@ -148,6 +148,7 @@ def build_adaptive_learning_readiness_snapshot(
         "grantsLiveAuthority": False,
         "createsOrders": False,
         "changesRisk": False,
+        "exactApprovalEvaluated": False,
     }
     return {
         **core,

@@ -1,0 +1,46 @@
+{
+  "adaptiveLearningReadinessHash": "adaptive_live_readiness_02d17bdd89dabe5d83e07da737d6b12165bd6c55eac90a920ff5d578d1cd4209",
+  "adaptiveLearningReadinessPassed": false,
+  "automaticPromotion": false,
+  "environmentHash": "live_environment_e2fa9ccc374703e18de2fb6b6f85229f0135975fd081f044152275a31a77fa4a",
+  "executionBoundary": {
+    "environment": "okx_live_canary_only",
+    "exactReleaseAndRiskApprovalRequired": true,
+    "manualOrderApprovalRequiredAfterArm": false,
+    "mechanicalExecutionAllowedAfterExactApproval": false,
+    "transferAllowed": false,
+    "withdrawAllowed": false
+  },
+  "formalPass": false,
+  "generatedAt": "2026-07-21T07:00:20Z",
+  "modelHash": "model_0d91a8259db62dee05843a8476dc099e88c6c501814d3480de9b14f06c8ad9d7",
+  "modelPolicyHash": "model_policy_42b050b38cb37eef57c5192feb2c595bf7c34b041c0092f0c4dd51c464d855aa",
+  "observerSidecarHash": "observer_sidecar_ce0e0e523b5a58452f0a86747cccbfc6b3e7454b19d577e9771b772a2ae99d74",
+  "productionQualified": false,
+  "releaseHash": "experimental_live_release_4fae24cd43884c95637856ce530cce18eedfdb1b2bd592c0b77947c571866635",
+  "releaseId": "experimental_live_canary_2bd592c0b77947c571866635",
+  "releasePurpose": "operator_approved_live_canary",
+  "requiredEvidence": {
+    "adaptiveLearningLiveReadiness": "blocked_not_ready",
+    "demoExecutionIntegrity": "passed",
+    "liveEngineeringSmoke": "completed_canceled_and_reconciled",
+    "livePrivateRead": "passed_via_v58_private_preflight",
+    "liveRiskProfile": "complete"
+  },
+  "riskOverlayHash": "live_risk_overlay_e513f50a096567806b8c2e095e308a68a747be91a91d7de261d2480cfd549531",
+  "schemaVersion": "alphapilot_experimental_live_canary_release_v1",
+  "sourceDemoRelease": {
+    "componentDefinitionHashes": [],
+    "componentIds": [
+      "v13_7_40_1h_short_rejection_2149_asset_filter_top10",
+      "v13_7_20_lf_research_candidate_117",
+      "v13_7_20_lf_research_candidate_090"
+    ],
+    "observerSidecarHash": "observer_sidecar_ce0e0e523b5a58452f0a86747cccbfc6b3e7454b19d577e9771b772a2ae99d74",
+    "releaseHash": "provisional_demo_release_ac2ce50562b4c83743636fe38984bb5d370a9eb1a5eef12de0eeda4d9b29ea44",
+    "releaseId": "provisional_research_demo_top200_policy_bound_9f623ab76aafd8cc7cd4c6e6",
+    "riskOverlayHash": "risk_overlay_7221d23144dcd0a357136f6e9587a505d81c86439e223457d2d7393d287b8218"
+  },
+  "status": "draft_blocked_adaptive_learning_not_ready",
+  "universePolicyHash": "live_universe_policy_17485c456662b346c47bb577f0529407d31987d3dc9ce2f845564aa26509a2d8"
+}
