@@ -7,6 +7,37 @@ from alphapilot_control_console.okx_market_universe import build_okx_usdt_swap_u
 
 
 class OkxMarketUniverseTests(unittest.TestCase):
+    def test_top200_request_is_not_clamped_to_legacy_top100(self) -> None:
+        instruments = [
+            {
+                "instId": f"COIN{index:03d}-USDT-SWAP",
+                "instType": "SWAP",
+                "ctType": "linear",
+                "settleCcy": "USDT",
+                "state": "live",
+            }
+            for index in range(200)
+        ]
+        tickers = [
+            {
+                "instId": row["instId"],
+                "last": "1",
+                "bidPx": "0.9999",
+                "askPx": "1.0001",
+                "volCcy24h": str(10_000 - index),
+            }
+            for index, row in enumerate(instruments)
+        ]
+
+        result = build_okx_usdt_swap_universe(
+            instruments,
+            tickers,
+            screening_limit=200,
+        )
+
+        self.assertEqual(result["screeningLimit"], 200)
+        self.assertEqual(len(result["screeningPool"]), 200)
+
     def test_filters_live_usdt_linear_swaps_and_ranks_liquid_contracts(self) -> None:
         instruments = [
             {"instId": "BTC-USDT-SWAP", "instType": "SWAP", "ctType": "linear", "settleCcy": "USDT", "state": "live"},
