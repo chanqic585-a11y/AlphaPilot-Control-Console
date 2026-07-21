@@ -6,7 +6,7 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
-from .config import DATA_DIR
+from .config import DATA_DIR, PROJECT_ROOT
 from .strategy_factory_orchestrator import (
     DEFAULT_ARTIFACT_ROOT as DEFAULT_STRATEGY_FACTORY_ARTIFACT_ROOT,
     DEFAULT_STATE_PATH as DEFAULT_STRATEGY_FACTORY_STATE_PATH,
@@ -41,6 +41,7 @@ class Top200MinimalUiProjection:
         strategy_factory_state_path: Path | None = None,
         strategy_factory_artifact_root: Path | None = None,
         strategy_factory_quant_root: Path | None = None,
+        live_readiness_root: Path | None = None,
     ) -> None:
         self.evidence_root = Path(evidence_root)
         self.matchability_root = (
@@ -65,6 +66,9 @@ class Top200MinimalUiProjection:
             if strategy_factory_quant_root is not None
             else None
         )
+        self.live_readiness_root = (
+            Path(live_readiness_root) if live_readiness_root is not None else None
+        )
 
     def _load(self, name: str) -> dict[str, Any]:
         path = self.evidence_root / name
@@ -87,6 +91,14 @@ class Top200MinimalUiProjection:
         except (OSError, json.JSONDecodeError):
             return None
         return payload if isinstance(payload, dict) else None
+
+    def _load_live(self, name: str) -> dict[str, Any]:
+        payload = self._load_optional(self.live_readiness_root, name)
+        if payload is None:
+            raise ProjectionEvidenceError(
+                f"missing Live readiness evidence: {self.live_readiness_root / name if self.live_readiness_root else name}"
+            )
+        return payload
 
     @staticmethod
     def _load_optional(root: Path | None, name: str) -> dict[str, Any] | None:
@@ -463,6 +475,117 @@ class Top200MinimalUiProjection:
             "readOnly": True,
         }
 
+    def live_canary_readiness(self) -> dict[str, Any]:
+        release = self._load_live("experimental_live_release.json")
+        approval = self._load_live("exact_live_approval_request.json")
+        adaptive = self._load_live("adaptive_learning_live_readiness.json")
+        smoke = self._load_live("live_engineering_smoke_binding.json")
+        execution = self._load_live("live_execution_state.json")
+        profile = self._load_live("live_experiment_profile.json")
+        orders = self._load_live("live_order_ledger.json")
+        fills = self._load_live("live_fill_ledger.json")
+        positions = self._load_live("live_position_ledger.json")
+
+        adaptive_passed = adaptive.get("passed") is True
+        approval_completed = execution.get("approvalStatus") == "approved"
+        arm_completed = execution.get("armStatus") == "armed"
+        smoke_passed = smoke.get("status") == "completed_canceled_and_reconciled"
+        issues: list[dict[str, str]] = []
+        if not adaptive_passed:
+            issues.append(
+                {
+                    "severity": "warning",
+                    "code": "adaptive_learning_live_readiness_not_passed",
+                    "message": "自适应学习实盘证据尚未完成，当前只能保留为实验性 Live 候选。",
+                }
+            )
+        if not approval_completed:
+            issues.append(
+                {
+                    "severity": "info",
+                    "code": "exact_live_release_approval_not_run",
+                    "message": "精确 Live Release 与风险覆盖尚未批准。",
+                }
+            )
+
+        def ledger_projection(payload: dict[str, Any]) -> dict[str, Any]:
+            records = payload.get("records")
+            return {
+                "status": payload.get("status") or "not_run",
+                "count": len(records) if isinstance(records, list) else 0,
+            }
+
+        status = "ready_for_exact_approval" if adaptive_passed else "blocked_not_ready"
+        if approval_completed and arm_completed:
+            status = "armed"
+        return {
+            "status": status,
+            "statusLabel": (
+                "已 ARM" if status == "armed" else
+                "待精确批准" if status == "ready_for_exact_approval" else
+                "证据未就绪"
+            ),
+            "release": {
+                "releaseId": release.get("releaseId"),
+                "releaseHash": release.get("releaseHash"),
+                "generatedAt": release.get("generatedAt"),
+                "formalPass": bool(release.get("formalPass")),
+                "productionQualified": bool(release.get("productionQualified")),
+            },
+            "risk": {
+                "allocatedCapitalUSDT": profile.get("allocatedCapitalUSDT"),
+                "maximumAcceptedLossUSDT": profile.get("maximumAcceptedLossUSDT"),
+                "riskPerTradeUSDT": profile.get("riskPerTradeUSDT"),
+                "maximumPortfolioOpenRiskUSDT": profile.get("maximumPortfolioOpenRiskUSDT"),
+                "maximumConcurrentPositions": profile.get("maximumConcurrentPositions"),
+                "maximumLeverage": profile.get("maximumLeverage"),
+                "marginMode": profile.get("marginMode"),
+                "scanTopN": profile.get("scanTopN"),
+            },
+            "engineeringSmoke": {
+                "status": "passed" if smoke_passed else "blocked",
+                "contractStatus": smoke.get("status"),
+                "cancelConfirmed": bool((smoke.get("checks") or {}).get("cancelConfirmed")),
+                "zeroOpenPositions": bool((smoke.get("checks") or {}).get("zeroOpenPositions")),
+                "zeroOpenOrders": bool((smoke.get("checks") or {}).get("zeroOpenOrders")),
+            },
+            "adaptiveLearning": {
+                "status": adaptive.get("status"),
+                "passed": adaptive_passed,
+                "modelMode": adaptive.get("modelMode"),
+                "blockerCount": len(adaptive.get("blockers") or []),
+                "blockers": list(adaptive.get("blockers") or []),
+            },
+            "execution": {
+                "approvalStatus": execution.get("approvalStatus") or "not_run",
+                "armStatus": execution.get("armStatus") or "not_run",
+                "strategyOrderStatus": execution.get("strategyOrderStatus") or "not_run",
+                "liveEnabled": bool(execution.get("liveEnabled")),
+                "withdrawAllowed": bool(execution.get("withdrawAllowed")),
+            },
+            "orders": ledger_projection(orders),
+            "fills": ledger_projection(fills),
+            "positions": ledger_projection(positions),
+            "latency": {"status": "not_run", "signalToOrderP95Ms": None},
+            "nextAction": (
+                "review_exact_live_release_approval"
+                if adaptive_passed
+                else "complete_adaptive_learning_readiness"
+            ),
+            "issues": issues,
+            "audit": {
+                "releaseHash": release.get("releaseHash"),
+                "riskOverlayHash": release.get("riskOverlayHash"),
+                "adaptiveLearningReadinessHash": release.get(
+                    "adaptiveLearningReadinessHash"
+                ),
+                "approvalRequestHash": approval.get("approvalRequestHash"),
+                "engineeringSmokeContractHash": smoke.get("contractHash"),
+                "sourceDemoRelease": release.get("sourceDemoRelease"),
+            },
+            "readOnly": True,
+        }
+
 
 def build_top200_minimal_ui_projection() -> Top200MinimalUiProjection:
     configured = os.environ.get("ALPHAPILOT_TOP200_MINIMAL_UI_EVIDENCE_ROOT")
@@ -475,6 +598,9 @@ def build_top200_minimal_ui_projection() -> Top200MinimalUiProjection:
     )
     release_root = DATA_DIR / "v54_v60" / "release"
     control_audit_root = DATA_DIR / "v54_v60" / "control" / "audit"
+    live_readiness_root = (
+        PROJECT_ROOT / "reports" / "v54_v60" / "v59_v60_live_canary_readiness"
+    )
     return Top200MinimalUiProjection(
         root,
         matchability_root,
@@ -486,6 +612,11 @@ def build_top200_minimal_ui_projection() -> Top200MinimalUiProjection:
         control_audit_root=control_audit_root,
         strategy_factory_state_path=DEFAULT_STRATEGY_FACTORY_STATE_PATH,
         strategy_factory_artifact_root=DEFAULT_STRATEGY_FACTORY_ARTIFACT_ROOT,
+        live_readiness_root=(
+            live_readiness_root
+            if (live_readiness_root / "experimental_live_release.json").is_file()
+            else None
+        ),
     )
 
 
@@ -520,6 +651,10 @@ def write_top200_minimal_ui_projection_artifacts(
         },
         "demo_scan_funnel_projection.json": projection.demo_universe(),
     }
+    if projection.live_readiness_root is not None:
+        payloads["live_canary_readiness_projection.json"] = (
+            projection.live_canary_readiness()
+        )
     artifacts = []
     for name, payload in payloads.items():
         path = output_dir / name

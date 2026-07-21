@@ -4,6 +4,7 @@
   const POLL_MS = 3000;
   let strategyLoading = false;
   let demoLoading = false;
+  let liveLoading = false;
   let activeFactoryRunId = null;
   let activeFactoryStatus = null;
   let runtimeControlsLoading = false;
@@ -73,6 +74,62 @@
         <span>Universe ${escapeHtml(release.actualInstrumentCount || 0)} / ${escapeHtml(release.maximumInstrumentCount || 200)}</span>
         <span>${release.approved ? "已批准" : "等待精确批准"}</span>
       </article>`;
+  }
+
+  const LIVE_NEXT_ACTION_LABELS = {
+    complete_adaptive_learning_readiness: "完成 Qlib、因子、模型验证、漂移与回滚证据，再申请精确批准。",
+    review_exact_live_release_approval: "复核精确 Live Release 与风险覆盖；批准后仍需单独 ARM。",
+  };
+
+  function renderLiveCanaryReadiness(summary) {
+    const badge = byId("top200LiveReadinessBadge");
+    badge.textContent = summary.statusLabel || "未知";
+    badge.className = summary.status === "armed" ? "badge ok" : "badge warn";
+    byId("top200LiveSmoke").textContent = summary.engineeringSmoke?.status === "passed" ? "已通过" : "未通过";
+    byId("top200LiveAdaptive").textContent = summary.adaptiveLearning?.passed
+      ? "已通过"
+      : `${summary.adaptiveLearning?.blockerCount || 0} 项未完成`;
+    byId("top200LiveApproval").textContent = summary.execution?.approvalStatus === "approved" ? "已批准" : "未执行";
+    byId("top200LiveExecution").textContent = summary.execution?.armStatus === "armed"
+      ? "已 ARM"
+      : `未 ARM · ${summary.orders?.count || 0} 订单`;
+    const risk = summary.risk || {};
+    byId("top200LiveRisk").textContent = [
+      `资金上限 ${formatValue(risk.allocatedCapitalUSDT, " USDT")}`,
+      `单笔风险 ${formatValue(risk.riskPerTradeUSDT, " USDT")}`,
+      `最多 ${formatValue(risk.maximumConcurrentPositions)} 个持仓`,
+      `${formatValue(risk.maximumLeverage, "x")} ${risk.marginMode === "isolated" ? "逐仓" : formatValue(risk.marginMode)}`,
+      `扫描 Top${formatValue(risk.scanTopN)}`,
+    ].join(" · ");
+    byId("top200LiveNextAction").textContent = LIVE_NEXT_ACTION_LABELS[summary.nextAction]
+      || "等待可复核的下一步。";
+    byId("top200LiveAudit").textContent = JSON.stringify({
+      release: summary.release,
+      risk: summary.risk,
+      engineeringSmoke: summary.engineeringSmoke,
+      adaptiveLearning: summary.adaptiveLearning,
+      execution: summary.execution,
+      orders: summary.orders,
+      fills: summary.fills,
+      positions: summary.positions,
+      latency: summary.latency,
+      audit: summary.audit,
+    }, null, 2);
+    setIssue(byId("top200LiveIssue"), summary.issues || []);
+  }
+
+  async function refreshLive() {
+    if (liveLoading || !byId("top200MinimalLive")) return;
+    liveLoading = true;
+    try {
+      renderLiveCanaryReadiness(await fetchJson("/api/live/canary-readiness"));
+    } catch (error) {
+      byId("top200LiveReadinessBadge").textContent = "状态不可用";
+      byId("top200LiveReadinessBadge").className = "badge danger";
+      setIssue(byId("top200LiveIssue"), [{ message: `Live 状态读取失败：${error.message}` }], true);
+    } finally {
+      liveLoading = false;
+    }
   }
 
   const FACTORY_STAGE_LABELS = {
@@ -529,8 +586,10 @@
     byId("manualInterventionForm")?.addEventListener("submit", submitManualIntervention);
     refreshStrategy();
     refreshDemo();
+    refreshLive();
     window.setInterval(refreshStrategy, POLL_MS);
     window.setInterval(refreshDemo, POLL_MS);
+    window.setInterval(refreshLive, POLL_MS);
   }
 
   if (document.readyState === "loading") {

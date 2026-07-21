@@ -316,6 +316,7 @@ _TOP200_MINIMAL_UI_EXACT_ROUTES = {
     "/api/demo/orders",
     "/api/demo/universe",
     "/api/demo/reconciliation",
+    "/api/live/canary-readiness",
 }
 
 
@@ -358,6 +359,8 @@ def _build_top200_minimal_ui_payload(path: str) -> dict:
         return projection.demo_universe()
     if path == "/api/demo/reconciliation":
         return projection.demo_reconciliation()
+    if path == "/api/live/canary-readiness":
+        return projection.live_canary_readiness()
     raise KeyError(path)
 
 

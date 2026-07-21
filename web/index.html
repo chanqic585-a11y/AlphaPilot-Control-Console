@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#080c0f" />
     <link rel="icon" href="data:," />
     <title>AlphaPilot 控制台</title>
-    <link rel="stylesheet" href="/styles.css?v=20260721-v56-runtime-controls" />
+    <link rel="stylesheet" href="/styles.css?v=20260721-v60-live-readiness" />
   </head>
   <body>
     <a class="skip-link" href="#mainContent">跳到主要内容</a>
@@ -1223,6 +1223,34 @@
             </div>
             <span id="liveCanaryHeaderBadge" class="status-pill danger">Canary 未就绪</span>
           </div>
+          <section id="top200MinimalLive" class="top200-live-readiness" aria-labelledby="top200LiveTitle">
+            <div class="top200-live-head">
+              <div>
+                <p class="panel-eyebrow">EXPERIMENTAL LIVE CANARY</p>
+                <h3 id="top200LiveTitle">实盘候选就绪状态</h3>
+              </div>
+              <strong id="top200LiveReadinessBadge" class="badge warn">正在读取</strong>
+            </div>
+            <div class="top200-live-metrics">
+              <div><span>工程烟测</span><strong id="top200LiveSmoke">--</strong></div>
+              <div><span>自适应学习门</span><strong id="top200LiveAdaptive">--</strong></div>
+              <div><span>精确批准</span><strong id="top200LiveApproval">--</strong></div>
+              <div><span>ARM / 订单</span><strong id="top200LiveExecution">--</strong></div>
+            </div>
+            <div class="top200-live-risk" id="top200LiveRisk">正在读取冻结风险配置。</div>
+            <div class="top200-live-next">
+              <span>下一步</span>
+              <strong id="top200LiveNextAction">完成自适应学习证据后再进行精确批准。</strong>
+            </div>
+            <div id="top200LiveIssue" class="top200-issue-banner" hidden></div>
+            <details class="top200-audit-details">
+              <summary>Release、风险与证据 Hash</summary>
+              <pre id="top200LiveAudit">正在读取。</pre>
+            </details>
+          </section>
+          <details id="liveAdvancedControls" class="lifecycle-archive live-advanced-controls">
+            <summary><span>高级实盘控制与审计</span><small>默认折叠，尚未满足硬门时无需操作</small></summary>
+            <div class="lifecycle-archive-body">
           <section
             class="execution-control-shell"
             data-execution-control-panel
@@ -1413,6 +1441,8 @@
               <div class="exchange-demo-side-card"><span>当前证据</span><strong>以状态卡为准</strong><small>无正式 LiveRelease 时只能做架构和只读连通性验收。</small></div>
             </aside>
           </div>
+            </div>
+          </details>
             </div>
           </details>
         </section>
@@ -3131,7 +3161,7 @@
     </dialog>
     <script src="/issue-guidance.js?v=20260715-demo-runtime-recovery"></script>
     <script src="/app.js?v=20260715-demo-runtime-recovery"></script>
-    <script src="/top200-minimal-ui.js?v=20260721-v56-runtime-controls"></script>
+    <script src="/top200-minimal-ui.js?v=20260721-v60-live-readiness"></script>
     <script src="/adaptive-learning-ui.js?v=20260721-v55-1"></script>
   </body>
 </html>

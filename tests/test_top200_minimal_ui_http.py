@@ -57,6 +57,7 @@ class Top200MinimalUiHttpTests(unittest.TestCase):
             "demo_orders": {"kind": "demo-orders"},
             "demo_universe": {"kind": "demo-universe"},
             "demo_reconciliation": {"kind": "demo-reconciliation"},
+            "live_canary_readiness": {"kind": "live-canary-readiness"},
         }
         for name, payload in methods.items():
             getattr(service, name).return_value = payload
@@ -75,6 +76,7 @@ class Top200MinimalUiHttpTests(unittest.TestCase):
             "/api/demo/orders": "demo-orders",
             "/api/demo/universe": "demo-universe",
             "/api/demo/reconciliation": "demo-reconciliation",
+            "/api/live/canary-readiness": "live-canary-readiness",
         }
         with patch(
             "alphapilot_control_console.http_app.build_top200_minimal_ui_projection",
