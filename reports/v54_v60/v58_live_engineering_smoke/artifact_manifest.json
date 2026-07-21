@@ -1,0 +1,25 @@
+{
+  "artifactCount": 3,
+  "artifacts": [
+    {
+      "path": "live_engineering_smoke_approval_request.json",
+      "sha256": "a3159785957cb55edc027fc5be87891de6adefba466bab3b4d7fac5e6148dbaa",
+      "sizeBytes": 639
+    },
+    {
+      "path": "live_engineering_smoke_contract.json",
+      "sha256": "900ef6a6e992c09b5fd6e85396adef91230b588a83ccd2da3a2177b4b80b8687",
+      "sizeBytes": 1004
+    },
+    {
+      "path": "live_engineering_smoke_status.json",
+      "sha256": "55a683298acb0514eaddaff491cdacde87c1ffe8ccad93632212d2c31e62b597",
+      "sizeBytes": 541
+    }
+  ],
+  "generatedAt": "2026-07-21T05:52:35Z",
+  "liveOrdersCreated": 0,
+  "schemaVersion": "alphapilot_v58_live_engineering_smoke_manifest_v1",
+  "status": "complete_readiness_only",
+  "withdrawAllowed": false
+}

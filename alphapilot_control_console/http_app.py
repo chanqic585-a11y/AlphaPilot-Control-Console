@@ -89,6 +89,9 @@ from .live_environment_contract import (
     build_live_private_read_audit_status,
     run_live_private_read_audit,
 )
+from .live_engineering_smoke_contract import (
+    build_live_engineering_smoke_readiness_status,
+)
 from .local_demo_launcher import LOCAL_DEMO_LAUNCHER
 from .windows_demo_credential_vault import DEMO_CREDENTIAL_VAULT, DemoCredentialVaultError
 from .local_sandbox_concentration_review import build_local_sandbox_concentration_review
@@ -849,6 +852,9 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 "contract": build_live_environment_contract(),
                 "privateReadAudit": build_live_private_read_audit_status(),
             })
+            return
+        if path == "/api/live/engineering-smoke-readiness":
+            self._send_json(build_live_engineering_smoke_readiness_status())
             return
         if path == "/api/manual-interventions":
             self._send_json(_cached_payload(

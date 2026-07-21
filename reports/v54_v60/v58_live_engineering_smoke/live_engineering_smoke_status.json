@@ -1,0 +1,15 @@
+{
+  "approvalRecorded": false,
+  "contractHash": "live_engineering_smoke_91004ab4ed987baa860dda3e2439d12550f519c1634c0459e00339baa420401e",
+  "environment": "okx_live",
+  "generatedAt": "2026-07-21T05:52:35Z",
+  "liveCanaryEvidenceEligible": false,
+  "liveEnabled": false,
+  "orderAttemptCount": 0,
+  "promotionEligible": false,
+  "schemaVersion": "alphapilot_live_engineering_smoke_status_v1",
+  "smokeExecuted": false,
+  "status": "blocked_waiting_exact_live_smoke_approval",
+  "strategyQualification": false,
+  "withdrawAllowed": false
+}

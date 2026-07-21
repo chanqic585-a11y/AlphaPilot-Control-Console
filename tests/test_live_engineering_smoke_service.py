@@ -1,0 +1,119 @@
+from __future__ import annotations
+
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+from alphapilot_control_console.live_engineering_smoke_contract import (
+    build_live_engineering_smoke_approval_request,
+    build_live_engineering_smoke_contract,
+)
+from alphapilot_control_console.live_engineering_smoke_service import (
+    run_live_engineering_smoke,
+)
+
+
+class FakeLiveSmokeClient:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+        self.order_state = "live"
+
+    def get_positions(self, instrumentId: str | None = None) -> dict:
+        self.calls.append("positions")
+        return {"code": "0", "data": []}
+
+    def get_open_orders(self, instrumentId: str | None = None) -> dict:
+        self.calls.append("open_orders")
+        return {"code": "0", "data": []}
+
+    def place_protected_order(self, payload: dict) -> dict:
+        self.calls.append("place_order")
+        return {"code": "0", "data": [{"ordId": "order-1", "clOrdId": payload["clOrdId"]}]}
+
+    def get_order(self, *, instId: str, ordId: str | None = None, clOrdId: str | None = None) -> dict:
+        self.calls.append("get_order")
+        return {"code": "0", "data": [{"ordId": ordId, "state": self.order_state}]}
+
+    def cancel_order(self, *, instId: str, ordId: str | None = None, clOrdId: str | None = None) -> dict:
+        self.calls.append("cancel_order")
+        self.order_state = "canceled"
+        return {"code": "0", "data": [{"ordId": ordId, "sCode": "0"}]}
+
+
+class LiveEngineeringSmokeServiceTests(unittest.TestCase):
+    def test_smoke_submits_once_cancels_and_reconciles_in_isolated_evidence(self) -> None:
+        contract = build_live_engineering_smoke_contract(
+            created_at="2026-07-21T06:00:00Z",
+            maximum_notional_usdt=10.0,
+        )
+        request = build_live_engineering_smoke_approval_request(contract)
+        approval = {
+            "actor": "user_explicit",
+            "contractHash": contract["contractHash"],
+            "confirmation": request["requiredConfirmation"],
+        }
+        instrument = {
+            "instId": "BTC-USDT-SWAP",
+            "state": "live",
+            "tickSz": "0.1",
+            "lotSz": "0.001",
+            "minSz": "0.001",
+            "ctVal": "0.01",
+        }
+        quote = {"bidPx": "100000", "askPx": "100001"}
+        client = FakeLiveSmokeClient()
+
+        with tempfile.TemporaryDirectory() as directory:
+            evidence = Path(directory) / "live_smoke.json"
+            result = run_live_engineering_smoke(
+                client=client,
+                contract=contract,
+                approval=approval,
+                instrument=instrument,
+                quote=quote,
+                output_path=evidence,
+            )
+
+            self.assertEqual(result["status"], "completed_canceled_and_reconciled")
+            self.assertEqual(result["orderAttemptCount"], 1)
+            self.assertTrue(result["cancelConfirmed"])
+            self.assertTrue(result["finalReconciliationMatched"])
+            self.assertFalse(result["strategyQualification"])
+            self.assertFalse(result["promotionEligible"])
+            self.assertEqual(
+                client.calls,
+                [
+                    "positions",
+                    "open_orders",
+                    "place_order",
+                    "get_order",
+                    "cancel_order",
+                    "get_order",
+                    "positions",
+                    "open_orders",
+                ],
+            )
+            stored = json.loads(evidence.read_text(encoding="utf-8"))
+            self.assertNotIn("approval", stored)
+            self.assertNotIn("credentials", stored)
+
+    def test_missing_approval_blocks_before_client_calls(self) -> None:
+        contract = build_live_engineering_smoke_contract(
+            created_at="2026-07-21T06:00:00Z",
+            maximum_notional_usdt=10.0,
+        )
+        client = FakeLiveSmokeClient()
+        with self.assertRaises(PermissionError):
+            run_live_engineering_smoke(
+                client=client,
+                contract=contract,
+                approval={},
+                instrument={"instId": "BTC-USDT-SWAP"},
+                quote={"bidPx": "100000", "askPx": "100001"},
+            )
+        self.assertEqual(client.calls, [])
+
+
+if __name__ == "__main__":
+    unittest.main()

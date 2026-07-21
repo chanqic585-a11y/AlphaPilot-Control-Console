@@ -1,0 +1,13 @@
+{
+  "approvalScope": "one_engineering_smoke_attempt_only",
+  "contractHash": "live_engineering_smoke_91004ab4ed987baa860dda3e2439d12550f519c1634c0459e00339baa420401e",
+  "environment": "okx_live",
+  "liveCanaryEvidenceEligible": false,
+  "maximumAttempts": 1,
+  "maximumNotionalUsdt": 10.0,
+  "requiredConfirmation": "APPROVE_OKX_LIVE_ENGINEERING_SMOKE live_engineering_smoke_91004ab4ed987baa860dda3e2439d12550f519c1634c0459e00339baa420401e",
+  "schemaVersion": "alphapilot_live_engineering_smoke_approval_request_v1",
+  "status": "blocked_waiting_exact_live_smoke_approval",
+  "strategyQualification": false,
+  "withdrawAllowed": false
+}

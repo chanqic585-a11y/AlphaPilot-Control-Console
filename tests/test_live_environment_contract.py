@@ -167,6 +167,26 @@ class LiveEnvironmentContractHttpTests(unittest.TestCase):
 
         self.assertEqual(error.exception.code, 403)
 
+    def test_get_exposes_live_engineering_smoke_readiness_without_executing(self) -> None:
+        readiness = {
+            "status": "blocked_waiting_exact_live_smoke_approval",
+            "contractHash": "live_engineering_smoke_example",
+            "approved": False,
+            "orderAttemptCount": 0,
+            "withdrawAllowed": False,
+        }
+        with patch(
+            "alphapilot_control_console.http_app.build_live_engineering_smoke_readiness_status",
+            return_value=readiness,
+            create=True,
+        ):
+            with urlopen(self.base_url + "/api/live/engineering-smoke-readiness", timeout=2) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+
+        self.assertEqual(response.status, 200)
+        self.assertEqual(payload, readiness)
+        self.assertEqual(payload["orderAttemptCount"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()
