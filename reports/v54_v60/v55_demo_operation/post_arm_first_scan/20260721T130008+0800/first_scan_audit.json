@@ -1,0 +1,141 @@
+{
+  "engineeringSmokeExcluded": true,
+  "evaluationAudit": {
+    "closeSequenceId": "1h:1784606400000",
+    "conservationChecks": {
+      "acceptedCoversFilled": true,
+      "arbitratedCoversLatencyPassed": true,
+      "latencyPassedCoversOrderAttempts": true,
+      "matchedCoversTradable": true,
+      "orderAttemptsCoverAccepted": true,
+      "orderAttemptsMatchOutcomes": true,
+      "tradableCoversArbitrated": true
+    },
+    "conservationPassed": true,
+    "createdOrderCount": 0,
+    "evaluatedComponentCount": 1,
+    "evaluatedReleaseCount": 1,
+    "exchangeCodeCounts": {},
+    "executionRejectionReasonCounts": {
+      "frozen_rules_not_matched": 9
+    },
+    "failedCheckCounts": {
+      "bear_candle": 2,
+      "below_ema200": 8,
+      "ema_bear_stack": 8,
+      "rsi_high": 4,
+      "upper_band_rejection": 2,
+      "volume_min": 9
+    },
+    "funnel": {
+      "arbitratedSignalCount": 0,
+      "componentInstrumentEvaluationCount": 9,
+      "demoTradableSignalCount": 0,
+      "filledOrderCount": 0,
+      "latencyPassedSignalCount": 0,
+      "liquidityEligibleInstrumentCount": 386,
+      "marketInstrumentCount": 426,
+      "matchedSignalCount": 0,
+      "openPositionCount": 0,
+      "orderAcceptedCount": 0,
+      "orderAttemptCount": 0
+    },
+    "marketSummary": {
+      "deepScreenCount": 9,
+      "liquidityEligibleCount": 386,
+      "totalInstrumentCount": 426
+    },
+    "matchedSignalCount": 0,
+    "nearMisses": [
+      {
+        "failedCheckCount": 3,
+        "failedChecks": [
+          "below_ema200",
+          "ema_bear_stack",
+          "volume_min"
+        ],
+        "instId": "BTC-USDT-SWAP",
+        "releaseId": "provisional_research_demo_top200_policy_bound_9f623ab76aafd8cc7cd4c6e6",
+        "strategyId": "v13_7_40_1h_short_rejection_2149_asset_filter_top10"
+      },
+      {
+        "failedCheckCount": 3,
+        "failedChecks": [
+          "ema_bear_stack",
+          "rsi_high",
+          "volume_min"
+        ],
+        "instId": "DOGE-USDT-SWAP",
+        "releaseId": "provisional_research_demo_top200_policy_bound_9f623ab76aafd8cc7cd4c6e6",
+        "strategyId": "v13_7_40_1h_short_rejection_2149_asset_filter_top10"
+      },
+      {
+        "failedCheckCount": 3,
+        "failedChecks": [
+          "below_ema200",
+          "ema_bear_stack",
+          "volume_min"
+        ],
+        "instId": "ETH-USDT-SWAP",
+        "releaseId": "provisional_research_demo_top200_policy_bound_9f623ab76aafd8cc7cd4c6e6",
+        "strategyId": "v13_7_40_1h_short_rejection_2149_asset_filter_top10"
+      },
+      {
+        "failedCheckCount": 3,
+        "failedChecks": [
+          "below_ema200",
+          "ema_bear_stack",
+          "volume_min"
+        ],
+        "instId": "SOL-USDT-SWAP",
+        "releaseId": "provisional_research_demo_top200_policy_bound_9f623ab76aafd8cc7cd4c6e6",
+        "strategyId": "v13_7_40_1h_short_rejection_2149_asset_filter_top10"
+      },
+      {
+        "failedCheckCount": 4,
+        "failedChecks": [
+          "below_ema200",
+          "upper_band_rejection",
+          "rsi_high",
+          "volume_min"
+        ],
+        "instId": "CL-USDT-SWAP",
+        "releaseId": "provisional_research_demo_top200_policy_bound_9f623ab76aafd8cc7cd4c6e6",
+        "strategyId": "v13_7_40_1h_short_rejection_2149_asset_filter_top10"
+      }
+    ],
+    "orderAttemptCount": 0,
+    "processId": "17400",
+    "rejectionReasonCounts": {
+      "frozen_rules_not_matched": 9
+    },
+    "releaseAudits": [
+      {
+        "deepScreenCompleted": 9,
+        "deepScreenRequired": 9,
+        "liquidityEligibleCount": 386,
+        "marketInstrumentCount": 426,
+        "matchedSignalCount": 0,
+        "rejectionReasonCounts": {
+          "frozen_rules_not_matched": 9
+        },
+        "releaseId": "provisional_research_demo_top200_policy_bound_9f623ab76aafd8cc7cd4c6e6",
+        "strategyId": "v13_7_40_1h_short_rejection_2149_asset_filter_top10",
+        "timeframe": "1h"
+      }
+    ],
+    "stageDurationsMs": {
+      "closeToEvaluationMs": 7303.996,
+      "evaluationMs": 73.048,
+      "riskMs": 0.0
+    },
+    "state": "evaluated_zero_matches"
+  },
+  "generatedAt": "2026-07-21T05:00:08.372817+00:00",
+  "releaseHash": "provisional_demo_release_ac2ce50562b4c83743636fe38984bb5d370a9eb1a5eef12de0eeda4d9b29ea44",
+  "releaseId": "provisional_research_demo_top200_policy_bound_9f623ab76aafd8cc7cd4c6e6",
+  "riskOverlayHash": "risk_overlay_7221d23144dcd0a357136f6e9587a505d81c86439e223457d2d7393d287b8218",
+  "schemaVersion": "alphapilot_v55_first_scan_audit_v1",
+  "status": "completed",
+  "strategyOrderCount": 0
+}

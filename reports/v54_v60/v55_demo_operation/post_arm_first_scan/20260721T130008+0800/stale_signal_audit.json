@@ -1,0 +1,13 @@
+{
+  "criticalRejectedCount": 1,
+  "engineeringOnly": true,
+  "generatedAt": "2026-07-21T05:00:08.372817+00:00",
+  "rejectedScenarioIds": [
+    "stale_3001ms",
+    "critical_20000ms"
+  ],
+  "schemaVersion": "alphapilot_v55_stale_signal_audit_v1",
+  "staleRejectedCount": 1,
+  "status": "passed",
+  "strategyEvidenceEligible": false
+}

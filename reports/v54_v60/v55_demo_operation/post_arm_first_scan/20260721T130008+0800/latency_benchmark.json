@@ -1,0 +1,115 @@
+{
+  "engineeringOnly": true,
+  "generatedAt": "2026-07-21T05:00:08.372817+00:00",
+  "scenarioCount": 5,
+  "scenarios": [
+    {
+      "actual": {
+        "adverseDriftPercent": null,
+        "allowedAdverseDriftPercent": null,
+        "closeToReadyMs": 500,
+        "executionLatencyProfileHash": "execution_latency_profile_628765fb8bf78948797f29f844943dc457406584bd346c73487a2603abc89fb4",
+        "executionLatencyProfileVersion": "v55-default-1",
+        "latencyClass": "on_target",
+        "passed": true,
+        "quoteAgeMs": null,
+        "reasonCode": null,
+        "recalculatedNetRewardRisk": null,
+        "signalToOrderSendMs": 500
+      },
+      "assertionPassed": true,
+      "engineeringOnly": true,
+      "expectedLatencyClass": "on_target",
+      "expectedPassed": true,
+      "scenarioId": "target_500ms",
+      "strategyEvidenceEligible": false
+    },
+    {
+      "actual": {
+        "adverseDriftPercent": null,
+        "allowedAdverseDriftPercent": null,
+        "closeToReadyMs": 1000,
+        "executionLatencyProfileHash": "execution_latency_profile_628765fb8bf78948797f29f844943dc457406584bd346c73487a2603abc89fb4",
+        "executionLatencyProfileVersion": "v55-default-1",
+        "latencyClass": "delayed",
+        "passed": true,
+        "quoteAgeMs": null,
+        "reasonCode": null,
+        "recalculatedNetRewardRisk": null,
+        "signalToOrderSendMs": 1000
+      },
+      "assertionPassed": true,
+      "engineeringOnly": true,
+      "expectedLatencyClass": "delayed",
+      "expectedPassed": true,
+      "scenarioId": "soft_warning_1000ms",
+      "strategyEvidenceEligible": false
+    },
+    {
+      "actual": {
+        "adverseDriftPercent": 0.01999999999999602,
+        "allowedAdverseDriftPercent": 0.2,
+        "closeToReadyMs": 2000,
+        "executionLatencyProfileHash": "execution_latency_profile_628765fb8bf78948797f29f844943dc457406584bd346c73487a2603abc89fb4",
+        "executionLatencyProfileVersion": "v55-default-1",
+        "latencyClass": "conditional",
+        "passed": true,
+        "quoteAgeMs": 500,
+        "reasonCode": null,
+        "recalculatedNetRewardRisk": 1.7777417700140974,
+        "signalToOrderSendMs": 2000
+      },
+      "assertionPassed": true,
+      "engineeringOnly": true,
+      "expectedLatencyClass": "conditional",
+      "expectedPassed": true,
+      "scenarioId": "conditional_2000ms",
+      "strategyEvidenceEligible": false
+    },
+    {
+      "actual": {
+        "adverseDriftPercent": null,
+        "allowedAdverseDriftPercent": null,
+        "closeToReadyMs": 3001,
+        "executionLatencyProfileHash": "execution_latency_profile_628765fb8bf78948797f29f844943dc457406584bd346c73487a2603abc89fb4",
+        "executionLatencyProfileVersion": "v55-default-1",
+        "latencyClass": "stale",
+        "passed": false,
+        "quoteAgeMs": null,
+        "reasonCode": "stale_signal_rejected",
+        "recalculatedNetRewardRisk": null,
+        "signalToOrderSendMs": 3001
+      },
+      "assertionPassed": true,
+      "engineeringOnly": true,
+      "expectedLatencyClass": "stale",
+      "expectedPassed": false,
+      "scenarioId": "stale_3001ms",
+      "strategyEvidenceEligible": false
+    },
+    {
+      "actual": {
+        "adverseDriftPercent": null,
+        "allowedAdverseDriftPercent": null,
+        "closeToReadyMs": 20000,
+        "executionLatencyProfileHash": "execution_latency_profile_628765fb8bf78948797f29f844943dc457406584bd346c73487a2603abc89fb4",
+        "executionLatencyProfileVersion": "v55-default-1",
+        "latencyClass": "critical",
+        "passed": false,
+        "quoteAgeMs": null,
+        "reasonCode": "critical_latency_failure",
+        "recalculatedNetRewardRisk": null,
+        "signalToOrderSendMs": 20000
+      },
+      "assertionPassed": true,
+      "engineeringOnly": true,
+      "expectedLatencyClass": "critical",
+      "expectedPassed": false,
+      "scenarioId": "critical_20000ms",
+      "strategyEvidenceEligible": false
+    }
+  ],
+  "schemaVersion": "alphapilot_v55_latency_benchmark_v1",
+  "status": "passed",
+  "strategyEvidenceEligible": false
+}

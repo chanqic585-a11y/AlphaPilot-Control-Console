@@ -1,0 +1,11 @@
+{
+  "criticalLatencyFailureMs": 20000,
+  "exchangeAckTimeoutMs": 2000,
+  "executionLatencyProfileHash": "execution_latency_profile_628765fb8bf78948797f29f844943dc457406584bd346c73487a2603abc89fb4",
+  "executionLatencyProfileVersion": "v55-default-1",
+  "maximumSignalAgeMs": 3000,
+  "orderRequestExpiryMs": 3000,
+  "orderTransportMode": "auto",
+  "signalToOrderSendSoftWarnMs": 1500,
+  "signalToOrderSendTargetMs": 750
+}
