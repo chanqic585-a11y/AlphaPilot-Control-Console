@@ -1,0 +1,223 @@
+{
+  "blockers": [
+    "live_model_mode_not_decision_participating",
+    "adaptive_evidence_not_ready:alpha101Ready",
+    "adaptive_evidence_not_ready:validatedCryptoFactorSubsetReady",
+    "adaptive_evidence_not_ready:adaptiveMlTrainingReady",
+    "adaptive_evidence_not_ready:qlibOfflineCampaignReady",
+    "adaptive_evidence_not_ready:modelRegistryReady",
+    "adaptive_evidence_not_ready:continuousLearningDatasetReady",
+    "adaptive_evidence_not_ready:demoOutcomeToTrainingSampleReady",
+    "adaptive_evidence_not_ready:demoDecisionModeValidated",
+    "adaptive_evidence_not_ready:modelDriftMonitoringReady",
+    "adaptive_evidence_not_ready:modelRollbackReady",
+    "adaptive_evidence_not_ready:liveModelInferenceReady",
+    "adaptive_evidence_not_ready:exactModelReleaseApprovalReady"
+  ],
+  "capabilities": [
+    {
+      "capability": "factorProductionReady",
+      "evidenceRefs": [],
+      "nextAction": null,
+      "ready": true,
+      "status": "ready"
+    },
+    {
+      "capability": "realFactorBenchReady",
+      "evidenceRefs": [
+        "v59_registry_evidence_audit_ccf819bf1893f2f33de480f5c482bd878ec8b85cf1a057d00de747904cf412df",
+        "adaptive_offline_evidence_8be9fa35060a823a147f7533c4631c14cd0c3a8158f9a32c9448b828af78650d"
+      ],
+      "nextAction": null,
+      "ready": true,
+      "status": "ready"
+    },
+    {
+      "capability": "alpha101Ready",
+      "evidenceRefs": [
+        "alpha101_compatibility_audit.json"
+      ],
+      "nextAction": "Validate the bounded Alpha101-compatible subset on crypto data.",
+      "ready": false,
+      "status": "not_run"
+    },
+    {
+      "capability": "alpha191CompatibilityReady",
+      "evidenceRefs": [
+        "alpha191_compatibility_audit.json"
+      ],
+      "nextAction": null,
+      "ready": true,
+      "status": "ready"
+    },
+    {
+      "capability": "validatedCryptoFactorSubsetReady",
+      "evidenceRefs": [
+        "adaptive_offline_evidence_8be9fa35060a823a147f7533c4631c14cd0c3a8158f9a32c9448b828af78650d"
+      ],
+      "nextAction": "Select factors that survive formal stability and cost gates.",
+      "ready": false,
+      "status": "blocked"
+    },
+    {
+      "capability": "boundedFactorMiningReady",
+      "evidenceRefs": [
+        "factor_mining_trial_ledger.parquet"
+      ],
+      "nextAction": null,
+      "ready": true,
+      "status": "ready"
+    },
+    {
+      "capability": "adaptiveMlTrainingReady",
+      "evidenceRefs": [
+        "model_validation_report.json"
+      ],
+      "nextAction": "Train and validate a decision-participating model with purged walk-forward.",
+      "ready": false,
+      "status": "blocked"
+    },
+    {
+      "capability": "qlibOfflineCampaignReady",
+      "evidenceRefs": [
+        "qlib_campaign_manifest.json",
+        "adaptive_offline_evidence_8be9fa35060a823a147f7533c4631c14cd0c3a8158f9a32c9448b828af78650d"
+      ],
+      "nextAction": "Close Qlib data readiness and run the frozen offline campaign.",
+      "ready": false,
+      "status": "blocked"
+    },
+    {
+      "capability": "modelRegistryReady",
+      "evidenceRefs": [
+        "v59_registry_evidence_audit_ccf819bf1893f2f33de480f5c482bd878ec8b85cf1a057d00de747904cf412df"
+      ],
+      "nextAction": "Register a hash-bound model with a Live-eligible lifecycle.",
+      "ready": false,
+      "status": "blocked"
+    },
+    {
+      "capability": "continuousLearningDatasetReady",
+      "evidenceRefs": [
+        "training_dataset_manifest.json"
+      ],
+      "nextAction": "Freeze a lineage-complete learning dataset.",
+      "ready": false,
+      "status": "blocked"
+    },
+    {
+      "capability": "demoOutcomeToTrainingSampleReady",
+      "evidenceRefs": [
+        "demo_learning_sample_audit.json"
+      ],
+      "nextAction": "Record reconciled closed Demo outcomes as eligible samples.",
+      "ready": false,
+      "status": "blocked"
+    },
+    {
+      "capability": "shadowInferenceReady",
+      "evidenceRefs": [
+        "demo_shadow_decision_ledger.parquet"
+      ],
+      "nextAction": null,
+      "ready": true,
+      "status": "ready"
+    },
+    {
+      "capability": "demoDecisionModeValidated",
+      "evidenceRefs": [
+        "demo_decision_mode_validation.json"
+      ],
+      "nextAction": "Validate rank, veto, or meta-label behavior in Demo.",
+      "ready": false,
+      "status": "not_run"
+    },
+    {
+      "capability": "modelDriftMonitoringReady",
+      "evidenceRefs": [
+        "model_drift_report.json"
+      ],
+      "nextAction": "Run and freeze model and feature drift thresholds.",
+      "ready": false,
+      "status": "not_run"
+    },
+    {
+      "capability": "modelRollbackReady",
+      "evidenceRefs": [
+        "model_rollback_audit.json"
+      ],
+      "nextAction": "Rehearse exact champion-to-predecessor rollback.",
+      "ready": false,
+      "status": "not_run"
+    },
+    {
+      "capability": "onlineInferenceLatencyReady",
+      "evidenceRefs": [
+        "online_inference_latency_audit.json"
+      ],
+      "nextAction": null,
+      "ready": true,
+      "status": "ready"
+    },
+    {
+      "capability": "liveFeaturePipelineReady",
+      "evidenceRefs": [
+        "live_feature_pipeline_parity.json"
+      ],
+      "nextAction": null,
+      "ready": true,
+      "status": "ready"
+    },
+    {
+      "capability": "liveModelInferenceReady",
+      "evidenceRefs": [
+        "live_model_inference_audit.json"
+      ],
+      "nextAction": "Prove deterministic Live inference with no order authority.",
+      "ready": false,
+      "status": "blocked"
+    },
+    {
+      "capability": "exactModelReleaseApprovalReady",
+      "evidenceRefs": [
+        "exact_model_release_approval.json"
+      ],
+      "nextAction": "Generate a successor Release and obtain exact user approval.",
+      "ready": false,
+      "status": "not_run"
+    }
+  ],
+  "changesRisk": false,
+  "createsOrders": false,
+  "evidence": {
+    "adaptiveMlTrainingReady": false,
+    "alpha101Ready": false,
+    "alpha191CompatibilityReady": true,
+    "boundedFactorMiningReady": true,
+    "continuousLearningDatasetReady": false,
+    "demoDecisionModeValidated": false,
+    "demoOutcomeToTrainingSampleReady": false,
+    "exactModelReleaseApprovalReady": false,
+    "factorProductionReady": true,
+    "liveFeaturePipelineReady": true,
+    "liveModelInferenceReady": false,
+    "modelDriftMonitoringReady": false,
+    "modelRegistryReady": false,
+    "modelRollbackReady": false,
+    "onlineInferenceLatencyReady": true,
+    "qlibOfflineCampaignReady": false,
+    "realFactorBenchReady": true,
+    "shadowInferenceReady": true,
+    "validatedCryptoFactorSubsetReady": false
+  },
+  "generatedAt": "2026-07-21T12:00:00Z",
+  "grantsLiveAuthority": false,
+  "modelMode": "observer",
+  "passed": false,
+  "readinessContractVersion": "v2",
+  "readinessHash": "adaptive_readiness_snapshot_6ef052c36cf1e81274f56f372ac62928be508117ab84eb749e09487b5d5837a1",
+  "readyCount": 7,
+  "schemaVersion": "adaptive_learning_readiness_snapshot_v1",
+  "status": "blocked_not_ready",
+  "totalCount": 19
+}

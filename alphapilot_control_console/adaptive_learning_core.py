@@ -6,7 +6,7 @@ import math
 import time
 from typing import Any, Mapping
 
-from .adaptive_learning_contracts import LIVE_DECISION_MODES
+from .adaptive_learning_contracts import LIVE_DECISION_MODES, stable_hash
 from .adaptive_learning_store import AdaptiveLearningStore
 
 
@@ -74,6 +74,24 @@ class AdaptiveLearningCore:
                     "pointInTimeReady": True,
                 }
             )
+        missing_factor_ids = sorted(set(self._definitions) - set(values))
+        feature_vector_hash = stable_hash(
+            {
+                "factorRegistryHash": self.factor_registry["factorRegistryHash"],
+                "featureSchemaHash": self.feature_schema["featureSchemaHash"],
+                "values": values,
+                "missingFactorIds": missing_factor_ids,
+                "factorImplementations": [
+                    {
+                        "factorId": row["factorId"],
+                        "definitionHash": row["definitionHash"],
+                        "implementationHash": row["implementationHash"],
+                    }
+                    for row in factor_snapshots
+                ],
+            },
+            prefix="feature_vector",
+        )
         snapshot = self.store.append_feature_snapshot(
             {
                 "environment": environment,
@@ -90,9 +108,10 @@ class AdaptiveLearningCore:
                 "universeSnapshotHash": universe_snapshot_hash,
                 "factorRegistryHash": self.factor_registry["factorRegistryHash"],
                 "featureSchemaHash": self.feature_schema["featureSchemaHash"],
+                "featureVectorHash": feature_vector_hash,
                 "values": values,
                 "factorSnapshots": factor_snapshots,
-                "missingFactorIds": sorted(set(self._definitions) - set(values)),
+                "missingFactorIds": missing_factor_ids,
             }
         )
         latency_ms = (time.perf_counter() - started) * 1000.0
@@ -116,6 +135,7 @@ class AdaptiveLearningCore:
         )
         return {
             "featureSnapshotId": snapshot["featureSnapshotId"],
+            "featureVectorHash": snapshot["featureVectorHash"],
             "modelDecisionId": decision["modelDecisionId"],
             "modelMode": self.model_policy["modelMode"],
             "modelScore": decision["modelScore"],

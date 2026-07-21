@@ -1,0 +1,486 @@
+{
+  "alpha191Compatibility": {
+    "allFactorsProductionValidated": false,
+    "catalogCount": 191,
+    "formulaReviewedCount": 8,
+    "numericCrossvalidatedCount": 8,
+    "productionValidatedCount": 0,
+    "validationScope": "formula_and_numeric_compatibility_only"
+  },
+  "boundedMaximum": 36,
+  "factorRegistryHash": "production_factor_registry_6e52548fb6535a7aa84b85a2c672a97ad8e5f307a7f5beac72c5dc6922b938f1",
+  "factors": [
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "canonicalFormula": "close - delay(close, 5)",
+      "definitionHash": "factor_definition_b619ec9fc2f89c01799d67165df676a8894a9a1f6f5cf6b7d7d095ccc9169415",
+      "factorId": "alpha191_014",
+      "formula": "close - delay(close, 5)",
+      "implementationHash": "factor_implementation_02a1ae4577c22f4d47617166b33b8e74bd710187f456edbb8e828412ba9feeab",
+      "missingValuePolicy": "exclude_symbol",
+      "name": "Alpha191 compatibility 014",
+      "normalizationPolicy": "rolling_robust_zscore_120",
+      "notes": "",
+      "pointInTimeReady": true,
+      "requiredFields": [
+        "close"
+      ],
+      "sourceArtifactId": "alpha191_manual_sha256_reviewed_014",
+      "sourceClass": "alpha191_compatibility",
+      "theme": "alpha191_compatibility"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "canonicalFormula": "safe_div(open, delay(close, 1)) - 1",
+      "definitionHash": "factor_definition_9c58973e20c62ae18a7626f6f223620c7813c37bf48cd068d691062e13edeebb",
+      "factorId": "alpha191_015",
+      "formula": "safe_div(open, delay(close, 1)) - 1",
+      "implementationHash": "factor_implementation_572bf70ba7329af7ae3bddd33fd3dbd86f258a56c6370d8d338aee844686f9f0",
+      "missingValuePolicy": "exclude_symbol",
+      "name": "Alpha191 compatibility 015",
+      "normalizationPolicy": "rolling_robust_zscore_120",
+      "notes": "",
+      "pointInTimeReady": true,
+      "requiredFields": [
+        "open",
+        "close"
+      ],
+      "sourceArtifactId": "alpha191_manual_sha256_reviewed_015",
+      "sourceClass": "alpha191_compatibility",
+      "theme": "alpha191_compatibility"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "canonicalFormula": "safe_div(close, delay(close, 5))",
+      "definitionHash": "factor_definition_274c5c71004a74d74e125cda81eff8cde6930a0d65788a0a3cf93b5d90cdd67d",
+      "factorId": "alpha191_018",
+      "formula": "safe_div(close, delay(close, 5))",
+      "implementationHash": "factor_implementation_9e77ab52e29d2740f53a4a05d2ed495e03a8bb4e52b0414ad354a841ffaa1c15",
+      "missingValuePolicy": "exclude_symbol",
+      "name": "Alpha191 compatibility 018",
+      "normalizationPolicy": "rolling_robust_zscore_120",
+      "notes": "",
+      "pointInTimeReady": true,
+      "requiredFields": [
+        "close"
+      ],
+      "sourceArtifactId": "alpha191_manual_sha256_reviewed_018",
+      "sourceClass": "alpha191_compatibility",
+      "theme": "alpha191_compatibility"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "canonicalFormula": "safe_div(close - delay(close, 6), delay(close, 6)) * 100",
+      "definitionHash": "factor_definition_9051ec1abf317a78588f6092f3328a5986925c15bb80a3621c0f57dfdd977b54",
+      "factorId": "alpha191_020",
+      "formula": "safe_div(close - delay(close, 6), delay(close, 6)) * 100",
+      "implementationHash": "factor_implementation_e3a49e9d6f8ea41cadfb6a30af5ad21e74f95952cb88e5e5493552b924667937",
+      "missingValuePolicy": "exclude_symbol",
+      "name": "Alpha191 compatibility 020",
+      "normalizationPolicy": "rolling_robust_zscore_120",
+      "notes": "",
+      "pointInTimeReady": true,
+      "requiredFields": [
+        "close"
+      ],
+      "sourceArtifactId": "alpha191_manual_sha256_reviewed_020",
+      "sourceClass": "alpha191_compatibility",
+      "theme": "alpha191_compatibility"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "canonicalFormula": "safe_div(count(close > delay(close, 1), 20, 20), 20) * 100",
+      "definitionHash": "factor_definition_05f23cbd22a95df459eed92a1b673668513de0465493931ed22462043d8658eb",
+      "factorId": "alpha191_058",
+      "formula": "safe_div(count(close > delay(close, 1), 20, 20), 20) * 100",
+      "implementationHash": "factor_implementation_d6259a88a66e5a488871d082005b4867456891dc1ab662d4a7c0fa148026f78c",
+      "missingValuePolicy": "exclude_symbol",
+      "name": "Alpha191 compatibility 058",
+      "normalizationPolicy": "rolling_robust_zscore_120",
+      "notes": "",
+      "pointInTimeReady": true,
+      "requiredFields": [
+        "close"
+      ],
+      "sourceArtifactId": "alpha191_manual_sha256_reviewed_058",
+      "sourceClass": "alpha191_compatibility",
+      "theme": "alpha191_compatibility"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "canonicalFormula": "safe_div(close - delay(close, 20), delay(close, 20)) * 100",
+      "definitionHash": "factor_definition_ebb8abb7a91fd3e6fccc67cc8e27422bde75d93f36ab736b1158fe058259d6e3",
+      "factorId": "alpha191_088",
+      "formula": "safe_div(close - delay(close, 20), delay(close, 20)) * 100",
+      "implementationHash": "factor_implementation_9b42d0f9b4092a29138219ae07039e2f868e1ea03b39233283c86860b9613000",
+      "missingValuePolicy": "exclude_symbol",
+      "name": "Alpha191 compatibility 088",
+      "normalizationPolicy": "rolling_robust_zscore_120",
+      "notes": "",
+      "pointInTimeReady": true,
+      "requiredFields": [
+        "close"
+      ],
+      "sourceArtifactId": "alpha191_manual_sha256_reviewed_088",
+      "sourceClass": "alpha191_compatibility",
+      "theme": "alpha191_compatibility"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "canonicalFormula": "safe_div(ts_mean(volume, 9, 9) - ts_mean(volume, 26, 26), ts_mean(volume, 12, 12)) * 100",
+      "definitionHash": "factor_definition_abd285edf8e2e9cac71bcb6292b74a15a3897646a0dca12b7f1fb840314cd4a1",
+      "factorId": "alpha191_145",
+      "formula": "safe_div(ts_mean(volume, 9, 9) - ts_mean(volume, 26, 26), ts_mean(volume, 12, 12)) * 100",
+      "implementationHash": "factor_implementation_332e4ae907dae67097ea7c315c260ed362d81f66cf2e524655963f89fd319922",
+      "missingValuePolicy": "exclude_symbol",
+      "name": "Alpha191 compatibility 145",
+      "normalizationPolicy": "rolling_robust_zscore_120",
+      "notes": "",
+      "pointInTimeReady": true,
+      "requiredFields": [
+        "volume"
+      ],
+      "sourceArtifactId": "alpha191_manual_sha256_reviewed_145",
+      "sourceClass": "alpha191_compatibility",
+      "theme": "alpha191_compatibility"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "canonicalFormula": "ts_corr(ts_mean(volume, 20, 20), low, 5, 5) + (high + low) / 2 - close",
+      "definitionHash": "factor_definition_82f9487031284c06ab364a02a258929e8faa32c5cd34c06e72d941f8ae78b398",
+      "factorId": "alpha191_191",
+      "formula": "ts_corr(ts_mean(volume, 20, 20), low, 5, 5) + (high + low) / 2 - close",
+      "implementationHash": "factor_implementation_92a92f332c0fb23e9c13fb17fc4e1fb8c2b442b17f1b8ab8e77a2062a241b09b",
+      "missingValuePolicy": "exclude_symbol",
+      "name": "Alpha191 compatibility 191",
+      "normalizationPolicy": "rolling_robust_zscore_120",
+      "notes": "",
+      "pointInTimeReady": true,
+      "requiredFields": [
+        "volume",
+        "low",
+        "high",
+        "close"
+      ],
+      "sourceArtifactId": "alpha191_manual_sha256_reviewed_191",
+      "sourceClass": "alpha191_compatibility",
+      "theme": "alpha191_compatibility"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "canonicalFormula": "safe_div(atr(high,low,close,14),close)",
+      "definitionHash": "factor_definition_f8dd616843b3bace0fd6265cf9416fc2cd2da418182ae48fc86b91f2fae44e95",
+      "factorId": "atr_pct_14",
+      "formula": "safe_div(atr(high,low,close,14),close)",
+      "implementationHash": "factor_implementation_9065769210991648f0d18c0e825f4adffe276b52b1e606945e1b1ecce12b9018",
+      "missingValuePolicy": "record_missing_flag",
+      "name": "ATR percent 14",
+      "normalizationPolicy": "as_computed_bounded_runtime_value",
+      "notes": "",
+      "pointInTimeReady": true,
+      "requiredFields": [
+        "high",
+        "low",
+        "close"
+      ],
+      "sourceArtifactId": "demo_release_scanner_factor_contract_v1",
+      "sourceClass": "crypto_native",
+      "theme": "volatility"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "canonicalFormula": "safe_div(close-ts_mean(close,20),2*ts_std(close,20))",
+      "definitionHash": "factor_definition_fe1bbb27b0c77afa7f9f3e1085879fcd1b3594987dd1adabd6cf684ba97547ad",
+      "factorId": "bollinger_position",
+      "formula": "safe_div(close-ts_mean(close,20),2*ts_std(close,20))",
+      "implementationHash": "factor_implementation_a1f4f427e91c7ff48da7213ec2c94971092e4bf526c00e2c40884dc718c74097",
+      "missingValuePolicy": "record_missing_flag",
+      "name": "Bollinger position 20",
+      "normalizationPolicy": "as_computed_bounded_runtime_value",
+      "notes": "",
+      "pointInTimeReady": true,
+      "requiredFields": [
+        "close"
+      ],
+      "sourceArtifactId": "demo_release_scanner_factor_contract_v1",
+      "sourceClass": "crypto_native",
+      "theme": "mean_reversion"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close_with_btc_context",
+      "canonicalFormula": "return(close,20)-return(btc_close,20)",
+      "definitionHash": "factor_definition_dd3dd25983a450e6cff5921ed1702c52365f569a3bad21d33c971a0847c37f4e",
+      "factorId": "btc_relative_strength_20",
+      "formula": "return(close,20)-return(btc_close,20)",
+      "implementationHash": "factor_implementation_405c707365dfd168e8159d79e42dbad4961c202a0847652f7cb41842a6a426ed",
+      "missingValuePolicy": "reject_signal",
+      "name": "BTC-relative strength 20",
+      "normalizationPolicy": "rolling_robust_zscore_60",
+      "notes": "",
+      "pointInTimeReady": true,
+      "requiredFields": [
+        "close",
+        "btc_close"
+      ],
+      "sourceArtifactId": "alphapilot_crypto_native_context",
+      "sourceClass": "crypto_native",
+      "theme": "crypto_relative_strength"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close_cross_section",
+      "canonicalFormula": "cs_rank(safe_div(close-delay(close,20),delay(close,20)))",
+      "definitionHash": "factor_definition_7a768bf5cc4302eb805cc1ff9f8982c0560199c9effdb43db9383de5299a83c5",
+      "factorId": "cross_sectional_return_rank_20",
+      "formula": "cs_rank(safe_div(close-delay(close,20),delay(close,20)))",
+      "implementationHash": "factor_implementation_3f8d7650821f79bd5f45b64e580684ea78c850916691ccc2dab12fc3f9f9a06e",
+      "missingValuePolicy": "exclude_symbol",
+      "name": "Cross-sectional return rank 20",
+      "normalizationPolicy": "cross_sectional_rank_0_1",
+      "notes": "",
+      "pointInTimeReady": true,
+      "requiredFields": [
+        "close"
+      ],
+      "sourceArtifactId": "alpha101_style_internal_context",
+      "sourceClass": "alpha101_style",
+      "theme": "relative_momentum"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "canonicalFormula": "safe_div(close,ema(close,20))-1",
+      "definitionHash": "factor_definition_b3708996e67789e13643c5f26c2f1b4ebe52339bad5ef45b5a24bf6f9806d0a1",
+      "factorId": "ema_distance_20",
+      "formula": "safe_div(close,ema(close,20))-1",
+      "implementationHash": "factor_implementation_d3b2d1cf5a2e9bbed60ae63b99b3ce4a55a8ba654990263002d6858136b2f856",
+      "missingValuePolicy": "record_missing_flag",
+      "name": "EMA20 distance",
+      "normalizationPolicy": "as_computed_bounded_runtime_value",
+      "notes": "",
+      "pointInTimeReady": true,
+      "requiredFields": [
+        "close"
+      ],
+      "sourceArtifactId": "demo_release_scanner_factor_contract_v1",
+      "sourceClass": "crypto_native",
+      "theme": "trend"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "canonicalFormula": "safe_div(close,ema(close,50))-1",
+      "definitionHash": "factor_definition_1b3ae050818e08094470af7474fe791efec953bc13a3500439fde03f52c35eb6",
+      "factorId": "ema_distance_50",
+      "formula": "safe_div(close,ema(close,50))-1",
+      "implementationHash": "factor_implementation_98dd7bd63f7cfc2d4ebffdee6ebee16ea1bf6c673bc61345e14295151a4f0109",
+      "missingValuePolicy": "record_missing_flag",
+      "name": "EMA50 distance",
+      "normalizationPolicy": "as_computed_bounded_runtime_value",
+      "notes": "",
+      "pointInTimeReady": true,
+      "requiredFields": [
+        "close"
+      ],
+      "sourceArtifactId": "demo_release_scanner_factor_contract_v1",
+      "sourceClass": "crypto_native",
+      "theme": "trend"
+    },
+    {
+      "availableAtRule": "funding_publication_time",
+      "canonicalFormula": "zscore(funding_rate,24)",
+      "definitionHash": "factor_definition_a1679e9ae1d0596920600ae2ac6c4e8828939ca742ceec85b17e465ff2f753a9",
+      "factorId": "funding_rate_zscore_24",
+      "formula": "zscore(funding_rate,24)",
+      "implementationHash": "factor_implementation_25415d9fef11ae834f0fdebdb71e0095fc8cb5832df8499bce7623f0985c38a3",
+      "missingValuePolicy": "reject_signal",
+      "name": "Funding rate z-score 24",
+      "normalizationPolicy": "rolling_zscore_24",
+      "notes": "",
+      "pointInTimeReady": true,
+      "requiredFields": [
+        "funding_rate",
+        "funding_available_at"
+      ],
+      "sourceArtifactId": "okx_public_funding_history",
+      "sourceClass": "derivatives",
+      "theme": "funding"
+    },
+    {
+      "availableAtRule": "order_book_snapshot_received_at",
+      "canonicalFormula": "safe_div(spread_bps-ts_median(spread_bps,96),ts_mad(spread_bps,96))",
+      "definitionHash": "factor_definition_86471059ce862da2188ea777c786bab88720eb042db7344ec24ae87a12550a0a",
+      "factorId": "liquidity_spread_shock",
+      "formula": "safe_div(spread_bps-ts_median(spread_bps,96),ts_mad(spread_bps,96))",
+      "implementationHash": "factor_implementation_bf12d6e47fd05f193511d6e9b153aeb0fbd591a82a00a0234bbad9bb45e30be8",
+      "missingValuePolicy": "reject_signal",
+      "name": "Liquidity spread shock",
+      "normalizationPolicy": "rolling_robust_zscore_96",
+      "notes": "",
+      "pointInTimeReady": true,
+      "requiredFields": [
+        "best_bid",
+        "best_ask",
+        "book_available_at"
+      ],
+      "sourceArtifactId": "alphapilot_crypto_native_order_book",
+      "sourceClass": "crypto_native",
+      "theme": "liquidity"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "canonicalFormula": "ema(close,12)-ema(close,26)-ema(ema(close,12)-ema(close,26),9)",
+      "definitionHash": "factor_definition_47f95a35a3cf237bf674f9755fbbd093390eb321296a341851fab3faae8949be",
+      "factorId": "macd_histogram",
+      "formula": "ema(close,12)-ema(close,26)-ema(ema(close,12)-ema(close,26),9)",
+      "implementationHash": "factor_implementation_89d68dff79ac76a8c32d7d744e6c0b813f709ad4b0b634b09764f21518d68c54",
+      "missingValuePolicy": "record_missing_flag",
+      "name": "MACD histogram",
+      "normalizationPolicy": "as_computed_bounded_runtime_value",
+      "notes": "",
+      "pointInTimeReady": true,
+      "requiredFields": [
+        "close"
+      ],
+      "sourceArtifactId": "demo_release_scanner_factor_contract_v1",
+      "sourceClass": "crypto_native",
+      "theme": "momentum"
+    },
+    {
+      "availableAtRule": "latest_confirmed_market_snapshot",
+      "canonicalFormula": "zscore(safe_div(mark_price-index_price,index_price),48)",
+      "definitionHash": "factor_definition_be6dcc46a04cb008d7ce705bb7d692681ffa22df1ef9804c362187a8d7b2dd61",
+      "factorId": "perp_basis_zscore_48",
+      "formula": "zscore(safe_div(mark_price-index_price,index_price),48)",
+      "implementationHash": "factor_implementation_4af149f9747fe6452919a2ddc32dafdcfe10ff7e6643233b95277e4ee49495b9",
+      "missingValuePolicy": "reject_signal",
+      "name": "Perpetual basis z-score 48",
+      "normalizationPolicy": "rolling_zscore_48",
+      "notes": "",
+      "pointInTimeReady": true,
+      "requiredFields": [
+        "mark_price",
+        "index_price",
+        "market_available_at"
+      ],
+      "sourceArtifactId": "okx_public_mark_index_history",
+      "sourceClass": "derivatives",
+      "theme": "basis"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "canonicalFormula": "safe_div(close-delay(close,1),delay(close,1))",
+      "definitionHash": "factor_definition_3422899584e550f1fa86ad89242174a2ed2fa85b1d60724e252a47fde9be5494",
+      "factorId": "return_1",
+      "formula": "safe_div(close-delay(close,1),delay(close,1))",
+      "implementationHash": "factor_implementation_4cf50299046715c1294f0b0ac7a73f39ef8f727aff9e7176b12db509b47bc7ec",
+      "missingValuePolicy": "record_missing_flag",
+      "name": "One-bar return",
+      "normalizationPolicy": "as_computed_bounded_runtime_value",
+      "notes": "",
+      "pointInTimeReady": true,
+      "requiredFields": [
+        "close"
+      ],
+      "sourceArtifactId": "demo_release_scanner_factor_contract_v1",
+      "sourceClass": "crypto_native",
+      "theme": "momentum"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "canonicalFormula": "safe_div(close-delay(close,6),delay(close,6))",
+      "definitionHash": "factor_definition_7864a7036f38fb1d36ed5afd305d16581ec0260da9c8257f2bad44d42757c724",
+      "factorId": "return_6",
+      "formula": "safe_div(close-delay(close,6),delay(close,6))",
+      "implementationHash": "factor_implementation_1c2abbdf8dc4160e497fd424dbfc7b0783dcb371a689d1adae7fbc3bfb23666c",
+      "missingValuePolicy": "record_missing_flag",
+      "name": "Six-bar return",
+      "normalizationPolicy": "as_computed_bounded_runtime_value",
+      "notes": "",
+      "pointInTimeReady": true,
+      "requiredFields": [
+        "close"
+      ],
+      "sourceArtifactId": "demo_release_scanner_factor_contract_v1",
+      "sourceClass": "crypto_native",
+      "theme": "momentum"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "canonicalFormula": "rsi(close,14)",
+      "definitionHash": "factor_definition_cde8f65955bf46e1595fc3b89cbe521c1767ce06b8ee603f5bb50f0a35833976",
+      "factorId": "rsi_14",
+      "formula": "rsi(close,14)",
+      "implementationHash": "factor_implementation_26c527cfa68f72ed3011457c5e6d935bd2f644dff25d98d4e60e1bc068c40d4e",
+      "missingValuePolicy": "record_missing_flag",
+      "name": "RSI 14",
+      "normalizationPolicy": "as_computed_bounded_runtime_value",
+      "notes": "",
+      "pointInTimeReady": true,
+      "requiredFields": [
+        "close"
+      ],
+      "sourceArtifactId": "demo_release_scanner_factor_contract_v1",
+      "sourceClass": "crypto_native",
+      "theme": "momentum"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "canonicalFormula": "ts_std(return_1,12)",
+      "definitionHash": "factor_definition_5f96e5b82c7012c758bef8d73680da4ba892c68c4d515a7727e215ac169d2da4",
+      "factorId": "volatility_12",
+      "formula": "ts_std(return_1,12)",
+      "implementationHash": "factor_implementation_5056e7a355cd56856ac74cbef42bc69adabe290b794abdd3a6bab38a2de01180",
+      "missingValuePolicy": "record_missing_flag",
+      "name": "Return volatility 12",
+      "normalizationPolicy": "as_computed_bounded_runtime_value",
+      "notes": "",
+      "pointInTimeReady": true,
+      "requiredFields": [
+        "close"
+      ],
+      "sourceArtifactId": "demo_release_scanner_factor_contract_v1",
+      "sourceClass": "crypto_native",
+      "theme": "volatility"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close_cross_section",
+      "canonicalFormula": "ts_corr(cs_rank(volume),cs_rank(close),20,20)",
+      "definitionHash": "factor_definition_ac97f115b9cd530d415ee49e47eaa07f1429ee3e7b7f28f42c0039a4929c77e6",
+      "factorId": "volume_price_corr_20",
+      "formula": "ts_corr(cs_rank(volume),cs_rank(close),20,20)",
+      "implementationHash": "factor_implementation_40b873f16a8978953491e8b6bb6009aa6711e86a75b5166d3cdef81265d6a695",
+      "missingValuePolicy": "exclude_symbol",
+      "name": "Volume-price rolling correlation 20",
+      "normalizationPolicy": "clip_minus1_plus1",
+      "notes": "",
+      "pointInTimeReady": true,
+      "requiredFields": [
+        "volume",
+        "close"
+      ],
+      "sourceArtifactId": "alpha101_style_internal_context",
+      "sourceClass": "alpha101_style",
+      "theme": "volume_price"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "canonicalFormula": "safe_div(volume,ts_mean(volume,20))",
+      "definitionHash": "factor_definition_ee2cd3bf2c33f9751bcbe9ec551a904cbb5b893b5c59d06807b8ff907f8f5ffa",
+      "factorId": "volume_ratio_20",
+      "formula": "safe_div(volume,ts_mean(volume,20))",
+      "implementationHash": "factor_implementation_40f1bd7bf07a4e856fc49361efe1b858fb0d42169292fd17e731c69c8863067a",
+      "missingValuePolicy": "record_missing_flag",
+      "name": "Volume ratio 20",
+      "normalizationPolicy": "as_computed_bounded_runtime_value",
+      "notes": "",
+      "pointInTimeReady": true,
+      "requiredFields": [
+        "volume"
+      ],
+      "sourceArtifactId": "demo_release_scanner_factor_contract_v1",
+      "sourceClass": "crypto_native",
+      "theme": "liquidity"
+    }
+  ],
+  "pointInTimeOnly": true,
+  "predictiveValueClaimed": false,
+  "schemaVersion": "production_factor_registry_v1"
+}

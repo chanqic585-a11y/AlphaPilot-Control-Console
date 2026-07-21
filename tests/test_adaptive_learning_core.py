@@ -304,6 +304,50 @@ class AdaptiveLearningCoreTests(unittest.TestCase):
             finally:
                 store.close()
 
+    def test_feature_vector_hash_is_environment_neutral(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = AdaptiveLearningStore(Path(directory) / "adaptive.sqlite")
+            try:
+                core = AdaptiveLearningCore(
+                    factor_registry=FACTOR_REGISTRY,
+                    feature_schema=FEATURE_SCHEMA,
+                    model_policy=_observer_policy(),
+                    store=store,
+                )
+                common = {
+                    "release_id": "release-1",
+                    "release_hash": "release-hash",
+                    "strategy_candidate_id": "candidate-1",
+                    "risk_overlay_hash": "risk-hash",
+                    "symbol": "BTC-USDT-SWAP",
+                    "timeframe": "1h",
+                    "signal_at": "2026-07-21T00:00:00+00:00",
+                    "observed_at": "2026-07-21T00:00:01+00:00",
+                    "available_at": "2026-07-21T00:00:00+00:00",
+                    "universe_snapshot_hash": "universe-hash",
+                    "factors": {"rsi14": 57.0},
+                }
+                demo = core.observe_signal(
+                    environment="okx_demo",
+                    source_event_hash="demo-event-hash",
+                    **common,
+                )
+                live = core.observe_signal(
+                    environment="live",
+                    source_event_hash="live-event-hash",
+                    **common,
+                )
+                demo_snapshot = store.get_feature_snapshot(demo["featureSnapshotId"])
+                live_snapshot = store.get_feature_snapshot(live["featureSnapshotId"])
+            finally:
+                store.close()
+
+        self.assertNotEqual(demo["featureSnapshotId"], live["featureSnapshotId"])
+        self.assertEqual(
+            demo_snapshot["featureVectorHash"],
+            live_snapshot["featureVectorHash"],
+        )
+
     def test_decision_mode_change_creates_unapproved_successor_release(self) -> None:
         observer = _observer_policy()
         rank_policy = build_model_policy(

@@ -1,0 +1,127 @@
+{
+  "fileCount": 23,
+  "files": [
+    {
+      "bytes": 1181,
+      "path": "adaptive_learning_offline_evidence_binding.json",
+      "sha256": "89bab82ecaeb7e90cb34cfcb1240849dcd52eda42cf81714d2da337364444bea"
+    },
+    {
+      "bytes": 6999,
+      "path": "adaptive_learning_readiness_snapshot.json",
+      "sha256": "72a4750d603e16083d092a80cbf191d352bbec75527db0dfcb2c567a558dc3e9"
+    },
+    {
+      "bytes": 417,
+      "path": "alpha101_compatibility_audit.json",
+      "sha256": "19be7be6ce5691fc8568983471ec3b5ba3c15dde762ad3b16e19ceb2b2b3583e"
+    },
+    {
+      "bytes": 798,
+      "path": "alpha191_compatibility_audit.json",
+      "sha256": "17dcd112dcbda26b5f111a9d551cea6283f5560b30dae89eecfd8f711052e6cb"
+    },
+    {
+      "bytes": 420,
+      "path": "demo_decision_mode_validation.json",
+      "sha256": "0526fcbf9778ca4c7948f6f14c573c9d7bcfe495de7df66a669cd3b43ce12ccc"
+    },
+    {
+      "bytes": 489,
+      "path": "demo_learning_sample_audit.json",
+      "sha256": "25e7071e92f93cf1884b65431d6051a86ff2ff9dc2a781a40033d1a95351092f"
+    },
+    {
+      "bytes": 5094,
+      "path": "demo_shadow_decision_ledger.parquet",
+      "sha256": "c9273b5242ebff08132915351e07411744f9640f501785610ac1e0d5e5889488"
+    },
+    {
+      "bytes": 685,
+      "path": "evidence_summary.json",
+      "sha256": "3ea4129224e516dfecdbea7379715d5d2b2aae514b4629f39ba0ab12ebd12363"
+    },
+    {
+      "bytes": 416,
+      "path": "exact_model_release_approval.json",
+      "sha256": "88866a3543c228a56bea70d4c372eca24588075f9317f72f15a9106834a94381"
+    },
+    {
+      "bytes": 5175,
+      "path": "factor_mining_trial_ledger.parquet",
+      "sha256": "76043a97b5cc9a43d4742269af8f29d4ac7b0027749741fdeb685735a126b618"
+    },
+    {
+      "bytes": 2807,
+      "path": "final_closeout_cn.md",
+      "sha256": "651609767322581a20f5e3014154225ff0e4e6c75ea0965d90607906ffffeed8"
+    },
+    {
+      "bytes": 1010,
+      "path": "live_feature_pipeline_parity.json",
+      "sha256": "f5857c62bc883f3e80a1ec76b95794f52239b62588826276c2eb3288d6b6ca67"
+    },
+    {
+      "bytes": 541,
+      "path": "live_model_inference_audit.json",
+      "sha256": "e2e4fb975937d8034c9154db96e58f8aeb54ce599a2f4829f13ec546275f3700"
+    },
+    {
+      "bytes": 390,
+      "path": "model_drift_report.json",
+      "sha256": "df771296593f920e9050bb4849902cb6ad8495bc44a53e9198831e3d5d55ad4e"
+    },
+    {
+      "bytes": 2253,
+      "path": "model_registry.json",
+      "sha256": "2575193ca9da3378f035f0463ead72dfd7afd80b23278fb99f2b5bdad1d9d29c"
+    },
+    {
+      "bytes": 391,
+      "path": "model_rollback_audit.json",
+      "sha256": "715a092b615b641d742956c2d661d3997da749bc3eb2079799177dd85e89296f"
+    },
+    {
+      "bytes": 1356,
+      "path": "model_validation_report.json",
+      "sha256": "568b542b31e7e161bab59482c9442cdcd31b959fd6a118eff8984120d41e659b"
+    },
+    {
+      "bytes": 787,
+      "path": "online_inference_latency_audit.json",
+      "sha256": "2eabaaec94acb4b99a061f81982dfc26e0da90c82c545e83f332b00eb4d94b8e"
+    },
+    {
+      "bytes": 21415,
+      "path": "production_factor_registry.json",
+      "sha256": "92695ebea3c383b31e084f13dff4fcfd74a80ab3eedc3bb1204f8ebe88430005"
+    },
+    {
+      "bytes": 10543,
+      "path": "production_feature_schema.json",
+      "sha256": "69b00f16aa874bbf3c70661982dd001af9812ce4d61bd7a80be1a99c3d6c71bd"
+    },
+    {
+      "bytes": 601,
+      "path": "qlib_campaign_manifest.json",
+      "sha256": "ea4fbc5efb7259f690e17dd318f276c5a2c0ed3bdb1a6ed2f2c58b49821e109f"
+    },
+    {
+      "bytes": 868,
+      "path": "shadow_model_engineering_audit.json",
+      "sha256": "07519eee19e00407d73ea86e7374a3b9157a571ed9e33c225e721e4c74fe0ed5"
+    },
+    {
+      "bytes": 1354,
+      "path": "training_dataset_manifest.json",
+      "sha256": "ad6ffc07c98ae89b77600440e280b1cf02956b48902e99fe0fba4a855882a8ef"
+    }
+  ],
+  "generatedAt": "2026-07-21T12:00:00Z",
+  "manifestHash": "v59_artifact_manifest_2de0c6f76ce9185e39afa95cbbc4e00b3519459d0f47acf644a443e304fdbd02",
+  "schemaVersion": "alphapilot_v59_adaptive_learning_manifest_v1",
+  "selfReferenceExclusions": [
+    "artifact_manifest.json"
+  ],
+  "status": "blocked_not_ready"
+}

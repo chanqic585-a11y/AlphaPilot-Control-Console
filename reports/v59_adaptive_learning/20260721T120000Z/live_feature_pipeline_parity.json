@@ -1,0 +1,20 @@
+{
+  "createsOrders": false,
+  "demoFeatureVectorHash": "feature_vector_72451523fa2dc54115ab456b3d4f4c9beb73b626392af995c8394a2682b375da",
+  "evidenceHash": "adaptive_feature_pipeline_parity_f9448f6fd36439071e90b42c01ad08d779ae8016abaf555db680693bf1408ff5",
+  "factorIdsUsed": [
+    "alpha191_014"
+  ],
+  "factorRegistryHash": "production_factor_registry_6e52548fb6535a7aa84b85a2c672a97ad8e5f307a7f5beac72c5dc6922b938f1",
+  "featureSchemaHash": "feature_schema_1eec58d0bc8fd38214fce220729267bf917a561e0c77573df34ce5d17f0cb453",
+  "featureVectorHashEqual": true,
+  "fixtureOnly": true,
+  "grantsLiveAuthority": false,
+  "liveFeatureVectorHash": "feature_vector_72451523fa2dc54115ab456b3d4f4c9beb73b626392af995c8394a2682b375da",
+  "liveOrderPathExercised": false,
+  "modelPolicyHash": "model_policy_42b050b38cb37eef57c5192feb2c595bf7c34b041c0092f0c4dd51c464d855aa",
+  "passed": true,
+  "schemaVersion": "adaptive_learning_feature_pipeline_parity_v1",
+  "sharedCoreImplementation": true,
+  "status": "completed"
+}
