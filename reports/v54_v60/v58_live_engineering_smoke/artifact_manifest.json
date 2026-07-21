@@ -1,5 +1,5 @@
 {
-  "artifactCount": 4,
+  "artifactCount": 6,
   "artifacts": [
     {
       "path": "live_engineering_smoke_approval.json",
@@ -12,20 +12,30 @@
       "sizeBytes": 639
     },
     {
+      "path": "live_engineering_smoke_attempt.json",
+      "sha256": "246d50c934a514399cede33d8cdda8235b45f8195dad6abf3e1edae911b68712",
+      "sizeBytes": 892
+    },
+    {
       "path": "live_engineering_smoke_contract.json",
       "sha256": "900ef6a6e992c09b5fd6e85396adef91230b588a83ccd2da3a2177b4b80b8687",
       "sizeBytes": 1004
     },
     {
+      "path": "live_engineering_smoke_result.json",
+      "sha256": "246d50c934a514399cede33d8cdda8235b45f8195dad6abf3e1edae911b68712",
+      "sizeBytes": 892
+    },
+    {
       "path": "live_engineering_smoke_status.json",
-      "sha256": "fcfe51e3b7c95f8bacc41430677739673459806176405273f2ca7ff7d5f5350d",
-      "sizeBytes": 682
+      "sha256": "e960b936b9008b208d83967d810d6b6c03bf8f657a0bbca9d00e9ffeed6b5888",
+      "sizeBytes": 576
     }
   ],
-  "generatedAt": "2026-07-21T06:34:03.512960Z",
+  "generatedAt": "2026-07-21T06:37:34.171408Z",
   "privateAccountValuesPersisted": false,
   "rawCredentialsPersisted": false,
   "schemaVersion": "alphapilot_v58_live_engineering_smoke_manifest_v2",
-  "status": "blocked_live_engineering_smoke_requires_review",
+  "status": "completed_canceled_and_reconciled",
   "withdrawAllowed": false
 }
