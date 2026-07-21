@@ -68,6 +68,55 @@ def _nonzero_positions(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return result
 
 
+def _available_usdt(rows: list[dict[str, Any]]) -> Decimal:
+    for account in rows:
+        details = account.get("details")
+        if not isinstance(details, list):
+            continue
+        for detail in details:
+            if not isinstance(detail, dict) or str(detail.get("ccy") or "") != "USDT":
+                continue
+            for key in ("availBal", "availEq", "cashBal"):
+                raw = detail.get(key)
+                if raw in {None, ""}:
+                    continue
+                try:
+                    value = Decimal(str(raw))
+                except Exception as error:
+                    raise RuntimeError("OKX Live USDT balance is invalid") from error
+                if value.is_finite() and value >= 0:
+                    return value
+    raise RuntimeError("OKX Live available USDT balance is unavailable")
+
+
+def _require_private_preflight(
+    *,
+    client: Any,
+    instrument_id: str,
+    required_notional: Decimal,
+) -> None:
+    config_rows = _rows(client.get_account_config(), "account config")
+    if len(config_rows) != 1 or str(config_rows[0].get("posMode") or "") != "net_mode":
+        raise RuntimeError("Live engineering smoke requires OKX net position mode")
+    available_usdt = _available_usdt(_rows(client.get_balance(currency="USDT"), "balance"))
+    if available_usdt < required_notional:
+        raise RuntimeError("Live engineering smoke has insufficient available USDT")
+    if _nonzero_positions(_rows(client.get_positions(), "positions")):
+        raise RuntimeError("Live engineering smoke requires zero initial account positions")
+    if _rows(client.get_open_orders(), "open orders"):
+        raise RuntimeError("Live engineering smoke requires zero initial account open orders")
+    leverage_rows = _rows(
+        client.get_leverage(instId=instrument_id, marginMode="isolated"),
+        "leverage",
+    )
+    if not leverage_rows or any(
+        str(row.get("mgnMode") or "") != "isolated"
+        or Decimal(str(row.get("lever") or "0")) != Decimal("1")
+        for row in leverage_rows
+    ):
+        raise RuntimeError("Live engineering smoke requires preconfigured 1x isolated leverage")
+
+
 def _build_order_payload(
     *,
     contract: Mapping[str, Any],
@@ -121,81 +170,119 @@ def run_live_engineering_smoke(
     instrument: Mapping[str, Any],
     quote: Mapping[str, Any],
     output_path: Path | str | None = None,
+    attempt_path: Path | str | None = None,
 ) -> dict[str, Any]:
     """Run exactly one approved order lifecycle; never treat it as strategy evidence."""
 
     validated_contract = validate_live_engineering_smoke_contract(contract)
     validate_live_engineering_smoke_approval(validated_contract, approval)
+    attempt_state_path = Path(attempt_path) if attempt_path is not None else None
+    if attempt_state_path is not None and attempt_state_path.exists():
+        raise PermissionError("Live engineering smoke attempt has already been reserved")
     order_payload, notional = _build_order_payload(
         contract=validated_contract,
         instrument=instrument,
         quote=quote,
     )
     instrument_id = str(order_payload["instId"])
-
-    initial_positions = _nonzero_positions(_rows(client.get_positions(instrumentId=instrument_id), "positions"))
-    initial_orders = _rows(client.get_open_orders(instrumentId=instrument_id), "open orders")
-    if initial_positions or initial_orders:
-        raise RuntimeError("Live engineering smoke requires zero initial position and open order")
-
-    submitted = client.place_protected_order(order_payload)
-    submitted_rows = _rows(submitted, "order submission")
-    if len(submitted_rows) != 1 or not str(submitted_rows[0].get("ordId") or ""):
-        raise RuntimeError("Live engineering smoke did not receive one exchange order id")
-    order_id = str(submitted_rows[0]["ordId"])
-    first_order = _rows(
-        client.get_order(instId=instrument_id, ordId=order_id),
-        "order query",
+    _require_private_preflight(
+        client=client,
+        instrument_id=instrument_id,
+        required_notional=notional,
     )
-    initial_state = str(first_order[0].get("state") or "unknown") if first_order else "unknown"
-    if initial_state not in {"live", "open", "partially_filled"}:
-        raise RuntimeError(f"Live engineering smoke entered unexpected state: {initial_state}")
-
-    cancel_rows = _rows(
-        client.cancel_order(instId=instrument_id, ordId=order_id),
-        "order cancellation",
-    )
-    cancel_accepted = bool(cancel_rows) and str(cancel_rows[0].get("sCode") or "0") == "0"
-    final_order_rows = _rows(
-        client.get_order(instId=instrument_id, ordId=order_id),
-        "post-cancel order query",
-    )
-    final_order_state = str(final_order_rows[0].get("state") or "unknown") if final_order_rows else "unknown"
-    final_positions = _nonzero_positions(_rows(client.get_positions(instrumentId=instrument_id), "final positions"))
-    final_orders = _rows(client.get_open_orders(instrumentId=instrument_id), "final open orders")
-    cancel_confirmed = cancel_accepted and final_order_state in {"canceled", "cancelled"}
-    reconciled = cancel_confirmed and not final_positions and not final_orders
-    status = (
-        "completed_canceled_and_reconciled"
-        if reconciled
-        else "blocked_unexpected_live_state_requires_manual_recovery"
-    )
-    result = {
-        "schemaVersion": "alphapilot_live_engineering_smoke_result_v1",
+    attempt_state = {
+        "schemaVersion": "alphapilot_live_engineering_smoke_attempt_v1",
         "generatedAt": _now(),
-        "status": status,
+        "status": "attempt_reserved",
         "environment": "okx_live",
         "contractHash": validated_contract["contractHash"],
         "instrumentId": instrument_id,
         "orderAttemptCount": 1,
-        "exchangeOrderId": order_id,
-        "clientOrderId": order_payload["clOrdId"],
-        "orderNotionalUsdt": float(notional),
-        "initialOrderState": initial_state,
-        "finalOrderState": final_order_state,
-        "cancelConfirmed": cancel_confirmed,
-        "finalOpenPositionCount": len(final_positions),
-        "finalOpenOrderCount": len(final_orders),
-        "finalReconciliationMatched": reconciled,
-        "strategyQualification": False,
-        "promotionEligible": False,
-        "liveCanaryEvidenceEligible": False,
-        "privateAccountValuesPersisted": False,
         "rawCredentialsPersisted": False,
+        "privateAccountValuesPersisted": False,
         "withdrawAllowed": False,
     }
-    if output_path is not None:
-        _atomic_write(Path(output_path), result)
-    if not reconciled:
-        raise RuntimeError("Live engineering smoke did not reconcile to zero state")
-    return result
+    if attempt_state_path is not None:
+        _atomic_write(attempt_state_path, attempt_state)
+
+    try:
+        submitted = client.place_protected_order(order_payload)
+        submitted_rows = _rows(submitted, "order submission")
+        if len(submitted_rows) != 1 or not str(submitted_rows[0].get("ordId") or ""):
+            raise RuntimeError("Live engineering smoke did not receive one exchange order id")
+        order_id = str(submitted_rows[0]["ordId"])
+        attempt_state = {
+            **attempt_state,
+            "generatedAt": _now(),
+            "status": "order_submitted_cancel_pending",
+            "exchangeOrderId": order_id,
+            "clientOrderId": order_payload["clOrdId"],
+        }
+        if attempt_state_path is not None:
+            _atomic_write(attempt_state_path, attempt_state)
+        first_order = _rows(
+            client.get_order(instId=instrument_id, ordId=order_id),
+            "order query",
+        )
+        initial_state = str(first_order[0].get("state") or "unknown") if first_order else "unknown"
+        cancel_rows = _rows(
+            client.cancel_order(instId=instrument_id, ordId=order_id),
+            "order cancellation",
+        )
+        cancel_accepted = bool(cancel_rows) and str(cancel_rows[0].get("sCode") or "0") == "0"
+        final_order_rows = _rows(
+            client.get_order(instId=instrument_id, ordId=order_id),
+            "post-cancel order query",
+        )
+        final_order_state = str(final_order_rows[0].get("state") or "unknown") if final_order_rows else "unknown"
+        final_positions = _nonzero_positions(_rows(client.get_positions(), "final positions"))
+        final_orders = _rows(client.get_open_orders(), "final open orders")
+        cancel_confirmed = cancel_accepted and final_order_state in {"canceled", "cancelled"}
+        reconciled = cancel_confirmed and not final_positions and not final_orders
+        status = (
+            "completed_canceled_and_reconciled"
+            if reconciled
+            else "blocked_unexpected_live_state_requires_manual_recovery"
+        )
+        result = {
+            "schemaVersion": "alphapilot_live_engineering_smoke_result_v1",
+            "generatedAt": _now(),
+            "status": status,
+            "environment": "okx_live",
+            "contractHash": validated_contract["contractHash"],
+            "instrumentId": instrument_id,
+            "orderAttemptCount": 1,
+            "exchangeOrderId": order_id,
+            "clientOrderId": order_payload["clOrdId"],
+            "orderNotionalUsdt": float(notional),
+            "initialOrderState": initial_state,
+            "finalOrderState": final_order_state,
+            "cancelConfirmed": cancel_confirmed,
+            "finalOpenPositionCount": len(final_positions),
+            "finalOpenOrderCount": len(final_orders),
+            "finalReconciliationMatched": reconciled,
+            "strategyQualification": False,
+            "promotionEligible": False,
+            "liveCanaryEvidenceEligible": False,
+            "privateAccountValuesPersisted": False,
+            "rawCredentialsPersisted": False,
+            "withdrawAllowed": False,
+        }
+        if output_path is not None:
+            _atomic_write(Path(output_path), result)
+        attempt_state = result
+        if attempt_state_path is not None:
+            _atomic_write(attempt_state_path, result)
+        if not reconciled:
+            raise RuntimeError("Live engineering smoke did not reconcile to zero state")
+        return result
+    except Exception as error:
+        if attempt_state_path is not None:
+            blocked_state = {
+                **attempt_state,
+                "generatedAt": _now(),
+                "status": "blocked_requires_manual_review",
+                "errorType": type(error).__name__,
+            }
+            _atomic_write(attempt_state_path, blocked_state)
+        raise

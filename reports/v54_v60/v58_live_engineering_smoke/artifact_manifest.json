@@ -1,6 +1,11 @@
 {
-  "artifactCount": 3,
+  "artifactCount": 4,
   "artifacts": [
+    {
+      "path": "live_engineering_smoke_approval.json",
+      "sha256": "9d21a0ed9cea91d36c548d543468150c83e9d0647d686e3a65add74b723b6c93",
+      "sizeBytes": 478
+    },
     {
       "path": "live_engineering_smoke_approval_request.json",
       "sha256": "a3159785957cb55edc027fc5be87891de6adefba466bab3b4d7fac5e6148dbaa",
@@ -13,13 +18,13 @@
     },
     {
       "path": "live_engineering_smoke_status.json",
-      "sha256": "55a683298acb0514eaddaff491cdacde87c1ffe8ccad93632212d2c31e62b597",
-      "sizeBytes": 541
+      "sha256": "6f0d7cb86e4f00e1d35e6599451056cb84fd0eed58809511a3e2befd3ec76762",
+      "sizeBytes": 545
     }
   ],
-  "generatedAt": "2026-07-21T05:52:35Z",
+  "generatedAt": "2026-07-21T06:10:33Z",
   "liveOrdersCreated": 0,
   "schemaVersion": "alphapilot_v58_live_engineering_smoke_manifest_v1",
-  "status": "complete_readiness_only",
+  "status": "approved_waiting_process_only_live_credentials",
   "withdrawAllowed": false
 }

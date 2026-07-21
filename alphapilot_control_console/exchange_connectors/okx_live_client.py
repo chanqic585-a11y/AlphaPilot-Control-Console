@@ -22,6 +22,8 @@ OKX_LIVE_USER_AGENT = "AlphaPilot-Control-Console/13.25.0"
 _CLIENT_ID = re.compile(r"^[A-Za-z0-9]{1,32}$")
 _READ_ONLY_ENDPOINTS = {
     ("GET", "/api/v5/account/config"),
+    ("GET", "/api/v5/account/instruments"),
+    ("GET", "/api/v5/account/leverage-info"),
     ("GET", "/api/v5/account/balance"),
     ("GET", "/api/v5/account/positions"),
     ("GET", "/api/v5/trade/order"),
@@ -176,6 +178,22 @@ class OkxLiveClient:
 
     def get_account_config(self) -> dict[str, Any]:
         return self.request("GET", "/api/v5/account/config")
+
+    def get_account_instruments(self, instrumentType: str = "SWAP") -> dict[str, Any]:
+        return self.request(
+            "GET",
+            "/api/v5/account/instruments",
+            query={"instType": instrumentType},
+        )
+
+    def get_leverage(self, *, instId: str, marginMode: str) -> dict[str, Any]:
+        if marginMode not in {"cross", "isolated"}:
+            raise ValueError("OKX Live margin mode must be cross or isolated")
+        return self.request(
+            "GET",
+            "/api/v5/account/leverage-info",
+            query={"instId": instId, "mgnMode": marginMode},
+        )
 
     def get_balance(self, currency: str = "USDT") -> dict[str, Any]:
         return self.request("GET", "/api/v5/account/balance", query={"ccy": currency})

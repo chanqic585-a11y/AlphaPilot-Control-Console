@@ -61,10 +61,25 @@ class OkxLiveClientTests(unittest.TestCase):
         paths = self.client.read_only_endpoint_paths()
 
         self.assertIn("/api/v5/account/balance", paths)
+        self.assertIn("/api/v5/account/instruments", paths)
+        self.assertIn("/api/v5/account/leverage-info", paths)
         self.assertNotIn("/api/v5/asset/withdrawal", paths)
         self.assertNotIn("/api/v5/asset/transfer", paths)
         self.assertFalse(hasattr(self.client, "withdraw"))
         self.assertFalse(hasattr(self.client, "transfer"))
+
+    def test_live_preflight_read_methods_are_allowlisted(self) -> None:
+        self.client.get_account_instruments("SWAP")
+        self.client.get_leverage(instId="ETH-USDT-SWAP", marginMode="isolated")
+
+        instruments_request, leverage_request = self.transport.requests
+        self.assertEqual(instruments_request.path, "/api/v5/account/instruments")
+        self.assertEqual(instruments_request.query, {"instType": "SWAP"})
+        self.assertEqual(leverage_request.path, "/api/v5/account/leverage-info")
+        self.assertEqual(
+            leverage_request.query,
+            {"instId": "ETH-USDT-SWAP", "mgnMode": "isolated"},
+        )
 
     def test_both_attached_protection_prices_are_required(self) -> None:
         payload = self.protected_order()
