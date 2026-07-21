@@ -14,6 +14,20 @@ from .live_engineering_smoke_contract import (
 )
 
 
+class LiveSmokePreflightError(RuntimeError):
+    """A redacted, user-actionable failure that occurs before order reservation."""
+
+    def __init__(
+        self,
+        safe_code: str,
+        *,
+        safe_instrument_id: str | None = None,
+    ):
+        super().__init__("Live engineering smoke preflight blocked")
+        self.safe_code = safe_code
+        self.safe_instrument_id = safe_instrument_id
+
+
 def _now() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
@@ -94,27 +108,60 @@ def _require_private_preflight(
     client: Any,
     instrument_id: str,
     required_notional: Decimal,
-) -> None:
-    config_rows = _rows(client.get_account_config(), "account config")
-    if len(config_rows) != 1 or str(config_rows[0].get("posMode") or "") != "net_mode":
-        raise RuntimeError("Live engineering smoke requires OKX net position mode")
-    available_usdt = _available_usdt(_rows(client.get_balance(currency="USDT"), "balance"))
+) -> str:
+    try:
+        config_rows = _rows(client.get_account_config(), "account config")
+    except Exception as error:
+        raise LiveSmokePreflightError("account_config_unavailable") from error
+    if len(config_rows) != 1:
+        raise LiveSmokePreflightError("account_config_invalid")
+    position_mode = str(config_rows[0].get("posMode") or "")
+    if position_mode not in {"net_mode", "long_short_mode"}:
+        raise LiveSmokePreflightError("unsupported_position_mode")
+    try:
+        available_usdt = _available_usdt(
+            _rows(client.get_balance(currency="USDT"), "balance")
+        )
+    except Exception as error:
+        raise LiveSmokePreflightError("available_usdt_unavailable") from error
     if available_usdt < required_notional:
-        raise RuntimeError("Live engineering smoke has insufficient available USDT")
-    if _nonzero_positions(_rows(client.get_positions(), "positions")):
-        raise RuntimeError("Live engineering smoke requires zero initial account positions")
-    if _rows(client.get_open_orders(), "open orders"):
-        raise RuntimeError("Live engineering smoke requires zero initial account open orders")
-    leverage_rows = _rows(
-        client.get_leverage(instId=instrument_id, marginMode="isolated"),
-        "leverage",
-    )
-    if not leverage_rows or any(
-        str(row.get("mgnMode") or "") != "isolated"
-        or Decimal(str(row.get("lever") or "0")) != Decimal("1")
+        raise LiveSmokePreflightError("insufficient_available_usdt")
+    try:
+        position_rows = _rows(client.get_positions(), "positions")
+    except Exception as error:
+        raise LiveSmokePreflightError("positions_unavailable") from error
+    if _nonzero_positions(position_rows):
+        raise LiveSmokePreflightError("nonzero_initial_positions")
+    try:
+        open_order_rows = _rows(client.get_open_orders(), "open orders")
+    except Exception as error:
+        raise LiveSmokePreflightError("open_orders_unavailable") from error
+    if open_order_rows:
+        raise LiveSmokePreflightError("nonzero_initial_open_orders")
+    try:
+        leverage_rows = _rows(
+            client.get_leverage(instId=instrument_id, marginMode="isolated"),
+            "leverage",
+        )
+    except Exception as error:
+        raise LiveSmokePreflightError("leverage_unavailable") from error
+    relevant_leverage_rows = [
+        row
         for row in leverage_rows
-    ):
-        raise RuntimeError("Live engineering smoke requires preconfigured 1x isolated leverage")
+        if position_mode == "net_mode"
+        or str(row.get("posSide") or "") in {"", "net", "long"}
+    ]
+    try:
+        leverage_is_valid = bool(relevant_leverage_rows) and all(
+            str(row.get("mgnMode") or "") == "isolated"
+            and Decimal(str(row.get("lever") or "0")) == Decimal("1")
+            for row in relevant_leverage_rows
+        )
+    except Exception as error:
+        raise LiveSmokePreflightError("leverage_unavailable") from error
+    if not leverage_is_valid:
+        raise LiveSmokePreflightError("isolated_leverage_not_1x")
+    return position_mode
 
 
 def _build_order_payload(
@@ -185,11 +232,19 @@ def run_live_engineering_smoke(
         quote=quote,
     )
     instrument_id = str(order_payload["instId"])
-    _require_private_preflight(
-        client=client,
-        instrument_id=instrument_id,
-        required_notional=notional,
-    )
+    try:
+        position_mode = _require_private_preflight(
+            client=client,
+            instrument_id=instrument_id,
+            required_notional=notional,
+        )
+    except LiveSmokePreflightError as error:
+        raise LiveSmokePreflightError(
+            error.safe_code,
+            safe_instrument_id=instrument_id,
+        ) from error
+    if position_mode == "long_short_mode":
+        order_payload["posSide"] = "long"
     attempt_state = {
         "schemaVersion": "alphapilot_live_engineering_smoke_attempt_v1",
         "generatedAt": _now(),

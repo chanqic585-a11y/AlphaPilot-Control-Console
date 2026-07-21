@@ -18,13 +18,14 @@
     },
     {
       "path": "live_engineering_smoke_status.json",
-      "sha256": "6f0d7cb86e4f00e1d35e6599451056cb84fd0eed58809511a3e2befd3ec76762",
-      "sizeBytes": 545
+      "sha256": "fcfe51e3b7c95f8bacc41430677739673459806176405273f2ca7ff7d5f5350d",
+      "sizeBytes": 682
     }
   ],
-  "generatedAt": "2026-07-21T06:10:33Z",
-  "liveOrdersCreated": 0,
-  "schemaVersion": "alphapilot_v58_live_engineering_smoke_manifest_v1",
-  "status": "approved_waiting_process_only_live_credentials",
+  "generatedAt": "2026-07-21T06:34:03.512960Z",
+  "privateAccountValuesPersisted": false,
+  "rawCredentialsPersisted": false,
+  "schemaVersion": "alphapilot_v58_live_engineering_smoke_manifest_v2",
+  "status": "blocked_live_engineering_smoke_requires_review",
   "withdrawAllowed": false
 }

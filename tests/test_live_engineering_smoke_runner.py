@@ -118,6 +118,68 @@ class LiveEngineeringSmokeRunnerTests(unittest.TestCase):
         self.assertEqual(result["status"], "completed_canceled_and_reconciled")
         self.assertEqual(run_smoke.call_args.kwargs["instrument"]["instId"], "ETH-USDT-SWAP")
 
+    @patch("alphapilot_control_console.live_engineering_smoke_runner.run_live_engineering_smoke")
+    def test_runner_redacts_account_instrument_failure_as_safe_blocker(
+        self,
+        run_smoke,
+    ) -> None:
+        class Client:
+            @staticmethod
+            def get_account_instruments(_: str) -> dict:
+                return {"code": "50000", "msg": "private exchange detail", "data": []}
+
+        with self.assertRaises(RuntimeError) as caught:
+            run_approved_live_engineering_smoke(
+                client=Client(),
+                contract={"maximumNotionalUsdt": 10},
+                approval={"actor": "user_explicit"},
+                result_path=Path("result.json"),
+                attempt_path=Path("attempt.json"),
+            )
+
+        self.assertEqual(caught.exception.safe_code, "account_instruments_unavailable")
+        run_smoke.assert_not_called()
+
+    @patch("alphapilot_control_console.live_engineering_smoke_runner.run_live_engineering_smoke")
+    @patch("alphapilot_control_console.live_engineering_smoke_runner._public_tickers")
+    @patch("alphapilot_control_console.live_engineering_smoke_runner._public_instruments")
+    def test_runner_reports_no_bounded_instrument_without_private_values(
+        self,
+        public_instruments,
+        public_tickers,
+        run_smoke,
+    ) -> None:
+        class Client:
+            @staticmethod
+            def get_account_instruments(_: str) -> dict:
+                return {"code": "0", "data": [{"instId": "BTC-USDT-SWAP"}]}
+
+        public_instruments.return_value = [{
+            "instId": "BTC-USDT-SWAP",
+            "state": "live",
+            "ctType": "linear",
+            "settleCcy": "USDT",
+            "tickSz": "0.1",
+            "lotSz": "1",
+            "minSz": "1",
+            "ctVal": "1",
+        }]
+        public_tickers.return_value = [
+            {"instId": "BTC-USDT-SWAP", "bidPx": "100000", "askPx": "100001"}
+        ]
+
+        with self.assertRaises(RuntimeError) as caught:
+            run_approved_live_engineering_smoke(
+                client=Client(),
+                contract={"maximumNotionalUsdt": 10},
+                approval={"actor": "user_explicit"},
+                result_path=Path("result.json"),
+                attempt_path=Path("attempt.json"),
+            )
+
+        self.assertEqual(caught.exception.safe_code, "no_eligible_bounded_instrument")
+        run_smoke.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

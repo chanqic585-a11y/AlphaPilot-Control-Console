@@ -93,6 +93,10 @@ def main() -> int:
         )
         return 0
     except Exception as error:
+        safe_blocker_code = str(
+            getattr(error, "safe_code", "unclassified_preflight_failure")
+        )
+        safe_instrument_id = getattr(error, "safe_instrument_id", None)
         status = {
             "schemaVersion": "alphapilot_live_engineering_smoke_status_v2",
             "generatedAt": _now(),
@@ -103,6 +107,8 @@ def main() -> int:
             "smokeExecuted": attempt_path.exists(),
             "orderAttemptCount": 1 if attempt_path.exists() else 0,
             "errorType": type(error).__name__,
+            "safeBlockerCode": safe_blocker_code,
+            "safeInstrumentId": safe_instrument_id,
             "strategyQualification": False,
             "promotionEligible": False,
             "liveCanaryEvidenceEligible": False,
@@ -119,6 +125,8 @@ def main() -> int:
                 {
                     "status": status["status"],
                     "errorType": type(error).__name__,
+                    "safeBlockerCode": safe_blocker_code,
+                    "safeInstrumentId": safe_instrument_id,
                     "orderAttemptCount": status["orderAttemptCount"],
                 },
                 ensure_ascii=False,

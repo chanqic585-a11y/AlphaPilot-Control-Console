@@ -10,7 +10,10 @@ from typing import Any, Iterable, Mapping
 
 from .exchange_connectors.okx_live_client import OkxLiveClient
 from .exchange_connectors.public_exchange_registry import fetch_okx_public_payload
-from .live_engineering_smoke_service import run_live_engineering_smoke
+from .live_engineering_smoke_service import (
+    LiveSmokePreflightError,
+    run_live_engineering_smoke,
+)
 
 
 _MAJOR_PREFERENCE = (
@@ -120,25 +123,38 @@ def run_approved_live_engineering_smoke(
     result_path: Path,
     attempt_path: Path,
 ) -> dict[str, Any]:
-    account_instruments = _payload_rows(
-        client.get_account_instruments("SWAP"),
-        "account instruments",
-    )
+    try:
+        account_instruments = _payload_rows(
+            client.get_account_instruments("SWAP"),
+            "account instruments",
+        )
+    except Exception as error:
+        raise LiveSmokePreflightError("account_instruments_unavailable") from error
     account_instrument_ids = {
         str(row.get("instId") or "")
         for row in account_instruments
         if str(row.get("instId") or "").endswith("-USDT-SWAP")
     }
-    public_instruments = [
-        row
-        for row in _public_instruments()
-        if str(row.get("instId") or "") in account_instrument_ids
-    ]
-    instrument, quote = select_live_smoke_instrument(
-        public_instruments,
-        _public_tickers(),
-        maximum_notional_usdt=float(contract["maximumNotionalUsdt"]),
-    )
+    try:
+        public_instruments = [
+            row
+            for row in _public_instruments()
+            if str(row.get("instId") or "") in account_instrument_ids
+        ]
+    except Exception as error:
+        raise LiveSmokePreflightError("public_instruments_unavailable") from error
+    try:
+        public_tickers = _public_tickers()
+    except Exception as error:
+        raise LiveSmokePreflightError("public_tickers_unavailable") from error
+    try:
+        instrument, quote = select_live_smoke_instrument(
+            public_instruments,
+            public_tickers,
+            maximum_notional_usdt=float(contract["maximumNotionalUsdt"]),
+        )
+    except Exception as error:
+        raise LiveSmokePreflightError("no_eligible_bounded_instrument") from error
     return run_live_engineering_smoke(
         client=client,
         contract=contract,

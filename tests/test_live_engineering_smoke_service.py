@@ -9,9 +9,7 @@ from alphapilot_control_console.live_engineering_smoke_contract import (
     build_live_engineering_smoke_approval_request,
     build_live_engineering_smoke_contract,
 )
-from alphapilot_control_console.live_engineering_smoke_service import (
-    run_live_engineering_smoke,
-)
+from alphapilot_control_console.live_engineering_smoke_service import run_live_engineering_smoke
 
 
 class FakeLiveSmokeClient:
@@ -191,7 +189,7 @@ class LiveEngineeringSmokeServiceTests(unittest.TestCase):
         }
         with tempfile.TemporaryDirectory() as directory:
             attempt = Path(directory) / "live_smoke_attempt.json"
-            with self.assertRaises(RuntimeError):
+            with self.assertRaises(RuntimeError) as caught:
                 run_live_engineering_smoke(
                     client=client,
                     contract=contract,
@@ -207,6 +205,109 @@ class LiveEngineeringSmokeServiceTests(unittest.TestCase):
                     quote={"bidPx": "100000", "askPx": "100001"},
                     attempt_path=attempt,
                 )
+            self.assertEqual(caught.exception.safe_code, "isolated_leverage_not_1x")
+            self.assertEqual(caught.exception.safe_instrument_id, "BTC-USDT-SWAP")
+            self.assertFalse(attempt.exists())
+            self.assertNotIn("place_order", client.calls)
+
+    def test_long_short_mode_uses_explicit_long_position_side(self) -> None:
+        contract = build_live_engineering_smoke_contract(
+            created_at="2026-07-21T06:00:00Z",
+            maximum_notional_usdt=10.0,
+        )
+        request = build_live_engineering_smoke_approval_request(contract)
+        approval = {
+            "actor": "user_explicit",
+            "contractHash": contract["contractHash"],
+            "confirmation": request["requiredConfirmation"],
+        }
+        client = FakeLiveSmokeClient()
+        client.get_account_config = lambda: {
+            "code": "0",
+            "data": [{"posMode": "long_short_mode"}],
+        }
+        client.get_leverage = lambda **_: {
+            "code": "0",
+            "data": [
+                {
+                    "instId": "BTC-USDT-SWAP",
+                    "mgnMode": "isolated",
+                    "posSide": "long",
+                    "lever": "1",
+                },
+                {
+                    "instId": "BTC-USDT-SWAP",
+                    "mgnMode": "isolated",
+                    "posSide": "short",
+                    "lever": "3",
+                },
+            ],
+        }
+        submitted_payloads: list[dict] = []
+
+        def place_protected_order(payload: dict) -> dict:
+            client.calls.append("place_order")
+            submitted_payloads.append(payload)
+            return {
+                "code": "0",
+                "data": [{"ordId": "order-1", "clOrdId": payload["clOrdId"]}],
+            }
+
+        client.place_protected_order = place_protected_order
+
+        result = run_live_engineering_smoke(
+            client=client,
+            contract=contract,
+            approval=approval,
+            instrument={
+                "instId": "BTC-USDT-SWAP",
+                "state": "live",
+                "tickSz": "0.1",
+                "lotSz": "0.001",
+                "minSz": "0.001",
+                "ctVal": "0.01",
+            },
+            quote={"bidPx": "100000", "askPx": "100001"},
+        )
+
+        self.assertEqual(result["status"], "completed_canceled_and_reconciled")
+        self.assertEqual(submitted_payloads[0]["posSide"], "long")
+
+    def test_unknown_position_mode_has_safe_preflight_code_and_no_attempt(self) -> None:
+        contract = build_live_engineering_smoke_contract(
+            created_at="2026-07-21T06:00:00Z",
+            maximum_notional_usdt=10.0,
+        )
+        request = build_live_engineering_smoke_approval_request(contract)
+        approval = {
+            "actor": "user_explicit",
+            "contractHash": contract["contractHash"],
+            "confirmation": request["requiredConfirmation"],
+        }
+        client = FakeLiveSmokeClient()
+        client.get_account_config = lambda: {
+            "code": "0",
+            "data": [{"posMode": "portfolio_mode"}],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            attempt = Path(directory) / "live_smoke_attempt.json"
+            with self.assertRaises(RuntimeError) as caught:
+                run_live_engineering_smoke(
+                    client=client,
+                    contract=contract,
+                    approval=approval,
+                    instrument={
+                        "instId": "BTC-USDT-SWAP",
+                        "state": "live",
+                        "tickSz": "0.1",
+                        "lotSz": "0.001",
+                        "minSz": "0.001",
+                        "ctVal": "0.01",
+                    },
+                    quote={"bidPx": "100000", "askPx": "100001"},
+                    attempt_path=attempt,
+                )
+            self.assertEqual(caught.exception.safe_code, "unsupported_position_mode")
             self.assertFalse(attempt.exists())
             self.assertNotIn("place_order", client.calls)
 
