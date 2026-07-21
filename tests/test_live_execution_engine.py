@@ -40,6 +40,15 @@ class FakeClient:
         return {"code": "0", "data": []}
 
 
+class FakeAdaptiveAdapter:
+    def __init__(self) -> None:
+        self.closed: list[dict] = []
+
+    def record_closed_outcome(self, outcome: dict, *, signal: dict) -> dict:
+        self.closed.append({"outcome": outcome, "signal": signal})
+        return {"status": "recorded", "learningSampleId": "sample-1"}
+
+
 class LiveExecutionEngineTests(unittest.TestCase):
     def setUp(self) -> None:
         self.directory = tempfile.TemporaryDirectory()
@@ -140,10 +149,12 @@ class LiveExecutionEngineTests(unittest.TestCase):
 
     def test_closed_live_outcome_preserves_release_and_profile_lineage(self) -> None:
         outcome_store = ExecutionOutcomeStore(Path(self.directory.name) / "outcomes.sqlite")
+        adaptive = FakeAdaptiveAdapter()
         engine = LiveExecutionEngine(
             client=self.client,
             store=self.store,
             outcomeStore=outcome_store,
+            adaptiveAdapter=adaptive,
         )
         record = engine.execute(
             contract=self.contract,
@@ -174,6 +185,9 @@ class LiveExecutionEngineTests(unittest.TestCase):
         )
         self.assertEqual(outcome.environment, "live")
         self.assertEqual(outcome.outcome["riskProfileId"], self.profile["riskProfileId"])
+        self.assertEqual(len(adaptive.closed), 1)
+        self.assertEqual(adaptive.closed[0]["outcome"]["sourceEntityId"], record.recordId)
+        self.assertEqual(adaptive.closed[0]["signal"]["signalTime"], self.signal["signalTime"])
         outcome_store.close()
 
 

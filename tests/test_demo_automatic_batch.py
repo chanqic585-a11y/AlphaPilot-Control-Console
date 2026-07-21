@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from contextlib import ExitStack
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -238,6 +239,17 @@ class DemoAutomaticBatchTests(unittest.TestCase):
                 return_value=self.market_runtime,
                 create=True,
             ),
+            patch.object(
+                service,
+                "record_production_adaptive_scan",
+                return_value={
+                    "status": "completed",
+                    "modelMode": "observer",
+                    "featureSnapshotCount": 1,
+                    "modelDecisionCount": 1,
+                    "executionUnaffected": True,
+                },
+            ),
         )
 
     def test_batch_scans_all_due_releases_and_arbitrates_before_ordering(self) -> None:
@@ -261,7 +273,7 @@ class DemoAutomaticBatchTests(unittest.TestCase):
             "spreadPct": 0.0001,
             "liquidityPassed": True,
         }
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11], patch.object(service, "_utc_now", return_value=NOW + timedelta(seconds=0.7), create=True):
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11], patches[12] as adaptive_mock, patch.object(service, "_utc_now", return_value=NOW + timedelta(seconds=0.7), create=True):
             result = service.run_evolution_demo_batch_cycle(
                 ["release-a", "release-b"],
                 close_event=close_event(),
@@ -285,6 +297,44 @@ class DemoAutomaticBatchTests(unittest.TestCase):
         )
         reasons = [row.get("reason") for row in result["rejectedSignals"]]
         self.assertIn("duplicate_symbol_signal", reasons)
+        self.assertEqual(adaptive_mock.call_count, 2)
+
+    def test_adaptive_instrumentation_failure_blocks_orders(self) -> None:
+        scans = {
+            "release-a": {
+                "signals": [signal("release-a", "strategy-a", "signal-a", 90)],
+                "rejections": [],
+                "blockers": [],
+            }
+        }
+        patches = list(self._patches(scans))
+        patches[12] = patch.object(
+            service,
+            "record_production_adaptive_scan",
+            side_effect=RuntimeError("feature_contract_unavailable"),
+        )
+        with ExitStack() as stack:
+            for item in patches:
+                stack.enter_context(item)
+            stack.enter_context(
+                patch.object(
+                    service,
+                    "_utc_now",
+                    return_value=NOW + timedelta(seconds=0.7),
+                    create=True,
+                )
+            )
+            result = service.run_evolution_demo_batch_cycle(
+                ["release-a"],
+                close_event=close_event(),
+            )
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(FakeEngine.executed, [])
+        self.assertIn(
+            "adaptive_learning_instrumentation_failed:feature_contract_unavailable",
+            result["blockers"],
+        )
 
     def test_portfolio_components_sharing_one_release_keep_distinct_scan_evidence(self) -> None:
         components = [
@@ -296,7 +346,7 @@ class DemoAutomaticBatchTests(unittest.TestCase):
             "component-b": {"signals": [], "rejections": [], "blockers": []},
         }
         patches = self._patches(scans)
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11], patch.object(
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11], patches[12], patch.object(
             service,
             "_utc_now",
             return_value=NOW + timedelta(seconds=0.7),
@@ -333,7 +383,7 @@ class DemoAutomaticBatchTests(unittest.TestCase):
             "liquidityPassed": True,
         }
         patches = self._patches(scans)
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11], patch.object(service, "_utc_now", return_value=NOW + timedelta(seconds=0.7), create=True):
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11], patches[12], patch.object(service, "_utc_now", return_value=NOW + timedelta(seconds=0.7), create=True):
             result = service.run_evolution_demo_batch_cycle(
                 ["release-a", "release-b"],
                 close_event=close_event(),
@@ -391,7 +441,7 @@ class DemoAutomaticBatchTests(unittest.TestCase):
             }
         patches = list(self._patches(scans))
         patches[5] = patch.object(service, "DemoExecutionEngine", RaceAwareEngine)
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11], patch.object(service, "_utc_now", return_value=NOW + timedelta(seconds=0.7), create=True):
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11], patches[12], patch.object(service, "_utc_now", return_value=NOW + timedelta(seconds=0.7), create=True):
             result = service.run_evolution_demo_batch_cycle(
                 ["release-a", "release-b"],
                 close_event=close_event(),
@@ -410,7 +460,7 @@ class DemoAutomaticBatchTests(unittest.TestCase):
             for row in self.contracts
         }
         patches = self._patches(scans)
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11], patches[12]:
             result = service.run_evolution_demo_batch_cycle(
                 ["release-a", "release-b"],
                 close_event=close_event(),
@@ -436,7 +486,7 @@ class DemoAutomaticBatchTests(unittest.TestCase):
             side_effect=lambda row, **kwargs: scanner_calls.append(kwargs) or scans[row["demoReleaseId"]],
         )
 
-        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11], patches[12]:
             result = service.run_evolution_demo_batch_cycle(
                 [row["demoReleaseId"] for row in self.contracts],
                 close_event=close_event(),
@@ -475,7 +525,7 @@ class DemoAutomaticBatchTests(unittest.TestCase):
                     "liquidityPassed": True,
                 }
                 patches = self._patches(scans)
-                with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11], patch.object(service, "_utc_now", return_value=NOW + timedelta(seconds=elapsed), create=True):
+                with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], patches[9], patches[10], patches[11], patches[12], patch.object(service, "_utc_now", return_value=NOW + timedelta(seconds=elapsed), create=True):
                     result = service.run_evolution_demo_batch_cycle(
                         ["release-a", "release-b"],
                         close_event=close_event(),

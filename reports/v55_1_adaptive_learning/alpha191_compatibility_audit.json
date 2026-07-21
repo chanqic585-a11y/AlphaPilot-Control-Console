@@ -1,0 +1,13 @@
+{
+  "allFactorsProductionValidated": false,
+  "catalogCount": 191,
+  "formulaReviewedCount": 8,
+  "generatedAt": "2026-07-21T00:36:58.880705Z",
+  "nextAction": "Run PIT, missing-value, divide-by-zero, IC, decay and turnover validation.",
+  "numericCrossvalidatedCount": 8,
+  "predictiveValueClaimed": false,
+  "productionValidatedCount": 0,
+  "schemaVersion": "alpha191_compatibility_audit_v1",
+  "status": "partial_formula_compatibility",
+  "validationScope": "formula_and_numeric_compatibility_only"
+}

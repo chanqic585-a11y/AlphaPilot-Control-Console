@@ -97,6 +97,17 @@
               <div><span>数据不足</span><strong id="top200DataInsufficient">0</strong></div>
               <div><span>系统问题</span><strong id="top200SystemIssue">0</strong></div>
             </div>
+            <section id="strategyAdaptiveLearning" class="adaptive-learning-summary" aria-labelledby="strategyAdaptiveLearningTitle">
+              <div class="adaptive-learning-head">
+                <div><p class="panel-eyebrow">ADAPTIVE LEARNING</p><h3 id="strategyAdaptiveLearningTitle">因子与模型版本</h3></div>
+                <strong id="adaptiveStrategyStatus" class="badge neutral">正在读取</strong>
+              </div>
+              <div class="adaptive-learning-metrics">
+                <div><span>生产因子</span><strong id="adaptiveFactorCount">--</strong></div>
+                <div><span>Feature Schema</span><strong id="adaptiveFeatureCount">--</strong></div>
+                <div><span>当前模型模式</span><strong id="adaptiveStrategyModelMode">--</strong></div>
+              </div>
+            </section>
             <section class="top200-result-section" aria-labelledby="top200ResultTitle">
               <div class="top200-section-title">
                 <h3 id="top200ResultTitle">当前结果</h3>
@@ -668,6 +679,18 @@
               <div><span>运行策略</span><strong id="top200DemoRunningCount">0</strong></div>
               <div><span>开放持仓</span><strong id="top200DemoPositionCount">0</strong></div>
             </div>
+            <section id="demoAdaptiveLearning" class="adaptive-learning-summary" aria-labelledby="demoAdaptiveLearningTitle">
+              <div class="adaptive-learning-head">
+                <div><p class="panel-eyebrow">OBSERVER / SHADOW</p><h3 id="demoAdaptiveLearningTitle">Demo 学习旁路</h3></div>
+                <strong id="adaptiveDemoMode" class="badge neutral">observer</strong>
+              </div>
+              <div class="adaptive-learning-metrics">
+                <div><span>因子快照</span><strong id="adaptiveDemoSnapshotCount">0</strong></div>
+                <div><span>影子决策</span><strong id="adaptiveDemoDecisionCount">0</strong></div>
+                <div><span>闭合样本</span><strong id="adaptiveDemoSampleCount">0</strong></div>
+              </div>
+              <small id="adaptiveDemoBoundary">仅记录，不改变信号、风险或订单。</small>
+            </section>
             <section class="top200-result-section" aria-labelledby="top200DemoStrategyTitle">
               <div class="top200-section-title">
                 <h3 id="top200DemoStrategyTitle">策略</h3>
@@ -1071,6 +1094,13 @@
             <div class="execution-control-loading">正在加载双轨执行状态...</div>
           </section>
           <div class="exchange-demo-warning"><strong>当前状态：</strong><span id="liveCanaryHeadline">Live 适配器已安装但默认关闭；缺任一 release、配置 hash、对账或进程门都会阻止下单。</span></div>
+          <section id="liveAdaptiveLearning" class="adaptive-learning-summary" aria-labelledby="liveAdaptiveLearningTitle">
+            <div class="adaptive-learning-head">
+              <div><p class="panel-eyebrow">LIVE READINESS GATE</p><h3 id="liveAdaptiveLearningTitle">自适应学习实盘门</h3></div>
+              <strong id="adaptiveLiveReadiness" class="badge warn">未就绪</strong>
+            </div>
+            <p id="adaptiveLiveNextAction">实盘必须绑定 rank_only、veto_only 或 meta_label 模型，并创建新 Release Hash 后精确批准。</p>
+          </section>
           <div class="workflow-action-status">实盘账户凭据输入一次；每条策略仍需逐条批准启用，并分别绑定不可变 Release 与 RiskProfile。</div>
           <section class="auto-execution-control" data-auto-execution-environment="okx_live">
             <div class="auto-execution-head">
@@ -2964,5 +2994,6 @@
     <script src="/issue-guidance.js?v=20260715-demo-runtime-recovery"></script>
     <script src="/app.js?v=20260715-demo-runtime-recovery"></script>
     <script src="/top200-minimal-ui.js?v=20260720-scope-freeze"></script>
+    <script src="/adaptive-learning-ui.js?v=20260721-v55-1"></script>
   </body>
 </html>

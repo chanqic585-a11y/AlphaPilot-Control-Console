@@ -30,10 +30,12 @@ class LiveExecutionEngine:
         client: Any,
         store: LiveExecutionStore,
         outcomeStore: ExecutionOutcomeStore | None = None,
+        adaptiveAdapter: Any | None = None,
     ):
         self.client = client
         self.store = store
         self.outcomeStore = outcomeStore
+        self.adaptiveAdapter = adaptiveAdapter
 
     def execute(
         self,
@@ -205,7 +207,7 @@ class LiveExecutionEngine:
         expected_direction = "long" if str(record.signal.get("side") or "").lower() in {"buy", "long"} else "short"
         if str(closeEvidence.get("direction") or "") != expected_direction:
             raise ValueError("Live closed outcome direction does not match the opening execution")
-        return self.outcomeStore.record_closed({
+        outcome = self.outcomeStore.record_closed({
             **closeEvidence,
             "environment": "live",
             "sourceRecordId": record.recordId,
@@ -218,6 +220,9 @@ class LiveExecutionEngine:
             "instrumentId": record.instrumentId,
             "decisionAt": str(record.signal.get("signalTime") or ""),
         })
+        if self.adaptiveAdapter is not None:
+            self.adaptiveAdapter.record_closed_outcome(outcome.outcome, signal=record.signal)
+        return outcome
 
     @staticmethod
     def _validate_contract(contract: dict[str, Any], active_profile: dict[str, Any]) -> dict[str, Any]:

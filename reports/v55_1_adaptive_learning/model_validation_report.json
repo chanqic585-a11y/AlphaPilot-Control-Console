@@ -1,0 +1,8 @@
+{
+  "generatedAt": "2026-07-21T00:36:58.880705Z",
+  "nextAction": "Run purged walk-forward and calibration before model promotion.",
+  "passed": null,
+  "reason": "decision_model_training_not_run",
+  "schemaVersion": "model_validation_report_v1",
+  "status": "not_run"
+}

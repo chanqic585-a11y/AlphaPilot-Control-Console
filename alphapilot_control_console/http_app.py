@@ -13,6 +13,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from .config import ALLOWED_STRATEGY_STATUSES, SAFETY_BOUNDARY, WEB_DIR
+from .adaptive_learning_runtime import build_adaptive_learning_status
 from .credential_runtime import load_okx_demo_credentials
 from .auto_execution_engine import build_auto_execution_engine, run_auto_execution_engine
 from .auto_execution_learning import build_auto_execution_learning
@@ -383,6 +384,14 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         fresh = _is_fresh_query(query)
         if path == "/api/health":
             self._send_json(build_health_payload())
+            return
+        if path == "/api/adaptive-learning":
+            self._send_json(_cached_payload(
+                "adaptive-learning",
+                5,
+                build_adaptive_learning_status,
+                fresh=fresh,
+            ))
             return
         if _is_top200_minimal_ui_route(path):
             try:

@@ -51,6 +51,15 @@ class FakePrivateOrderTransport:
         return {"code": "0", "data": [{"ordId": "ws-1", "clOrdId": payload["clOrdId"], "sCode": "0"}]}
 
 
+class FakeAdaptiveAdapter:
+    def __init__(self) -> None:
+        self.closed: list[dict] = []
+
+    def record_closed_outcome(self, outcome: dict, *, signal: dict) -> dict:
+        self.closed.append({"outcome": outcome, "signal": signal})
+        return {"status": "recorded", "learningSampleId": "sample-1"}
+
+
 def contract() -> dict:
     return {
         "schemaVersion": "alphapilot_control_console_demo_v1",
@@ -312,7 +321,13 @@ class DemoExecutionEngineTests(unittest.TestCase):
             store = DemoExecutionStore(Path(directory) / "demo.sqlite")
             outcome_store = ExecutionOutcomeStore(Path(directory) / "outcomes.sqlite")
             client = FakeDemoClient()
-            engine = DemoExecutionEngine(client=client, store=store, outcomeStore=outcome_store)
+            adaptive = FakeAdaptiveAdapter()
+            engine = DemoExecutionEngine(
+                client=client,
+                store=store,
+                outcomeStore=outcome_store,
+                adaptiveAdapter=adaptive,
+            )
             record = engine.execute(contract=contract(), signal=signal(), portfolio={})
             with self.assertRaises(RuntimeError):
                 engine.record_closed_outcome(
@@ -346,6 +361,9 @@ class DemoExecutionEngineTests(unittest.TestCase):
             )
             self.assertEqual(outcome.environment, "okx_demo")
             self.assertEqual(len(outcome_store.list_outcomes()), 1)
+            self.assertEqual(len(adaptive.closed), 1)
+            self.assertEqual(adaptive.closed[0]["outcome"]["sourceEntityId"], record.recordId)
+            self.assertEqual(adaptive.closed[0]["signal"]["signalTime"], signal()["signalTime"])
             outcome_store.close()
             store.close()
 

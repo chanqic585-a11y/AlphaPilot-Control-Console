@@ -90,6 +90,7 @@ class DemoExecutionEngine:
         client: Any,
         store: DemoExecutionStore,
         outcomeStore: ExecutionOutcomeStore | None = None,
+        adaptiveAdapter: Any | None = None,
         clock: Callable[[], datetime] = _utc_now,
         monotonicClock: Callable[[], float] = time.perf_counter,
         orderTransport: Any | None = None,
@@ -98,6 +99,7 @@ class DemoExecutionEngine:
         self.client = client
         self.store = store
         self.outcomeStore = outcomeStore
+        self.adaptiveAdapter = adaptiveAdapter
         self.clock = clock
         self.monotonicClock = monotonicClock
         self.orderTransport = orderTransport
@@ -392,7 +394,7 @@ class DemoExecutionEngine:
         expected_direction = "long" if str(record.signal.get("side") or "").lower() in {"buy", "long"} else "short"
         if str(closeEvidence.get("direction") or "") != expected_direction:
             raise ValueError("Demo closed outcome direction does not match the opening execution")
-        return self.outcomeStore.record_closed({
+        outcome = self.outcomeStore.record_closed({
             **closeEvidence,
             "environment": "okx_demo",
             "sourceRecordId": record.recordId,
@@ -403,6 +405,9 @@ class DemoExecutionEngine:
             "instrumentId": str(record.orderPayload.get("instId") or ""),
             "decisionAt": str(record.signal.get("signalTime") or ""),
         })
+        if self.adaptiveAdapter is not None:
+            self.adaptiveAdapter.record_closed_outcome(outcome.outcome, signal=record.signal)
+        return outcome
 
     @staticmethod
     def _validate_contract(contract: dict[str, Any]) -> None:

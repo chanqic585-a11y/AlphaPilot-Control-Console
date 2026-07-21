@@ -1,0 +1,10 @@
+{
+  "automaticPromotionAllowed": false,
+  "automaticRetrainingAllowed": false,
+  "decisionAuthority": "none",
+  "generatedAt": "2026-07-21T00:36:58.880705Z",
+  "modelMode": "observer",
+  "sampleEligibility": "reconciled_closed_strategy_trade_only",
+  "schemaVersion": "continuous_learning_state_v1",
+  "status": "observer_infrastructure_ready"
+}

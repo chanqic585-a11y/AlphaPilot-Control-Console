@@ -391,6 +391,11 @@ class EvolutionDemoServiceTests(unittest.TestCase):
             return_value={"status": "completed", "executionUnaffected": True},
             create=True,
         ) as observe_shadow, patch.object(
+            service,
+            "record_production_adaptive_scan",
+            return_value={"status": "completed", "executionUnaffected": True},
+            create=True,
+        ), patch.object(
             service, "DemoExecutionStore", return_value=FakeStore()
         ), patch.object(
             service, "DemoExecutionEngine", FakeEngine

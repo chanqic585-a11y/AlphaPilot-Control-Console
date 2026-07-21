@@ -1,0 +1,8 @@
+{
+  "generatedAt": "2026-07-21T00:36:58.880705Z",
+  "nextAction": "Start only after a reproducible training dataset is frozen.",
+  "passed": null,
+  "reason": "qlib_campaign_not_started",
+  "schemaVersion": "qlib_campaign_manifest_v1",
+  "status": "not_run"
+}

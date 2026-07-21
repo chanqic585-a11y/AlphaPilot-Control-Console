@@ -1,0 +1,8 @@
+{
+  "generatedAt": "2026-07-21T00:36:58.880705Z",
+  "nextAction": "Collect real closed Demo outcomes with feature lineage.",
+  "passed": null,
+  "reason": "no_reconciled_closed_demo_or_live_samples",
+  "schemaVersion": "training_dataset_manifest_v1",
+  "status": "not_run"
+}

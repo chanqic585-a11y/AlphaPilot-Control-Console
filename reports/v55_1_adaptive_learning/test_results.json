@@ -1,0 +1,53 @@
+{
+  "browserQa": {
+    "consoleErrors": 0,
+    "horizontalOverflow": false,
+    "mobileViewport": "390x844",
+    "redundantFloatingBackButtonHidden": true,
+    "status": "passed"
+  },
+  "compileall": {
+    "console": "passed",
+    "quant": "passed"
+  },
+  "configurationValidation": {
+    "liveTradingEnabled": false,
+    "status": "passed",
+    "tradeApiEnabled": false,
+    "withdrawApiEnabled": false
+  },
+  "console": {
+    "command": "python -m pytest tests -q --import-mode=importlib",
+    "durationSeconds": 24.4,
+    "failed": 0,
+    "passed": 578,
+    "subtestsPassed": 88
+  },
+  "diffCheck": {
+    "console": "passed",
+    "quant": "passed"
+  },
+  "generatedAt": "2026-07-21T00:36:58.880705Z",
+  "nonPassingAttempts": [
+    "A broad Quant pytest invocation collected duplicate and third-party modules; the repository-authoritative tests directory with importlib mode was then used.",
+    "The first authoritative Quant run lacked the bundled Git directory in PATH; the test process PATH was corrected without changing repository configuration.",
+    "The first local browser health request timed out during server warmup; the subsequent health and UI checks passed.",
+    "The initial 390px screenshot exposed a redundant floating back button; the mobile-only style was corrected and regression-tested."
+  ],
+  "quant": {
+    "bundledGitPathInjectedForTestProcessOnly": true,
+    "command": "python -m pytest tests -q --import-mode=importlib",
+    "durationSeconds": 82.12,
+    "failed": 0,
+    "passed": 1356,
+    "subtestsPassed": 164
+  },
+  "safety": {
+    "changedFileReview": "passed",
+    "newTradingCapabilityFound": false,
+    "quantSafetyScript": "passed",
+    "rawCredentialPersistenceFound": false
+  },
+  "schemaVersion": "adaptive_learning_test_results_v1",
+  "status": "completed"
+}

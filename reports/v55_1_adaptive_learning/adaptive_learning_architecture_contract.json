@@ -1,0 +1,30 @@
+{
+  "automaticRiskIncreaseAllowed": false,
+  "decisionChangingModelRequiresSuccessorRelease": true,
+  "demoMinimumMode": "observer",
+  "engineeringSmokeSampleEligible": false,
+  "environments": [
+    "okx_demo",
+    "okx_live"
+  ],
+  "exactHumanApprovalRequired": true,
+  "fixtureSampleEligible": false,
+  "generatedAt": "2026-07-21T00:36:58.880705Z",
+  "liveAllowedModes": [
+    "rank_only",
+    "veto_only",
+    "meta_label"
+  ],
+  "modelSelfApprovalAllowed": false,
+  "releaseHashMutationAllowed": false,
+  "schemaVersion": "adaptive_learning_architecture_contract_v1",
+  "shadowVirtualSampleEligible": false,
+  "sharedContracts": [
+    "Factor Registry",
+    "Feature Schema",
+    "Model Registry"
+  ],
+  "sharedCore": "AdaptiveLearningCore",
+  "status": "implemented_pre_arm",
+  "strategySourceMutationAllowed": false
+}

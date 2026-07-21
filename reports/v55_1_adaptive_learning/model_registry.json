@@ -1,0 +1,64 @@
+{
+  "activeDemoModelHash": "model_0d91a8259db62dee05843a8476dc099e88c6c501814d3480de9b14f06c8ad9d7",
+  "activeDemoModelPolicy": {
+    "automaticRiskIncreaseAllowed": false,
+    "factorRegistryHash": "production_factor_registry_6e52548fb6535a7aa84b85a2c672a97ad8e5f307a7f5beac72c5dc6922b938f1",
+    "featureSchemaHash": "feature_schema_1eec58d0bc8fd38214fce220729267bf917a561e0c77573df34ce5d17f0cb453",
+    "lifecycleStatus": "shadow_approved",
+    "modelHash": "model_0d91a8259db62dee05843a8476dc099e88c6c501814d3480de9b14f06c8ad9d7",
+    "modelMode": "observer",
+    "modelPolicyHash": "model_policy_42b050b38cb37eef57c5192feb2c595bf7c34b041c0092f0c4dd51c464d855aa",
+    "schemaVersion": "adaptive_model_policy_v1",
+    "selfApprovalAllowed": false,
+    "strategySourceMutationAllowed": false,
+    "thresholds": {
+      "observationThreshold": 0.5
+    }
+  },
+  "activeLiveModelHash": null,
+  "activeLiveModelPolicy": null,
+  "modelRegistryHash": "model_registry_d574aacb2075af70d1b6693b83071ee465b8bc6f7e2a0b7caa9b4fe640bdef36",
+  "models": [
+    {
+      "algorithm": "deterministic_neutral_observer",
+      "changesRisk": false,
+      "createsOrders": false,
+      "decisionAuthority": "none",
+      "featureNames": [
+        "alpha191_014",
+        "alpha191_015",
+        "alpha191_018",
+        "alpha191_020",
+        "alpha191_058",
+        "alpha191_088",
+        "alpha191_145",
+        "alpha191_191",
+        "atr_pct_14",
+        "bollinger_position",
+        "btc_relative_strength_20",
+        "cross_sectional_return_rank_20",
+        "ema_distance_20",
+        "ema_distance_50",
+        "funding_rate_zscore_24",
+        "liquidity_spread_shock",
+        "macd_histogram",
+        "perp_basis_zscore_48",
+        "return_1",
+        "return_6",
+        "rsi_14",
+        "volatility_12",
+        "volume_price_corr_20",
+        "volume_ratio_20"
+      ],
+      "modelHash": "model_0d91a8259db62dee05843a8476dc099e88c6c501814d3480de9b14f06c8ad9d7",
+      "parameters": {
+        "constantProbability": 0.5
+      },
+      "productionLiveEligible": false,
+      "schemaVersion": "adaptive_observer_model_v1",
+      "status": "shadow_approved",
+      "trainingStatus": "not_run"
+    }
+  ],
+  "schemaVersion": "adaptive_model_registry_v1"
+}

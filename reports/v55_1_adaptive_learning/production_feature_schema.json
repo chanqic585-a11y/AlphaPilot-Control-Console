@@ -1,0 +1,226 @@
+{
+  "factorRegistryHash": "production_factor_registry_6e52548fb6535a7aa84b85a2c672a97ad8e5f307a7f5beac72c5dc6922b938f1",
+  "featureNames": [
+    "alpha191_014",
+    "alpha191_015",
+    "alpha191_018",
+    "alpha191_020",
+    "alpha191_058",
+    "alpha191_088",
+    "alpha191_145",
+    "alpha191_191",
+    "atr_pct_14",
+    "bollinger_position",
+    "btc_relative_strength_20",
+    "cross_sectional_return_rank_20",
+    "ema_distance_20",
+    "ema_distance_50",
+    "funding_rate_zscore_24",
+    "liquidity_spread_shock",
+    "macd_histogram",
+    "perp_basis_zscore_48",
+    "return_1",
+    "return_6",
+    "rsi_14",
+    "volatility_12",
+    "volume_price_corr_20",
+    "volume_ratio_20"
+  ],
+  "featureSchemaHash": "feature_schema_1eec58d0bc8fd38214fce220729267bf917a561e0c77573df34ce5d17f0cb453",
+  "features": [
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "definitionHash": "factor_definition_b619ec9fc2f89c01799d67165df676a8894a9a1f6f5cf6b7d7d095ccc9169415",
+      "dtype": "float64",
+      "factorId": "alpha191_014",
+      "implementationHash": "factor_implementation_02a1ae4577c22f4d47617166b33b8e74bd710187f456edbb8e828412ba9feeab",
+      "missingValuePolicy": "exclude_symbol"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "definitionHash": "factor_definition_9c58973e20c62ae18a7626f6f223620c7813c37bf48cd068d691062e13edeebb",
+      "dtype": "float64",
+      "factorId": "alpha191_015",
+      "implementationHash": "factor_implementation_572bf70ba7329af7ae3bddd33fd3dbd86f258a56c6370d8d338aee844686f9f0",
+      "missingValuePolicy": "exclude_symbol"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "definitionHash": "factor_definition_274c5c71004a74d74e125cda81eff8cde6930a0d65788a0a3cf93b5d90cdd67d",
+      "dtype": "float64",
+      "factorId": "alpha191_018",
+      "implementationHash": "factor_implementation_9e77ab52e29d2740f53a4a05d2ed495e03a8bb4e52b0414ad354a841ffaa1c15",
+      "missingValuePolicy": "exclude_symbol"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "definitionHash": "factor_definition_9051ec1abf317a78588f6092f3328a5986925c15bb80a3621c0f57dfdd977b54",
+      "dtype": "float64",
+      "factorId": "alpha191_020",
+      "implementationHash": "factor_implementation_e3a49e9d6f8ea41cadfb6a30af5ad21e74f95952cb88e5e5493552b924667937",
+      "missingValuePolicy": "exclude_symbol"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "definitionHash": "factor_definition_05f23cbd22a95df459eed92a1b673668513de0465493931ed22462043d8658eb",
+      "dtype": "float64",
+      "factorId": "alpha191_058",
+      "implementationHash": "factor_implementation_d6259a88a66e5a488871d082005b4867456891dc1ab662d4a7c0fa148026f78c",
+      "missingValuePolicy": "exclude_symbol"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "definitionHash": "factor_definition_ebb8abb7a91fd3e6fccc67cc8e27422bde75d93f36ab736b1158fe058259d6e3",
+      "dtype": "float64",
+      "factorId": "alpha191_088",
+      "implementationHash": "factor_implementation_9b42d0f9b4092a29138219ae07039e2f868e1ea03b39233283c86860b9613000",
+      "missingValuePolicy": "exclude_symbol"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "definitionHash": "factor_definition_abd285edf8e2e9cac71bcb6292b74a15a3897646a0dca12b7f1fb840314cd4a1",
+      "dtype": "float64",
+      "factorId": "alpha191_145",
+      "implementationHash": "factor_implementation_332e4ae907dae67097ea7c315c260ed362d81f66cf2e524655963f89fd319922",
+      "missingValuePolicy": "exclude_symbol"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "definitionHash": "factor_definition_82f9487031284c06ab364a02a258929e8faa32c5cd34c06e72d941f8ae78b398",
+      "dtype": "float64",
+      "factorId": "alpha191_191",
+      "implementationHash": "factor_implementation_92a92f332c0fb23e9c13fb17fc4e1fb8c2b442b17f1b8ab8e77a2062a241b09b",
+      "missingValuePolicy": "exclude_symbol"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "definitionHash": "factor_definition_f8dd616843b3bace0fd6265cf9416fc2cd2da418182ae48fc86b91f2fae44e95",
+      "dtype": "float64",
+      "factorId": "atr_pct_14",
+      "implementationHash": "factor_implementation_9065769210991648f0d18c0e825f4adffe276b52b1e606945e1b1ecce12b9018",
+      "missingValuePolicy": "record_missing_flag"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "definitionHash": "factor_definition_fe1bbb27b0c77afa7f9f3e1085879fcd1b3594987dd1adabd6cf684ba97547ad",
+      "dtype": "float64",
+      "factorId": "bollinger_position",
+      "implementationHash": "factor_implementation_a1f4f427e91c7ff48da7213ec2c94971092e4bf526c00e2c40884dc718c74097",
+      "missingValuePolicy": "record_missing_flag"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close_with_btc_context",
+      "definitionHash": "factor_definition_dd3dd25983a450e6cff5921ed1702c52365f569a3bad21d33c971a0847c37f4e",
+      "dtype": "float64",
+      "factorId": "btc_relative_strength_20",
+      "implementationHash": "factor_implementation_405c707365dfd168e8159d79e42dbad4961c202a0847652f7cb41842a6a426ed",
+      "missingValuePolicy": "reject_signal"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close_cross_section",
+      "definitionHash": "factor_definition_7a768bf5cc4302eb805cc1ff9f8982c0560199c9effdb43db9383de5299a83c5",
+      "dtype": "float64",
+      "factorId": "cross_sectional_return_rank_20",
+      "implementationHash": "factor_implementation_3f8d7650821f79bd5f45b64e580684ea78c850916691ccc2dab12fc3f9f9a06e",
+      "missingValuePolicy": "exclude_symbol"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "definitionHash": "factor_definition_b3708996e67789e13643c5f26c2f1b4ebe52339bad5ef45b5a24bf6f9806d0a1",
+      "dtype": "float64",
+      "factorId": "ema_distance_20",
+      "implementationHash": "factor_implementation_d3b2d1cf5a2e9bbed60ae63b99b3ce4a55a8ba654990263002d6858136b2f856",
+      "missingValuePolicy": "record_missing_flag"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "definitionHash": "factor_definition_1b3ae050818e08094470af7474fe791efec953bc13a3500439fde03f52c35eb6",
+      "dtype": "float64",
+      "factorId": "ema_distance_50",
+      "implementationHash": "factor_implementation_98dd7bd63f7cfc2d4ebffdee6ebee16ea1bf6c673bc61345e14295151a4f0109",
+      "missingValuePolicy": "record_missing_flag"
+    },
+    {
+      "availableAtRule": "funding_publication_time",
+      "definitionHash": "factor_definition_a1679e9ae1d0596920600ae2ac6c4e8828939ca742ceec85b17e465ff2f753a9",
+      "dtype": "float64",
+      "factorId": "funding_rate_zscore_24",
+      "implementationHash": "factor_implementation_25415d9fef11ae834f0fdebdb71e0095fc8cb5832df8499bce7623f0985c38a3",
+      "missingValuePolicy": "reject_signal"
+    },
+    {
+      "availableAtRule": "order_book_snapshot_received_at",
+      "definitionHash": "factor_definition_86471059ce862da2188ea777c786bab88720eb042db7344ec24ae87a12550a0a",
+      "dtype": "float64",
+      "factorId": "liquidity_spread_shock",
+      "implementationHash": "factor_implementation_bf12d6e47fd05f193511d6e9b153aeb0fbd591a82a00a0234bbad9bb45e30be8",
+      "missingValuePolicy": "reject_signal"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "definitionHash": "factor_definition_47f95a35a3cf237bf674f9755fbbd093390eb321296a341851fab3faae8949be",
+      "dtype": "float64",
+      "factorId": "macd_histogram",
+      "implementationHash": "factor_implementation_89d68dff79ac76a8c32d7d744e6c0b813f709ad4b0b634b09764f21518d68c54",
+      "missingValuePolicy": "record_missing_flag"
+    },
+    {
+      "availableAtRule": "latest_confirmed_market_snapshot",
+      "definitionHash": "factor_definition_be6dcc46a04cb008d7ce705bb7d692681ffa22df1ef9804c362187a8d7b2dd61",
+      "dtype": "float64",
+      "factorId": "perp_basis_zscore_48",
+      "implementationHash": "factor_implementation_4af149f9747fe6452919a2ddc32dafdcfe10ff7e6643233b95277e4ee49495b9",
+      "missingValuePolicy": "reject_signal"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "definitionHash": "factor_definition_3422899584e550f1fa86ad89242174a2ed2fa85b1d60724e252a47fde9be5494",
+      "dtype": "float64",
+      "factorId": "return_1",
+      "implementationHash": "factor_implementation_4cf50299046715c1294f0b0ac7a73f39ef8f727aff9e7176b12db509b47bc7ec",
+      "missingValuePolicy": "record_missing_flag"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "definitionHash": "factor_definition_7864a7036f38fb1d36ed5afd305d16581ec0260da9c8257f2bad44d42757c724",
+      "dtype": "float64",
+      "factorId": "return_6",
+      "implementationHash": "factor_implementation_1c2abbdf8dc4160e497fd424dbfc7b0783dcb371a689d1adae7fbc3bfb23666c",
+      "missingValuePolicy": "record_missing_flag"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "definitionHash": "factor_definition_cde8f65955bf46e1595fc3b89cbe521c1767ce06b8ee603f5bb50f0a35833976",
+      "dtype": "float64",
+      "factorId": "rsi_14",
+      "implementationHash": "factor_implementation_26c527cfa68f72ed3011457c5e6d935bd2f644dff25d98d4e60e1bc068c40d4e",
+      "missingValuePolicy": "record_missing_flag"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "definitionHash": "factor_definition_5f96e5b82c7012c758bef8d73680da4ba892c68c4d515a7727e215ac169d2da4",
+      "dtype": "float64",
+      "factorId": "volatility_12",
+      "implementationHash": "factor_implementation_5056e7a355cd56856ac74cbef42bc69adabe290b794abdd3a6bab38a2de01180",
+      "missingValuePolicy": "record_missing_flag"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close_cross_section",
+      "definitionHash": "factor_definition_ac97f115b9cd530d415ee49e47eaa07f1429ee3e7b7f28f42c0039a4929c77e6",
+      "dtype": "float64",
+      "factorId": "volume_price_corr_20",
+      "implementationHash": "factor_implementation_40b873f16a8978953491e8b6bb6009aa6711e86a75b5166d3cdef81265d6a695",
+      "missingValuePolicy": "exclude_symbol"
+    },
+    {
+      "availableAtRule": "confirmed_bar_close",
+      "definitionHash": "factor_definition_ee2cd3bf2c33f9751bcbe9ec551a904cbb5b893b5c59d06807b8ff907f8f5ffa",
+      "dtype": "float64",
+      "factorId": "volume_ratio_20",
+      "implementationHash": "factor_implementation_40f1bd7bf07a4e856fc49361efe1b858fb0d42169292fd17e731c69c8863067a",
+      "missingValuePolicy": "record_missing_flag"
+    }
+  ],
+  "pointInTimeOnly": true,
+  "schemaVersion": "production_feature_schema_v1"
+}

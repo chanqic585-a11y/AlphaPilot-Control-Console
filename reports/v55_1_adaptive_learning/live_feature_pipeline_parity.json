@@ -1,0 +1,8 @@
+{
+  "generatedAt": "2026-07-21T00:36:58.880705Z",
+  "nextAction": "Replay identical snapshots through Demo and Live adapters.",
+  "passed": null,
+  "reason": "live_feature_runtime_not_armed",
+  "schemaVersion": "live_feature_pipeline_parity_v1",
+  "status": "not_run"
+}

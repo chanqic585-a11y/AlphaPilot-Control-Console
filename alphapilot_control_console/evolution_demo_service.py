@@ -31,6 +31,7 @@ from .demo_strategy_runtime_settings import (
     get_demo_strategy_runtime_settings,
 )
 from .shadow_observer import record_shadow_scan_nonblocking
+from .adaptive_learning_runtime import record_production_adaptive_scan
 from .exchange_connectors.okx_demo_client import OkxDemoClient, OkxDemoError
 from .exchange_connectors.okx_demo_private_ws import (
     get_or_start_okx_demo_private_ws_runtime,
@@ -624,6 +625,21 @@ def run_evolution_demo_batch_cycle(
         except Exception:
             # Shadow diagnostics are warning-only and cannot alter Demo execution.
             pass
+        try:
+            record_production_adaptive_scan(
+                contract,
+                scan,
+                observed_at=str(close_received_at),
+                source_event_hash=shadow_source_event_hash,
+                universe_instrument_ids=eligible_close_instruments,
+            )
+        except (OSError, ValueError, RuntimeError, KeyError) as error:
+            return {
+                "ok": False,
+                "blockers": [f"adaptive_learning_instrumentation_failed:{error}"],
+                "scans": scans,
+                "status": status,
+            }
         if scan.get("blockers"):
             return {
                 "ok": False,

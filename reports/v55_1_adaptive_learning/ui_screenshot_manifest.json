@@ -1,0 +1,40 @@
+{
+  "generatedAt": "2026-07-21T00:36:58.880705Z",
+  "schemaVersion": "adaptive_learning_ui_screenshot_manifest_v1",
+  "screenshots": [
+    {
+      "consoleErrors": 0,
+      "horizontalOverflow": false,
+      "path": "evidence/strategy_adaptive_learning_desktop.png",
+      "status": "passed",
+      "surface": "strategy",
+      "viewport": "desktop"
+    },
+    {
+      "consoleErrors": 0,
+      "horizontalOverflow": false,
+      "path": "evidence/demo_adaptive_learning_desktop.png",
+      "status": "passed",
+      "surface": "demo",
+      "viewport": "desktop"
+    },
+    {
+      "consoleErrors": 0,
+      "horizontalOverflow": false,
+      "path": "evidence/live_adaptive_learning_desktop.png",
+      "status": "passed",
+      "surface": "live",
+      "viewport": "desktop"
+    },
+    {
+      "consoleErrors": 0,
+      "horizontalOverflow": false,
+      "path": "evidence/demo_adaptive_learning_mobile_390.png",
+      "redundantFloatingBackButtonHidden": true,
+      "status": "passed",
+      "surface": "demo",
+      "viewport": "390x844"
+    }
+  ],
+  "status": "completed"
+}

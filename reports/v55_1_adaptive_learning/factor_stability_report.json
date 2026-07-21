@@ -1,0 +1,8 @@
+{
+  "generatedAt": "2026-07-21T00:36:58.880705Z",
+  "nextAction": "Run bounded point-in-time factor bench during Demo observation.",
+  "passed": null,
+  "reason": "real_factor_bench_not_run",
+  "schemaVersion": "factor_stability_report_v1",
+  "status": "not_run"
+}
