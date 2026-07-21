@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "alphapilot_experimental_live_environment_v1",
+  "environment": "okx_live",
+  "site": "global",
+  "credentialMode": "process_only",
+  "simulationHeaderAllowed": false,
+  "withdrawAllowed": false,
+  "transferAllowed": false,
+  "environmentHash": "live_environment_e2fa9ccc374703e18de2fb6b6f85229f0135975fd081f044152275a31a77fa4a"
+}

@@ -1,0 +1,15 @@
+{
+  "contractHash": "live_engineering_smoke_91004ab4ed987baa860dda3e2439d12550f519c1634c0459e00339baa420401e",
+  "status": "completed_canceled_and_reconciled",
+  "checks": {
+    "status": true,
+    "singleOrderAttempt": true,
+    "cancelConfirmed": true,
+    "zeroOpenPositions": true,
+    "zeroOpenOrders": true,
+    "reconciliationMatched": true,
+    "noCredentialPersistence": true,
+    "noPrivateValuePersistence": true,
+    "withdrawDisabled": true
+  }
+}

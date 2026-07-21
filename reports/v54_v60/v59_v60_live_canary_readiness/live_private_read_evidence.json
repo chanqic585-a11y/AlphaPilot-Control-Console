@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "alphapilot_v58_private_preflight_derivation_v1",
+  "status": "passed_via_v58_private_preflight",
+  "smokeContractHash": "live_engineering_smoke_91004ab4ed987baa860dda3e2439d12550f519c1634c0459e00339baa420401e",
+  "basis": "V58 smoke could not submit until account, balance, positions, orders, and leverage reads passed.",
+  "privateAccountValuesPersisted": false
+}

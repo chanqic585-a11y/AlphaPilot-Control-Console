@@ -1,0 +1,7 @@
+{
+  "approvalStatus": "not_run",
+  "armStatus": "not_run",
+  "strategyOrderStatus": "not_run",
+  "liveEnabled": false,
+  "withdrawAllowed": false
+}

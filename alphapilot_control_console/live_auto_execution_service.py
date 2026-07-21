@@ -10,10 +10,15 @@ from .credential_runtime import live_runtime_credential_status, load_okx_live_cr
 from .demo_arbitrator import arbitrate_demo_signals
 from .demo_release_scanner import scan_immutable_demo_release
 from .exchange_connectors.okx_live_client import OkxLiveClient
-from .live_canary_service import live_runtime_gates, run_live_readonly_reconciliation
+from .live_canary_service import (
+    build_exact_live_canary_arm_readiness,
+    live_runtime_gates,
+    run_live_readonly_reconciliation,
+)
 from .live_execution_engine import LiveExecutionEngine
 from .live_execution_store import LIVE_EXECUTION_STORE_PATH, LiveExecutionStore
 from .live_release_service import discover_live_releases, validate_live_release_export
+from .live_safety_plane import evaluate_experimental_live_floors
 from .portfolio_risk import normalize_risk_profile
 from .risk_profile_store import RISK_PROFILE_STORE_PATH, RiskProfileStore
 
@@ -24,6 +29,29 @@ def _active_live_profile(path: Path | str = RISK_PROFILE_STORE_PATH) -> dict[str
         return store.get_active_profile("live_canary")
     finally:
         store.close()
+
+
+def build_experimental_live_auto_execution_preflight(
+    *,
+    bundle: Mapping[str, Any],
+    approval: Mapping[str, Any] | None,
+    runtime_state: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Evaluate frozen V59/V60 gates without arming or creating an order."""
+
+    readiness = build_exact_live_canary_arm_readiness(bundle=bundle, approval=approval)
+    profile = dict(bundle.get("profile") or {})
+    floor_blockers = evaluate_experimental_live_floors(profile, dict(runtime_state))
+    blockers = [*readiness["blockers"], *floor_blockers]
+    return {
+        "canProceedToArm": not blockers,
+        "blockers": blockers,
+        "releaseHash": readiness["releaseHash"],
+        "riskOverlayHash": readiness["riskOverlayHash"],
+        "armStatus": "not_run",
+        "orderStatus": "not_run",
+        "withdrawAllowed": False,
+    }
 
 
 def scan_live_release(

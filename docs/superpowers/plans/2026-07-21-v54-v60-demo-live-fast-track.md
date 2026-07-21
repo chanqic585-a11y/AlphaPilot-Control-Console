@@ -148,12 +148,12 @@
 - Test: `tests/test_live_release_service.py`
 - Test: `tests/test_live_approval_store.py`
 
-- [ ] Add failing tests for Demo/Live credential, release, approval, ledger, and runtime isolation.
-- [ ] Add failing tests proving Withdraw/transfer methods are absent.
-- [ ] Implement an explicit Live environment contract and private read-only audit path.
-- [ ] Add a minimal Live status projection with no ARM or order action before exact approval.
-- [ ] Generate `live_environment_contract.json` and `live_private_read_audit.json` with truthful `not_run` states where credentials are absent.
-- [ ] Commit V57 Live core.
+- [x] Add failing tests for Demo/Live credential, release, approval, ledger, and runtime isolation.
+- [x] Add failing tests proving Withdraw/transfer methods are absent.
+- [x] Implement an explicit Live environment contract and private read-only audit path.
+- [x] Add a minimal Live status projection with no ARM or order action before exact approval.
+- [x] Generate `live_environment_contract.json` and `live_private_read_audit.json` with truthful `not_run` states where credentials are absent.
+- [x] Commit V57 Live core.
 
 ## Task 9: Build Live engineering smoke without executing it prematurely
 
@@ -164,11 +164,11 @@
 - Test: `tests/test_live_engineering_smoke_contract.py`
 - Test: `tests/test_live_engineering_smoke_service.py`
 
-- [ ] Add failing tests for exact smoke approval and single minimum-notional order scope.
-- [ ] Add failing tests for cancellation/reconciliation and evidence isolation.
-- [ ] Implement contract generation and a blocked-by-default execution service.
-- [ ] Generate the smoke approval request and stop unless its new exact hash is explicitly approved.
-- [ ] Commit V58 Live engineering smoke readiness.
+- [x] Add failing tests for exact smoke approval and single minimum-notional order scope.
+- [x] Add failing tests for cancellation/reconciliation and evidence isolation.
+- [x] Implement contract generation and a blocked-by-default execution service.
+- [x] Generate the smoke approval request and stop unless its new exact hash is explicitly approved.
+- [x] Commit V58 Live engineering smoke readiness.
 
 ## Task 10: Generate the 1000 USDT experimental Live canary identity
 
@@ -181,13 +181,13 @@
 - Test: `tests/test_live_canary_service.py`
 - Test: `tests/test_live_safety_plane.py`
 
-- [ ] Add failing tests for versioned, configurable account budget and risk limits.
-- [ ] Add failing tests for daily loss, cumulative loss, position, leverage, stale signal, and kill-switch floors.
-- [ ] Add failing tests that Live remains unarmed without exact Release/Risk approval.
-- [ ] Generate immutable Live Release, Risk Overlay, and approval request identities.
-- [ ] Mark all unexecuted order/fill/position outputs `status=not_run`.
-- [ ] Stop at `blocked_waiting_exact_live_release_approval`.
-- [ ] Commit V59/V60 canary readiness. Do not ARM Live.
+- [x] Add failing tests for versioned, configurable account budget and risk limits.
+- [x] Add failing tests for daily loss, cumulative loss, position, leverage, stale signal, and kill-switch floors.
+- [x] Add failing tests that Live remains unarmed without exact Release/Risk approval.
+- [x] Generate immutable Live Release, Risk Overlay, and approval request identities.
+- [x] Mark all unexecuted order/fill/position outputs `status=not_run`.
+- [x] Stop at `blocked_waiting_exact_live_release_approval`.
+- [x] Commit V59/V60 canary readiness. Do not ARM Live.
 
 ## Task 11: Minimal UI and mobile verification
 

@@ -1,0 +1,11 @@
+{
+  "schemaVersion": "alphapilot_live_dynamic_universe_policy_v1",
+  "market": "OKX_USDT_SWAP",
+  "scanTopN": 200,
+  "selection": "dynamic_public_market_liquidity_rank",
+  "requiresIndependentRuntimeSnapshot": true,
+  "snapshotStatus": "not_run",
+  "liquidityGateRequired": true,
+  "depthGateRequired": true,
+  "universePolicyHash": "live_universe_policy_17485c456662b346c47bb577f0529407d31987d3dc9ce2f845564aa26509a2d8"
+}

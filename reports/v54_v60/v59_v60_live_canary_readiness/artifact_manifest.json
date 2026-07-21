@@ -1,0 +1,80 @@
+{
+  "schemaVersion": "alphapilot_v59_v60_live_canary_artifact_manifest_v1",
+  "status": "blocked_waiting_exact_live_release_approval",
+  "artifactCount": 14,
+  "artifacts": [
+    {
+      "path": "live_experiment_profile.json",
+      "sha256": "0098a7c035db58a67e34885d1a7f2569f3abe271d83dfa739b0e84a43396fe76",
+      "sizeBytes": 848
+    },
+    {
+      "path": "experimental_live_risk_overlay.json",
+      "sha256": "f7ea9ca4ffb5f7a2f1cf57067473cd22a20c397826d2e8f1bf6a817d8c83b096",
+      "sizeBytes": 1414
+    },
+    {
+      "path": "experimental_live_environment.json",
+      "sha256": "e9f892addcaaa9b40cbe61cac779c79e8d392c2d89a5727d0c154af8e07091ca",
+      "sizeBytes": 362
+    },
+    {
+      "path": "experimental_live_universe_policy.json",
+      "sha256": "2d93755597dfeca2bbe1f44d375d19dac4fc4fa40ba9b491e9a4da9de8508231",
+      "sizeBytes": 434
+    },
+    {
+      "path": "experimental_live_release.json",
+      "sha256": "b85e17fa5b5c0f7cbf2b8159db1385fbce81e4a52e49172eed7257265678d312",
+      "sizeBytes": 2570
+    },
+    {
+      "path": "exact_live_approval_request.json",
+      "sha256": "df9fce8c05cbd61a2cc0347fd1a5b1cd39e05493fad68174a54396c880955696",
+      "sizeBytes": 1173
+    },
+    {
+      "path": "live_private_read_evidence.json",
+      "sha256": "acc04900c6bb296cd779d35c4e91f052630f15db2ad3e9f8dd17fe8c6a43de09",
+      "sizeBytes": 394
+    },
+    {
+      "path": "live_engineering_smoke_binding.json",
+      "sha256": "0defb6b3e6956ac89f90465cfaa47e1640dc3968db40bae4a2b786fd3e4f310b",
+      "sizeBytes": 475
+    },
+    {
+      "path": "observer_sidecar_binding.json",
+      "sha256": "e9faf81c02a71db580e213773c53cc26ab1ff943bd17b2195fbdb0f704ffa34a",
+      "sizeBytes": 308
+    },
+    {
+      "path": "adaptive_learning_live_readiness.json",
+      "sha256": "6ad0e1ecca23c7188a243fda477915586a1ef1d1685856670e9bda72f16005c4",
+      "sizeBytes": 1264
+    },
+    {
+      "path": "live_execution_state.json",
+      "sha256": "478eafdbcc2392999fdce168bea9984bc6898acc7d6417a9ac4aecb1f729d932",
+      "sizeBytes": 155
+    },
+    {
+      "path": "live_order_ledger.json",
+      "sha256": "2854f509af72f9678f43916b3833b5684c63cbe301e4c9afa3b5f5aa0c5125f7",
+      "sizeBytes": 106
+    },
+    {
+      "path": "live_fill_ledger.json",
+      "sha256": "2854f509af72f9678f43916b3833b5684c63cbe301e4c9afa3b5f5aa0c5125f7",
+      "sizeBytes": 106
+    },
+    {
+      "path": "live_position_ledger.json",
+      "sha256": "2854f509af72f9678f43916b3833b5684c63cbe301e4c9afa3b5f5aa0c5125f7",
+      "sizeBytes": 106
+    }
+  ],
+  "rawCredentialsPersisted": false,
+  "privateAccountValuesPersisted": false,
+  "withdrawAllowed": false
+}

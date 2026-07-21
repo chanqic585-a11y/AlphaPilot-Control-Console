@@ -1,0 +1,16 @@
+{
+  "allocatedCapitalUSDT": 1000.0,
+  "maximumAcceptedLossUSDT": 1000.0,
+  "riskPerTradePercent": 0.25,
+  "riskPerTradeUSDT": 2.5,
+  "maximumPortfolioOpenRiskPercent": 1.0,
+  "maximumPortfolioOpenRiskUSDT": 10.0,
+  "maximumConcurrentPositions": 1,
+  "maximumInstrumentRisk": 0.5,
+  "maximumLeverage": 1,
+  "marginMode": "isolated",
+  "dailyLossLimit": 10.0,
+  "programLossLimit": 25.0,
+  "hardKillLossLimit": 25.0,
+  "scanTopN": 200
+}

@@ -222,6 +222,38 @@ def arm_live_canary(
     return {"ok": True, "liveCanary": build_live_canary_status(environment=source, store_path=store_path)}
 
 
+def build_exact_live_canary_arm_readiness(
+    *,
+    bundle: Mapping[str, Any],
+    approval: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Read-only exact-identity gate used before a V59/V60 ARM operation exists."""
+
+    blockers: list[str] = []
+    if str(bundle.get("status") or "") != "blocked_waiting_exact_live_release_approval":
+        blockers.append("experimental_live_release_readiness_invalid")
+    if approval is None:
+        blockers.append("exact_live_release_approval_missing")
+    else:
+        from .experimental_live_canary_release import validate_exact_live_canary_approval
+
+        try:
+            validate_exact_live_canary_approval(bundle, approval)
+        except (PermissionError, TypeError, ValueError):
+            blockers.append("exact_live_release_approval_mismatch")
+    adaptive = bundle.get("adaptiveLearningReadiness") or {}
+    if adaptive.get("passed") is not True:
+        blockers.append("adaptive_learning_live_readiness_not_passed")
+    return {
+        "canArm": not blockers,
+        "blockers": blockers,
+        "releaseHash": str((bundle.get("liveRelease") or {}).get("releaseHash") or ""),
+        "riskOverlayHash": str((bundle.get("riskOverlay") or {}).get("riskOverlayHash") or ""),
+        "armStatus": "not_run",
+        "withdrawAllowed": False,
+    }
+
+
 def activate_live_canary_kill_switch(
     payload: dict[str, Any] | None = None,
     *,

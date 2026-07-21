@@ -72,6 +72,34 @@ class LiveSafetyDecision:
     createdAt: str
 
 
+def evaluate_experimental_live_floors(
+    profile: dict[str, Any],
+    state: dict[str, Any],
+) -> list[str]:
+    """Evaluate immutable V59/V60 Live floors without enabling execution."""
+
+    reasons: list[str] = []
+    daily_loss = float(state.get("dailyLossUSDT") or 0.0)
+    program_loss = float(state.get("programLossUSDT") or 0.0)
+    if daily_loss >= float(profile["dailyLossLimit"]):
+        reasons.append("live_daily_loss_limit")
+    if program_loss >= float(profile["programLossLimit"]):
+        reasons.append("live_program_loss_limit")
+    if max(daily_loss, program_loss) >= float(profile["hardKillLossLimit"]):
+        reasons.append("live_hard_kill_loss_limit")
+    if int(state.get("openPositionCount") or 0) >= int(profile["maximumConcurrentPositions"]):
+        reasons.append("live_maximum_concurrent_positions")
+    if float(state.get("requestedLeverage") or 0.0) > float(profile["maximumLeverage"]):
+        reasons.append("live_maximum_leverage")
+    if float(state.get("signalAgeSeconds") or 0.0) > float(profile["maximumSignalAgeSeconds"]):
+        reasons.append("live_signal_stale")
+    if state.get("killSwitchActive") is True:
+        reasons.append("live_kill_switch_active")
+    if state.get("reconciliationMatched") is not True:
+        reasons.append("live_reconciliation_not_confirmed")
+    return reasons
+
+
 class LiveSafetyStore:
     """Append-only request ledger plus persistent local safety switches."""
 
