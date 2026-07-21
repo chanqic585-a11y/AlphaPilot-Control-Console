@@ -1,5 +1,32 @@
 {
-  "generatedAt": "2026-07-21T00:36:58.880705Z",
+  "console": {
+    "branch": "feature/v13.27.1.54-60-demo-live-fast-track",
+    "finalEvidenceCommit": "self_reference_excluded",
+    "implementationCommit": "b9f937587fa869bc309dfcc1ea8b266e1f0c3f06",
+    "implementationCommitPushed": true,
+    "remoteVerificationRequiredAfterFinalCommit": true,
+    "tag": "v13.27.1.55.1",
+    "tagTarget": "self_reference_excluded"
+  },
+  "docs": {
+    "changed": false,
+    "worktreeClean": true
+  },
+  "generatedAt": "2026-07-21T00:38:25.679555Z",
+  "originalV55Commit": "af3560e2944592019e461056ba12d3c0aac548d0",
+  "quant": {
+    "branch": "feature/v13.27.1.54-60-demo-live-fast-track",
+    "commit": "da7a81b831d512f35832b5e113afb09d0a153c20",
+    "commitPushed": true,
+    "remoteTagPeeledTargetVerified": true,
+    "tag": "v13.27.1.55.1-quant",
+    "tagPushed": true
+  },
   "schemaVersion": "adaptive_learning_git_tag_push_receipt_v1",
-  "status": "not_run"
+  "selfReferenceExclusions": [
+    "Console final evidence commit hash",
+    "Console final tag object and peeled target",
+    "outer evidence ZIP and SHA256 sidecar"
+  ],
+  "status": "completed"
 }

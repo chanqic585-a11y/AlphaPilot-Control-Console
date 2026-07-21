@@ -2,7 +2,7 @@
   "allFactorsProductionValidated": false,
   "catalogCount": 191,
   "formulaReviewedCount": 8,
-  "generatedAt": "2026-07-21T00:36:58.880705Z",
+  "generatedAt": "2026-07-21T00:38:25.679555Z",
   "nextAction": "Run PIT, missing-value, divide-by-zero, IC, decay and turnover validation.",
   "numericCrossvalidatedCount": 8,
   "predictiveValueClaimed": false,

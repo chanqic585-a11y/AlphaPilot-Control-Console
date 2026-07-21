@@ -27,7 +27,7 @@
     "console": "passed",
     "quant": "passed"
   },
-  "generatedAt": "2026-07-21T00:36:58.880705Z",
+  "generatedAt": "2026-07-21T00:38:25.679555Z",
   "nonPassingAttempts": [
     "A broad Quant pytest invocation collected duplicate and third-party modules; the repository-authoritative tests directory with importlib mode was then used.",
     "The first authoritative Quant run lacked the bundled Git directory in PATH; the test process PATH was corrected without changing repository configuration.",

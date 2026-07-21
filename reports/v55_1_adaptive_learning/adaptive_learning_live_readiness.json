@@ -21,7 +21,7 @@
   "changesRisk": false,
   "createsOrders": false,
   "exactApprovalRequired": true,
-  "generatedAt": "2026-07-21T00:36:58.880705Z",
+  "generatedAt": "2026-07-21T00:38:25.679555Z",
   "modelMode": "observer",
   "passed": false,
   "schemaVersion": "adaptive_learning_live_readiness_v1",
