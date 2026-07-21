@@ -35,15 +35,24 @@ def _repository_snapshot(git_executable: str, root: Path) -> dict[str, Any]:
     head = _git(git_executable, root, "rev-parse", "HEAD")
     status = _git(git_executable, root, "status", "--porcelain")
     branch = _git(git_executable, root, "branch", "--show-current")
+    pointing_tags = [
+        item for item in _git(git_executable, root, "tag", "--points-at", "HEAD").splitlines() if item
+    ]
     try:
         upstream = _git(git_executable, root, "rev-parse", "@{upstream}")
     except subprocess.CalledProcessError:
         upstream = None
+    try:
+        remote_url = _git(git_executable, root, "remote", "get-url", "origin")
+    except subprocess.CalledProcessError:
+        remote_url = None
     return {
         "root": str(root),
+        "remoteUrl": remote_url,
         "branch": branch,
         "headCommit": head,
         "upstreamCommit": upstream,
+        "pointingTags": pointing_tags,
         "pushStatus": "verified" if upstream == head else "not_verified",
         "worktreeClean": not bool(status),
     }
