@@ -7,6 +7,11 @@ from pathlib import Path
 from typing import Any
 
 from .config import DATA_DIR
+from .strategy_factory_orchestrator import (
+    DEFAULT_ARTIFACT_ROOT as DEFAULT_STRATEGY_FACTORY_ARTIFACT_ROOT,
+    DEFAULT_STATE_PATH as DEFAULT_STRATEGY_FACTORY_STATE_PATH,
+    StrategyFactoryOrchestrator,
+)
 
 
 DEFAULT_TOP200_MINIMAL_UI_EVIDENCE_ROOT = DATA_DIR / "top200_minimal_ui"
@@ -33,6 +38,9 @@ class Top200MinimalUiProjection:
         *,
         release_root: Path | None = None,
         control_audit_root: Path | None = None,
+        strategy_factory_state_path: Path | None = None,
+        strategy_factory_artifact_root: Path | None = None,
+        strategy_factory_quant_root: Path | None = None,
     ) -> None:
         self.evidence_root = Path(evidence_root)
         self.matchability_root = (
@@ -41,6 +49,21 @@ class Top200MinimalUiProjection:
         self.release_root = Path(release_root) if release_root is not None else None
         self.control_audit_root = (
             Path(control_audit_root) if control_audit_root is not None else None
+        )
+        self.strategy_factory_state_path = (
+            Path(strategy_factory_state_path)
+            if strategy_factory_state_path is not None
+            else None
+        )
+        self.strategy_factory_artifact_root = (
+            Path(strategy_factory_artifact_root)
+            if strategy_factory_artifact_root is not None
+            else DEFAULT_STRATEGY_FACTORY_ARTIFACT_ROOT
+        )
+        self.strategy_factory_quant_root = (
+            Path(strategy_factory_quant_root)
+            if strategy_factory_quant_root is not None
+            else None
         )
 
     def _load(self, name: str) -> dict[str, Any]:
@@ -121,7 +144,24 @@ class Top200MinimalUiProjection:
     def _smoke(self) -> dict[str, Any]:
         return self._load("engineering_smoke_final_self_check.json")
 
+    def _read_strategy_factory(self, method: str, *args: object) -> Any | None:
+        state_path = self.strategy_factory_state_path
+        if state_path is None or not state_path.is_file():
+            return None
+        factory = StrategyFactoryOrchestrator(
+            state_path=state_path,
+            artifact_root=self.strategy_factory_artifact_root,
+            quant_root=self.strategy_factory_quant_root,
+        )
+        try:
+            return getattr(factory, method)(*args)
+        finally:
+            factory.close()
+
     def research_factory_summary(self) -> dict[str, Any]:
+        persisted = self._read_strategy_factory("summary")
+        if persisted and persisted.get("researchRunId"):
+            return persisted
         release = self._release()
         snapshot = self._snapshot()
         return {
@@ -145,9 +185,18 @@ class Top200MinimalUiProjection:
         }
 
     def research_factory_runs(self) -> dict[str, Any]:
+        persisted = self._read_strategy_factory("list_runs", 20)
+        if persisted:
+            return {"runs": persisted, "readOnly": False}
         return {"runs": [self.research_factory_summary()], "readOnly": True}
 
     def research_factory_run(self, research_run_id: str) -> dict[str, Any]:
+        try:
+            persisted = self._read_strategy_factory("get_run", research_run_id)
+        except KeyError:
+            persisted = None
+        if persisted:
+            return persisted
         if research_run_id != self.RESEARCH_RUN_ID:
             raise KeyError(research_run_id)
         return self.research_factory_summary()
@@ -328,13 +377,19 @@ class Top200MinimalUiProjection:
 
     def demo_strategies(self) -> dict[str, Any]:
         release = self._current_release_projection()
+        if release["demoArm"]:
+            status = "armed"
+        elif release["approved"]:
+            status = "approved_not_armed"
+        else:
+            status = "waiting_approval"
         return {
             "strategies": [
                 {
                     "releaseId": release["releaseId"],
                     "releaseHash": release["releaseHash"],
                     "name": release["name"],
-                    "status": "waiting_approval",
+                    "status": status,
                     "timeframes": ["1h", "1d"],
                     "scanInstrumentCount": release["actualInstrumentCount"],
                     "latestScanAt": None,
@@ -429,6 +484,8 @@ def build_top200_minimal_ui_projection() -> Top200MinimalUiProjection:
             else None
         ),
         control_audit_root=control_audit_root,
+        strategy_factory_state_path=DEFAULT_STRATEGY_FACTORY_STATE_PATH,
+        strategy_factory_artifact_root=DEFAULT_STRATEGY_FACTORY_ARTIFACT_ROOT,
     )
 
 

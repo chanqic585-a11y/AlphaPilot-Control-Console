@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#080c0f" />
     <link rel="icon" href="data:," />
     <title>AlphaPilot 控制台</title>
-    <link rel="stylesheet" href="/styles.css?v=20260715-v13-27-11-family-current" />
+    <link rel="stylesheet" href="/styles.css?v=20260721-v56-runtime-controls" />
   </head>
   <body>
     <a class="skip-link" href="#mainContent">跳到主要内容</a>
@@ -77,7 +77,10 @@
                 <p class="panel-eyebrow">STRATEGY FACTORY</p>
                 <h2 id="top200StrategyTitle">策略</h2>
               </div>
-              <button id="top200StrategyGenerateButton" type="button" disabled title="本阶段已冻结研究结果，不启动新的研究 Campaign">生成 / 组合策略</button>
+              <div class="top200-head-actions">
+                <button id="top200FactoryPauseResumeButton" type="button" class="secondary" hidden>暂停研究</button>
+                <button id="top200StrategyGenerateButton" type="button">生成 / 组合策略</button>
+              </div>
             </div>
             <div class="top200-progress-block" aria-live="polite">
               <div class="top200-progress-meta">
@@ -127,6 +130,57 @@
               <pre id="top200StrategyAudit">正在读取。</pre>
             </details>
             <small id="top200StrategyUpdatedAt" class="top200-updated-at">最后更新 --</small>
+            <dialog id="strategyFactoryDialog" class="strategy-factory-dialog" aria-labelledby="strategyFactoryDialogTitle">
+              <form id="strategyFactoryForm" method="dialog">
+                <div class="strategy-factory-dialog-head">
+                  <div>
+                    <p class="panel-eyebrow">BOUNDED RESEARCH</p>
+                    <h3 id="strategyFactoryDialogTitle">启动策略研究</h3>
+                  </div>
+                  <button id="strategyFactoryClose" class="icon-button" type="button" aria-label="关闭策略研究设置" title="关闭">×</button>
+                </div>
+                <div class="strategy-factory-fields">
+                  <label>
+                    <span>任务</span>
+                    <select id="strategyFactoryOperation" name="operation">
+                      <option value="generate">生成策略</option>
+                      <option value="combine">组合策略</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>周期</span>
+                    <select id="strategyFactoryTimeframe" name="timeframe">
+                      <option value="5m">5m</option>
+                      <option value="15m" selected>15m</option>
+                      <option value="1h">1h</option>
+                      <option value="4h">4h</option>
+                      <option value="1d">1d</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>模式</span>
+                    <select id="strategyFactoryMode" name="mode">
+                      <option value="quick">快速</option>
+                      <option value="standard">标准</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>候选上限</span>
+                    <input id="strategyFactoryCandidateBudget" name="maxCandidateCount" type="number" min="1" max="12" value="4" />
+                  </label>
+                  <label>
+                    <span>试验上限</span>
+                    <input id="strategyFactoryTrialBudget" name="maxTrialBudget" type="number" min="1" max="96" value="24" />
+                  </label>
+                </div>
+                <p class="strategy-factory-boundary">研究完成后只生成可复核结果，不会自动批准、ARM 或创建订单。</p>
+                <p id="strategyFactoryFormStatus" class="strategy-factory-form-status" aria-live="polite"></p>
+                <div class="strategy-factory-actions">
+                  <button id="strategyFactoryCancel" type="button" class="secondary">取消</button>
+                  <button id="strategyFactorySubmit" type="submit">启动研究</button>
+                </div>
+              </form>
+            </dialog>
           </section>
           <section id="strategyValidationResearchPanel" class="strategy-validation-panel" aria-labelledby="strategyValidationResearchTitle">
             <div class="strategy-validation-head">
@@ -712,6 +766,90 @@
             <details class="top200-audit-details">
               <summary>TOP200 扫描漏斗与对账</summary>
               <pre id="top200DemoAudit">正在读取。</pre>
+            </details>
+            <details id="top200RuntimeControls" class="top200-runtime-controls">
+              <summary>运行配置与版本控制</summary>
+              <div class="top200-runtime-grid">
+                <form id="runtimeRiskForm" class="top200-runtime-card">
+                  <div class="top200-section-title">
+                    <h3>运行时风险</h3>
+                    <select id="runtimeRiskEnvironment" aria-label="运行环境">
+                      <option value="okx_demo">OKX Demo</option>
+                      <option value="live_canary">Live Canary</option>
+                      <option value="live_standard">Live Standard</option>
+                    </select>
+                  </div>
+                  <div id="runtimeRiskFields" class="runtime-risk-fields"></div>
+                  <label>变更原因
+                    <input id="runtimeRiskReason" value="operator_runtime_risk_update" autocomplete="off" />
+                  </label>
+                  <button id="runtimeRiskCreateButton" type="submit">生成风险覆盖版本</button>
+                  <p id="runtimeRiskStatus" class="runtime-control-status" aria-live="polite">展开后读取当前边界。</p>
+                  <div id="runtimeRiskApprovalPanel" class="runtime-risk-approval" hidden>
+                    <strong>风险提高需要精确批准</strong>
+                    <code id="runtimeRiskPendingHash">--</code>
+                    <input id="runtimeRiskApprovalConfirmation" autocomplete="off" placeholder="输入页面显示的精确确认串" />
+                    <button id="runtimeRiskApproveButton" type="button">批准这个风险版本</button>
+                  </div>
+                </form>
+
+                <form id="strategyVersionSwitchForm" class="top200-runtime-card">
+                  <h3>策略版本切换</h3>
+                  <label>操作
+                    <select id="strategyVersionAction">
+                      <option value="register">登记当前版本</option>
+                      <option value="switch">切换新开仓版本</option>
+                      <option value="pause_new_entries">暂停新开仓</option>
+                      <option value="close_only">只允许平仓</option>
+                      <option value="resume_new_entries">恢复新开仓</option>
+                      <option value="rollback">回滚上一版本</option>
+                    </select>
+                  </label>
+                  <label>策略 ID <input id="strategyVersionStrategyId" autocomplete="off" required /></label>
+                  <label>新 Release ID <input id="strategyVersionReleaseId" autocomplete="off" /></label>
+                  <label>新 Release Hash <input id="strategyVersionReleaseHash" autocomplete="off" /></label>
+                  <label>切换方式
+                    <select id="strategyVersionMode">
+                      <option value="new_entries_only">仅新开仓使用新版</option>
+                      <option value="flatten_then_switch">清仓后切换</option>
+                      <option value="manual_position_migration">人工迁移持仓</option>
+                    </select>
+                  </label>
+                  <label>原因 <input id="strategyVersionReason" value="operator_version_control" autocomplete="off" /></label>
+                  <label>精确确认 <input id="strategyVersionConfirmation" autocomplete="off" /></label>
+                  <button type="submit">记录版本操作</button>
+                  <p id="strategyVersionStatus" class="runtime-control-status" aria-live="polite">已有持仓始终保留开仓时版本。</p>
+                </form>
+
+                <form id="manualInterventionForm" class="top200-runtime-card">
+                  <h3>人工保守干预</h3>
+                  <label>环境
+                    <select id="manualInterventionEnvironment">
+                      <option value="okx_demo">OKX Demo</option>
+                      <option value="live_canary">Live Canary</option>
+                      <option value="live_standard">Live Standard</option>
+                    </select>
+                  </label>
+                  <label>操作
+                    <select id="manualInterventionAction">
+                      <option value="pause_strategy">暂停策略</option>
+                      <option value="pause_instrument">暂停币种</option>
+                      <option value="close_position">关闭持仓</option>
+                      <option value="partial_reduce">减少持仓</option>
+                      <option value="tighten_stop">收紧止损</option>
+                      <option value="conservative_take_profit">保守止盈</option>
+                    </select>
+                  </label>
+                  <label>策略 ID <input id="manualInterventionStrategyId" autocomplete="off" required /></label>
+                  <label>币种 <input id="manualInterventionInstrumentId" autocomplete="off" /></label>
+                  <label>持仓 ID <input id="manualInterventionPositionId" autocomplete="off" /></label>
+                  <label>变更前 JSON <textarea id="manualInterventionBefore" rows="3">{}</textarea></label>
+                  <label>变更后 JSON <textarea id="manualInterventionAfter" rows="3">{}</textarea></label>
+                  <label>原因 <input id="manualInterventionReason" value="operator_conservative_intervention" autocomplete="off" required /></label>
+                  <button type="submit">写入人工干预审计</button>
+                  <p id="manualInterventionStatus" class="runtime-control-status" aria-live="polite">这里只登记审计请求，不会隐式创建订单。</p>
+                </form>
+              </div>
             </details>
             <small id="top200DemoUpdatedAt" class="top200-updated-at">最后更新 --</small>
           </section>
@@ -2993,7 +3131,7 @@
     </dialog>
     <script src="/issue-guidance.js?v=20260715-demo-runtime-recovery"></script>
     <script src="/app.js?v=20260715-demo-runtime-recovery"></script>
-    <script src="/top200-minimal-ui.js?v=20260720-scope-freeze"></script>
+    <script src="/top200-minimal-ui.js?v=20260721-v56-runtime-controls"></script>
     <script src="/adaptive-learning-ui.js?v=20260721-v55-1"></script>
   </body>
 </html>

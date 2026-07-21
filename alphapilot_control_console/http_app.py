@@ -107,10 +107,21 @@ from .pre_live_preparation_pack import (
 )
 from .risk_profile_service import (
     activate_risk_profile_version,
+    approve_runtime_risk_overlay,
     create_risk_profile_version,
+    create_runtime_risk_overlay,
     rollback_risk_profile_version,
 )
 from .risk_profile_store import build_risk_profile_status
+from .manual_intervention_store import (
+    build_manual_intervention_status,
+    record_manual_intervention,
+)
+from .strategy_version_switch import (
+    build_strategy_version_switch_status,
+    run_strategy_version_switch_action,
+)
+from .strategy_factory_orchestrator import build_strategy_factory_orchestrator
 from .sandbox_auto_runner import (
     get_local_sandbox_auto_runner_status,
 )
@@ -819,6 +830,22 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/risk-profiles":
             self._send_json(_cached_payload("risk-profiles", 5, build_risk_profile_status, fresh=fresh))
             return
+        if path == "/api/strategy-version-switch":
+            self._send_json(_cached_payload(
+                "strategy-version-switch",
+                5,
+                build_strategy_version_switch_status,
+                fresh=fresh,
+            ))
+            return
+        if path == "/api/manual-interventions":
+            self._send_json(_cached_payload(
+                "manual-interventions",
+                5,
+                build_manual_intervention_status,
+                fresh=fresh,
+            ))
+            return
         if path == "/api/no-key-pre-live":
             self._send_json(_cached_payload("no-key-pre-live", 15, build_no_key_pre_live_workbench, fresh=fresh))
             return
@@ -1009,6 +1036,63 @@ class ConsoleHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
+        if parsed.path == "/api/research-factory/runs" or (
+            parsed.path.startswith("/api/research-factory/runs/")
+            and parsed.path.rsplit("/", 1)[-1] in {"start", "pause", "resume"}
+        ):
+            payload = self._read_body_json()
+            if not _request_is_loopback(str(self.client_address[0])):
+                self._send_json({"ok": False, "error": "local_host_required"}, 403)
+                return
+            try:
+                reject_sensitive_fields(payload)
+            except ValueError as error:
+                self._send_json(
+                    {
+                        "ok": False,
+                        "error": "sensitive_field_forbidden",
+                        "message": str(error),
+                    },
+                    400,
+                )
+                return
+            factory = build_strategy_factory_orchestrator()
+            try:
+                if parsed.path == "/api/research-factory/runs":
+                    created = factory.create_run(payload)
+                    result = (
+                        factory.start_run(created["runId"])
+                        if payload.get("start", True)
+                        else created
+                    )
+                else:
+                    suffix = parsed.path.removeprefix(
+                        "/api/research-factory/runs/"
+                    ).strip("/")
+                    run_id, action = suffix.rsplit("/", 1)
+                    if action == "start":
+                        result = factory.start_run(run_id)
+                    elif action == "pause":
+                        result = factory.pause_run(run_id)
+                    else:
+                        result = factory.resume_run(run_id)
+            except KeyError as error:
+                self._send_json(
+                    {"ok": False, "error": "strategy_factory_run_not_found", "message": str(error)},
+                    404,
+                )
+                return
+            except (OSError, RuntimeError, ValueError) as error:
+                self._send_json(
+                    {"ok": False, "error": type(error).__name__, "message": str(error)},
+                    409,
+                )
+                return
+            finally:
+                factory.close()
+            _RESPONSE_CACHE.clear()
+            self._send_json(result)
+            return
         release_control_action: str | None = None
         release_control_id = ""
         if parsed.path.startswith("/api/strategy/releases/") and parsed.path.endswith(
@@ -1604,17 +1688,68 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             "/api/risk-profiles/create",
             "/api/risk-profiles/activate",
             "/api/risk-profiles/rollback",
+            "/api/risk-profiles/runtime-overlays/create",
+            "/api/risk-profiles/runtime-overlays/approve",
         }:
             payload = self._read_body_json()
+            if not _request_is_loopback(str(self.client_address[0])):
+                self._send_json({"ok": False, "error": "local_host_required"}, 403)
+                return
             try:
+                reject_sensitive_fields(payload)
                 if parsed.path.endswith("/create"):
-                    result = create_risk_profile_version(payload)
+                    if "/runtime-overlays/" in parsed.path:
+                        result = create_runtime_risk_overlay(payload)
+                    else:
+                        result = create_risk_profile_version(payload)
+                elif parsed.path.endswith("/approve"):
+                    result = approve_runtime_risk_overlay(payload)
                 elif parsed.path.endswith("/activate"):
                     result = activate_risk_profile_version(payload)
                 else:
                     result = rollback_risk_profile_version(payload)
             except (KeyError, ValueError, PermissionError) as error:
                 self._send_json({"ok": False, "error": type(error).__name__, "message": str(error)}, 409)
+                return
+            _RESPONSE_CACHE.clear()
+            self._send_json(result)
+            return
+        if parsed.path == "/api/strategy-version-switch/action":
+            payload = self._read_body_json()
+            if not _request_is_loopback(str(self.client_address[0])):
+                self._send_json({"ok": False, "error": "local_host_required"}, 403)
+                return
+            try:
+                reject_sensitive_fields(payload)
+                result = run_strategy_version_switch_action(payload)
+            except (KeyError, ValueError, PermissionError) as error:
+                self._send_json({"ok": False, "error": type(error).__name__, "message": str(error)}, 409)
+                return
+            _RESPONSE_CACHE.clear()
+            self._send_json(result)
+            return
+        if parsed.path == "/api/manual-interventions/record":
+            payload = self._read_body_json()
+            if not _request_is_loopback(str(self.client_address[0])):
+                self._send_json({"ok": False, "error": "local_host_required"}, 403)
+                return
+            try:
+                reject_sensitive_fields(payload)
+            except ValueError as error:
+                self._send_json({
+                    "ok": False,
+                    "error": "sensitive_field_forbidden",
+                    "message": str(error),
+                }, 400)
+                return
+            try:
+                result = record_manual_intervention(payload)
+            except (KeyError, ValueError, PermissionError) as error:
+                self._send_json({
+                    "ok": False,
+                    "error": type(error).__name__,
+                    "message": str(error),
+                }, 409)
                 return
             _RESPONSE_CACHE.clear()
             self._send_json(result)

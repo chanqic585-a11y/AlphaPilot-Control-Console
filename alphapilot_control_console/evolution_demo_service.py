@@ -27,6 +27,7 @@ from .demo_release_classification import (
 )
 from .demo_runtime_guard import evaluate_demo_runtime_guard
 from .demo_strategy_runtime_settings import (
+    apply_runtime_risk_profile,
     effective_symbol_limit,
     get_demo_strategy_runtime_settings,
 )
@@ -515,6 +516,20 @@ def run_evolution_demo_batch_cycle(
             "blockers": ["confirmed_close_timeframe_mismatch"],
             "status": status,
         }
+    risk_store = RiskProfileStore(RISK_PROFILE_STORE_PATH)
+    try:
+        active_runtime_overlay = risk_store.get_active_runtime_overlay("okx_demo")
+    finally:
+        risk_store.close()
+    if active_runtime_overlay:
+        selected_contracts = [
+            apply_runtime_risk_profile(
+                contract,
+                active_runtime_overlay["effectiveProfile"],
+                runtime_overlay_hash=active_runtime_overlay["contentHash"],
+            )
+            for contract in selected_contracts
+        ]
     try:
         credentials = load_okx_demo_credentials()
         client = OkxDemoClient(credentials)
@@ -763,6 +778,11 @@ def run_evolution_demo_batch_cycle(
             "latencyPassedSignalCount": 0,
             "filledOrderCount": 0,
             "openPositionCount": int(portfolio.get("openPositionCount") or 0),
+            "runtimeRiskOverlayHash": (
+                active_runtime_overlay.get("contentHash")
+                if active_runtime_overlay
+                else None
+            ),
             "scans": scans,
             "recovered": [_record_payload(record) for record in recovered],
             "closeReceivedAt": str(close_received_at),

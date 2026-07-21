@@ -1,0 +1,50 @@
+{
+  "schemaVersion": "alphapilot_v56_checkpoint_v1",
+  "generatedAt": "2026-07-21T02:48:12.0805721Z",
+  "status": "implemented_approved_not_armed",
+  "authority": {
+    "releaseId": "provisional_research_demo_top200_policy_bound_9f623ab76aafd8cc7cd4c6e6",
+    "releaseHash": "provisional_demo_release_ac2ce50562b4c83743636fe38984bb5d370a9eb1a5eef12de0eeda4d9b29ea44",
+    "riskOverlayHash": "risk_overlay_7221d23144dcd0a357136f6e9587a505d81c86439e223457d2d7393d287b8218",
+    "observerSidecarHash": "observer_sidecar_ce0e0e523b5a58452f0a86747cccbfc6b3e7454b19d577e9771b772a2ae99d74",
+    "approvalRecordHash": "demo_release_approval_43f9734c5da2d535bae780ff21042cd15904cf8a1e108675080feb311d907111",
+    "approvalStatus": "approved_not_armed",
+    "demoArm": false
+  },
+  "prohibitedActiveIdentity": {
+    "releaseHash": "provisional_demo_release_96aa2aa4bdb320e91745474f287dda9e4836b8a901910f252bcf447d718010d0",
+    "classification": "superseded_historical_only",
+    "active": false
+  },
+  "implemented": [
+    "versioned_runtime_risk_overlays",
+    "append_only_strategy_version_switching",
+    "audited_conservative_manual_interventions",
+    "bounded_strategy_factory",
+    "truthful_atomic_pause_and_resume",
+    "desktop_and_mobile_runtime_controls"
+  ],
+  "adaptiveLearningLiveReadiness": {
+    "status": "blocked_not_ready",
+    "passed": false,
+    "modelMode": "observer",
+    "qlib": "not_run",
+    "modelTraining": "not_run",
+    "factorBench": "not_run",
+    "drift": "not_run",
+    "rollback": "not_run",
+    "liveInference": "not_run"
+  },
+  "nextMechanicalGate": {
+    "stage": "V57",
+    "status": "blocked",
+    "blockers": [
+      "explicit_demo_arm_not_granted",
+      "process_only_demo_credentials_not_present",
+      "first_normal_demo_scan_not_completed"
+    ]
+  },
+  "ordersCreated": 0,
+  "liveEnabled": false,
+  "withdrawEnabled": false
+}

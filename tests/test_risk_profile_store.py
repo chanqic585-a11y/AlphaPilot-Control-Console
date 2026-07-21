@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from alphapilot_control_console import risk_profile_store
 from alphapilot_control_console.risk_profile_store import (
     LIVE_ACTIVATION_CONFIRMATION,
     RiskProfileStore,
@@ -68,6 +69,35 @@ class RiskProfileStoreTests(unittest.TestCase):
                     reason="unit_test",
                 )
             store.close()
+
+    def test_revised_default_preset_creates_new_version_without_replacing_active_profile(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "risk.sqlite"
+            first_store = RiskProfileStore(path)
+            original_active = first_store.get_active_profile("okx_demo")
+            first_store.close()
+
+            original_default_profile = risk_profile_store.default_profile
+
+            def revised_default_profile(environment: str) -> dict[str, object]:
+                profile = original_default_profile(environment)
+                return {**profile, "name": f"{profile['name']} Revised"}
+
+            with patch.object(
+                risk_profile_store,
+                "default_profile",
+                side_effect=revised_default_profile,
+            ):
+                revised_store = RiskProfileStore(path)
+                revised_profiles = revised_store.list_profiles("okx_demo")
+                active_after_reopen = revised_store.get_active_profile("okx_demo")
+                revised_store.close()
+
+        self.assertEqual([profile["version"] for profile in revised_profiles], [1, 2])
+        self.assertEqual(
+            active_after_reopen["riskProfileId"],
+            original_active["riskProfileId"],
+        )
 
 
 if __name__ == "__main__":

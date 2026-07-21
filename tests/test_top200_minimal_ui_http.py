@@ -160,6 +160,132 @@ class Top200MinimalUiHttpTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.code, 403)
 
+    def test_strategy_factory_create_pause_and_resume_are_local_bounded_routes(self) -> None:
+        factory = Mock()
+        factory.create_run.return_value = {"runId": "factory-run-1", "status": "queued"}
+        factory.start_run.return_value = {"runId": "factory-run-1", "status": "running"}
+        factory.pause_run.return_value = {"runId": "factory-run-1", "status": "paused"}
+        factory.resume_run.return_value = {"runId": "factory-run-1", "status": "running"}
+        payload = {
+            "operation": "generate",
+            "timeframe": "15m",
+            "mode": "quick",
+            "maxCandidateCount": 4,
+            "maxTrialBudget": 24,
+        }
+
+        with patch(
+            "alphapilot_control_console.http_app.build_strategy_factory_orchestrator",
+            return_value=factory,
+        ):
+            created = self._post("/api/research-factory/runs", payload)
+            paused = self._post(
+                "/api/research-factory/runs/factory-run-1/pause",
+                {},
+            )
+            resumed = self._post(
+                "/api/research-factory/runs/factory-run-1/resume",
+                {},
+            )
+
+        self.assertEqual(created["status"], "running")
+        self.assertEqual(paused["status"], "paused")
+        self.assertEqual(resumed["status"], "running")
+        factory.create_run.assert_called_once_with(payload)
+        factory.start_run.assert_called_once_with("factory-run-1")
+        factory.pause_run.assert_called_once_with("factory-run-1")
+        factory.resume_run.assert_called_once_with("factory-run-1")
+        self.assertEqual(factory.close.call_count, 3)
+
+    def test_strategy_factory_write_route_rejects_sensitive_fields(self) -> None:
+        with self.assertRaises(HTTPError) as raised:
+            self._post(
+                "/api/research-factory/runs",
+                {
+                    "operation": "generate",
+                    "timeframe": "15m",
+                    "mode": "quick",
+                    "maxCandidateCount": 4,
+                    "maxTrialBudget": 24,
+                    "apiKey": "must-not-be-accepted",
+                },
+            )
+
+        self.assertEqual(raised.exception.code, 400)
+        response = json.loads(raised.exception.read().decode("utf-8"))
+        self.assertEqual(response["error"], "sensitive_field_forbidden")
+
+    def test_manual_intervention_routes_are_read_only_plus_local_append_only(self) -> None:
+        status = {
+            "ok": True,
+            "recentEvents": [],
+            "executionEnabled": False,
+        }
+        recorded = {
+            "ok": True,
+            "event": {
+                "interventionId": "manual-1",
+                "action": "pause_strategy",
+                "executionEnabled": False,
+            },
+        }
+        payload = {
+            "environment": "okx_demo",
+            "action": "pause_strategy",
+            "operator": "user_manual",
+            "strategyId": "strategy-1",
+            "reason": "operator review",
+        }
+
+        with patch(
+            "alphapilot_control_console.http_app.build_manual_intervention_status",
+            return_value=status,
+        ) as build_status, patch(
+            "alphapilot_control_console.http_app.record_manual_intervention",
+            return_value=recorded,
+        ) as record:
+            self.assertEqual(self._get("/api/manual-interventions"), status)
+            self.assertEqual(
+                self._post("/api/manual-interventions/record", payload),
+                recorded,
+            )
+
+        build_status.assert_called_once_with()
+        record.assert_called_once_with(payload)
+
+    def test_manual_intervention_write_rejects_sensitive_fields(self) -> None:
+        with self.assertRaises(HTTPError) as raised:
+            self._post(
+                "/api/manual-interventions/record",
+                {
+                    "environment": "okx_demo",
+                    "action": "pause_strategy",
+                    "operator": "user_manual",
+                    "strategyId": "strategy-1",
+                    "reason": "operator review",
+                    "apiSecret": "must-not-be-accepted",
+                },
+            )
+
+        self.assertEqual(raised.exception.code, 400)
+        response = json.loads(raised.exception.read().decode("utf-8"))
+        self.assertEqual(response["error"], "sensitive_field_forbidden")
+
+    def test_v56_runtime_control_write_routes_require_loopback(self) -> None:
+        routes = (
+            "/api/risk-profiles/runtime-overlays/create",
+            "/api/strategy-version-switch/action",
+            "/api/manual-interventions/record",
+        )
+        with patch(
+            "alphapilot_control_console.http_app._request_is_loopback",
+            return_value=False,
+        ):
+            for route in routes:
+                with self.subTest(route=route), self.assertRaises(HTTPError) as raised:
+                    self._post(route, {})
+                self.assertEqual(raised.exception.code, 403)
+
 
 if __name__ == "__main__":
     unittest.main()

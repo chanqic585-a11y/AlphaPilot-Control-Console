@@ -2538,3 +2538,38 @@ The executed closeout is under `reports/v41_v45_20260720/`. Research completed
 with four candidates and zero prefilter survivors. Track P is truthfully marked
 `blocked_demo_credentials_not_injected`; no private request, Demo order, fill,
 position, release, Live action, or Withdraw capability was fabricated.
+
+## V13.27.1.56 Runtime Policy and Strategy Factory
+
+V56 adds bounded operating controls without changing the frozen V55.1 Demo
+identity or opening Live execution:
+
+- Runtime Risk Profile changes are append-only overlays. Conservative changes
+  apply to new orders only; any risk increase creates a new hash and requires
+  exact manual approval while remaining inside the frozen safety envelope.
+- Strategy version changes are audited and support `new_entries_only`,
+  `flatten_then_switch`, and explicit manual-position migration. Existing
+  positions stay bound to their opening version unless an exact migration is
+  confirmed.
+- Pause-new-entry, close-only, rollback, and emergency intervention requests
+  are recorded in an append-only local ledger. They do not silently edit a
+  running Release.
+- The one-click Strategy Factory creates bounded Program/Campaign runs for
+  `5m`, `15m`, `1h`, `4h`, and `1d`, with finite candidate/trial budgets,
+  truthful progress, pause/resume markers, an atomic worker-exit handshake,
+  and five result classes. A pause is not reported as complete until the Quant
+  worker has handed control back; resume restarts the same frozen campaign.
+- Factory output never auto-promotes a candidate, tunes against Locked OOS,
+  approves a Demo Release, ARMs Demo, or creates an order.
+
+The authoritative safety checkpoint remains V55.1:
+
+- Release ID: `provisional_research_demo_top200_policy_bound_9f623ab76aafd8cc7cd4c6e6`
+- Release Hash: `provisional_demo_release_ac2ce50562b4c83743636fe38984bb5d370a9eb1a5eef12de0eeda4d9b29ea44`
+- Risk Overlay Hash: `risk_overlay_7221d23144dcd0a357136f6e9587a505d81c86439e223457d2d7393d287b8218`
+- Observer Sidecar Hash: `observer_sidecar_ce0e0e523b5a58452f0a86747cccbfc6b3e7454b19d577e9771b772a2ae99d74`
+
+The V55.1 Qlib campaign, decision-model training, Factor Bench, drift test,
+rollback test, and Live inference remain truthfully `not_run`. They must pass
+`AdaptiveLearningLiveReadinessGate` individually before any future Live route.
+See `docs/V13.27.1.56-runtime-policy-and-strategy-factory.md`.

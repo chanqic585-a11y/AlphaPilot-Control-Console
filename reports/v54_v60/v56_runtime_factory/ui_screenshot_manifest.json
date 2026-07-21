@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "alphapilot_v56_ui_screenshot_manifest_v1",
+  "generatedAt": "2026-07-21T02:48:12.0805721Z",
+  "status": "passed",
+  "viewportChecks": {
+    "desktop": "1440x1100",
+    "mobile": "390x844",
+    "mobileHorizontalOverflow": false,
+    "uncaughtPageErrors": 0,
+    "expectedHttpFailures": [
+      {
+        "path": "/api/demo-instrument-universe",
+        "status": 503,
+        "reason": "okx_demo_credentials_missing",
+        "classification": "truthful_pre_arm_preview_state"
+      }
+    ]
+  },
+  "screenshots": [
+    {
+      "path": "evidence/demo_runtime_controls_desktop.png",
+      "bytes": 154034,
+      "sha256": "7bf587f1fb34a61f5c03ac80947fcac3c73e8fa4c2b8843251a39d8adcb46e86"
+    },
+    {
+      "path": "evidence/demo_runtime_controls_mobile_390.png",
+      "bytes": 78806,
+      "sha256": "e3f8d45b2b7bea34daac8777b8a2ddac1fb06a7d6a5574e7578562ca5e96cdc7"
+    },
+    {
+      "path": "evidence/strategy_factory_desktop.png",
+      "bytes": 103288,
+      "sha256": "52f3dd93a04c9e590dc4f6c2a39a39cdd1c7dec64862c53df8c588023e875a60"
+    }
+  ]
+}

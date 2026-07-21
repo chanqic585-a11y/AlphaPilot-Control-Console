@@ -84,3 +84,49 @@ def rollback_risk_profile_version(payload: dict[str, Any]) -> dict[str, Any]:
         **result,
         "riskProfiles": build_risk_profile_status(RISK_PROFILE_STORE_PATH),
     }
+
+
+def create_runtime_risk_overlay(payload: dict[str, Any]) -> dict[str, Any]:
+    _reject_sensitive(payload)
+    store = RiskProfileStore(RISK_PROFILE_STORE_PATH)
+    try:
+        created = store.create_runtime_overlay(
+            str(payload.get("environment") or ""),
+            payload.get("overrides") if isinstance(payload.get("overrides"), dict) else {},
+            actor=str(payload.get("actor") or ""),
+            reason=str(payload.get("reason") or "runtime_risk_overlay_created"),
+        )
+    finally:
+        store.close()
+    return {
+        "ok": True,
+        "runtimeRiskOverlay": created,
+        "approvalRequired": created["status"] == "pending_exact_approval",
+        "exactConfirmation": (
+            "APPROVE_RUNTIME_RISK_OVERLAY:" + created["contentHash"]
+            if created["status"] == "pending_exact_approval"
+            else None
+        ),
+        "executionEnabled": False,
+        "riskProfiles": build_risk_profile_status(RISK_PROFILE_STORE_PATH),
+    }
+
+
+def approve_runtime_risk_overlay(payload: dict[str, Any]) -> dict[str, Any]:
+    _reject_sensitive(payload)
+    store = RiskProfileStore(RISK_PROFILE_STORE_PATH)
+    try:
+        approved = store.approve_runtime_overlay(
+            str(payload.get("runtimeRiskOverlayId") or ""),
+            actor=str(payload.get("actor") or ""),
+            confirmation=str(payload.get("confirmation") or ""),
+            reason=str(payload.get("reason") or "runtime_risk_overlay_approved"),
+        )
+    finally:
+        store.close()
+    return {
+        "ok": True,
+        "runtimeRiskOverlay": approved,
+        "executionEnabled": False,
+        "riskProfiles": build_risk_profile_status(RISK_PROFILE_STORE_PATH),
+    }

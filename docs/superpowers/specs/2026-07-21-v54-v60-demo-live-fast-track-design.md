@@ -10,15 +10,27 @@
 
 ## Approval Semantics
 
-The user's approval authorizes implementation of V54-V60 and exact approval of the already frozen TOP200 Demo identity after mechanical verification:
+V55.1 supersedes the original V53 identity and is the authoritative safety
+checkpoint for all subsequent V54-V60 work:
 
-- Release ID: `provisional_research_demo_top200_1fc1e9895d79de78e457bc9c`
-- Release hash: `provisional_demo_release_96aa2aa4bdb320e91745474f287dda9e4836b8a901910f252bcf447d718010d0`
+- Release ID: `provisional_research_demo_top200_policy_bound_9f623ab76aafd8cc7cd4c6e6`
+- Release hash: `provisional_demo_release_ac2ce50562b4c83743636fe38984bb5d370a9eb1a5eef12de0eeda4d9b29ea44`
 - Risk overlay hash: `risk_overlay_7221d23144dcd0a357136f6e9587a505d81c86439e223457d2d7393d287b8218`
+- Observer sidecar hash: `observer_sidecar_ce0e0e523b5a58452f0a86747cccbfc6b3e7454b19d577e9771b772a2ae99d74`
 - Execution intersection hash: `demo_execution_intersection_4285a3e6dd2155945b6498c130e5a99a9943f7503007b02ccbbed66e1e76960d`
-- Approval request hash: `exact_release_approval_request_d3e44900174219d0afaaf2ccf01e6bff97a7f41c72198f175a0ce8a4d2b98091`
+- Approval request hash: `exact_release_approval_request_719b022e6c492b7b9e0cc2525b4f2b8935afffb589813f95b5c6163f584a6731`
+
+The V53 Release hash
+`provisional_demo_release_96aa2aa4bdb320e91745474f287dda9e4836b8a901910f252bcf447d718010d0`
+is historical only. It must never be approved, ARMed, or used as an active
+execution binding.
 
 Approval is append-only and hash-bound. Demo ARM is a separate audited action and may only occur after exact approval, runtime credentials, universe readiness, and risk checks pass.
+
+The V55.1 Qlib campaign, model training, Factor Bench, drift, rollback, and
+Live inference states remain truthfully `not_run`. Continuing V54-V60 must not
+project them as passed; every item remains an explicit blocker in
+`AdaptiveLearningLiveReadinessGate` until independently completed.
 
 Future Live Release and Live Risk Overlay hashes do not exist yet. They cannot be preapproved by this design approval. V59/V60 must stop at `blocked_waiting_exact_live_release_approval` after generating those exact identities.
 
@@ -26,7 +38,7 @@ Future Live Release and Live Risk Overlay hashes do not exist yet. They cannot b
 
 V54-V60 extends the V53 system additively:
 
-1. **Evidence and identity plane** verifies the V53 ZIP, release-to-HEAD execution diff, order-count scope, component matchability, and all immutable hashes.
+1. **Evidence and identity plane** verifies the historical V53 ZIP, the active V55.1 checkpoint, release-to-HEAD execution diff, order-count scope, component matchability, and all immutable hashes.
 2. **Demo control plane** records exact approval and ARM overlays without mutating the frozen Release.
 3. **Demo execution plane** uses the dynamic TOP200 universe, prewarmed public market state, closed-candle scheduling, stale-signal fail-closed checks, and isolated Demo ledgers.
 4. **Versioned policy plane** treats latency, runtime risk, strategy parameters, capacity, and switching as hashable policy objects. Risk reductions may apply to new orders immediately; risk increases require a new approval identity.

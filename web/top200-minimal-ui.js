@@ -4,6 +4,10 @@
   const POLL_MS = 3000;
   let strategyLoading = false;
   let demoLoading = false;
+  let activeFactoryRunId = null;
+  let activeFactoryStatus = null;
+  let runtimeControlsLoading = false;
+  let pendingRuntimeRiskOverlay = null;
 
   const byId = (id) => document.getElementById(id);
 
@@ -14,8 +18,12 @@
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 
-  async function fetchJson(path) {
-    const response = await fetch(path, { cache: "no-store" });
+  async function fetchJson(path, options = {}) {
+    const request = { cache: "no-store", ...options };
+    if (request.body && !request.headers) {
+      request.headers = { "Content-Type": "application/json" };
+    }
+    const response = await fetch(path, request);
     const payload = await response.json();
     if (!response.ok) {
       throw new Error(payload.message || payload.error || `HTTP ${response.status}`);
@@ -67,6 +75,108 @@
       </article>`;
   }
 
+  const FACTORY_STAGE_LABELS = {
+    idle: "等待启动",
+    prepare_material: "准备研究材料",
+    generate_plan: "生成研究计划",
+    data_check: "检查数据",
+    tuning_backtest: "开发回测",
+    robustness: "稳健性检查",
+    portfolio_evaluation: "组合评估",
+    complete: "研究完成",
+    release_ready: "Release 已冻结",
+  };
+
+  const DEMO_STRATEGY_STATUS_LABELS = {
+    waiting_approval: "等待批准",
+    approved_not_armed: "已批准，待启动",
+    armed: "已启动",
+  };
+
+  const RUNTIME_RISK_FIELD_LABELS = {
+    allocatedCapital: "分配资金 USDT",
+    riskPerTradePercent: "单笔风险 %",
+    riskPerTradeUSDT: "单笔风险 USDT",
+    maximumPortfolioOpenRiskPercent: "组合开仓风险 %",
+    maximumPortfolioOpenRiskUSDT: "组合开仓风险 USDT",
+    maximumConcurrentPositions: "最大同时持仓",
+    maximumInstrumentRisk: "单币种风险 %",
+    maximumSameDirectionRisk: "同方向风险 %",
+    maximumCorrelationClusterRisk: "相关性簇风险 %",
+    maximumPortfolioBeta: "组合 Beta 上限",
+    maximumLeverage: "最大杠杆",
+    marginMode: "保证金模式",
+    dailyLossLimit: "日亏损停止 %",
+    programLossLimit: "项目亏损停止 %",
+    hardKillLossLimit: "硬停损 USDT",
+    scanTopN: "扫描 Top N",
+  };
+
+  function openStrategyFactoryDialog() {
+    const dialog = byId("strategyFactoryDialog");
+    byId("strategyFactoryFormStatus").textContent = "";
+    if (typeof dialog.showModal === "function") dialog.showModal();
+    else dialog.setAttribute("open", "");
+  }
+
+  function closeStrategyFactoryDialog() {
+    const dialog = byId("strategyFactoryDialog");
+    if (typeof dialog.close === "function") dialog.close();
+    else dialog.removeAttribute("open");
+  }
+
+  async function submitStrategyFactory(event) {
+    event.preventDefault();
+    const submit = byId("strategyFactorySubmit");
+    const status = byId("strategyFactoryFormStatus");
+    submit.disabled = true;
+    status.textContent = "正在启动研究任务。";
+    try {
+      const created = await fetchJson("/api/research-factory/runs", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: byId("strategyFactoryOperation").value,
+          timeframe: byId("strategyFactoryTimeframe").value,
+          mode: byId("strategyFactoryMode").value,
+          maxCandidateCount: Number(byId("strategyFactoryCandidateBudget").value),
+          maxTrialBudget: Number(byId("strategyFactoryTrialBudget").value),
+        }),
+      });
+      activeFactoryRunId = created.runId;
+      activeFactoryStatus = created.status;
+      status.textContent = "研究任务已在后台启动。";
+      window.setTimeout(closeStrategyFactoryDialog, 450);
+      await refreshStrategy();
+    } catch (error) {
+      status.textContent = `启动失败：${error.message}`;
+    } finally {
+      submit.disabled = false;
+    }
+  }
+
+  async function toggleStrategyFactoryRun() {
+    if (!activeFactoryRunId || activeFactoryStatus === "pause_requested" || !["running", "queued", "paused"].includes(activeFactoryStatus)) return;
+    const runId = activeFactoryRunId;
+    const action = activeFactoryStatus === "paused" ? "resume" : "pause";
+    const route = action === "resume"
+      ? `/api/research-factory/runs/${encodeURIComponent(runId)}/resume`
+      : `/api/research-factory/runs/${encodeURIComponent(runId)}/pause`;
+    const button = byId("top200FactoryPauseResumeButton");
+    button.disabled = true;
+    try {
+      const updated = await fetchJson(route, {
+        method: "POST",
+        body: "{}",
+      });
+      activeFactoryStatus = updated.status;
+      await refreshStrategy();
+    } catch (error) {
+      setIssue(byId("top200StrategyIssue"), [{ message: `研究任务操作失败：${error.message}` }], true);
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   async function refreshStrategy() {
     if (strategyLoading || !byId("top200MinimalStrategy")) return;
     strategyLoading = true;
@@ -79,11 +189,20 @@
       const current = (releases.releases || []).find((item) => item.status === "can_enter_demo");
       const progress = Math.max(0, Math.min(100, Number(factory.progressPercent || 0)));
       const track = byId("top200ResearchProgressBar")?.parentElement;
-      byId("top200ResearchStage").textContent = factory.stage === "release_ready" ? "Release 已冻结" : factory.stage;
+      activeFactoryRunId = factory.readOnly ? null : factory.researchRunId;
+      activeFactoryStatus = factory.status;
+      byId("top200ResearchStage").textContent = FACTORY_STAGE_LABELS[factory.stage] || factory.stage;
       byId("top200ResearchProgressLabel").textContent = `${factory.completedCount} / ${factory.totalCount}`;
       byId("top200ResearchProgressBar").style.width = `${progress}%`;
       if (track) track.setAttribute("aria-valuenow", String(progress));
       byId("top200ResearchCurrent").textContent = `当前：${factory.currentCandidate || "--"}`;
+      const pauseResume = byId("top200FactoryPauseResumeButton");
+      const factoryActive = !factory.readOnly && ["running", "queued", "pause_requested", "paused"].includes(factory.status);
+      pauseResume.hidden = !factoryActive;
+      pauseResume.disabled = factory.status === "pause_requested";
+      pauseResume.textContent = factory.status === "pause_requested"
+        ? "正在安全暂停"
+        : factory.status === "paused" ? "继续研究" : "暂停研究";
       byId("top200CanEnterDemo").textContent = summary.resultCounts.canEnterDemo;
       byId("top200NeedsForward").textContent = summary.resultCounts.needsForwardValidation;
       byId("top200Failed").textContent = summary.resultCounts.failed;
@@ -108,6 +227,9 @@
         approved: summary.approved,
         demoArm: summary.demoArm,
         strategyOrderCount: summary.strategyOrderCount,
+        factoryAutomaticPromotionAllowed: factory.automaticPromotionAllowed ?? false,
+        factoryDemoArm: factory.demoArm ?? false,
+        factoryOrderCount: factory.orderCount ?? 0,
         route: summary.route,
       }, null, 2);
       byId("top200StrategyUpdatedAt").textContent = `最后更新 ${formatTimestamp(summary.updatedAt)}`;
@@ -130,7 +252,7 @@
           <strong>${escapeHtml(strategy.name)}</strong>
           <small>${escapeHtml((strategy.timeframes || []).join(" / "))} · ${escapeHtml(strategy.releaseId)}</small>
         </div>
-        <span class="top200-state-badge">${strategy.status === "waiting_approval" ? "等待批准" : escapeHtml(strategy.status)}</span>
+        <span class="top200-state-badge">${escapeHtml(DEMO_STRATEGY_STATUS_LABELS[strategy.status] || strategy.status)}</span>
         <span>扫描 ${escapeHtml(strategy.scanInstrumentCount)} 个合约</span>
         <span>持仓 ${escapeHtml(strategy.openPositionCount)} · 今日 ${formatValue(strategy.todayPnl)}</span>
       </article>`;
@@ -154,6 +276,189 @@
     const rows = orders.map((item) => `
       <tr><td>${escapeHtml(item.instrumentId)}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.reason)}</td><td>${escapeHtml(item.updatedAt)}</td></tr>`).join("");
     return `<table class="top200-table"><thead><tr><th>币种</th><th>状态</th><th>原因</th><th>更新时间</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  function renderRuntimeRiskFields(contract) {
+    const container = byId("runtimeRiskFields");
+    if (!container) return;
+    const fields = contract?.fields || {};
+    container.innerHTML = Object.entries(RUNTIME_RISK_FIELD_LABELS).map(([field, label]) => {
+      const bounds = fields[field];
+      if (!bounds) return "";
+      if (field === "marginMode") {
+        return `<label><span>${escapeHtml(label)}</span><select data-runtime-risk-field="${field}">
+          <option value="isolated" ${bounds.currentValue === "isolated" ? "selected" : ""}>逐仓</option>
+          <option value="cross" ${bounds.currentValue === "cross" ? "selected" : ""}>全仓</option>
+        </select><small>允许范围：${escapeHtml(bounds.minimumAllowed)} - ${escapeHtml(bounds.maximumAllowed)}</small></label>`;
+      }
+      return `<label><span>${escapeHtml(label)}</span><input data-runtime-risk-field="${field}" type="number" step="any"
+        min="${escapeHtml(bounds.minimumAllowed)}" max="${escapeHtml(bounds.maximumAllowed)}"
+        value="${escapeHtml(bounds.currentValue)}" />
+        <small>范围 ${escapeHtml(bounds.minimumAllowed)} - ${escapeHtml(bounds.maximumAllowed)} · 新订单生效</small></label>`;
+    }).join("");
+  }
+
+  function readRuntimeRiskOverrides() {
+    const overrides = {};
+    document.querySelectorAll("[data-runtime-risk-field]").forEach((input) => {
+      const field = input.dataset.runtimeRiskField;
+      overrides[field] = input.tagName === "SELECT" ? input.value : Number(input.value);
+    });
+    return overrides;
+  }
+
+  function showPendingRuntimeRiskOverlay(overlay, exactConfirmation = null) {
+    pendingRuntimeRiskOverlay = overlay || null;
+    const panel = byId("runtimeRiskApprovalPanel");
+    if (!panel) return;
+    panel.hidden = !pendingRuntimeRiskOverlay;
+    byId("runtimeRiskPendingHash").textContent = exactConfirmation
+      || pendingRuntimeRiskOverlay?.contentHash
+      || "--";
+    byId("runtimeRiskApprovalConfirmation").value = "";
+  }
+
+  async function refreshRuntimeControls() {
+    const details = byId("top200RuntimeControls");
+    if (!details?.open || runtimeControlsLoading) return;
+    runtimeControlsLoading = true;
+    try {
+      const [risk, switches, interventions] = await Promise.all([
+        fetchJson("/api/risk-profiles"),
+        fetchJson("/api/strategy-version-switch"),
+        fetchJson("/api/manual-interventions"),
+      ]);
+      const environment = byId("runtimeRiskEnvironment").value;
+      renderRuntimeRiskFields(risk.runtimeRiskContracts?.[environment]);
+      const pending = (risk.runtimeOverlays || []).find((item) => (
+        item.environment === environment && item.status === "pending_exact_approval"
+      ));
+      showPendingRuntimeRiskOverlay(pending);
+      const active = risk.activeRuntimeOverlays?.[environment];
+      byId("runtimeRiskStatus").textContent = active
+        ? `当前覆盖：${active.contentHash} · 仅影响新订单`
+        : "当前使用冻结风险配置；创建覆盖不会开启执行。";
+      byId("strategyVersionStatus").textContent = switches.strategies?.length
+        ? `已登记 ${switches.strategies.length} 条策略版本；操作不会开启执行。`
+        : "尚无版本切换记录；已有持仓始终保留开仓时版本。";
+      byId("manualInterventionStatus").textContent = interventions.recentEvents?.length
+        ? `最近已记录 ${interventions.recentEvents.length} 条人工干预；不会隐式创建订单。`
+        : "这里只登记审计请求，不会隐式创建订单。";
+    } catch (error) {
+      byId("runtimeRiskStatus").textContent = `运行配置读取失败：${error.message}`;
+    } finally {
+      runtimeControlsLoading = false;
+    }
+  }
+
+  async function createRuntimeRiskOverlay(event) {
+    event.preventDefault();
+    const status = byId("runtimeRiskStatus");
+    try {
+      const result = await fetchJson("/api/risk-profiles/runtime-overlays/create", {
+        method: "POST",
+        body: JSON.stringify({
+          environment: byId("runtimeRiskEnvironment").value,
+          overrides: readRuntimeRiskOverrides(),
+          actor: "user_manual",
+          reason: byId("runtimeRiskReason").value,
+        }),
+      });
+      if (result.executionEnabled) throw new Error("风险覆盖不应直接开启执行");
+      const overlay = result.runtimeRiskOverlay;
+      status.textContent = result.approvalRequired
+        ? "风险提高版本已创建，等待精确确认。"
+        : "风险降低或等值版本已应用到后续新订单。";
+      showPendingRuntimeRiskOverlay(
+        result.approvalRequired ? overlay : null,
+        result.exactConfirmation,
+      );
+      await refreshDemo();
+    } catch (error) {
+      status.textContent = `风险覆盖创建失败：${error.message}`;
+    }
+  }
+
+  async function approveRuntimeRiskOverlay() {
+    if (!pendingRuntimeRiskOverlay) return;
+    const status = byId("runtimeRiskStatus");
+    try {
+      const result = await fetchJson("/api/risk-profiles/runtime-overlays/approve", {
+        method: "POST",
+        body: JSON.stringify({
+          runtimeRiskOverlayId: pendingRuntimeRiskOverlay.runtimeRiskOverlayId,
+          actor: "user_manual",
+          confirmation: byId("runtimeRiskApprovalConfirmation").value,
+          reason: "operator_exact_runtime_risk_approval",
+        }),
+      });
+      if (result.executionEnabled) throw new Error("风险批准不应直接开启执行");
+      status.textContent = "风险覆盖版本已精确批准，仅对后续新订单生效。";
+      showPendingRuntimeRiskOverlay(null);
+      await refreshRuntimeControls();
+    } catch (error) {
+      status.textContent = `精确批准失败：${error.message}`;
+    }
+  }
+
+  async function submitStrategyVersionSwitch(event) {
+    event.preventDefault();
+    const status = byId("strategyVersionStatus");
+    try {
+      const result = await fetchJson("/api/strategy-version-switch/action", {
+        method: "POST",
+        body: JSON.stringify({
+          action: byId("strategyVersionAction").value,
+          strategyId: byId("strategyVersionStrategyId").value,
+          releaseId: byId("strategyVersionReleaseId").value,
+          releaseHash: byId("strategyVersionReleaseHash").value,
+          mode: byId("strategyVersionMode").value,
+          actor: "user_manual",
+          reason: byId("strategyVersionReason").value,
+          confirmation: byId("strategyVersionConfirmation").value,
+          openPositionBindings: [],
+        }),
+      });
+      if (result.result?.executionEnabled) throw new Error("版本操作不应直接开启执行");
+      status.textContent = "策略版本操作已写入不可变审计；已有持仓绑定保持不变。";
+      await refreshRuntimeControls();
+    } catch (error) {
+      status.textContent = `策略版本操作失败：${error.message}`;
+    }
+  }
+
+  function parseObjectJson(value, label) {
+    const parsed = JSON.parse(value || "{}");
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
+      throw new Error(`${label}必须是 JSON 对象`);
+    }
+    return parsed;
+  }
+
+  async function submitManualIntervention(event) {
+    event.preventDefault();
+    const status = byId("manualInterventionStatus");
+    try {
+      const result = await fetchJson("/api/manual-interventions/record", {
+        method: "POST",
+        body: JSON.stringify({
+          environment: byId("manualInterventionEnvironment").value,
+          action: byId("manualInterventionAction").value,
+          operator: "user_manual",
+          strategyId: byId("manualInterventionStrategyId").value,
+          instrumentId: byId("manualInterventionInstrumentId").value || null,
+          positionId: byId("manualInterventionPositionId").value || null,
+          before: parseObjectJson(byId("manualInterventionBefore").value, "变更前"),
+          after: parseObjectJson(byId("manualInterventionAfter").value, "变更后"),
+          reason: byId("manualInterventionReason").value,
+        }),
+      });
+      if (result.event?.executionEnabled) throw new Error("人工干预审计不应直接执行");
+      status.textContent = `已记录：${result.event.interventionId}`;
+      await refreshRuntimeControls();
+    } catch (error) {
+      status.textContent = `人工干预登记失败：${error.message}`;
+    }
   }
 
   async function refreshDemo() {
@@ -211,6 +516,17 @@
   }
 
   function start() {
+    byId("top200StrategyGenerateButton")?.addEventListener("click", openStrategyFactoryDialog);
+    byId("strategyFactoryClose")?.addEventListener("click", closeStrategyFactoryDialog);
+    byId("strategyFactoryCancel")?.addEventListener("click", closeStrategyFactoryDialog);
+    byId("strategyFactoryForm")?.addEventListener("submit", submitStrategyFactory);
+    byId("top200FactoryPauseResumeButton")?.addEventListener("click", toggleStrategyFactoryRun);
+    byId("top200RuntimeControls")?.addEventListener("toggle", refreshRuntimeControls);
+    byId("runtimeRiskEnvironment")?.addEventListener("change", refreshRuntimeControls);
+    byId("runtimeRiskForm")?.addEventListener("submit", createRuntimeRiskOverlay);
+    byId("runtimeRiskApproveButton")?.addEventListener("click", approveRuntimeRiskOverlay);
+    byId("strategyVersionSwitchForm")?.addEventListener("submit", submitStrategyVersionSwitch);
+    byId("manualInterventionForm")?.addEventListener("submit", submitManualIntervention);
     refreshStrategy();
     refreshDemo();
     window.setInterval(refreshStrategy, POLL_MS);

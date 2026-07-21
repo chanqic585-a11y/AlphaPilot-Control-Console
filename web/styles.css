@@ -7321,6 +7321,231 @@ body.show-advanced .hero-grid.advanced-section {
   cursor: not-allowed;
 }
 
+.top200-head-actions,
+.strategy-factory-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.top200-minimal-head button.secondary,
+.strategy-factory-dialog button.secondary {
+  border-color: #3a4654;
+  background: #161e27;
+  color: #dbe4ef;
+}
+
+.strategy-factory-dialog {
+  width: min(620px, calc(100vw - 32px));
+  max-height: calc(100vh - 40px);
+  padding: 0;
+  overflow: auto;
+  border: 1px solid #34404d;
+  border-radius: 8px;
+  background: #10161d;
+  color: #f4f7fb;
+}
+
+.strategy-factory-dialog::backdrop {
+  background: rgb(3 7 11 / 78%);
+}
+
+.strategy-factory-dialog form {
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+}
+
+.strategy-factory-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.strategy-factory-dialog-head h3,
+.strategy-factory-dialog-head p,
+.strategy-factory-boundary,
+.strategy-factory-form-status {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.strategy-factory-dialog .icon-button {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid #3a4654;
+  border-radius: 6px;
+  background: #161e27;
+  color: #dbe4ef;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.strategy-factory-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.strategy-factory-fields label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  color: #a9b8ca;
+  font-size: 13px;
+}
+
+.strategy-factory-fields select,
+.strategy-factory-fields input {
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 1px solid #34404d;
+  border-radius: 6px;
+  background: #0b1117;
+  color: #f4f7fb;
+  font: inherit;
+}
+
+.strategy-factory-boundary {
+  padding: 11px 12px;
+  border-left: 3px solid #74d6ba;
+  background: #10211d;
+  color: #b9d9cf;
+}
+
+.strategy-factory-form-status {
+  min-height: 22px;
+  color: #f6d365;
+}
+
+.strategy-factory-actions {
+  justify-content: flex-end;
+}
+
+.strategy-factory-actions button {
+  min-height: 42px;
+  padding: 0 18px;
+  border: 1px solid #f6d365;
+  border-radius: 6px;
+  background: #f6d365;
+  color: #11161d;
+  font-weight: 800;
+}
+
+.top200-runtime-controls {
+  margin-top: 14px;
+  border-top: 1px solid #2f3945;
+  color: #dbe4ef;
+}
+
+.top200-runtime-controls > summary {
+  padding: 14px 0;
+  color: #a9b8ca;
+  cursor: pointer;
+}
+
+.top200-runtime-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  border-top: 1px solid #2f3945;
+}
+
+.top200-runtime-card {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+  padding: 18px;
+  border-right: 1px solid #2f3945;
+}
+
+.top200-runtime-card:last-child {
+  border-right: 0;
+}
+
+.top200-runtime-card h3,
+.top200-runtime-card p {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.top200-runtime-card label,
+.runtime-risk-fields label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: #a9b8ca;
+  font-size: 13px;
+}
+
+.top200-runtime-card input,
+.top200-runtime-card select,
+.top200-runtime-card textarea,
+.runtime-risk-fields input,
+.runtime-risk-fields select {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid #34404d;
+  border-radius: 5px;
+  background: #0b1117;
+  color: #f4f7fb;
+  font: inherit;
+}
+
+.top200-runtime-card textarea {
+  resize: vertical;
+}
+
+.runtime-risk-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.runtime-risk-fields small {
+  color: #75859a;
+}
+
+.top200-runtime-card button {
+  min-height: 40px;
+  border: 1px solid #f6d365;
+  border-radius: 5px;
+  background: #f6d365;
+  color: #10161d;
+  font-weight: 700;
+}
+
+.runtime-control-status {
+  min-height: 40px;
+  color: #a9b8ca;
+  overflow-wrap: anywhere;
+}
+
+.runtime-risk-approval {
+  display: grid;
+  gap: 9px;
+  padding: 12px;
+  border-left: 3px solid #f6d365;
+  background: #211d10;
+}
+
+.runtime-risk-approval[hidden] {
+  display: none;
+}
+
+.runtime-risk-approval code {
+  max-height: 92px;
+  overflow: auto;
+  color: #f6d365;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
 .top200-progress-block,
 .top200-result-section,
 .top200-forward-section,
@@ -7599,6 +7824,38 @@ body.show-advanced .hero-grid.advanced-section {
 
   .top200-minimal-head button {
     width: 100%;
+  }
+
+  .top200-head-actions,
+  .strategy-factory-actions,
+  .strategy-factory-fields {
+    width: 100%;
+    grid-template-columns: 1fr;
+  }
+
+  .top200-head-actions,
+  .strategy-factory-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .strategy-factory-dialog form {
+    padding: 18px;
+  }
+
+  .top200-runtime-grid,
+  .runtime-risk-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .top200-runtime-card {
+    padding: 16px 0;
+    border-right: 0;
+    border-bottom: 1px solid #2f3945;
+  }
+
+  .top200-runtime-card:last-child {
+    border-bottom: 0;
   }
 
   .top200-result-grid,

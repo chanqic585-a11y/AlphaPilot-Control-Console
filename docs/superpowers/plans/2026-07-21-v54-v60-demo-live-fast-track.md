@@ -2,15 +2,15 @@
 
 > **For Codex:** Execute this plan sequentially with TDD and commit checkpoints. Do not cross an exact approval gate without the required immutable identity and user authorization.
 
-**Goal:** Activate the frozen TOP200 Demo Release through exact approval and audited ARM, harden its low-latency execution and versioned controls, then build an isolated Live canary path up to the exact Live approval gate.
+**Goal:** Continue from the authoritative V55.1 TOP200 Demo checkpoint, verify its exact approval overlay before any explicit ARM, harden its low-latency execution and versioned controls, then build an isolated Live canary path up to the exact Live approval gate.
 
-**Architecture:** Add narrowly scoped services around the V53 immutable artifacts. Reuse the existing Demo execution, TOP200, engineering-smoke, risk-profile, Live isolation, and minimal projection modules. Keep every write append-only and environment-bound. Project one source of truth into the UI and evidence bundle.
+**Architecture:** Add narrowly scoped services around the active V55.1 immutable Release, Risk Overlay, and Observer Sidecar. The superseded V53 hash remains historical-only and must never be approved, armed, or rebound as the active execution identity. Reuse the existing Demo execution, TOP200, engineering-smoke, risk-profile, Live isolation, and minimal projection modules. Keep every write append-only and environment-bound. Project one source of truth into the UI and evidence bundle. Qlib, model training, Factor Bench, drift, rollback, and Live inference remain truthful `not_run` blockers until the AdaptiveLearningLiveReadinessGate proves them complete.
 
 **Tech Stack:** Python 3.12, stdlib HTTP/SQLite/JSON, pytest, vanilla HTML/CSS/JavaScript, PowerShell launchers, SHA-256 canonical JSON artifacts.
 
 ---
 
-## Task 1: Freeze and verify the V53 baseline
+## Task 1: Freeze and verify the historical baseline and V55.1 authority
 
 **Files:**
 - Create: `alphapilot_control_console/v54_baseline_audit.py`
@@ -18,12 +18,12 @@
 - Test: `tests/test_v54_baseline_audit.py`
 - Read: `data/top200_minimal_ui/**`
 
-- [ ] Add failing tests for evidence ZIP hash/CRC/manifest verification.
-- [ ] Add failing tests for Release-to-final-HEAD execution-path diff classification.
-- [ ] Add failing tests for strategy-order count scope reconciliation.
-- [ ] Implement deterministic read-only auditors and redacted artifacts.
-- [ ] Generate `baseline_evidence_verification.json`, `release_to_final_head_execution_diff_audit.json`, and `strategy_order_scope_reconciliation.json`.
-- [ ] Run targeted tests and commit the baseline audit.
+- [x] Add failing tests for evidence ZIP hash/CRC/manifest verification.
+- [x] Add failing tests for Release-to-final-HEAD execution-path diff classification.
+- [x] Add failing tests for strategy-order count scope reconciliation.
+- [x] Implement deterministic read-only auditors and redacted artifacts.
+- [x] Generate `baseline_evidence_verification.json`, `release_to_final_head_execution_diff_audit.json`, and `strategy_order_scope_reconciliation.json`.
+- [x] Run targeted tests and commit the baseline audit.
 
 ## Task 2: Build signal matchability readiness
 
@@ -33,12 +33,12 @@
 - Test: `tests/test_demo_matchability_readiness.py`
 - Modify: `alphapilot_control_console/top200_minimal_ui_projection.py`
 
-- [ ] Add failing tests for component universe compatibility and deterministic 30/90-day read-only rehearsal summaries.
-- [ ] Assert no order client or private endpoint is reachable from the rehearsal path.
-- [ ] Implement component-level candidate counts, blocker attribution, and pre-ARM funnel counts.
-- [ ] Generate `component_signal_matchability.csv`, `signal_matchability_30d.json`, `signal_matchability_90d.json`, and `pre_arm_scan_funnel.json`.
-- [ ] Project only four headline readiness values into the Demo page; keep details collapsed.
-- [ ] Run targeted tests and commit V54 readiness.
+- [x] Add failing tests for component universe compatibility and deterministic 30/90-day read-only rehearsal summaries.
+- [x] Assert no order client or private endpoint is reachable from the rehearsal path.
+- [x] Implement component-level candidate counts, blocker attribution, and pre-ARM funnel counts.
+- [x] Generate `component_signal_matchability.csv`, `signal_matchability_30d.json`, `signal_matchability_90d.json`, and `pre_arm_scan_funnel.json`.
+- [x] Project only four headline readiness values into the Demo page; keep details collapsed.
+- [x] Run targeted tests and commit V54 readiness.
 
 ## Task 3: Add exact Demo approval and ARM overlays
 
@@ -52,15 +52,15 @@
 - Test: `tests/test_demo_activation_service.py`
 - Test: `tests/test_top200_minimal_ui_http.py`
 
-- [ ] Add failing tests that reject any Release/Risk/Intersection/Request hash mismatch.
-- [ ] Add failing tests that prove approval and ARM are separate append-only events.
-- [ ] Add failing tests for missing credentials, stale snapshot, risk blocker, and unapproved Release.
-- [ ] Implement exact approval overlay storage with no artifact mutation.
-- [ ] Implement ARM service that delegates to the existing Demo runtime only after all gates pass.
-- [ ] Add minimal approval and ARM endpoints and UI actions.
-- [ ] Record the user-approved frozen TOP200 identity only after all exact checks pass.
-- [ ] Back up runtime SQLite stores before any operational write.
-- [ ] Run targeted tests, perform read-only checks, then commit V54 activation.
+- [x] Add failing tests that reject any Release/Risk/Intersection/Request hash mismatch.
+- [x] Add failing tests that prove approval and ARM are separate append-only events.
+- [x] Add failing tests for missing credentials, stale snapshot, risk blocker, and unapproved Release.
+- [x] Implement exact approval overlay storage with no artifact mutation.
+- [x] Implement ARM service that delegates to the existing Demo runtime only after all gates pass.
+- [x] Add minimal approval and ARM endpoints and UI actions.
+- [x] Record the user-approved frozen TOP200 identity only after all exact checks pass.
+- [x] Back up runtime SQLite stores before any operational write.
+- [x] Run targeted tests, perform read-only checks, then commit V54 activation.
 
 ## Task 4: Run approved TOP200 Demo and expose the full funnel
 
@@ -112,13 +112,13 @@
 - Test: `tests/test_runtime_risk_versioning.py`
 - Test: `tests/test_strategy_version_switch.py`
 
-- [ ] Add failing tests for lower-risk immediate application to new orders.
-- [ ] Add failing tests that require a new hash and approval for any risk increase.
-- [ ] Add failing tests for pause-new-entry, close-only, rollback, and immutable running positions.
-- [ ] Implement hashable runtime risk overlays and append-only history.
-- [ ] Implement versioned strategy switch and rollback audits.
-- [ ] Expose only concise controls; keep immutable floors non-disableable.
-- [ ] Commit V56 policy versioning.
+- [x] Add failing tests for lower-risk immediate application to new orders.
+- [x] Add failing tests that require a new hash and approval for any risk increase.
+- [x] Add failing tests for pause-new-entry, close-only, rollback, and immutable running positions.
+- [x] Implement hashable runtime risk overlays and append-only history.
+- [x] Implement versioned strategy switch and rollback audits.
+- [x] Expose only concise controls; keep immutable floors non-disableable.
+- [x] Commit V56 policy versioning.
 
 ## Task 7: Start the bounded one-click Strategy Factory
 
@@ -129,11 +129,11 @@
 - Modify: `web/top200-minimal-ui.js`
 - Test: `tests/test_strategy_factory_orchestrator.py`
 
-- [ ] Add failing tests for program/campaign identity, budget, checkpoint, pause, resume, and truthful progress.
-- [ ] Add failing tests that prevent automatic promotion, forced passes, and OOS leakage.
-- [ ] Implement a background orchestration boundary that invokes the Quant factory through explicit artifacts and IDs.
-- [ ] Project real status and five result classes into the Strategy page.
-- [ ] Commit V56 factory controls.
+- [x] Add failing tests for program/campaign identity, budget, checkpoint, pause, resume, and truthful progress.
+- [x] Add failing tests that prevent automatic promotion, forced passes, and OOS leakage.
+- [x] Implement a background orchestration boundary that invokes the Quant factory through explicit artifacts and IDs.
+- [x] Project real status and five result classes into the Strategy page.
+- [x] Commit V56 factory controls.
 
 ## Task 8: Establish the isolated Live core
 

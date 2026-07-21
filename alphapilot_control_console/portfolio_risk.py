@@ -30,11 +30,29 @@ def normalize_risk_profile(value: dict[str, Any] | None) -> dict[str, Any]:
         "maxLeverage": int(source.get("maxLeverage") or source.get("defaultMaxLeverage") or 1),
         "marginMode": str(source.get("marginMode") or "isolated"),
         "riskPerTradePercent": float(source.get("riskPerTradePercent") or 0.25),
+        "riskPerTradeUsdt": float(
+            source.get("riskPerTradeUsdt")
+            or (
+                float(source.get("capitalLimitUsdt") or source.get("initialEquityUsdt") or 1000.0)
+                * float(source.get("riskPerTradePercent") or 0.25)
+                / 100.0
+            )
+        ),
         "maxOpenRiskPercent": float(source.get("maxOpenRiskPercent") or 1.0),
+        "maxOpenRiskUsdt": float(
+            source.get("maxOpenRiskUsdt")
+            or (
+                float(source.get("capitalLimitUsdt") or source.get("initialEquityUsdt") or 1000.0)
+                * float(source.get("maxOpenRiskPercent") or 1.0)
+                / 100.0
+            )
+        ),
         "maxStrategyOpenRiskPercent": float(source.get("maxStrategyOpenRiskPercent") or source.get("maxOpenRiskPercent") or 1.0),
         "maxSymbolOpenRiskPercent": float(source.get("maxSymbolOpenRiskPercent") or source.get("maxOpenRiskPercent") or 1.0),
         "maxDirectionOpenRiskPercent": float(source.get("maxDirectionOpenRiskPercent") or source.get("maxOpenRiskPercent") or 1.0),
         "maxCorrelatedOpenRiskPercent": float(source.get("maxCorrelatedOpenRiskPercent") or source.get("maxOpenRiskPercent") or 1.0),
+        "maxPortfolioBeta": float(source.get("maxPortfolioBeta") or 1.0),
+        "scanTopN": int(source.get("scanTopN") or 200),
         "dailyLossStopPercent": float(source.get("dailyLossStopPercent") or 1.0),
         "maxDrawdownStopPercent": float(source.get("maxDrawdownStopPercent") or source.get("demoDrawdownPausePercent") or 2.5),
         "canaryLossStopUsdt": float(source.get("canaryLossStopUsdt") or 25.0),
@@ -67,6 +85,7 @@ def evaluate_portfolio_risk(
     notional = _number(intent, "notionalUsdt")
     leverage = _number(intent, "leverage")
     risk_percent = _number(intent, "riskPercent")
+    risk_usdt = _number(intent, "riskUsdt")
     reasons: list[str] = []
 
     active_strategies = {str(item) for item in portfolio.get("activeStrategyIds", []) if str(item)}
@@ -81,7 +100,12 @@ def evaluate_portfolio_risk(
     risk_by_direction = dict(portfolio.get("openRiskByDirection") or {})
     risk_by_correlation = dict(portfolio.get("openRiskByCorrelationGroup") or {})
 
-    numeric_values = (notional, leverage, risk_percent, open_risk)
+    if not math.isfinite(risk_usdt) or risk_usdt <= 0:
+        risk_usdt = limits["capitalLimitUsdt"] * risk_percent / 100.0
+    open_risk_usdt = _number(portfolio, "openRiskUsdt")
+    if not math.isfinite(open_risk_usdt) or open_risk_usdt < 0:
+        open_risk_usdt = limits["capitalLimitUsdt"] * max(open_risk, 0) / 100.0
+    numeric_values = (notional, leverage, risk_percent, risk_usdt, open_risk, open_risk_usdt)
     if not all(math.isfinite(value) for value in numeric_values):
         reasons.append("risk_input_non_finite")
     if not strategy_id or not symbol or side not in {"buy", "sell", "long", "short"}:
@@ -100,8 +124,15 @@ def evaluate_portfolio_risk(
         reasons.append("max_leverage")
     if risk_percent <= 0 or risk_percent > limits["riskPerTradePercent"]:
         reasons.append("risk_per_trade")
+    if risk_usdt > limits["riskPerTradeUsdt"]:
+        reasons.append("risk_per_trade_usdt")
     if open_risk + max(risk_percent, 0) > limits["maxOpenRiskPercent"]:
         reasons.append("max_open_risk")
+    if open_risk_usdt + max(risk_usdt, 0) > limits["maxOpenRiskUsdt"]:
+        reasons.append("max_open_risk_usdt")
+    projected_beta = _number(intent, "projectedPortfolioBeta")
+    if math.isfinite(projected_beta) and abs(projected_beta) > limits["maxPortfolioBeta"]:
+        reasons.append("max_portfolio_beta")
     if len(active_strategies) > limits["maxActiveStrategies"]:
         reasons.append("max_active_strategies")
     if position_count + 1 > limits["maxConcurrentPositions"]:

@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "alphapilot_v56_test_results_v1",
+  "generatedAt": "2026-07-21T02:48:12.0805721Z",
+  "status": "passed",
+  "console": {
+    "targeted": {
+      "passed": 10,
+      "subtestsPassed": 2
+    },
+    "full": {
+      "passed": 609,
+      "subtestsPassed": 93,
+      "durationSeconds": 29.83
+    },
+    "compileall": "passed",
+    "javascriptSyntax": "passed",
+    "gitDiffCheck": "passed"
+  },
+  "quant": {
+    "targeted": {
+      "passed": 11
+    },
+    "full": {
+      "passed": 1359,
+      "subtestsPassed": 164,
+      "durationSeconds": 104.22
+    },
+    "compileall": "passed",
+    "configurationValidation": "passed",
+    "gitDiffCheck": "passed"
+  },
+  "safety": {
+    "liveTradingEnabled": false,
+    "tradeApiEnabled": false,
+    "withdrawApiEnabled": false,
+    "credentialMaterialStored": false,
+    "newExecutableTradingCapability": false
+  }
+}

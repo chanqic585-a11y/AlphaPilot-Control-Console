@@ -2,15 +2,79 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any
 
 from . import state_store
+from .risk_profile_store import RISK_PROFILE_STORE_PATH, RiskProfileStore
 
 
 DEFAULT_MAX_CONCURRENT_SYMBOLS = 1
 MAX_CONFIGURABLE_SYMBOLS = 10
 DEFAULT_DEMO_LEVERAGE = 1
 MAX_DEMO_LEVERAGE = 5
+
+
+def apply_runtime_risk_profile(
+    contract: dict[str, Any],
+    profile: dict[str, Any],
+    *,
+    runtime_overlay_hash: str,
+) -> dict[str, Any]:
+    """Build an execution view; the immutable release contract stays untouched."""
+    updated = deepcopy(contract)
+    envelope = (
+        dict(updated.get("riskEnvelope"))
+        if isinstance(updated.get("riskEnvelope"), dict)
+        else {}
+    )
+    envelope.update({
+        "initialEquityUsdt": float(profile["capitalLimitUsdt"]),
+        "capitalLimitUsdt": float(profile["capitalLimitUsdt"]),
+        "riskPerTradePercent": float(profile["riskPerTradePercent"]),
+        "riskPerTradeUsdt": float(profile["riskPerTradeUsdt"]),
+        "maxOpenRiskPercent": float(profile["maxOpenRiskPercent"]),
+        "maxOpenRiskUsdt": float(profile["maxOpenRiskUsdt"]),
+        "maxConcurrentPositions": int(profile["maxConcurrentPositions"]),
+        "maxSymbolOpenRiskPercent": float(profile["maxSymbolOpenRiskPercent"]),
+        "maxDirectionOpenRiskPercent": float(profile["maxDirectionOpenRiskPercent"]),
+        "maxCorrelatedOpenRiskPercent": float(profile["maxCorrelatedOpenRiskPercent"]),
+        "maxPortfolioBeta": float(profile["maxPortfolioBeta"]),
+        "maxLeverage": int(profile["maxLeverage"]),
+        "defaultMaxLeverage": int(profile["maxLeverage"]),
+        "marginMode": str(profile["marginMode"]),
+        "dailyLossStopPercent": float(profile["dailyLossStopPercent"]),
+        "maxDrawdownStopPercent": float(profile["maxDrawdownStopPercent"]),
+        "canaryLossStopUsdt": float(profile["canaryLossStopUsdt"]),
+        "runtimeRiskOverlayHash": runtime_overlay_hash,
+        "runtimeRiskAppliesTo": "new_orders_only",
+    })
+    updated["riskEnvelope"] = envelope
+    binding = (
+        deepcopy(updated.get("portfolioRuntimeBinding"))
+        if isinstance(updated.get("portfolioRuntimeBinding"), dict)
+        else {}
+    )
+    universe = (
+        dict(binding.get("universePolicy"))
+        if isinstance(binding.get("universePolicy"), dict)
+        else {}
+    )
+    if universe:
+        immutable_cap = int(universe.get("maximumInstrumentCount") or 200)
+        universe["maximumInstrumentCount"] = min(
+            immutable_cap,
+            int(profile["scanTopN"]),
+        )
+        binding["universePolicy"] = universe
+        updated["portfolioRuntimeBinding"] = binding
+    updated["runtimeRiskBinding"] = {
+        "runtimeRiskOverlayHash": runtime_overlay_hash,
+        "appliesTo": "new_orders_only",
+        "immutableSourceContractHash": contract.get("contractHash"),
+        "releaseMutation": False,
+    }
+    return updated
 
 
 def _strategy_id(value: Any) -> str:
@@ -26,6 +90,12 @@ def get_demo_strategy_runtime_settings(strategy_id: str) -> dict[str, Any]:
     settings = state.get("demoStrategyRuntimeSettings")
     rows = settings if isinstance(settings, dict) else {}
     saved = rows.get(normalized) if isinstance(rows.get(normalized), dict) else {}
+    risk_store = RiskProfileStore(RISK_PROFILE_STORE_PATH)
+    try:
+        runtime_overlay = risk_store.get_active_runtime_overlay("okx_demo")
+        active_profile = risk_store.get_active_profile("okx_demo")
+    finally:
+        risk_store.close()
     return {
         "strategyId": normalized,
         "maxConcurrentSymbols": max(
@@ -40,6 +110,22 @@ def get_demo_strategy_runtime_settings(strategy_id: str) -> dict[str, Any]:
         "source": saved.get("source") or "demo_strategy_runtime_settings_v13_27_1_5",
         "okxDemoOnly": True,
         "liveExecutionAllowed": False,
+        "runtimeRiskOverlayId": (
+            runtime_overlay.get("runtimeRiskOverlayId") if runtime_overlay else None
+        ),
+        "runtimeRiskOverlayHash": (
+            runtime_overlay.get("contentHash") if runtime_overlay else None
+        ),
+        "effectiveRiskProfile": (
+            runtime_overlay.get("effectiveProfile") if runtime_overlay else None
+        ),
+        "effectiveRiskProfileId": (
+            runtime_overlay.get("baseRiskProfileId")
+            if runtime_overlay
+            else active_profile.get("riskProfileId") if active_profile else None
+        ),
+        "runtimeRiskAppliesTo": "new_orders_only",
+        "runningPositionsKeepOpeningProfile": True,
     }
 
 

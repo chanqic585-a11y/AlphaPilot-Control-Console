@@ -318,7 +318,10 @@ def _size_signal(
     equity = float(limits.get("initialEquityUsdt") or 0)
     risk_percent = float(limits.get("riskPerTradePercent") or 0)
     notional_cap = float(limits.get("maxOrderNotionalUsdt") or 0)
+    configured_risk_usdt = float(limits.get("riskPerTradeUsdt") or 0)
     risk_usdt = equity * risk_percent / 100.0
+    if configured_risk_usdt > 0:
+        risk_usdt = min(risk_usdt, configured_risk_usdt)
     base_quantity = min(risk_usdt / risk_distance, notional_cap / price)
     raw_contracts = base_quantity / ct_val
     size = math.floor(raw_contracts / lot_size + 1e-12) * lot_size
@@ -365,6 +368,7 @@ def _size_signal(
         "notionalUsdt": notional,
         "leverage": min(2, int(limits.get("defaultMaxLeverage") or 2)),
         "riskPercent": risk_percent,
+        "riskUsdt": risk_usdt,
         "score": 1.0,
         "correlationGroup": instrument.split("-")[0],
         "dataFresh": True,

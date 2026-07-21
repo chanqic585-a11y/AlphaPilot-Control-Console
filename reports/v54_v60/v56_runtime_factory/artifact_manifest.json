@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "alphapilot_v56_runtime_factory_manifest_v1",
+  "generatedAt": "2026-07-21T02:48:12.0805721Z",
+  "status": "complete_approved_not_armed",
+  "fileCount": 6,
+  "files": [
+    {
+      "path": "evidence/demo_runtime_controls_desktop.png",
+      "bytes": 154034,
+      "sha256": "7bf587f1fb34a61f5c03ac80947fcac3c73e8fa4c2b8843251a39d8adcb46e86"
+    },
+    {
+      "path": "evidence/demo_runtime_controls_mobile_390.png",
+      "bytes": 78806,
+      "sha256": "e3f8d45b2b7bea34daac8777b8a2ddac1fb06a7d6a5574e7578562ca5e96cdc7"
+    },
+    {
+      "path": "evidence/strategy_factory_desktop.png",
+      "bytes": 103288,
+      "sha256": "52f3dd93a04c9e590dc4f6c2a39a39cdd1c7dec64862c53df8c588023e875a60"
+    },
+    {
+      "path": "test_results.json",
+      "bytes": 872,
+      "sha256": "7a3259947e8a3ddeeffc7ec81b25cd32e8c4d50d2b112de9f27b8dfac4e6e259"
+    },
+    {
+      "path": "ui_screenshot_manifest.json",
+      "bytes": 1075,
+      "sha256": "0e8b29f63f8b16e68872ace51f2c3c3344903148db46264743f543c636fe4a91"
+    },
+    {
+      "path": "v56_checkpoint.json",
+      "bytes": 1867,
+      "sha256": "457d3114f57dfdb8f051cd40523c914e2bb3c1210f9f4c393acc18258269fe70"
+    }
+  ]
+}
