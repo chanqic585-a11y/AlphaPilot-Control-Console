@@ -13,12 +13,14 @@
 - Do not request, load, persist, log, or transmit a real provider credential during this implementation.
 - Credential names after migration are exactly `DEEPSEEK_API_KEY` and `GEMINI_API_KEY`.
 - DeepSeek uses `https://api.deepseek.com/chat/completions`; it does not reuse OpenAI Responses or Batch protocol code.
-- Active model aliases are `deepseek_reasoning_primary`, `deepseek_coding_primary`, and `deepseek_fast`.
+- Active model aliases are `deepseek_reasoning_primary`, `deepseek_reasoning_critical`, `deepseek_coding_primary`, `deepseek_fast`, and `deepseek_fast_reasoning`.
 - Historical batch jobs route only to `gemini_batch` until separately verified DeepSeek Batch support exists.
 - Keep the fixed redacted smoke fixture and hash unchanged.
 - Provider output remains untrusted until JSON parsing, JSON Schema validation, and business semantic validation all pass.
 - Do not modify Demo, Live, order, position, risk, reconciliation, Approval, ARM, or Withdraw behavior.
 - Do not create a compatibility alias that labels DeepSeek traffic as `openai`.
+- Preserve raw `reasoning_content` and research tool-call envelopes only in the in-process response. Persist only a reasoning Hash; never persist raw reasoning text.
+- A Provider disconnect, partial response, empty final content, malformed tool call, or forbidden tool call must fail closed.
 
 ---
 
@@ -26,12 +28,15 @@
 
 **Files:**
 - Create: `alphapilot_control_console/ai_orchestration/provider_adapters/deepseek_adapter.py`
+- Modify: `alphapilot_control_console/ai_orchestration/contracts.py`
+- Modify: `alphapilot_control_console/ai_orchestration/service.py`
+- Modify: `alphapilot_control_console/ai_orchestration/audit.py`
 - Modify: `alphapilot_control_console/ai_orchestration/provider_adapters/__init__.py`
 - Modify: `tests/test_ai_provider_adapters.py`
 
 - [ ] **Step 1: Replace the OpenAI adapter tests with DeepSeek contract tests**
 
-Cover the endpoint, Bearer authentication, process-only credential lookup, provider identity check, JSON-only request, schema-bearing prompt, usage parsing, cost computation, and fail-closed malformed responses. The primary request assertion is:
+Cover the endpoint, Bearer authentication, process-only credential lookup, provider identity check, JSON-only request, schema-bearing prompt, usage parsing, cost computation, reasoning/tool-call retention, and fail-closed disconnect/malformed responses. The primary request assertion is:
 
 ```python
 self.assertEqual(call["url"], "https://api.deepseek.com/chat/completions")
@@ -74,7 +79,7 @@ class DeepSeekAdapter:
         return parse_deepseek_response(identity, payload)
 ```
 
-Do not persist `reasoning_content`, credentials, raw headers, or unvalidated response text.
+Return non-empty `reasoning_content` and valid allowlisted research tool calls on `AIResponse`. Add a reasoning SHA-256 to audit metadata, but do not persist raw reasoning text, credentials, raw headers, or unvalidated response text.
 
 - [ ] **Step 4: Export `DeepSeekAdapter` and run focused GREEN**
 
@@ -117,8 +122,10 @@ self.assertEqual(
     set(registry.aliases()),
     {
         "deepseek_reasoning_primary",
+        "deepseek_reasoning_critical",
         "deepseek_coding_primary",
         "deepseek_fast",
+        "deepseek_fast_reasoning",
         "gemini_reasoning_primary",
         "gemini_multimodal_primary",
         "gemini_fast",
@@ -152,7 +159,7 @@ Use versioned entries with positive pricing values:
 }
 ```
 
-Add coding and fast aliases, remove all active OpenAI aliases, and rename the provider budget map key to `deepseek`.
+Add primary/critical reasoning, coding, fast, and fast-reasoning aliases; remove all active OpenAI aliases; and rename the provider budget map key to `deepseek`.
 
 - [ ] **Step 4: Migrate the registry allowlist, router, composition root, and mock provider**
 
@@ -256,7 +263,7 @@ git push
 
 - [ ] **Step 1: Update operator-facing documentation**
 
-Document DeepSeek + Gemini, exact environment variable names, Gemini-only historical Batch, no provider SDK calls from business modules, no provider credentials in the AI worker evidence, and the final `provider_credentials_required` checkpoint. Do not document live credential values or copy-paste examples containing secrets.
+Document DeepSeek + Gemini, exact environment variable names, Gemini-only historical Batch, no provider SDK calls from business modules, no provider credentials in the AI worker evidence, and the final `provider_credentials_required_deepseek_gemini` checkpoint. Do not document live credential values or copy-paste examples containing secrets.
 
 - [ ] **Step 2: Run all focused AI tests**
 
@@ -319,7 +326,7 @@ Expected: local and remote SHA match and the worktree is clean.
 Stop at:
 
 ```text
-provider_credentials_required
+provider_credentials_required_deepseek_gemini
 ```
 
 Report only the two required environment variable names, fixed redacted smoke hash, max output/cost budgets, AI worker identity, passed security tests, and the post-provisioning detection command with expected smoke order. Do not ask the user to paste credentials into Codex, UI, JSON, SQLite, logs, or evidence files.

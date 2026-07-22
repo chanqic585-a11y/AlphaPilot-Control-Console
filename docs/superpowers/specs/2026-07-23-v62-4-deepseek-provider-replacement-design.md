@@ -6,6 +6,7 @@
 - Decision: approved approach A
 - Scope: replace the active OpenAI provider with DeepSeek; retain Gemini as the independent reviewer and batch provider
 - Safety state: credential-free development only; Demo and Live order paths remain outside the AI boundary
+- Revision: 2026-07-23 Provider change notice adds five DeepSeek capability aliases, controlled `reasoning_content`/research-tool-call retention, disconnect tests, and the explicit DeepSeek/Gemini credential checkpoint
 
 ## Context
 
@@ -61,9 +62,13 @@ Request behavior:
 Response behavior:
 
 - Read `choices[0].message.content`.
-- Ignore and do not persist `reasoning_content`.
+- Preserve `choices[0].message.reasoning_content` in the in-process `AIResponse` so a caller can return it unchanged for the same bounded research tool-call exchange.
+- Preserve returned research `tool_calls` in the in-process response, but do not execute them inside the Provider adapter or orchestration service.
+- Persist only the SHA-256 of non-empty `reasoning_content` in the audit ledger. Do not persist raw reasoning text, because it can reflect redacted-but-still-internal research input.
+- Reject malformed tool calls and fail closed if a returned tool name is not on the existing research allowlist. Trading, risk, position, reconciliation, Approval, ARM, Live, and Withdraw tools remain forbidden before Provider invocation.
 - Parse the content as one JSON object.
 - Run the existing local JSON Schema and business-semantic validators before accepting the response.
+- Treat disconnects, incomplete streams, empty final content, invalid JSON, schema failure, semantic failure, missing Artifact evidence, or Hash mismatch as non-accepted results.
 - Treat missing choices, empty content, malformed JSON, schema violations, and transport errors as fail-closed Provider errors.
 
 ### Model Registry
@@ -71,8 +76,10 @@ Response behavior:
 The registry aliases become:
 
 - `deepseek_reasoning_primary` -> `deepseek-v4-pro`
+- `deepseek_reasoning_critical` -> `deepseek-v4-pro`
 - `deepseek_coding_primary` -> `deepseek-v4-pro`
 - `deepseek_fast` -> `deepseek-v4-flash`
+- `deepseek_fast_reasoning` -> `deepseek-v4-flash`
 - existing Gemini aliases remain
 
 The registry remains the only place containing model names. Conservative cache-miss pricing is used for local budget estimation. No key, endpoint override, or secret-bearing field is allowed in the registry.
@@ -115,7 +122,7 @@ The report remains value-blind and only emits configured booleans. The fixed red
 
 ## Failure and Rollback Behavior
 
-- Missing either Provider credential: `provider_credentials_incomplete` or `provider_credentials_required`; no external call.
+- Missing either Provider credential: `provider_credentials_required_deepseek_gemini`; no external call.
 - DeepSeek unavailable: circuit breaker and configured Gemini fallback apply only to registered research tasks.
 - Dual-model disagreement: preserve the existing human-review requirement.
 - Batch request: use Gemini Batch; fail closed if Gemini credentials or batch capability are unavailable.
@@ -126,6 +133,9 @@ The report remains value-blind and only emits configured booleans. The fixed red
 ### Focused tests
 
 - DeepSeek adapter request URL, headers, body, token ceiling, JSON mode, response parsing, usage and cost.
+- DeepSeek thinking responses preserve non-empty `reasoning_content` in process, expose its Hash in audit metadata, and never write raw reasoning to SQLite.
+- DeepSeek research tool-call responses preserve valid allowlisted tool-call envelopes and reject malformed or forbidden tool calls.
+- Provider disconnects, empty choices, missing final content, invalid JSON, and partial responses fail closed.
 - Missing `DEEPSEEK_API_KEY` fails before transport.
 - DeepSeek model identities reject non-DeepSeek adapters and vice versa.
 - Task routes resolve only DeepSeek/Gemini aliases.
@@ -144,7 +154,7 @@ The report remains value-blind and only emits configured booleans. The fixed red
 - No business module imports Provider SDKs or concrete adapters.
 - No execution, order, risk, position, approval, ARM, reconciliation, Live, or Withdraw module imports AI orchestration.
 - No raw Provider or exchange credential values appear in source, logs, SQLite, or generated evidence.
-- Credential-free readiness remains `provider_credentials_required` with `externalRequestExecuted=false`, `runtimeArmed=false`, and `withdrawEnabled=false`.
+- Credential-free readiness remains `provider_credentials_required_deepseek_gemini` with `externalRequestExecuted=false`, `runtimeArmed=false`, and `withdrawEnabled=false`.
 
 ## Acceptance Criteria
 
@@ -155,5 +165,5 @@ The report remains value-blind and only emits configured booleans. The fixed red
 5. DeepSeek uses Chat Completions with local structured-output validation.
 6. Historical batch remains available through Gemini Batch.
 7. All local tests pass without real Provider credentials or external calls.
-8. The checkpoint stops at `provider_credentials_required`.
+8. The checkpoint stops at `provider_credentials_required_deepseek_gemini`.
 9. Demo and Live order paths remain LLM-free; Live, Withdraw, Approval, and ARM state are unchanged.
