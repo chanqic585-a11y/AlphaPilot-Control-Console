@@ -875,6 +875,39 @@ class Top200MinimalUiProjectionTests(unittest.TestCase):
         self.assertEqual(summary["strategyOrderCount"], 0)
         self.assertEqual(demo_strategy["status"], "approved_not_armed")
 
+    def test_strategy_summary_uses_current_runtime_over_historical_arm_audit(self) -> None:
+        terminal = Mock()
+        terminal.summary.return_value = {
+            "environment": "okx_demo",
+            "runtimeStatus": "disarmed",
+            "desiredEnabled": True,
+            "armed": False,
+            "strategyOrderCount": 0,
+            "updatedAt": "2026-07-22T02:00:00Z",
+        }
+        projection = Top200MinimalUiProjection(
+            self.root,
+            terminal_projection=terminal,
+        )
+        projection._approval = Mock(return_value={
+            "approved": True,
+            "demoArm": True,
+            "route": "armed",
+            "strategyOrderCount": 0,
+        })
+
+        summary = projection.strategy_summary()
+        release = projection.strategy_releases()["releases"][0]
+
+        self.assertTrue(summary["approved"])
+        self.assertFalse(summary["demoArm"])
+        self.assertEqual(summary["armedReleaseCount"], 0)
+        self.assertEqual(summary["route"], "approved_not_armed")
+        self.assertFalse(release["demoArm"])
+        self.assertEqual(release["route"], "approved_not_armed")
+        self.assertGreaterEqual(terminal.summary.call_count, 2)
+        terminal.summary.assert_called_with("okx_demo")
+
 
 if __name__ == "__main__":
     unittest.main()

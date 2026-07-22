@@ -169,6 +169,21 @@ class Top200MinimalUiProjection:
             approval["route"] = "armed" if armed else "approved_not_armed"
         return approval
 
+    def _approval_with_current_demo_runtime(self) -> dict[str, Any]:
+        approval = self._approval()
+        if self.terminal_projection is None:
+            return approval
+        terminal = self.terminal_projection.summary("okx_demo")
+        armed = bool(terminal.get("armed")) and bool(approval.get("approved"))
+        approval["demoArm"] = armed
+        approval["strategyOrderCount"] = int(
+            terminal.get("strategyOrderCount") or 0
+        )
+        approval["runtimeUpdatedAt"] = terminal.get("updatedAt")
+        if approval.get("approved"):
+            approval["route"] = "armed" if armed else "approved_not_armed"
+        return approval
+
     def _snapshot(self) -> dict[str, Any]:
         return self._load("initial_top200_demo_universe_snapshot.json")
 
@@ -312,7 +327,7 @@ class Top200MinimalUiProjection:
 
     def strategy_summary(self) -> dict[str, Any]:
         release = self._release()
-        approval = self._approval()
+        approval = self._approval_with_current_demo_runtime()
         factory = self._strategy_factory_outcomes()
         result_counts = {key: 0 for key in self.RESULT_CLASSES}
         result_counts["canEnterDemo"] = 1
@@ -332,13 +347,17 @@ class Top200MinimalUiProjection:
             "approved": bool(approval.get("approved")),
             "demoArm": bool(approval.get("demoArm")),
             "route": approval.get("route"),
-            "updatedAt": factory["updatedAt"] or release.get("generatedAt"),
+            "updatedAt": (
+                approval.get("runtimeUpdatedAt")
+                or factory["updatedAt"]
+                or release.get("generatedAt")
+            ),
             "readOnly": True,
         }
 
     def _current_release_projection(self) -> dict[str, Any]:
         release = self._release()
-        approval = self._approval()
+        approval = self._approval_with_current_demo_runtime()
         return {
             "releaseId": release.get("releaseId"),
             "releaseHash": release.get("releaseHash"),
@@ -414,7 +433,7 @@ class Top200MinimalUiProjection:
 
     def demo_summary(self) -> dict[str, Any]:
         release = self._release()
-        approval = self._approval()
+        approval = self._approval_with_current_demo_runtime()
         smoke = self._smoke()
         reconciliation = self._load("engineering_smoke_rest_reconciliation_audit.json")
         smoke_passed = smoke.get("status") == "passed" and bool(
