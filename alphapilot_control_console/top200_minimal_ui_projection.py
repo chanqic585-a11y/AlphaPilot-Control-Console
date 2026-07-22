@@ -390,13 +390,18 @@ class Top200MinimalUiProjection:
         historical = {
             "releaseId": old.get("oldReleaseId"),
             "releaseHash": old.get("oldReleaseHash"),
+            "name": "V46 历史 Release",
+            "type": "historical",
             "status": old.get("status") or "superseded_unapproved",
+            "statusLabel": "已被新版替代",
+            "primaryAction": "查看审计",
             "approved": bool(old.get("oldApproved")),
             "demoArm": bool(old.get("oldDemoArm")),
             "readOnly": True,
         }
         return {
-            "releases": [self._current_release_projection(), historical],
+            "releases": [self._current_release_projection()],
+            "historicalReleases": [historical],
             "candidateReviews": factory["candidateReviews"],
             "candidateReviewCount": factory["pendingCandidateReviewCount"],
             "activeReleaseCount": 1,
@@ -407,7 +412,11 @@ class Top200MinimalUiProjection:
         current = self._current_release_projection()
         if release_id == current["releaseId"]:
             return current
-        for release in self.strategy_releases()["releases"]:
+        projected = self.strategy_releases()
+        for release in [
+            *projected["releases"],
+            *projected["historicalReleases"],
+        ]:
             if release.get("releaseId") == release_id:
                 return release
         raise KeyError(release_id)

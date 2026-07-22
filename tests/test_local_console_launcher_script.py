@@ -57,6 +57,10 @@ class LocalConsoleLauncherScriptTests(unittest.TestCase):
         self.assertIn('if ([string]::IsNullOrWhiteSpace($RepositoryPath))', self.script)
         self.assertIn('$RepositoryPath = Split-Path -Parent $PSScriptRoot', self.script)
 
+    def test_browser_open_uses_windows_shell_with_a_url_fallback(self) -> None:
+        self.assertIn('Start-Process -FilePath "explorer.exe"', self.script)
+        self.assertIn('Start-Process -FilePath $ConsoleUrl', self.script)
+
 
 if __name__ == "__main__":
     unittest.main()

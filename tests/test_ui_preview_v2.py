@@ -91,6 +91,29 @@ class UiPreviewV2Tests(unittest.TestCase):
         self.assertNotIn("/api/demo/orders/create", script)
         self.assertNotIn("/api/live/orders/create", script)
 
+    def test_historical_factory_system_issues_do_not_trigger_a_current_issue_dialog(self) -> None:
+        html = self._html("/")
+        script = (ROOT / "web" / "ui-preview-v2.js").read_text(encoding="utf-8")
+
+        self.assertIn("历史系统问题", html)
+        self.assertIn('factory.resultClass === "system_issue"', script)
+        self.assertNotIn(
+            'Number(counts.systemIssue) > 0 ? "策略工厂存在系统问题"',
+            script,
+        )
+
+    def test_strategy_page_labels_historical_totals_and_hides_superseded_releases(self) -> None:
+        html = self._html("/")
+        script = (ROOT / "web" / "ui-preview-v2.js").read_text(encoding="utf-8")
+
+        self.assertIn("历史未通过", html)
+        self.assertIn("历史数据不足", html)
+        self.assertIn('rows(releases, "historicalReleases")', script)
+        self.assertNotIn(
+            "[...candidateItems, ...releaseItems, ...historicalReleaseItems]",
+            script,
+        )
+
     def test_screenshot_harness_is_fixture_only_and_cannot_write(self) -> None:
         harness = (ROOT / "scripts" / "render_ui_preview_evidence.js").read_text(
             encoding="utf-8"

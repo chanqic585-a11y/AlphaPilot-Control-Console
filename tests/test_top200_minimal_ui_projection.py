@@ -181,6 +181,14 @@ class Top200MinimalUiProjectionTests(unittest.TestCase):
         self.assertEqual(release["releaseHash"], "provisional_demo_release_fixture")
         self.assertEqual(release["status"], "can_enter_demo")
 
+        releases = self.projection.strategy_releases()
+        self.assertEqual(len(releases["releases"]), 1)
+        self.assertEqual(len(releases["historicalReleases"]), 1)
+        self.assertEqual(
+            releases["historicalReleases"][0]["statusLabel"],
+            "已被新版替代",
+        )
+
     def test_research_factory_projection_prefers_active_persisted_run(self) -> None:
         quant_root = self.root / "quant"
         registry_path = quant_root / "research/source_registry/strategy_research_source_registry.json"
