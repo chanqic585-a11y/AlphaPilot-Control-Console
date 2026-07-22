@@ -480,7 +480,7 @@ class StrategyFactoryOrchestratorTests(unittest.TestCase):
             {
                 "status": "research_blocked_data",
                 "candidateCount": 1,
-                "eligibleCandidateCount": 0,
+                "eligibleCandidateCount": 1,
                 "trialCount": 1,
                 "formalRunCount": 0,
                 "resultReadCount": 0,
