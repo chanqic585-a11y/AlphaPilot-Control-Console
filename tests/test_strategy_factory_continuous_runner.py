@@ -119,6 +119,29 @@ class StrategyFactoryContinuousRunnerTests(unittest.TestCase):
         self.assertEqual(disabled["currentRunId"], running["currentRunId"])
         self.assertEqual(self.factory.runs[running["currentRunId"]]["status"], "running")
 
+    def test_disabled_runner_reconciles_completed_run_without_launching_next(self) -> None:
+        self.runner.enable()
+        running = self.runner.run_once()
+        run_id = running["currentRunId"]
+        self.runner.disable()
+        self.factory.runs[run_id].update(
+            {
+                "status": "completed",
+                "resultClass": "failed",
+            }
+        )
+
+        status = self.runner.run_once()
+
+        self.assertFalse(status["enabled"])
+        self.assertEqual(status["phase"], "disabled")
+        self.assertIsNone(status["currentRunId"])
+        self.assertEqual(status["lastRunId"], run_id)
+        self.assertEqual(status["lastResultClass"], "failed")
+        self.assertEqual(status["completedRunCount"], 1)
+        self.assertEqual(status["nextIndex"], 1)
+        self.assertEqual(len(self.factory.created_payloads), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

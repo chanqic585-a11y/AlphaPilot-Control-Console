@@ -134,7 +134,11 @@ class StrategyFactoryContinuousRunner:
     def run_once(self) -> dict[str, Any]:
         with self._lock:
             state = self._read_state()
-            if not state.get("enabled"):
+            enabled = bool(state.get("enabled"))
+            if not enabled and not state.get("currentRunId"):
+                if state.get("phase") != "disabled":
+                    state["phase"] = "disabled"
+                    return self._save_state(state)
                 return state
             factory = self.factory_builder()
             try:
@@ -144,7 +148,11 @@ class StrategyFactoryContinuousRunner:
                     if current.get("status") in ACTIVE_STATUSES:
                         state.update(
                             {
-                                "phase": "running",
+                                "phase": (
+                                    "running"
+                                    if enabled
+                                    else "disabled_after_current_run"
+                                ),
                                 "blockingRunId": None,
                                 "lastError": None,
                             }
@@ -170,6 +178,15 @@ class StrategyFactoryContinuousRunner:
                         }
                     )
                     self._advance(state)
+                    if not enabled:
+                        state.update(
+                            {
+                                "phase": "disabled",
+                                "blockingRunId": None,
+                                "lastError": None,
+                            }
+                        )
+                        return self._save_state(state)
 
                 for existing in factory.list_runs(limit=100):
                     if existing.get("status") not in ACTIVE_STATUSES:
