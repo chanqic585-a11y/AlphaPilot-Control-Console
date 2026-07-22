@@ -27,7 +27,7 @@
       "enabled": true
     },
     "provider-smoke-v1": {
-      "taskTypes": ["provider_smoke_openai", "provider_smoke_gemini", "provider_smoke_dual"],
+      "taskTypes": ["provider_smoke_deepseek", "provider_smoke_gemini", "provider_smoke_dual"],
       "path": "prompts/provider-smoke-v1.txt",
       "enabled": true
     }

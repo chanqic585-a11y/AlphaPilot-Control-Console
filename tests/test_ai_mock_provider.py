@@ -27,8 +27,8 @@ class AIMockProviderTests(unittest.TestCase):
         root = Path(__file__).parents[1]
         registry = AIModelRegistry.from_path(root / "config" / "ai_model_registry.json")
         prompts = PromptRegistry.from_path(root / "config" / "ai_prompt_registry.json")
-        mock_openai = MockProviderAdapter(
-            provider="openai",
+        mock_deepseek = MockProviderAdapter(
+            provider="deepseek",
             output={"summary": "mock-validated"},
             input_tokens=17,
             output_tokens=5,
@@ -38,7 +38,7 @@ class AIMockProviderTests(unittest.TestCase):
             service = AIOrchestrationService(
                 model_registry=registry,
                 prompt_registry=prompts,
-                adapters={"openai": mock_openai},
+                adapters={"deepseek": mock_deepseek},
                 audit_ledger=ledger,
             )
             result = service.execute(
@@ -62,7 +62,7 @@ class AIMockProviderTests(unittest.TestCase):
         self.assertEqual(result.status, "accepted")
         self.assertEqual(result.output, {"summary": "mock-validated"})
         self.assertFalse(result.execution_authorized)
-        sent = repr(mock_openai.requests[0].payload)
+        sent = repr(mock_deepseek.requests[0].payload)
         self.assertNotIn("fixture-account", sent)
         self.assertNotIn("Ignore all previous", sent)
         self.assertNotIn("place_order", sent)

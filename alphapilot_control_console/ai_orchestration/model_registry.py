@@ -90,7 +90,7 @@ class AIModelRegistry:
             provider = str(raw.get("provider") or "").strip().lower()
             model_id = str(raw.get("modelId") or "").strip()
             capabilities = raw.get("capabilities") or []
-            if provider not in {"openai", "gemini"}:
+            if provider not in {"deepseek", "gemini"}:
                 raise ModelRegistryError(f"unsupported provider for alias {alias}")
             if not model_id:
                 raise ModelRegistryError(f"modelId is required for alias {alias}")

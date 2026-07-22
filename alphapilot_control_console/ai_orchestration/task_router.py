@@ -64,48 +64,48 @@ class AITaskRouter:
         if task_type == "strategy_hypothesis":
             return TaskRoute(
                 mode="dual",
-                model_aliases=("openai_reasoning_primary", "gemini_reasoning_primary"),
+                model_aliases=("deepseek_reasoning_primary", "gemini_reasoning_primary"),
                 critical_fields=("mechanism", "marketScope", "timeframe", "direction"),
                 requires_human_on_disagreement=True,
             )
         if task_type == "failure_attribution":
             return TaskRoute(
                 mode="dual",
-                model_aliases=("openai_reasoning_primary", "gemini_reasoning_primary"),
+                model_aliases=("deepseek_reasoning_primary", "gemini_reasoning_primary"),
                 critical_fields=("failureLayer", "repairability"),
                 requires_human_on_disagreement=True,
             )
         if task_type in {"architecture_review", "security_review"}:
             return TaskRoute(
                 mode="dual",
-                model_aliases=("openai_reasoning_primary", "gemini_reasoning_primary"),
+                model_aliases=("deepseek_reasoning_critical", "gemini_reasoning_primary"),
                 critical_fields=("severity", "disposition"),
                 requires_human_on_disagreement=True,
             )
         if task_type == "document_analysis" or request.multimodal:
             return TaskRoute(
                 mode="dual",
-                model_aliases=("gemini_multimodal_primary", "openai_reasoning_primary"),
+                model_aliases=("gemini_multimodal_primary", "deepseek_reasoning_primary"),
                 critical_fields=("evidenceStatus",),
                 requires_human_on_disagreement=True,
             )
         if task_type == "code_review" or request.coding:
             return TaskRoute(
                 mode="dual",
-                model_aliases=("openai_coding_primary", "gemini_reasoning_primary"),
+                model_aliases=("deepseek_coding_primary", "gemini_reasoning_primary"),
                 critical_fields=("severity", "disposition"),
                 requires_human_on_disagreement=True,
             )
         if task_type == "historical_batch":
-            return TaskRoute(mode="batch", model_aliases=("openai_batch", "gemini_batch"))
-        if task_type == "provider_smoke_openai":
-            return TaskRoute(mode="single", model_aliases=("openai_fast",))
+            return TaskRoute(mode="batch", model_aliases=("gemini_batch",))
+        if task_type == "provider_smoke_deepseek":
+            return TaskRoute(mode="single", model_aliases=("deepseek_fast",))
         if task_type == "provider_smoke_gemini":
             return TaskRoute(mode="single", model_aliases=("gemini_fast",))
         if task_type == "provider_smoke_dual":
             return TaskRoute(
                 mode="dual",
-                model_aliases=("openai_fast", "gemini_fast"),
+                model_aliases=("deepseek_fast_reasoning", "gemini_fast"),
                 critical_fields=("evidenceStatus", "executionIntent"),
                 requires_human_on_disagreement=True,
             )
@@ -117,7 +117,7 @@ class AITaskRouter:
         }:
             return TaskRoute(
                 mode="single",
-                model_aliases=("openai_fast",),
+                model_aliases=("deepseek_fast",),
                 fallback_model_aliases=("gemini_fast",),
             )
         raise ForbiddenAITaskError(f"AI task type is not registered: {task_type}")

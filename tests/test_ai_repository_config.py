@@ -15,16 +15,18 @@ class AIRepositoryConfigTests(unittest.TestCase):
         raw = path.read_text(encoding="utf-8")
         payload = json.loads(raw)
         expected = {
-            "openai_reasoning_primary",
-            "openai_coding_primary",
-            "openai_fast",
-            "openai_batch",
+            "deepseek_reasoning_primary",
+            "deepseek_reasoning_critical",
+            "deepseek_coding_primary",
+            "deepseek_fast",
+            "deepseek_fast_reasoning",
             "gemini_reasoning_primary",
             "gemini_multimodal_primary",
             "gemini_fast",
             "gemini_batch",
         }
         self.assertEqual(set(payload["aliases"]), expected)
+        self.assertNotIn("openai", raw.lower())
         self.assertNotIn('"modelIdEnv"', raw)
         registry = AIModelRegistry.from_path(path)
         for alias in expected:
@@ -51,6 +53,9 @@ class AIRepositoryConfigTests(unittest.TestCase):
 
         self.assertEqual(payload["providerSmokeLimits"]["maximumTokens"], 512)
         self.assertEqual(payload["providerSmokeLimits"]["maximumCostUsd"], 0.05)
+        self.assertEqual(
+            set(payload["dailyProviderLimitsUsd"]), {"deepseek", "gemini"}
+        )
 
 
 if __name__ == "__main__":

@@ -23,6 +23,7 @@ class AIRuntimeBootstrapTests(unittest.TestCase):
             self.assertIsInstance(runtime.batch_service, AIBatchOrchestrationService)
             self.assertTrue(runtime.model_registry_hash.startswith("sha256:"))
             self.assertTrue(runtime.prompt_registry_hash.startswith("sha256:"))
+            self.assertEqual(set(runtime.service._adapters), {"deepseek", "gemini"})
             runtime.close()
 
 

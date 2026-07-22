@@ -1,7 +1,7 @@
 {
   "schemaVersion": "alphapilot_ai_budget_policy_v1",
   "dailyProviderLimitsUsd": {
-    "openai": 25.0,
+    "deepseek": 25.0,
     "gemini": 25.0
   },
   "dailyTaskLimitsUsd": {

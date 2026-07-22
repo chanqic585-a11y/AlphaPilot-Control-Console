@@ -40,6 +40,65 @@ def _request(**overrides: object) -> AIRequest:
 
 
 class AIOrchestrationBoundaryTests(unittest.TestCase):
+    def test_registered_research_routes_use_deepseek_and_gemini_contract(self) -> None:
+        router = AITaskRouter()
+        expectations = {
+            "strategy_hypothesis": (
+                "dual",
+                ("deepseek_reasoning_primary", "gemini_reasoning_primary"),
+                (),
+            ),
+            "failure_attribution": (
+                "dual",
+                ("deepseek_reasoning_primary", "gemini_reasoning_primary"),
+                (),
+            ),
+            "architecture_review": (
+                "dual",
+                ("deepseek_reasoning_critical", "gemini_reasoning_primary"),
+                (),
+            ),
+            "code_review": (
+                "dual",
+                ("deepseek_coding_primary", "gemini_reasoning_primary"),
+                (),
+            ),
+            "document_analysis": (
+                "dual",
+                ("gemini_multimodal_primary", "deepseek_reasoning_primary"),
+                (),
+            ),
+            "historical_batch": ("batch", ("gemini_batch",), ()),
+            "provider_smoke_deepseek": ("single", ("deepseek_fast",), ()),
+            "provider_smoke_gemini": ("single", ("gemini_fast",), ()),
+            "provider_smoke_dual": (
+                "dual",
+                ("deepseek_fast_reasoning", "gemini_fast"),
+                (),
+            ),
+            "research_summary": (
+                "single",
+                ("deepseek_fast",),
+                ("gemini_fast",),
+            ),
+        }
+
+        for task_type, expected in expectations.items():
+            with self.subTest(task_type=task_type):
+                route = router.route(_request(task_type=task_type))
+                self.assertEqual(
+                    (route.mode, route.model_aliases, route.fallback_model_aliases),
+                    expected,
+                )
+
+    def test_multimodal_requests_keep_gemini_primary_and_deepseek_review(self) -> None:
+        route = AITaskRouter().route(_request(multimodal=True))
+
+        self.assertEqual(
+            route.model_aliases,
+            ("gemini_multimodal_primary", "deepseek_reasoning_primary"),
+        )
+
     def test_execution_authority_tasks_are_forbidden_before_provider_selection(self) -> None:
         router = AITaskRouter()
         forbidden = (

@@ -19,8 +19,8 @@ class MockProviderAdapter:
         output_tokens: int = 0,
     ) -> None:
         normalized = provider.strip().lower()
-        if normalized not in {"openai", "gemini"}:
-            raise ValueError("mock provider must be openai or gemini")
+        if normalized not in {"deepseek", "gemini"}:
+            raise ValueError("mock provider must be deepseek or gemini")
         if input_tokens < 0 or output_tokens < 0:
             raise ValueError("mock token counts cannot be negative")
         self.provider = normalized

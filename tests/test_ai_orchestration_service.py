@@ -59,9 +59,9 @@ STRATEGY_SCHEMA = {
 REGISTRY = {
     "schemaVersion": "alphapilot_ai_model_registry_v1",
     "aliases": {
-        "openai_reasoning_primary": {
-            "provider": "openai",
-            "modelId": "openai-configured",
+        "deepseek_reasoning_primary": {
+            "provider": "deepseek",
+            "modelId": "deepseek-v4-pro",
             "capabilities": ["reasoning", "structured_output"],
         },
         "gemini_reasoning_primary": {
@@ -69,9 +69,9 @@ REGISTRY = {
             "modelId": "gemini-configured",
             "capabilities": ["reasoning", "structured_output"],
         },
-        "openai_fast": {
-            "provider": "openai",
-            "modelId": "openai-fast-configured",
+        "deepseek_fast": {
+            "provider": "deepseek",
+            "modelId": "deepseek-v4-flash",
             "capabilities": ["fast", "structured_output"],
         },
     },
@@ -168,29 +168,29 @@ class AIOrchestrationServiceTests(unittest.TestCase):
         )
         return PromptRegistry.from_path(registry_path)
 
-    def _service(self, directory: str, openai_output: dict, gemini_output: dict):
+    def _service(self, directory: str, deepseek_output: dict, gemini_output: dict):
         registry = AIModelRegistry.from_mapping(REGISTRY)
-        openai = FakeAdapter("openai", openai_output)
+        deepseek = FakeAdapter("deepseek", deepseek_output)
         gemini = FakeAdapter("gemini", gemini_output)
         ledger = AIAuditLedger(Path(directory) / "ai-audit.sqlite")
         service = AIOrchestrationService(
             model_registry=registry,
             prompt_registry=self._prompt_registry(directory),
-            adapters={"openai": openai, "gemini": gemini},
+            adapters={"deepseek": deepseek, "gemini": gemini},
             audit_ledger=ledger,
         )
-        return service, openai, gemini, ledger
+        return service, deepseek, gemini, ledger
 
     def test_strategy_hypothesis_requires_independent_dual_review(self) -> None:
         with tempfile.TemporaryDirectory() as directory, patch.dict(
             os.environ,
             {
-                "TEST_OPENAI_MODEL": "openai-configured",
+                "TEST_DEEPSEEK_MODEL": "deepseek-v4-pro",
                 "TEST_GEMINI_MODEL": "gemini-configured",
-                "TEST_OPENAI_FAST_MODEL": "openai-fast-configured",
+                "TEST_DEEPSEEK_FAST_MODEL": "deepseek-v4-flash",
             },
         ):
-            service, openai, gemini, ledger = self._service(
+            service, deepseek, gemini, ledger = self._service(
                 directory, _strategy_output(), _strategy_output()
             )
             try:
@@ -199,11 +199,11 @@ class AIOrchestrationServiceTests(unittest.TestCase):
             finally:
                 ledger.close()
 
-        self.assertEqual(len(openai.calls), 1)
+        self.assertEqual(len(deepseek.calls), 1)
         self.assertEqual(len(gemini.calls), 1)
         self.assertEqual(result.status, "accepted")
         self.assertEqual(result.output["mechanism"], "liquidity_recovery")
-        provider_request = openai.calls[0][1]
+        provider_request = deepseek.calls[0][1]
         self.assertIn("Platform research prompt", provider_request.payload["platformPrompt"])
         self.assertEqual(
             provider_request.payload["untrustedData"],
@@ -218,8 +218,8 @@ class AIOrchestrationServiceTests(unittest.TestCase):
             registry = AIModelRegistry.from_mapping(REGISTRY)
             primary_reasoning = "private primary reasoning must remain in process"
             reviewer_reasoning = "private reviewer reasoning must remain in process"
-            openai = FakeAdapter(
-                "openai",
+            deepseek = FakeAdapter(
+                "deepseek",
                 _strategy_output(),
                 reasoning_content=primary_reasoning,
             )
@@ -233,7 +233,7 @@ class AIOrchestrationServiceTests(unittest.TestCase):
             service = AIOrchestrationService(
                 model_registry=registry,
                 prompt_registry=self._prompt_registry(directory),
-                adapters={"openai": openai, "gemini": gemini},
+                adapters={"deepseek": deepseek, "gemini": gemini},
                 audit_ledger=ledger,
             )
             try:
@@ -260,9 +260,9 @@ class AIOrchestrationServiceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch.dict(
             os.environ,
             {
-                "TEST_OPENAI_MODEL": "openai-configured",
+                "TEST_DEEPSEEK_MODEL": "deepseek-v4-pro",
                 "TEST_GEMINI_MODEL": "gemini-configured",
-                "TEST_OPENAI_FAST_MODEL": "openai-fast-configured",
+                "TEST_DEEPSEEK_FAST_MODEL": "deepseek-v4-flash",
             },
         ):
             service, _, _, ledger = self._service(
@@ -284,9 +284,9 @@ class AIOrchestrationServiceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch.dict(
             os.environ,
             {
-                "TEST_OPENAI_MODEL": "openai-configured",
+                "TEST_DEEPSEEK_MODEL": "deepseek-v4-pro",
                 "TEST_GEMINI_MODEL": "gemini-configured",
-                "TEST_OPENAI_FAST_MODEL": "openai-fast-configured",
+                "TEST_DEEPSEEK_FAST_MODEL": "deepseek-v4-flash",
             },
         ):
             service, _, _, ledger = self._service(directory, invalid, _strategy_output())
@@ -305,12 +305,12 @@ class AIOrchestrationServiceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch.dict(
             os.environ,
             {
-                "TEST_OPENAI_MODEL": "openai-configured",
+                "TEST_DEEPSEEK_MODEL": "deepseek-v4-pro",
                 "TEST_GEMINI_MODEL": "gemini-configured",
-                "TEST_OPENAI_FAST_MODEL": "openai-fast-configured",
+                "TEST_DEEPSEEK_FAST_MODEL": "deepseek-v4-flash",
             },
         ):
-            service, openai, gemini, ledger = self._service(
+            service, deepseek, gemini, ledger = self._service(
                 directory, _strategy_output(), _strategy_output()
             )
             try:
@@ -319,26 +319,26 @@ class AIOrchestrationServiceTests(unittest.TestCase):
             finally:
                 ledger.close()
 
-        self.assertEqual(openai.calls, [])
+        self.assertEqual(deepseek.calls, [])
         self.assertEqual(gemini.calls, [])
 
     def test_dual_review_does_not_degrade_to_one_provider(self) -> None:
         with tempfile.TemporaryDirectory() as directory, patch.dict(
             os.environ,
             {
-                "TEST_OPENAI_MODEL": "openai-configured",
+                "TEST_DEEPSEEK_MODEL": "deepseek-v4-pro",
                 "TEST_GEMINI_MODEL": "gemini-configured",
-                "TEST_OPENAI_FAST_MODEL": "openai-fast-configured",
+                "TEST_DEEPSEEK_FAST_MODEL": "deepseek-v4-flash",
             },
         ):
             registry = AIModelRegistry.from_mapping(REGISTRY)
-            openai = FakeAdapter("openai", _strategy_output())
+            deepseek = FakeAdapter("deepseek", _strategy_output())
             gemini = FailingAdapter("gemini", _strategy_output())
             ledger = AIAuditLedger(Path(directory) / "ai-audit.sqlite")
             service = AIOrchestrationService(
                 model_registry=registry,
                 prompt_registry=self._prompt_registry(directory),
-                adapters={"openai": openai, "gemini": gemini},
+                adapters={"deepseek": deepseek, "gemini": gemini},
                 audit_ledger=ledger,
             )
             try:
@@ -348,7 +348,7 @@ class AIOrchestrationServiceTests(unittest.TestCase):
             finally:
                 ledger.close()
 
-        self.assertEqual(len(openai.calls), 1)
+        self.assertEqual(len(deepseek.calls), 1)
         self.assertEqual(len(gemini.calls), 1)
         self.assertEqual(projection["statusCounts"], {"provider_failed": 1})
 
@@ -356,26 +356,26 @@ class AIOrchestrationServiceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch.dict(
             os.environ,
             {
-                "TEST_OPENAI_MODEL": "openai-configured",
+                "TEST_DEEPSEEK_MODEL": "deepseek-v4-pro",
                 "TEST_GEMINI_MODEL": "gemini-configured",
-                "TEST_OPENAI_FAST_MODEL": "openai-fast-configured",
+                "TEST_DEEPSEEK_FAST_MODEL": "deepseek-v4-flash",
             },
         ):
             registry = AIModelRegistry.from_mapping(REGISTRY)
-            openai = FakeAdapter("openai", _strategy_output())
+            deepseek = FakeAdapter("deepseek", _strategy_output())
             gemini = FakeAdapter("gemini", _strategy_output())
             audit = AIAuditLedger(Path(directory) / "ai-audit.sqlite")
             budget_ledger = AIBudgetLedger(Path(directory) / "budget.sqlite")
             budget = AIBudgetPolicy(
                 ledger=budget_ledger,
-                daily_provider_limits={"openai": 0.1, "gemini": 0.1},
+                daily_provider_limits={"deepseek": 0.1, "gemini": 0.1},
                 daily_task_limits={"strategy_hypothesis": 0.1},
                 campaign_limits={"unscoped": 0.1},
             )
             service = AIOrchestrationService(
                 model_registry=registry,
                 prompt_registry=self._prompt_registry(directory),
-                adapters={"openai": openai, "gemini": gemini},
+                adapters={"deepseek": deepseek, "gemini": gemini},
                 audit_ledger=audit,
                 budget_policy=budget,
                 circuit_breaker=ProviderCircuitBreaker(),
@@ -387,7 +387,7 @@ class AIOrchestrationServiceTests(unittest.TestCase):
                 budget_ledger.close()
                 audit.close()
 
-        self.assertEqual(openai.calls, [])
+        self.assertEqual(deepseek.calls, [])
         self.assertEqual(gemini.calls, [])
 
 
