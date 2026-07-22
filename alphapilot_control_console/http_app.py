@@ -131,6 +131,12 @@ from .strategy_version_switch import (
     run_strategy_version_switch_action,
 )
 from .strategy_factory_orchestrator import build_strategy_factory_orchestrator
+from .strategy_factory_continuous_runner import (
+    get_strategy_factory_continuous_status,
+    run_strategy_factory_continuous_action,
+    start_strategy_factory_continuous_runner,
+    stop_strategy_factory_continuous_runner,
+)
 from .sandbox_auto_runner import (
     get_local_sandbox_auto_runner_status,
 )
@@ -448,6 +454,9 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                     {"ok": False, "error": type(error).__name__, "message": str(error)},
                     409,
                 )
+            return
+        if path == "/api/research-factory/continuous":
+            self._send_json(get_strategy_factory_continuous_status())
             return
         if _is_top200_minimal_ui_route(path):
             try:
@@ -1211,6 +1220,27 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             _RESPONSE_CACHE.clear()
             self._send_json(result)
             return
+        if parsed.path in {
+            "/api/research-factory/continuous/enable",
+            "/api/research-factory/continuous/disable",
+        }:
+            payload = self._read_body_json()
+            if not _request_is_loopback(str(self.client_address[0])):
+                self._send_json({"ok": False, "error": "local_host_required"}, 403)
+                return
+            try:
+                reject_sensitive_fields(payload)
+                action = parsed.path.rsplit("/", 1)[-1]
+                result = run_strategy_factory_continuous_action(action)
+            except (OSError, RuntimeError, ValueError) as error:
+                self._send_json(
+                    {"ok": False, "error": type(error).__name__, "message": str(error)},
+                    409,
+                )
+                return
+            _RESPONSE_CACHE.clear()
+            self._send_json(result)
+            return
         release_control_action: str | None = None
         release_control_id = ""
         if parsed.path.startswith("/api/strategy/releases/") and parsed.path.endswith(
@@ -1890,6 +1920,7 @@ def build_health_payload() -> dict[str, object]:
 
 def run_server(host: str, port: int) -> None:
     server = ThreadingHTTPServer((host, port), ConsoleHandler)
+    start_strategy_factory_continuous_runner()
     credential_bootstrap = bootstrap_demo_credentials()
     resume_incomplete_workflow_runs()
     market_runtime = start_demo_market_runtime(
@@ -1921,6 +1952,7 @@ def run_server(host: str, port: int) -> None:
     try:
         server.serve_forever()
     finally:
+        stop_strategy_factory_continuous_runner()
         stop_unified_auto_execution_runner()
         stop_demo_market_runtime()
 

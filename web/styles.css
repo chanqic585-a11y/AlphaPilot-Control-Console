@@ -7336,7 +7336,7 @@ body.show-advanced .hero-grid.advanced-section {
 }
 
 .strategy-factory-dialog {
-  width: min(620px, calc(100vw - 32px));
+  width: min(880px, calc(100vw - 32px));
   max-height: calc(100vh - 40px);
   padding: 0;
   overflow: auto;
@@ -7419,6 +7419,99 @@ body.show-advanced .hero-grid.advanced-section {
 .strategy-factory-form-status {
   min-height: 22px;
   color: #f6d365;
+}
+
+.strategy-factory-task-evidence {
+  display: grid;
+  gap: 14px;
+  padding-top: 16px;
+  border-top: 1px solid #34404d;
+}
+
+.strategy-factory-task-evidence[hidden] {
+  display: none;
+}
+
+.strategy-factory-task-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.strategy-factory-task-head div {
+  display: grid;
+  gap: 4px;
+}
+
+.strategy-factory-task-head small,
+.strategy-factory-task-head span,
+.strategy-factory-evidence-grid section div,
+.strategy-factory-formal-evidence div,
+.strategy-factory-artifacts div {
+  color: #a9b8ca;
+}
+
+.strategy-factory-task-progress {
+  height: 8px;
+  overflow: hidden;
+  border: 1px solid #34404d;
+  background: #1a232d;
+}
+
+.strategy-factory-task-progress span {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: #74d6ba;
+  transition: width 180ms ease;
+}
+
+.strategy-factory-evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid #2f3945;
+  border-bottom: 1px solid #2f3945;
+}
+
+.strategy-factory-evidence-grid section {
+  min-width: 0;
+  padding: 14px 14px 14px 0;
+}
+
+.strategy-factory-evidence-grid section + section {
+  padding-left: 14px;
+  border-left: 1px solid #2f3945;
+}
+
+.strategy-factory-evidence-grid h4,
+.strategy-factory-formal-evidence h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+.strategy-factory-evidence-list {
+  display: grid;
+  gap: 5px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.strategy-factory-evidence-list strong {
+  color: #f4f7fb;
+}
+
+.strategy-factory-artifacts summary {
+  color: #a9b8ca;
+  cursor: pointer;
+}
+
+.strategy-factory-artifacts div {
+  margin-top: 10px;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .strategy-factory-actions {
@@ -7757,6 +7850,11 @@ body.show-advanced .hero-grid.advanced-section {
   word-break: break-word;
 }
 
+.strategy-factory-continuous-status {
+  margin-top: 6px;
+  color: #74d6ba !important;
+}
+
 .top200-issue-banner {
   padding: 12px 14px;
   border-left: 3px solid #f6d365;
@@ -7939,6 +8037,20 @@ body.show-advanced .hero-grid.advanced-section {
 
   .strategy-factory-dialog form {
     padding: 18px;
+  }
+
+  .strategy-factory-evidence-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .strategy-factory-evidence-grid section,
+  .strategy-factory-evidence-grid section + section {
+    padding: 12px 0;
+    border-left: 0;
+  }
+
+  .strategy-factory-evidence-grid section + section {
+    border-top: 1px solid #2f3945;
   }
 
   .top200-runtime-grid,

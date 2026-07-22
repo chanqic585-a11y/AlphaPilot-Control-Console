@@ -43,6 +43,7 @@ class Top200MinimalUiProjection:
         strategy_factory_artifact_root: Path | None = None,
         strategy_factory_quant_root: Path | None = None,
         live_readiness_root: Path | None = None,
+        adaptive_governance_root: Path | None = None,
         terminal_projection: TradingTerminalProjection | None = None,
     ) -> None:
         self.evidence_root = Path(evidence_root)
@@ -70,6 +71,11 @@ class Top200MinimalUiProjection:
         )
         self.live_readiness_root = (
             Path(live_readiness_root) if live_readiness_root is not None else None
+        )
+        self.adaptive_governance_root = (
+            Path(adaptive_governance_root)
+            if adaptive_governance_root is not None
+            else None
         )
         self.terminal_projection = terminal_projection
 
@@ -659,7 +665,10 @@ class Top200MinimalUiProjection:
     def live_canary_readiness(self) -> dict[str, Any]:
         release = self._load_live("experimental_live_release.json")
         approval = self._load_live("exact_live_approval_request.json")
-        adaptive = self._load_live("adaptive_learning_live_readiness.json")
+        adaptive = self._load_optional(
+            self.adaptive_governance_root,
+            "adaptive_learning_technical_readiness_gate.json",
+        ) or self._load_live("adaptive_learning_live_readiness.json")
         smoke = self._load_live("live_engineering_smoke_binding.json")
         execution = self._load_live("live_execution_state.json")
         profile = self._load_live("live_experiment_profile.json")
@@ -734,6 +743,9 @@ class Top200MinimalUiProjection:
                 "status": adaptive.get("status"),
                 "passed": adaptive_passed,
                 "modelMode": adaptive.get("modelMode"),
+                "exactApprovalEvaluated": bool(
+                    adaptive.get("exactApprovalEvaluated")
+                ),
                 "blockerCount": len(adaptive.get("blockers") or []),
                 "blockers": list(adaptive.get("blockers") or []),
             },
@@ -782,6 +794,18 @@ def build_top200_minimal_ui_projection() -> Top200MinimalUiProjection:
     live_readiness_root = (
         PROJECT_ROOT / "reports" / "v54_v60" / "v59_v60_live_canary_readiness"
     )
+    adaptive_governance_parent = (
+        PROJECT_ROOT / "reports" / "v60_1_adaptive_learning_governance"
+    )
+    adaptive_governance_root = next(
+        (
+            path
+            for path in sorted(adaptive_governance_parent.glob("*"), reverse=True)
+            if path.is_dir()
+            and (path / "adaptive_learning_technical_readiness_gate.json").is_file()
+        ),
+        None,
+    )
     return Top200MinimalUiProjection(
         root,
         matchability_root,
@@ -798,6 +822,7 @@ def build_top200_minimal_ui_projection() -> Top200MinimalUiProjection:
             if (live_readiness_root / "experimental_live_release.json").is_file()
             else None
         ),
+        adaptive_governance_root=adaptive_governance_root,
         terminal_projection=TradingTerminalProjection(),
     )
 
