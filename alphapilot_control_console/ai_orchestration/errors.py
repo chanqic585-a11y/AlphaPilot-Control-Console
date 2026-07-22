@@ -39,3 +39,7 @@ class BudgetExceededError(AIOrchestrationError):
 
 class BatchConflictError(AIOrchestrationError):
     pass
+
+
+class AIWorkerIsolationError(AIOrchestrationError):
+    pass

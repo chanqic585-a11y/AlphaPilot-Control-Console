@@ -98,6 +98,17 @@ class AITaskRouter:
             )
         if task_type == "historical_batch":
             return TaskRoute(mode="batch", model_aliases=("openai_batch", "gemini_batch"))
+        if task_type == "provider_smoke_openai":
+            return TaskRoute(mode="single", model_aliases=("openai_fast",))
+        if task_type == "provider_smoke_gemini":
+            return TaskRoute(mode="single", model_aliases=("gemini_fast",))
+        if task_type == "provider_smoke_dual":
+            return TaskRoute(
+                mode="dual",
+                model_aliases=("openai_fast", "gemini_fast"),
+                critical_fields=("evidenceStatus", "executionIntent"),
+                requires_human_on_disagreement=True,
+            )
         if task_type in {
             "research_summary",
             "factor_summary",

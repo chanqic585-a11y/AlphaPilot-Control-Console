@@ -69,12 +69,12 @@ class SingleRouteFallbackTests(unittest.TestCase):
                     "aliases": {
                         "openai_fast": {
                             "provider": "openai",
-                            "modelIdEnv": "TEST_OPENAI_FAST_MODEL",
+                            "modelId": "openai-fast-configured",
                             "capabilities": ["fast", "structured_output"],
                         },
                         "gemini_fast": {
                             "provider": "gemini",
-                            "modelIdEnv": "TEST_GEMINI_FAST_MODEL",
+                            "modelId": "gemini-fast-configured",
                             "capabilities": ["fast", "structured_output"],
                         },
                     },

@@ -61,17 +61,17 @@ REGISTRY = {
     "aliases": {
         "openai_reasoning_primary": {
             "provider": "openai",
-            "modelIdEnv": "TEST_OPENAI_MODEL",
+            "modelId": "openai-configured",
             "capabilities": ["reasoning", "structured_output"],
         },
         "gemini_reasoning_primary": {
             "provider": "gemini",
-            "modelIdEnv": "TEST_GEMINI_MODEL",
+            "modelId": "gemini-configured",
             "capabilities": ["reasoning", "structured_output"],
         },
         "openai_fast": {
             "provider": "openai",
-            "modelIdEnv": "TEST_OPENAI_FAST_MODEL",
+            "modelId": "openai-fast-configured",
             "capabilities": ["fast", "structured_output"],
         },
     },

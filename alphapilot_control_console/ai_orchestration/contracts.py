@@ -30,6 +30,8 @@ class ModelIdentity:
     model_id: str
     capabilities: frozenset[str] = frozenset()
     registry_hash: str = ""
+    input_cost_per_million_usd: float = 0.0
+    output_cost_per_million_usd: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)

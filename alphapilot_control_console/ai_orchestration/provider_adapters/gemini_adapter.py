@@ -9,7 +9,13 @@ from typing import Any
 
 from ..contracts import AIRequest, AIResponse, AIUsage, ModelIdentity
 from ..errors import ProviderResponseError, ProviderUnavailableError
-from .base import HTTPTransport, UrllibJSONTransport, parse_json_object, usage_from_payload
+from .base import (
+    HTTPTransport,
+    UrllibJSONTransport,
+    estimate_cost_usd,
+    parse_json_object,
+    usage_from_payload,
+)
 
 
 class GeminiAdapter:
@@ -62,6 +68,11 @@ class GeminiAdapter:
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 total_tokens=total_tokens,
+                estimated_cost_usd=estimate_cost_usd(
+                    identity,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                ),
             ),
             latency_ms=latency_ms,
             provider_request_id=str(payload.get("id") or ""),

@@ -19,5 +19,9 @@
   "campaignLimitsUsd": {
     "unscoped": 5.0
   },
-  "defaultCampaignLimitUsd": 20.0
+  "defaultCampaignLimitUsd": 20.0,
+  "providerSmokeLimits": {
+    "maximumTokens": 512,
+    "maximumCostUsd": 0.05
+  }
 }

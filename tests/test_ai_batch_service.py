@@ -85,12 +85,12 @@ class AIBatchOrchestrationServiceTests(unittest.TestCase):
                 "aliases": {
                     "openai_batch": {
                         "provider": "openai",
-                        "modelIdEnv": "TEST_OPENAI_BATCH_MODEL",
+                        "modelId": "configured-openai-batch",
                         "capabilities": ["batch", "structured_output"],
                     },
                     "gemini_batch": {
                         "provider": "gemini",
-                        "modelIdEnv": "TEST_GEMINI_BATCH_MODEL",
+                        "modelId": "configured-gemini-batch",
                         "capabilities": ["batch", "structured_output"],
                     },
                 },

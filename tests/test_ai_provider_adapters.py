@@ -49,7 +49,14 @@ class ProviderAdapterTests(unittest.TestCase):
         )
         adapter = OpenAIAdapter(transport=transport, api_key="process-only")
         response = adapter.generate(
-            ModelIdentity("openai_reasoning_primary", "openai", "configured-openai", frozenset()),
+            ModelIdentity(
+                "openai_reasoning_primary",
+                "openai",
+                "configured-openai",
+                frozenset(),
+                input_cost_per_million_usd=2.5,
+                output_cost_per_million_usd=15.0,
+            ),
             _request(),
         )
 
@@ -61,6 +68,7 @@ class ProviderAdapterTests(unittest.TestCase):
         self.assertEqual(call["json_body"]["text"]["format"]["type"], "json_schema")
         self.assertEqual(response.output, {"summary": "ok"})
         self.assertEqual(response.usage.total_tokens, 16)
+        self.assertEqual(response.usage.estimated_cost_usd, 0.00009)
 
     def test_gemini_uses_interactions_api_stateless_structured_output(self) -> None:
         transport = RecordingTransport(
@@ -78,7 +86,14 @@ class ProviderAdapterTests(unittest.TestCase):
         )
         adapter = GeminiAdapter(transport=transport, api_key="process-only")
         response = adapter.generate(
-            ModelIdentity("gemini_reasoning_primary", "gemini", "configured-gemini", frozenset()),
+            ModelIdentity(
+                "gemini_reasoning_primary",
+                "gemini",
+                "configured-gemini",
+                frozenset(),
+                input_cost_per_million_usd=1.5,
+                output_cost_per_million_usd=7.5,
+            ),
             _request(),
         )
 
@@ -91,6 +106,7 @@ class ProviderAdapterTests(unittest.TestCase):
         self.assertEqual(call["json_body"]["response_format"][0]["mime_type"], "application/json")
         self.assertEqual(response.output, {"summary": "ok"})
         self.assertEqual(response.usage.total_tokens, 13)
+        self.assertEqual(response.usage.estimated_cost_usd, 0.0000375)
 
 
 if __name__ == "__main__":
