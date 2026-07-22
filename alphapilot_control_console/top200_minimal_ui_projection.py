@@ -210,6 +210,7 @@ class Top200MinimalUiProjection:
         }
 
     def research_factory_runs(self) -> dict[str, Any]:
+        self._read_strategy_factory("summary")
         persisted = self._read_strategy_factory("list_runs", 20)
         if persisted:
             return {"runs": persisted, "readOnly": False}
@@ -217,7 +218,7 @@ class Top200MinimalUiProjection:
 
     def research_factory_run(self, research_run_id: str) -> dict[str, Any]:
         try:
-            persisted = self._read_strategy_factory("get_run", research_run_id)
+            persisted = self._read_strategy_factory("refresh_run", research_run_id)
         except KeyError:
             persisted = None
         if persisted:

@@ -21,6 +21,19 @@ from .strategy_factory_outcomes import (
 
 DEFAULT_STATE_PATH = DATA_DIR / "strategy_factory" / "strategy_factory.sqlite"
 DEFAULT_ARTIFACT_ROOT = DATA_DIR / "strategy_factory" / "runs"
+DEFAULT_DEVELOPMENT_PROFILE_PATH = (
+    DATA_DIR / "strategy_factory" / "development_profile.json"
+)
+DEVELOPMENT_PROFILE_SCHEMA = "strategy_factory_development_profile_v1"
+DEVELOPMENT_COMPARISON_FIELDS = (
+    "developmentStart",
+    "developmentEnd",
+    "dataSnapshotId",
+    "costPolicyHash",
+    "capitalPolicyHash",
+    "benchmarkPolicyHash",
+    "randomSeed",
+)
 ALLOWED_OPERATIONS = {"generate", "combine"}
 ALLOWED_MODES = {"quick", "standard"}
 ALLOWED_TIMEFRAMES = {"5m", "15m", "1h", "4h", "1d"}
@@ -129,6 +142,7 @@ class StrategyFactoryOrchestrator:
         quant_root: Path | None = None,
         source_registry_path: Path | None = None,
         python_executable: Path | None = None,
+        development_profile_path: Path | None = None,
         launcher: Callable[..., dict[str, Any]] = _default_launcher,
         clock: Callable[[], datetime] = _utc_now,
     ) -> None:
@@ -146,6 +160,13 @@ class StrategyFactoryOrchestrator:
             or configured_python
             or self.quant_root / ".venv/Scripts/python.exe"
         )
+        configured_profile = development_profile_path or os.environ.get(
+            "ALPHAPILOT_STRATEGY_FACTORY_DEVELOPMENT_PROFILE"
+        )
+        self.development_profile_path = Path(
+            configured_profile or DEFAULT_DEVELOPMENT_PROFILE_PATH
+        )
+        self.development_profile_required = configured_profile is not None
         self.launcher = launcher
         self.clock = clock
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
@@ -208,6 +229,86 @@ class StrategyFactoryOrchestrator:
         if not isinstance(payload, dict) or not isinstance(payload.get("families"), list):
             raise ValueError("strategy_source_registry_invalid")
         return payload
+
+    def _load_development_profile(self) -> dict[str, Any] | None:
+        path = self.development_profile_path
+        if not path.is_file():
+            if self.development_profile_required:
+                raise FileNotFoundError(path)
+            return None
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError("strategy_factory_development_profile_invalid")
+        if payload.get("schemaVersion") != DEVELOPMENT_PROFILE_SCHEMA:
+            raise ValueError("strategy_factory_development_profile_schema_invalid")
+        profile_id = str(payload.get("profileId") or "").strip()
+        comparison = payload.get("comparisonPanel")
+        replay = payload.get("developmentReplay")
+        if not profile_id or not isinstance(comparison, dict) or not isinstance(replay, dict):
+            raise ValueError("strategy_factory_development_profile_invalid")
+        missing_fields = [
+            field
+            for field in DEVELOPMENT_COMPARISON_FIELDS
+            if comparison.get(field) in {None, ""}
+        ]
+        if missing_fields:
+            raise ValueError(
+                "strategy_factory_development_profile_missing_fields:"
+                + ",".join(missing_fields)
+            )
+        manifest_value = str(replay.get("snapshotManifestPath") or "").strip()
+        if not manifest_value:
+            raise ValueError("strategy_factory_development_profile_manifest_missing")
+        manifest_path = Path(manifest_value)
+        if not manifest_path.is_absolute():
+            manifest_path = path.parent / manifest_path
+        manifest_path = manifest_path.resolve()
+        if not manifest_path.is_file():
+            raise FileNotFoundError(manifest_path)
+        snapshot = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if not isinstance(snapshot, dict) or snapshot.get("snapshotId") != comparison.get(
+            "dataSnapshotId"
+        ):
+            raise ValueError("strategy_factory_development_profile_snapshot_mismatch")
+        normalized = {
+            "schemaVersion": DEVELOPMENT_PROFILE_SCHEMA,
+            "profileId": profile_id,
+            "comparisonPanel": {
+                **{field: comparison[field] for field in DEVELOPMENT_COMPARISON_FIELDS},
+                "randomSeed": int(comparison["randomSeed"]),
+            },
+            "developmentReplay": {
+                **replay,
+                "snapshotManifestPath": str(manifest_path),
+                "roundTripCostRate": float(replay.get("roundTripCostRate") or 0),
+            },
+        }
+        normalized["profileHash"] = _content_hash(
+            "strategy_factory_development_profile",
+            normalized,
+        )
+        return normalized
+
+    @staticmethod
+    def _assert_profile_matches_payload(
+        profile: dict[str, Any], payload: dict[str, Any]
+    ) -> None:
+        comparison = profile["comparisonPanel"]
+        for field in DEVELOPMENT_COMPARISON_FIELDS:
+            if field not in payload:
+                continue
+            requested = payload[field]
+            expected = comparison[field]
+            if field == "randomSeed":
+                matches = int(requested) == int(expected)
+            else:
+                matches = str(requested) == str(expected)
+            if not matches:
+                raise ValueError("strategy_factory_development_profile_mismatch")
+        if "developmentReplay" in payload and _canonical_json(
+            payload["developmentReplay"]
+        ) != _canonical_json(profile["developmentReplay"]):
+            raise ValueError("strategy_factory_development_profile_mismatch")
 
     def _select_candidates(
         self,
@@ -285,6 +386,32 @@ class StrategyFactoryOrchestrator:
         pause_marker = run_root / "PAUSE"
         log_path = run_root / "research.log"
         output_root = run_root / "reports"
+        development_profile = self._load_development_profile()
+        if development_profile:
+            self._assert_profile_matches_payload(development_profile, payload)
+            comparison_panel = dict(development_profile["comparisonPanel"])
+        else:
+            comparison_panel = {
+                "developmentStart": str(
+                    payload.get("developmentStart") or "2024-01-01T00:00:00Z"
+                ),
+                "developmentEnd": str(
+                    payload.get("developmentEnd") or "2025-01-01T00:00:00Z"
+                ),
+                "dataSnapshotId": str(
+                    payload.get("dataSnapshotId") or "runtime_data_readiness_required"
+                ),
+                "costPolicyHash": str(
+                    payload.get("costPolicyHash") or "frozen_cost_policy_required"
+                ),
+                "capitalPolicyHash": str(
+                    payload.get("capitalPolicyHash") or "frozen_capital_policy_required"
+                ),
+                "benchmarkPolicyHash": str(
+                    payload.get("benchmarkPolicyHash") or "frozen_benchmark_policy_required"
+                ),
+                "randomSeed": int(payload.get("randomSeed") or 56),
+            }
         config = {
             "schemaVersion": "v56_strategy_factory_job_v1",
             "runId": run_id,
@@ -307,27 +434,7 @@ class StrategyFactoryOrchestrator:
                 "maximumFormalRuns": min(4, maximum_trials),
                 "maximumStructuralRevisionsPerFamily": 1,
             },
-            "comparisonPanel": {
-                "developmentStart": str(
-                    payload.get("developmentStart") or "2024-01-01T00:00:00Z"
-                ),
-                "developmentEnd": str(
-                    payload.get("developmentEnd") or "2025-01-01T00:00:00Z"
-                ),
-                "dataSnapshotId": str(
-                    payload.get("dataSnapshotId") or "runtime_data_readiness_required"
-                ),
-                "costPolicyHash": str(
-                    payload.get("costPolicyHash") or "frozen_cost_policy_required"
-                ),
-                "capitalPolicyHash": str(
-                    payload.get("capitalPolicyHash") or "frozen_capital_policy_required"
-                ),
-                "benchmarkPolicyHash": str(
-                    payload.get("benchmarkPolicyHash") or "frozen_benchmark_policy_required"
-                ),
-                "randomSeed": int(payload.get("randomSeed") or 56),
-            },
+            "comparisonPanel": comparison_panel,
             "developmentEvidence": [],
             "formalOutcomes": [],
             "executionBoundary": {
@@ -349,7 +456,14 @@ class StrategyFactoryOrchestrator:
                 "processPriority": "below_normal",
             },
         }
-        if payload.get("developmentReplay"):
+        if development_profile:
+            config["developmentReplay"] = development_profile["developmentReplay"]
+            config["developmentProfile"] = {
+                "schemaVersion": development_profile["schemaVersion"],
+                "profileId": development_profile["profileId"],
+                "profileHash": development_profile["profileHash"],
+            }
+        elif payload.get("developmentReplay"):
             config["developmentReplay"] = payload["developmentReplay"]
         config["jobHash"] = _content_hash("strategy_factory_job", config)
         _write_json_atomic(job_path, config)

@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "strategy_factory_development_profile_v1",
+  "profileId": "replace-with-versioned-local-profile-id",
+  "comparisonPanel": {
+    "developmentStart": "2021-02-01T00:00:00Z",
+    "developmentEnd": "2025-01-01T00:00:00Z",
+    "dataSnapshotId": "replace-with-immutable-snapshot-id",
+    "costPolicyHash": "replace-with-cost-policy-hash",
+    "capitalPolicyHash": "replace-with-capital-policy-hash",
+    "benchmarkPolicyHash": "replace-with-benchmark-policy-hash",
+    "randomSeed": 56
+  },
+  "developmentReplay": {
+    "snapshotManifestPath": "replace-with-local-snapshot-manifest-path",
+    "roundTripCostRate": 0.0012
+  }
+}

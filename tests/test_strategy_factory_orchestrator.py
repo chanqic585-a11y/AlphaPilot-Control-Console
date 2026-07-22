@@ -105,6 +105,171 @@ class StrategyFactoryOrchestratorTests(unittest.TestCase):
         self.assertFalse(job["workerPolicy"]["orderAccess"])
         self.assertEqual(job["workerPolicy"]["maximumConcurrentRuns"], 1)
 
+    def test_configured_development_profile_is_frozen_into_one_click_job(self) -> None:
+        snapshot_manifest = self.root / "snapshot.json"
+        snapshot_manifest.write_text(
+            json.dumps(
+                {
+                    "snapshotId": "snapshot-fixture",
+                    "status": "verified",
+                }
+            ),
+            encoding="utf-8",
+        )
+        profile_path = self.root / "development-profile.json"
+        profile_path.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": "strategy_factory_development_profile_v1",
+                    "profileId": "development-profile-fixture",
+                    "comparisonPanel": {
+                        "developmentStart": "2021-02-01T00:00:00Z",
+                        "developmentEnd": "2025-01-01T00:00:00Z",
+                        "dataSnapshotId": "snapshot-fixture",
+                        "costPolicyHash": "cost-policy-fixture",
+                        "capitalPolicyHash": "capital-policy-fixture",
+                        "benchmarkPolicyHash": "benchmark-policy-fixture",
+                        "randomSeed": 56,
+                    },
+                    "developmentReplay": {
+                        "snapshotManifestPath": str(snapshot_manifest),
+                        "roundTripCostRate": 0.0012,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        orchestrator = StrategyFactoryOrchestrator(
+            state_path=self.root / "profile-factory.sqlite",
+            artifact_root=self.root / "profile-artifacts",
+            quant_root=self.quant_root,
+            source_registry_path=self.registry_path,
+            python_executable=self.root / "python.exe",
+            development_profile_path=profile_path,
+            launcher=lambda **_kwargs: {"pid": 4243, "started": True},
+            clock=lambda: FIXED_NOW,
+        )
+        try:
+            run = orchestrator.create_run(
+                {
+                    "operation": "generate",
+                    "timeframe": "15m",
+                    "mode": "quick",
+                    "maxCandidateCount": 2,
+                    "maxTrialBudget": 12,
+                }
+            )
+            job = json.loads(Path(run["jobJsonPath"]).read_text(encoding="utf-8"))
+
+            self.assertEqual(job["comparisonPanel"]["dataSnapshotId"], "snapshot-fixture")
+            self.assertEqual(
+                job["developmentReplay"]["snapshotManifestPath"],
+                str(snapshot_manifest),
+            )
+            self.assertEqual(
+                job["developmentProfile"]["profileId"],
+                "development-profile-fixture",
+            )
+            self.assertTrue(job["developmentProfile"]["profileHash"].startswith("strategy_factory_development_profile_"))
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "strategy_factory_development_profile_mismatch",
+            ):
+                orchestrator.create_run(
+                    {
+                        "operation": "generate",
+                        "timeframe": "15m",
+                        "mode": "quick",
+                        "maxCandidateCount": 2,
+                        "maxTrialBudget": 12,
+                        "dataSnapshotId": "different-snapshot",
+                    }
+                )
+        finally:
+            orchestrator.close()
+
+    def test_explicit_development_profile_path_must_exist(self) -> None:
+        orchestrator = StrategyFactoryOrchestrator(
+            state_path=self.root / "missing-profile-factory.sqlite",
+            artifact_root=self.root / "missing-profile-artifacts",
+            quant_root=self.quant_root,
+            source_registry_path=self.registry_path,
+            python_executable=self.root / "python.exe",
+            development_profile_path=self.root / "missing-profile.json",
+            launcher=lambda **_kwargs: {"pid": 4244, "started": True},
+            clock=lambda: FIXED_NOW,
+        )
+        try:
+            with self.assertRaises(FileNotFoundError):
+                orchestrator.create_run(
+                    {
+                        "operation": "generate",
+                        "timeframe": "15m",
+                        "mode": "quick",
+                        "maxCandidateCount": 2,
+                        "maxTrialBudget": 12,
+                    }
+                )
+        finally:
+            orchestrator.close()
+
+    def test_development_profile_snapshot_must_match_manifest(self) -> None:
+        snapshot_manifest = self.root / "mismatched-snapshot.json"
+        snapshot_manifest.write_text(
+            json.dumps({"snapshotId": "snapshot-in-manifest"}),
+            encoding="utf-8",
+        )
+        profile_path = self.root / "mismatched-development-profile.json"
+        profile_path.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": "strategy_factory_development_profile_v1",
+                    "profileId": "mismatched-profile-fixture",
+                    "comparisonPanel": {
+                        "developmentStart": "2021-02-01T00:00:00Z",
+                        "developmentEnd": "2025-01-01T00:00:00Z",
+                        "dataSnapshotId": "different-snapshot",
+                        "costPolicyHash": "cost-policy-fixture",
+                        "capitalPolicyHash": "capital-policy-fixture",
+                        "benchmarkPolicyHash": "benchmark-policy-fixture",
+                        "randomSeed": 56,
+                    },
+                    "developmentReplay": {
+                        "snapshotManifestPath": str(snapshot_manifest),
+                        "roundTripCostRate": 0.0012,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        orchestrator = StrategyFactoryOrchestrator(
+            state_path=self.root / "mismatched-profile-factory.sqlite",
+            artifact_root=self.root / "mismatched-profile-artifacts",
+            quant_root=self.quant_root,
+            source_registry_path=self.registry_path,
+            python_executable=self.root / "python.exe",
+            development_profile_path=profile_path,
+            launcher=lambda **_kwargs: {"pid": 4245, "started": True},
+            clock=lambda: FIXED_NOW,
+        )
+        try:
+            with self.assertRaisesRegex(
+                ValueError,
+                "strategy_factory_development_profile_snapshot_mismatch",
+            ):
+                orchestrator.create_run(
+                    {
+                        "operation": "generate",
+                        "timeframe": "15m",
+                        "mode": "quick",
+                        "maxCandidateCount": 2,
+                        "maxTrialBudget": 12,
+                    }
+                )
+        finally:
+            orchestrator.close()
+
     def test_research_worker_environment_strips_private_credentials(self) -> None:
         environment = build_research_worker_environment(
             {
