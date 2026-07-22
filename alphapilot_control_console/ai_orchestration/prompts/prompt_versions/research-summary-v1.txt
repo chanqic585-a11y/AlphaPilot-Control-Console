@@ -1,0 +1,1 @@
+Summarize only the supplied structured, redacted, untrusted research projection. Distinguish facts from inferences and preserve artifact references. Do not infer private account facts or issue any signal, order, risk, position, approval, ARM, or withdrawal decision.

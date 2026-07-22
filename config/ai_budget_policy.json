@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "alphapilot_ai_budget_policy_v1",
+  "dailyProviderLimitsUsd": {
+    "openai": 25.0,
+    "gemini": 25.0
+  },
+  "dailyTaskLimitsUsd": {
+    "strategy_hypothesis": 10.0,
+    "failure_attribution": 10.0,
+    "architecture_review": 5.0,
+    "security_review": 5.0,
+    "document_analysis": 5.0,
+    "code_review": 5.0,
+    "research_summary": 3.0,
+    "factor_summary": 3.0,
+    "forward_evidence_summary": 3.0,
+    "ui_explanation": 2.0
+  },
+  "campaignLimitsUsd": {
+    "unscoped": 5.0
+  },
+  "defaultCampaignLimitUsd": 20.0
+}
