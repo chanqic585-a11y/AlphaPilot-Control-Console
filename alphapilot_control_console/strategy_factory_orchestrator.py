@@ -707,11 +707,7 @@ class StrategyFactoryOrchestrator:
             "no_survivor": "failed",
             "research_zero_qualified": "failed",
         }.get(status, "system_issue" if status in {"failed", "error"} else "needs_forward_validation")
-        survivor_count = int(
-            receipt.get("releaseCount")
-            or receipt.get("eligibleCandidateCount")
-            or 0
-        )
+        survivor_count = int(receipt.get("releaseCount") or 0)
         now = _iso(self.clock())
         config = json.loads(row["configJson"])
         outcome = build_strategy_factory_outcome(
