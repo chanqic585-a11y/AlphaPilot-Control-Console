@@ -1,0 +1,77 @@
+{
+  "schemaVersion": "alphapilot_v13_27_1_62_final_self_check_v1",
+  "version": "V13.27.1.62",
+  "generatedAt": "2026-07-22T07:57:58+08:00",
+  "status": "passed_ready_for_safe_cutover",
+  "implementationCommits": {
+    "console": "960cebf",
+    "quant": "05623ff",
+    "docs": "16d1bf4"
+  },
+  "scope": {
+    "runtimeTruthProjection": true,
+    "immutableStrategyExecutionPolicy": true,
+    "accountOrderPositionPnlProjection": true,
+    "strategyFactoryControls": true,
+    "strategyFactoryOutcomeLedger": true,
+    "strategyDemoLiveMinimalUi": true,
+    "oneTimeIssueDialog": true,
+    "mobileAndDesktopEvidence": true
+  },
+  "checks": {
+    "consolePytest": "731 passed, 108 subtests passed",
+    "quantPytest": "1384 passed, 164 subtests passed",
+    "consoleCompileall": "passed",
+    "quantCompileall": "passed",
+    "quantValidateConfig": "passed",
+    "quantSafetyScript": "passed",
+    "javascriptSyntax": "passed",
+    "uiAcceptance": "passed",
+    "gitDiffCheckConsole": "passed",
+    "gitDiffCheckQuant": "passed",
+    "gitDiffCheckDocs": "passed"
+  },
+  "uiAcceptance": {
+    "desktopScreenshots": 3,
+    "mobileScreenshots": 3,
+    "horizontalOverflow": false,
+    "browserErrors": 0,
+    "writeActions": 0,
+    "productionRoutesUseReadOnlyLedgerProjection": true
+  },
+  "runningRuntime": {
+    "verifiedAt": "2026-07-22T07:57:58+08:00",
+    "pid": 14912,
+    "version": "V13.27.9",
+    "source": "unified_auto_execution_runner_v1",
+    "running": true,
+    "demoDesiredEnabled": true,
+    "demoArmedForCurrentProcess": true,
+    "demoStatus": "waiting",
+    "demoPauseReason": null,
+    "demoLastError": null,
+    "demoReleaseCount": 2,
+    "primaryReleaseId": "provisional_research_demo_top200_policy_bound_9f623ab76aafd8cc7cd4c6e6",
+    "nextEvaluationAt": "2026-07-22T00:00:00+00:00",
+    "liveDesiredEnabled": false,
+    "liveArmedForCurrentProcess": false,
+    "liveStatus": "disabled",
+    "withdrawAllowed": false,
+    "rawCredentialStorageAllowed": false
+  },
+  "cutover": {
+    "performed": false,
+    "currentDemoRuntimeRestarted": false,
+    "currentDemoRuntimeRearmed": false,
+    "approvalCreated": false,
+    "strategyOrderCreated": false,
+    "liveEnabled": false,
+    "withdrawEnabled": false,
+    "requiredCheckpoint": "zero_unknown_orders_and_zero_unreconciled_partial_fills_then_process_only_credentials_and_explicit_arm"
+  },
+  "knownIssues": [
+    "V13.27.1.62 is verified in isolated worktrees and is not deployed to the currently running Demo process.",
+    "A safe cutover must preserve the active immutable Release and requires process-only Demo credentials plus explicit ARM.",
+    "Repository-root pytest would collect independent third_party/tradingagents tests; the authoritative Quant suite is tests/ with importlib mode."
+  ]
+}

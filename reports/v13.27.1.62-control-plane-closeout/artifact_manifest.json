@@ -1,0 +1,63 @@
+{
+  "schemaVersion": "alphapilot_v13_27_1_62_artifact_manifest_v1",
+  "version": "V13.27.1.62",
+  "generatedAt": "2026-07-22T07:57:58+08:00",
+  "status": "complete",
+  "implementationCommits": {
+    "console": "960cebf",
+    "quant": "05623ff",
+    "docs": "16d1bf4"
+  },
+  "artifacts": [
+    {
+      "path": "reports/v13.27.1.62-control-plane-closeout/final_self_check.json",
+      "bytes": 2774,
+      "sha256": "f65983942b2e46384fd4b84dc6fc58479baabf6e2a31d0de2b2fa68c9018cfeb"
+    },
+    {
+      "path": "reports/v13.27.1.62-control-plane-closeout/final_self_check.md",
+      "bytes": 2278,
+      "sha256": "60482f7b4f423617fa2291577d925b7b60a07745ea5ecb73169c8160fa34427a"
+    },
+    {
+      "path": "reports/v13.27.1.62-control-plane-closeout/test_results.md",
+      "bytes": 860,
+      "sha256": "0a9bdb96de13eebebe34e6cb658187fff859d175aa0b3e175885f451ce8985ac"
+    },
+    {
+      "path": "reports/v13.27.1.62-ui-preview/ui_acceptance.json",
+      "bytes": 1763,
+      "sha256": "e48de053192e07753afb5ed863e585a1d259ce0767cc22424f877e54974ffdc0"
+    },
+    {
+      "path": "reports/v13.27.1.62-ui-preview/strategy_v2_desktop.png",
+      "bytes": 80407,
+      "sha256": "5b33e7f8a0a5acb3b19d484bc20fd9570a48a8c518e4363ce66ce17f1c31ab57"
+    },
+    {
+      "path": "reports/v13.27.1.62-ui-preview/strategy_v2_mobile_390.png",
+      "bytes": 75977,
+      "sha256": "6a93f87907cdec1642da8b76da35c2db80bb2644efa6b776596164ac2f644b4e"
+    },
+    {
+      "path": "reports/v13.27.1.62-ui-preview/demo_v2_desktop.png",
+      "bytes": 71053,
+      "sha256": "dd3eb81e207c24824499183c2ea4bbc0868b019c1d867436f691c84526f6aac6"
+    },
+    {
+      "path": "reports/v13.27.1.62-ui-preview/demo_v2_mobile_390.png",
+      "bytes": 67137,
+      "sha256": "025eb94e12ec866108c0a69e3be94e44e8fa08180f37af42663ffb657e80832f"
+    },
+    {
+      "path": "reports/v13.27.1.62-ui-preview/live_v2_desktop.png",
+      "bytes": 70013,
+      "sha256": "1fdbab4781bb987086630669dcc95b5f322a279713dab4cefc17c27d020139aa"
+    },
+    {
+      "path": "reports/v13.27.1.62-ui-preview/live_v2_mobile_390.png",
+      "bytes": 58690,
+      "sha256": "2b41e93265fe2140f59884240d211b7c6e65c4fd4fcb7e3b55a6cefa9dc59f68"
+    }
+  ]
+}
