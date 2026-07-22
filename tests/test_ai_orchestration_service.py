@@ -94,9 +94,16 @@ def _strategy_output(*, mechanism: str = "liquidity_recovery") -> dict:
 
 
 class FakeAdapter:
-    def __init__(self, provider: str, output: dict) -> None:
+    def __init__(
+        self,
+        provider: str,
+        output: dict,
+        *,
+        reasoning_content: str = "",
+    ) -> None:
         self.provider = provider
         self.output = output
+        self.reasoning_content = reasoning_content
         self.calls: list[tuple] = []
 
     def generate(self, identity, request):
@@ -110,6 +117,7 @@ class FakeAdapter:
             usage=AIUsage(input_tokens=10, output_tokens=5, total_tokens=15),
             latency_ms=12,
             provider_request_id=f"{self.provider}-response",
+            reasoning_content=self.reasoning_content,
         )
 
 
@@ -204,6 +212,49 @@ class AIOrchestrationServiceTests(unittest.TestCase):
         self.assertEqual(projection["eventCount"], 1)
         self.assertTrue(projection["events"][0]["promptContentHash"].startswith("sha256:"))
         self.assertNotIn("redacted evidence", repr(projection))
+
+    def test_reasoning_is_returned_but_only_hashes_are_persisted(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            registry = AIModelRegistry.from_mapping(REGISTRY)
+            primary_reasoning = "private primary reasoning must remain in process"
+            reviewer_reasoning = "private reviewer reasoning must remain in process"
+            openai = FakeAdapter(
+                "openai",
+                _strategy_output(),
+                reasoning_content=primary_reasoning,
+            )
+            gemini = FakeAdapter(
+                "gemini",
+                _strategy_output(),
+                reasoning_content=reviewer_reasoning,
+            )
+            ledger_path = Path(directory) / "ai-audit.sqlite"
+            ledger = AIAuditLedger(ledger_path)
+            service = AIOrchestrationService(
+                model_registry=registry,
+                prompt_registry=self._prompt_registry(directory),
+                adapters={"openai": openai, "gemini": gemini},
+                audit_ledger=ledger,
+            )
+            try:
+                result = service.execute(_request())
+                projection = ledger.projection()
+            finally:
+                ledger.close()
+
+            persisted = ledger_path.read_bytes()
+
+        self.assertEqual(
+            result.reasoning_contents,
+            (primary_reasoning, reviewer_reasoning),
+        )
+        hashes = projection["events"][0]["reasoningContentHashes"]
+        self.assertEqual(len(hashes), 2)
+        self.assertTrue(all(value.startswith("sha256:") for value in hashes))
+        self.assertNotIn(primary_reasoning, repr(projection))
+        self.assertNotIn(reviewer_reasoning, repr(projection))
+        self.assertNotIn(primary_reasoning.encode("utf-8"), persisted)
+        self.assertNotIn(reviewer_reasoning.encode("utf-8"), persisted)
 
     def test_critical_dual_review_disagreement_requires_human_review(self) -> None:
         with tempfile.TemporaryDirectory() as directory, patch.dict(

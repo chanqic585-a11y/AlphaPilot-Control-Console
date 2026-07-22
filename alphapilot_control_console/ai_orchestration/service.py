@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from typing import Mapping, Protocol
 
@@ -177,6 +178,16 @@ class AIOrchestrationService:
             disagreements=disagreements,
             execution_authorized=False,
             route_mode=route.mode,
+            reasoning_contents=tuple(
+                item.reasoning_content
+                for item in responses
+                if item.reasoning_content
+            ),
+            tool_calls=tuple(
+                tool_call
+                for item in responses
+                for tool_call in item.tool_calls
+            ),
         )
 
     def _execute_single_route(
@@ -306,6 +317,12 @@ class AIOrchestrationService:
                 "routeMode": route_mode,
                 "inputHash": prepared.input_hash,
                 "responseHashes": [item.output_hash for item in validated],
+                "reasoningContentHashes": [
+                    "sha256:"
+                    + hashlib.sha256(item.reasoning_content.encode("utf-8")).hexdigest()
+                    for item in responses
+                    if item.reasoning_content
+                ],
                 "providers": [item.provider for item in responses],
                 "modelAliases": [item.model_alias for item in responses],
                 "registryHash": self._model_registry.registry_hash,

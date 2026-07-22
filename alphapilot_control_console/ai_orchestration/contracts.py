@@ -86,6 +86,13 @@ class PreparedAIRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class AIProviderToolCall:
+    call_id: str
+    name: str
+    arguments: Mapping[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
 class AIResponse:
     request_id: str
     provider: str
@@ -95,6 +102,8 @@ class AIResponse:
     usage: AIUsage
     latency_ms: int
     provider_request_id: str = ""
+    reasoning_content: str = ""
+    tool_calls: tuple[AIProviderToolCall, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,3 +124,5 @@ class OrchestrationResult:
     disagreements: tuple[str, ...] = ()
     execution_authorized: bool = False
     route_mode: str = "single"
+    reasoning_contents: tuple[str, ...] = ()
+    tool_calls: tuple[AIProviderToolCall, ...] = ()
