@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "alphapilot_prompt_registry_v1",
+  "prompts": {
+    "strategy-hypothesis-v1": {
+      "taskTypes": ["strategy_hypothesis"],
+      "path": "prompts/strategy-hypothesis-v1.txt",
+      "enabled": true
+    },
+    "failure-attribution-v1": {
+      "taskTypes": ["failure_attribution"],
+      "path": "prompts/failure-attribution-v1.txt",
+      "enabled": true
+    },
+    "research-review-v1": {
+      "taskTypes": ["architecture_review", "security_review", "document_analysis", "code_review"],
+      "path": "prompts/research-review-v1.txt",
+      "enabled": true
+    },
+    "research-summary-v1": {
+      "taskTypes": ["research_summary", "factor_summary", "forward_evidence_summary", "ui_explanation"],
+      "path": "prompts/research-summary-v1.txt",
+      "enabled": true
+    },
+    "historical-batch-v1": {
+      "taskTypes": ["historical_batch"],
+      "path": "prompts/historical-batch-v1.txt",
+      "enabled": true
+    }
+  }
+}
