@@ -16,4 +16,5 @@ data/demo_release_contract_archive/
 data/demo_release_contracts/
 data/ops/
 data/workflow_jobs/
+data/strategy_factory/
 data/v54_v60/control/*.sqlite

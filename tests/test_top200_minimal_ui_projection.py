@@ -229,6 +229,76 @@ class Top200MinimalUiProjectionTests(unittest.TestCase):
         self.assertEqual(summary["researchRunId"], created["runId"])
         self.assertEqual(summary["status"], "queued")
 
+    def test_research_factory_run_refreshes_finished_worker_receipt(self) -> None:
+        quant_root = self.root / "quant-refresh"
+        registry_path = quant_root / "research/source_registry/strategy_research_source_registry.json"
+        registry_path.parent.mkdir(parents=True)
+        registry_path.write_text(
+            json.dumps(
+                {
+                    "families": [
+                        {
+                            "familyId": "family-a",
+                            "variants": [{"candidateId": "candidate-a"}],
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        state_path = self.root / "factory-refresh.sqlite"
+        artifact_root = self.root / "factory-refresh-runs"
+        factory = StrategyFactoryOrchestrator(
+            state_path=state_path,
+            artifact_root=artifact_root,
+            quant_root=quant_root,
+            source_registry_path=registry_path,
+            launcher=lambda **_kwargs: {"pid": 1, "started": True},
+        )
+        created = factory.create_run(
+            {
+                "operation": "generate",
+                "timeframe": "15m",
+                "mode": "quick",
+                "maxCandidateCount": 1,
+                "maxTrialBudget": 4,
+            }
+        )
+        factory.start_run(created["runId"])
+        receipt_path = Path(created["jobJsonPath"]).parent / "state/research_cycle_receipts.jsonl"
+        receipt_path.parent.mkdir(parents=True, exist_ok=True)
+        receipt_path.write_text(
+            json.dumps(
+                {
+                    "status": "research_blocked_data",
+                    "campaignId": created["campaignId"],
+                    "candidateCount": 1,
+                    "eligibleCandidateCount": 0,
+                    "releaseCount": 0,
+                    "approvalCount": 0,
+                    "demoArm": False,
+                    "orderCount": 0,
+                    "receiptHash": "projection-refresh-receipt",
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        factory.close()
+
+        projection = Top200MinimalUiProjection(
+            self.root,
+            strategy_factory_state_path=state_path,
+            strategy_factory_artifact_root=artifact_root,
+            strategy_factory_quant_root=quant_root,
+        )
+
+        refreshed = projection.research_factory_run(created["runId"])
+
+        self.assertEqual(refreshed["status"], "completed")
+        self.assertEqual(refreshed["progressPercent"], 100)
+        self.assertEqual(refreshed["resultClass"], "data_insufficient")
+
     def test_strategy_projection_includes_factory_reviews_and_archived_failures(self) -> None:
         quant_root = self.root / "quant-outcomes"
         registry_path = quant_root / "research/source_registry/strategy_research_source_registry.json"
