@@ -267,11 +267,9 @@ class AIOrchestrationService:
 
     @staticmethod
     def _enforce_budget(request: AIRequest, responses: list[AIResponse]) -> None:
-        total_tokens = sum(item.usage.total_tokens for item in responses)
         total_cost = sum(item.usage.estimated_cost_usd for item in responses)
-        provider_count = max(1, len(responses))
-        if total_tokens > request.token_ceiling * provider_count:
-            raise BudgetExceededError("AI token ceiling exceeded")
+        if any(item.usage.output_tokens > request.token_ceiling for item in responses):
+            raise BudgetExceededError("AI output token ceiling exceeded")
         if total_cost > request.cost_ceiling_usd:
             raise BudgetExceededError("AI cost ceiling exceeded")
 

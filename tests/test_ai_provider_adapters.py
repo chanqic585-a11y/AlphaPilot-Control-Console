@@ -229,7 +229,11 @@ class ProviderAdapterTests(unittest.TestCase):
                         "content": [{"type": "text", "text": json.dumps({"summary": "ok"})}],
                     }
                 ],
-                "usage": {"input_tokens": 10, "output_tokens": 3, "total_tokens": 13},
+                "usage": {
+                    "total_input_tokens": 10,
+                    "total_output_tokens": 3,
+                    "total_tokens": 13,
+                },
             }
         )
         adapter = GeminiAdapter(transport=transport, api_key="process-only")
@@ -246,13 +250,16 @@ class ProviderAdapterTests(unittest.TestCase):
         )
 
         call = transport.calls[0]
-        self.assertTrue(str(call["url"]).endswith("/v1beta2/interactions"))
+        self.assertTrue(str(call["url"]).endswith("/v1beta/interactions"))
         self.assertEqual(call["headers"]["x-goog-api-key"], "process-only")
+        self.assertEqual(call["headers"]["Api-Revision"], "2026-05-20")
         self.assertFalse(call["json_body"]["store"])
         self.assertFalse(call["json_body"]["background"])
         self.assertEqual(call["json_body"]["model"], "configured-gemini")
-        self.assertEqual(call["json_body"]["response_format"][0]["mime_type"], "application/json")
+        self.assertEqual(call["json_body"]["response_format"]["mime_type"], "application/json")
         self.assertEqual(response.output, {"summary": "ok"})
+        self.assertEqual(response.usage.input_tokens, 10)
+        self.assertEqual(response.usage.output_tokens, 3)
         self.assertEqual(response.usage.total_tokens, 13)
         self.assertEqual(response.usage.estimated_cost_usd, 0.0000375)
 

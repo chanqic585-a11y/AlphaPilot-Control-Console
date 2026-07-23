@@ -390,6 +390,71 @@ class AIOrchestrationServiceTests(unittest.TestCase):
         self.assertEqual(deepseek.calls, [])
         self.assertEqual(gemini.calls, [])
 
+    def test_response_budget_treats_token_ceiling_as_output_only(self) -> None:
+        request = _request()
+        request = AIRequest(
+            request_id=request.request_id,
+            task_type=request.task_type,
+            payload=request.payload,
+            response_schema=request.response_schema,
+            sensitivity=request.sensitivity,
+            prompt_version=request.prompt_version,
+            artifact_hashes=request.artifact_hashes,
+            dual_review=False,
+            token_ceiling=512,
+            cost_ceiling_usd=request.cost_ceiling_usd,
+        )
+        response = AIResponse(
+            request_id=request.request_id,
+            provider="deepseek",
+            model_alias="deepseek_fast",
+            model_id="deepseek-v4-flash",
+            output=_strategy_output(),
+            usage=AIUsage(
+                input_tokens=900,
+                output_tokens=120,
+                total_tokens=1020,
+                estimated_cost_usd=0.01,
+            ),
+            latency_ms=10,
+            provider_request_id="response-1",
+        )
+
+        AIOrchestrationService._enforce_budget(request, [response])
+
+    def test_response_budget_rejects_output_above_token_ceiling(self) -> None:
+        request = _request()
+        request = AIRequest(
+            request_id=request.request_id,
+            task_type=request.task_type,
+            payload=request.payload,
+            response_schema=request.response_schema,
+            sensitivity=request.sensitivity,
+            prompt_version=request.prompt_version,
+            artifact_hashes=request.artifact_hashes,
+            dual_review=False,
+            token_ceiling=512,
+            cost_ceiling_usd=request.cost_ceiling_usd,
+        )
+        response = AIResponse(
+            request_id=request.request_id,
+            provider="deepseek",
+            model_alias="deepseek_fast",
+            model_id="deepseek-v4-flash",
+            output=_strategy_output(),
+            usage=AIUsage(
+                input_tokens=10,
+                output_tokens=513,
+                total_tokens=523,
+                estimated_cost_usd=0.01,
+            ),
+            latency_ms=10,
+            provider_request_id="response-1",
+        )
+
+        with self.assertRaisesRegex(BudgetExceededError, "output token"):
+            AIOrchestrationService._enforce_budget(request, [response])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -47,8 +47,11 @@ class GeminiAdapter:
         started = time.perf_counter()
         payload = self._transport.request(
             method="POST",
-            url=f"{self._base_url}/v1beta2/interactions",
-            headers={"x-goog-api-key": self._credential()},
+            url=f"{self._base_url}/v1beta/interactions",
+            headers={
+                "x-goog-api-key": self._credential(),
+                "Api-Revision": "2026-05-20",
+            },
             json_body=body,
             timeout_seconds=self._timeout_seconds,
         )
@@ -98,13 +101,11 @@ def build_gemini_interaction_body(identity: ModelIdentity, request: AIRequest) -
         "store": False,
         "background": False,
         "generation_config": {"max_output_tokens": request.token_ceiling},
-        "response_format": [
-            {
-                "type": "text",
-                "mime_type": "application/json",
-                "schema": request.response_schema,
-            }
-        ],
+        "response_format": {
+            "type": "text",
+            "mime_type": "application/json",
+            "schema": request.response_schema,
+        },
     }
 
 
