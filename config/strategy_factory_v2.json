@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "strategy_factory_v2_runtime_policy_v1",
+  "continuousResearch": {
+    "enabled": false,
+    "closureReceiptPath": null,
+    "reason": "Disabled until Strategy Factory 2.0 has an accepted real-trial closure receipt."
+  },
+  "automaticPromotionAllowed": false,
+  "automaticApprovalAllowed": false,
+  "automaticArmAllowed": false,
+  "lockedOosTuningAllowed": false,
+  "oneVariableAtATime": true
+}

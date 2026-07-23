@@ -22,8 +22,12 @@
 
   async function fetchJson(path, options = {}) {
     const request = { cache: "no-store", ...options };
-    if (request.body && !request.headers) {
-      request.headers = { "Content-Type": "application/json" };
+    if (String(request.method || "GET").toUpperCase() !== "GET") {
+      request.headers = await window.AlphaPilotOperatorWrite.headersFor(
+        request.method || "POST",
+        path,
+        request.headers || {},
+      );
     }
     const response = await fetch(path, request);
     const payload = await response.json();

@@ -4,6 +4,7 @@ import hashlib
 import json
 import tempfile
 import unittest
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -14,6 +15,7 @@ from alphapilot_control_console.live_auto_execution_service import (
 )
 from alphapilot_control_console.execution_runtime_lease import ExecutionRuntimeLeaseStore
 from alphapilot_control_console.live_execution_store import LiveExecutionStore
+from alphapilot_control_console.runtime_identity import RuntimeIdentity
 
 
 def canonical(value: object) -> str:
@@ -76,6 +78,30 @@ def release_export(*, include_strategy: bool = True) -> dict:
         "status": "live_canary_approved",
         "release": release,
     }
+
+
+def runtime_identity_factory(export: dict, active_profile: dict, claim: object) -> RuntimeIdentity:
+    now = datetime.now(UTC)
+    return RuntimeIdentity(
+        runtimeId="test-live-runtime",
+        environment="okx_live",
+        processId=1,
+        repositoryCommit="a" * 40,
+        repositoryTag="v-test",
+        moduleRootHashes={"execution": "b" * 64},
+        releaseId=str(export["liveReleaseId"]),
+        releaseHash=str(export["liveReleaseHash"]),
+        riskOverlayHash=str(active_profile["contentHash"]),
+        modelHash="c" * 64,
+        modelPolicyHash="d" * 64,
+        approvalHash="e" * 64,
+        armHash="f" * 64,
+        runtimeLeaseId=str(getattr(claim, "ownerId", "test-lease")),
+        startedAt=(now - timedelta(seconds=2)).isoformat(),
+        lastHeartbeatAt=(now - timedelta(seconds=1)).isoformat(),
+        lastScanAt=now.isoformat(),
+        nextScanAt=(now + timedelta(hours=1)).isoformat(),
+    )
 
 
 class FakeLiveClient:
@@ -235,12 +261,14 @@ class LiveAutoExecutionServiceTests(unittest.TestCase):
                 client=client,
                 store_path=self.store_path,
                 environment=self.environment,
+                runtime_identity_factory=runtime_identity_factory,
             )
             second = run_live_auto_execution_batch(
                 ["release-1"],
                 client=client,
                 store_path=self.store_path,
                 environment=self.environment,
+                runtime_identity_factory=runtime_identity_factory,
             )
 
         self.assertTrue(first["ok"])

@@ -4,26 +4,80 @@ import os
 import unittest
 from unittest.mock import patch
 
-from alphapilot_control_console.http_write_security import evaluate_http_write
+from alphapilot_control_console.http_write_security import (
+    build_operator_write_headers,
+    ensure_http_write_security_environment,
+    evaluate_http_write,
+    expected_route_confirmation,
+)
 
 
 class HttpWriteSecurityTests(unittest.TestCase):
-    def test_loopback_write_is_allowed_without_remote_secrets(self) -> None:
-        decision = evaluate_http_write(
-            client_host="127.0.0.1",
-            path="/api/research-factory/runs",
-            headers={},
-        )
+    def test_loopback_write_requires_operator_session_controls(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            decision = evaluate_http_write(
+                client_host="127.0.0.1",
+                method="POST",
+                path="/api/research-factory/runs",
+                headers={"Content-Type": "application/json"},
+            )
+
+        self.assertFalse(decision.allowed)
+        self.assertEqual(decision.reason, "write_security_not_configured")
+
+    def test_loopback_operator_session_is_ephemeral_and_route_specific(self) -> None:
+        origin = "http://127.0.0.1:8766"
+        path = "/api/research-factory/runs"
+        with patch.dict(os.environ, {}, clear=True):
+            session = ensure_http_write_security_environment(origins=[origin])
+            headers = build_operator_write_headers(
+                method="POST",
+                path=path,
+                origin=origin,
+            )
+            decision = evaluate_http_write(
+                client_host="127.0.0.1",
+                method="POST",
+                path=path,
+                headers=headers,
+            )
 
         self.assertTrue(decision.allowed)
-        self.assertEqual(decision.mode, "loopback")
+        self.assertEqual(decision.mode, "authenticated_loopback")
+        self.assertFalse(session["persisted"])
+        self.assertEqual(
+            headers["X-AlphaPilot-Confirmation"],
+            expected_route_confirmation("POST", path),
+        )
+
+    def test_write_rejects_non_json_content_type(self) -> None:
+        origin = "http://127.0.0.1:8766"
+        path = "/api/research-factory/runs"
+        with patch.dict(os.environ, {}, clear=True):
+            ensure_http_write_security_environment(origins=[origin])
+            headers = build_operator_write_headers(
+                method="POST",
+                path=path,
+                origin=origin,
+            )
+            headers["Content-Type"] = "text/plain"
+            decision = evaluate_http_write(
+                client_host="127.0.0.1",
+                method="POST",
+                path=path,
+                headers=headers,
+            )
+
+        self.assertFalse(decision.allowed)
+        self.assertEqual(decision.reason, "application_json_required")
 
     def test_remote_write_is_read_only_by_default(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
             decision = evaluate_http_write(
                 client_host="192.168.1.10",
+                method="POST",
                 path="/api/research-factory/runs",
-                headers={},
+                headers={"Content-Type": "application/json"},
             )
 
         self.assertFalse(decision.allowed)
@@ -34,19 +88,21 @@ class HttpWriteSecurityTests(unittest.TestCase):
             "ALPHAPILOT_HTTP_WRITE_TOKEN": "write-token",
             "ALPHAPILOT_HTTP_CSRF_TOKEN": "csrf-token",
             "ALPHAPILOT_HTTP_ALLOWED_ORIGINS": "https://console.example",
-            "ALPHAPILOT_HTTP_EXACT_CONFIRMATION": "CONFIRM_REMOTE_WRITE",
         }
+        path = "/api/research-factory/runs"
         headers = {
             "X-AlphaPilot-Write-Token": "write-token",
             "X-AlphaPilot-CSRF": "csrf-token",
             "Origin": "https://console.example",
-            "X-AlphaPilot-Confirmation": "CONFIRM_REMOTE_WRITE",
+            "Content-Type": "application/json",
+            "X-AlphaPilot-Confirmation": expected_route_confirmation("POST", path),
         }
 
         with patch.dict(os.environ, environment, clear=True):
             decision = evaluate_http_write(
                 client_host="192.168.1.10",
-                path="/api/research-factory/runs",
+                method="POST",
+                path=path,
                 headers=headers,
             )
 
@@ -58,13 +114,14 @@ class HttpWriteSecurityTests(unittest.TestCase):
             "ALPHAPILOT_HTTP_WRITE_TOKEN": "write-token",
             "ALPHAPILOT_HTTP_CSRF_TOKEN": "csrf-token",
             "ALPHAPILOT_HTTP_ALLOWED_ORIGINS": "https://console.example",
-            "ALPHAPILOT_HTTP_EXACT_CONFIRMATION": "CONFIRM_REMOTE_WRITE",
         }
+        path = "/api/research-factory/runs"
         valid = {
             "X-AlphaPilot-Write-Token": "write-token",
             "X-AlphaPilot-CSRF": "csrf-token",
             "Origin": "https://console.example",
-            "X-AlphaPilot-Confirmation": "CONFIRM_REMOTE_WRITE",
+            "Content-Type": "application/json",
+            "X-AlphaPilot-Confirmation": expected_route_confirmation("POST", path),
         }
         cases = (
             ("X-AlphaPilot-Write-Token", "wrong", "write_token_mismatch"),
@@ -79,7 +136,8 @@ class HttpWriteSecurityTests(unittest.TestCase):
                 with self.subTest(key=key):
                     decision = evaluate_http_write(
                         client_host="192.168.1.10",
-                        path="/api/research-factory/runs",
+                        method="POST",
+                        path=path,
                         headers=headers,
                     )
                     self.assertFalse(decision.allowed)
@@ -90,19 +148,21 @@ class HttpWriteSecurityTests(unittest.TestCase):
             "ALPHAPILOT_HTTP_WRITE_TOKEN": "write-token",
             "ALPHAPILOT_HTTP_CSRF_TOKEN": "csrf-token",
             "ALPHAPILOT_HTTP_ALLOWED_ORIGINS": "https://console.example",
-            "ALPHAPILOT_HTTP_EXACT_CONFIRMATION": "CONFIRM_REMOTE_WRITE",
         }
+        path = "/api/research-factory/runs"
         headers = {
             "X-AlphaPilot-Write-Token": "wrong-secret-value",
             "X-AlphaPilot-CSRF": "csrf-token",
             "Origin": "https://console.example",
-            "X-AlphaPilot-Confirmation": "CONFIRM_REMOTE_WRITE",
+            "Content-Type": "application/json",
+            "X-AlphaPilot-Confirmation": expected_route_confirmation("POST", path),
         }
 
         with patch.dict(os.environ, environment, clear=True):
             decision = evaluate_http_write(
                 client_host="192.168.1.10",
-                path="/api/research-factory/runs",
+                method="POST",
+                path=path,
                 headers=headers,
             )
 

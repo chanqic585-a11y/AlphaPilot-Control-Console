@@ -9,6 +9,7 @@ from urllib.request import Request, urlopen
 from unittest.mock import MagicMock, patch
 
 from alphapilot_control_console.http_app import ConsoleHandler
+from tests.http_write_test_client import secure_json_request
 
 
 class DemoEngineeringSmokeHttpTests(unittest.TestCase):
@@ -25,12 +26,7 @@ class DemoEngineeringSmokeHttpTests(unittest.TestCase):
         self.thread.join(timeout=2)
 
     def post(self, path: str, payload: dict | None = None):
-        request = Request(
-            self.base_url + path,
-            data=json.dumps(payload or {}).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
+        request = secure_json_request(self.base_url, path, payload)
         return urlopen(request, timeout=2)
 
     def test_status_is_compact_and_non_qualifying(self) -> None:

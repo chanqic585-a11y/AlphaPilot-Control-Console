@@ -14,13 +14,14 @@ from .strategy_factory_orchestrator import (
     TERMINAL_STATUSES,
     build_strategy_factory_orchestrator,
 )
+from .strategy_factory_v2.policy import require_continuous_research_enable
 
 
 DEFAULT_STATE_PATH = (
     DATA_DIR / "strategy_factory" / "continuous_research.json"
 )
 CONTINUOUS_STATE_SCHEMA = "strategy_factory_continuous_research_v1"
-COMPLETION_STATUSES = TERMINAL_STATUSES | {"awaiting_formal_validation"}
+COMPLETION_STATUSES = TERMINAL_STATUSES
 DEFAULT_RESEARCH_CYCLE = (
     {"operation": "generate", "timeframe": "5m"},
     {"operation": "generate", "timeframe": "15m"},
@@ -57,6 +58,7 @@ class StrategyFactoryContinuousRunner:
         factory_builder: Callable[[], Any] = build_strategy_factory_orchestrator,
         cycle: tuple[dict[str, str], ...] = DEFAULT_RESEARCH_CYCLE,
         poll_interval_seconds: float = 5.0,
+        enable_guard: Callable[[], None] | None = None,
     ) -> None:
         if not cycle:
             raise ValueError("strategy_factory_continuous_cycle_empty")
@@ -64,6 +66,7 @@ class StrategyFactoryContinuousRunner:
         self.factory_builder = factory_builder
         self.cycle = tuple(dict(item) for item in cycle)
         self.poll_interval_seconds = max(0.1, float(poll_interval_seconds))
+        self.enable_guard = enable_guard
         self._lock = threading.RLock()
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
@@ -108,6 +111,8 @@ class StrategyFactoryContinuousRunner:
 
     def enable(self) -> dict[str, Any]:
         with self._lock:
+            if self.enable_guard is not None:
+                self.enable_guard()
             state = self._read_state()
             state.update({"enabled": True, "phase": "ready", "lastError": None})
             return self._save_state(state)
@@ -265,7 +270,9 @@ def get_strategy_factory_continuous_runner() -> StrategyFactoryContinuousRunner:
     global _RUNNER
     with _RUNNER_LOCK:
         if _RUNNER is None:
-            _RUNNER = StrategyFactoryContinuousRunner()
+            _RUNNER = StrategyFactoryContinuousRunner(
+                enable_guard=require_continuous_research_enable
+            )
         return _RUNNER
 
 

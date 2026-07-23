@@ -167,6 +167,8 @@ def evaluate_portfolio_risk(
         reasons.append("market_data_stale")
     if portfolio.get("liquidityPassed") is not True:
         reasons.append("liquidity_gate_failed")
+    if portfolio.get("actualOpenRiskVerified") is False:
+        reasons.append("actual_open_risk_unverified")
     return PortfolioRiskDecision(
         passed=not reasons,
         reasonCodes=tuple(dict.fromkeys(reasons)),

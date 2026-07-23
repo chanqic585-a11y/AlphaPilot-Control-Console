@@ -36,9 +36,10 @@
   }
 
   async function postJson(path, payload) {
+    const headers = await window.AlphaPilotOperatorWrite.headersFor("POST", path, { Accept: "application/json" });
     const response = await fetch(path, {
       method: "POST",
-      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify(payload),
     });
     const result = await response.json().catch(() => ({}));

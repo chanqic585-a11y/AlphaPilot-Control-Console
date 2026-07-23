@@ -23,21 +23,26 @@ def validate_point_in_time(
     *,
     source_timestamp: Any,
     available_at: Any,
+    observed_at: Any,
     decision_at: Any,
     order_send_at: Any | None = None,
 ) -> dict[str, Any]:
     source = _parse(source_timestamp, "sourceTimestamp")
     available = _parse(available_at, "availableAt")
+    observed = _parse(observed_at, "observedAt")
     decision = _parse(decision_at, "decisionAt")
-    ordered = [source, available, decision]
-    labels = ["sourceTimestamp", "availableAt", "decisionAt"]
+    ordered = [source, available, observed, decision]
+    labels = ["sourceTimestamp", "availableAt", "observedAt", "decisionAt"]
     if order_send_at is not None:
         ordered.append(_parse(order_send_at, "orderSendAt"))
         labels.append("orderSendAt")
     if any(left > right for left, right in zip(ordered, ordered[1:])):
-        raise ValueError("Point-in-time ordering must satisfy sourceTimestamp <= availableAt <= decisionAt <= orderSendAt")
+        raise ValueError(
+            "Point-in-time ordering must satisfy sourceTimestamp <= availableAt "
+            "<= observedAt <= decisionAt <= orderSendAt"
+        )
     return {
-        "schemaVersion": "point_in_time_contract_v1",
+        "schemaVersion": "point_in_time_contract_v2",
         "passed": True,
         "ordering": labels,
         "timestamps": {

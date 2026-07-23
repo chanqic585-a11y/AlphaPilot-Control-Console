@@ -384,9 +384,10 @@ async function loadJsonMap(requests, concurrency = 4) {
 }
 
 async function postJson(url, payload) {
+  const headers = await window.AlphaPilotOperatorWrite.headersFor("POST", url);
   const response = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(payload),
   });
   const responsePayload = await response.json().catch(() => ({}));

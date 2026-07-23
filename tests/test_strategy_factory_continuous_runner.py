@@ -83,7 +83,7 @@ class StrategyFactoryContinuousRunnerTests(unittest.TestCase):
         first = self.runner.run_once()
         self.factory.runs[first["currentRunId"]].update(
             {
-                "status": "awaiting_formal_validation",
+                "status": "completed",
                 "resultClass": "needs_forward_validation",
             }
         )
@@ -94,6 +94,40 @@ class StrategyFactoryContinuousRunnerTests(unittest.TestCase):
         self.assertEqual(self.factory.created_payloads[1]["timeframe"], "15m")
         self.assertEqual(next_status["lastResultClass"], "needs_forward_validation")
         self.assertEqual(next_status["completedRunCount"], 1)
+
+    def test_runner_does_not_treat_awaiting_formal_validation_as_complete(self) -> None:
+        self.runner.enable()
+        first = self.runner.run_once()
+        self.factory.runs[first["currentRunId"]].update(
+            {
+                "status": "awaiting_formal_validation",
+                "resultClass": "needs_forward_validation",
+            }
+        )
+
+        status = self.runner.run_once()
+
+        self.assertEqual(status["phase"], "waiting_current_run")
+        self.assertEqual(status["currentRunId"], first["currentRunId"])
+        self.assertEqual(status["completedRunCount"], 0)
+        self.assertEqual(len(self.factory.created_payloads), 1)
+
+    def test_enable_guard_blocks_continuous_research_before_real_closure(self) -> None:
+        guarded = StrategyFactoryContinuousRunner(
+            state_path=self.root / "guarded_continuous_research.json",
+            factory_builder=lambda: self.factory,
+            cycle=DEFAULT_RESEARCH_CYCLE,
+            enable_guard=lambda: (_ for _ in ()).throw(
+                ValueError("continuous_research_real_trial_closure_required")
+            ),
+        )
+
+        with self.assertRaisesRegex(
+            ValueError, "continuous_research_real_trial_closure_required"
+        ):
+            guarded.enable()
+
+        self.assertFalse(guarded.status()["enabled"])
 
     def test_runner_waits_for_existing_manual_run(self) -> None:
         self.factory.runs["manual-run"] = {

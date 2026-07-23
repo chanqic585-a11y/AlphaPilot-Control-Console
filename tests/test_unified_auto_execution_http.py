@@ -9,6 +9,7 @@ from urllib.request import Request, urlopen
 from unittest.mock import patch
 
 from alphapilot_control_console.http_app import ConsoleHandler
+from tests.http_write_test_client import secure_json_request
 
 
 class UnifiedAutoExecutionHttpTests(unittest.TestCase):
@@ -36,11 +37,10 @@ class UnifiedAutoExecutionHttpTests(unittest.TestCase):
         ) as action:
             with urlopen(self.base_url + "/api/auto-execution/runtime", timeout=2) as response:
                 get_payload = json.loads(response.read().decode("utf-8"))
-            request = Request(
-                self.base_url + "/api/auto-execution/action",
-                data=json.dumps({"environment": "okx_demo", "action": "start"}).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
-                method="POST",
+            request = secure_json_request(
+                self.base_url,
+                "/api/auto-execution/action",
+                {"environment": "okx_demo", "action": "start"},
             )
             with urlopen(request, timeout=2) as response:
                 post_payload = json.loads(response.read().decode("utf-8"))
@@ -77,11 +77,10 @@ class UnifiedAutoExecutionHttpTests(unittest.TestCase):
             "alphapilot_control_console.http_app.run_unified_auto_execution_action",
             return_value=automatic,
         ) as action:
-            request = Request(
-                self.base_url + "/api/live-canary/arm",
-                data=json.dumps({"confirmation": "ARM_OKX_LIVE_CANARY", "actor": "user_manual"}).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
-                method="POST",
+            request = secure_json_request(
+                self.base_url,
+                "/api/live-canary/arm",
+                {"confirmation": "ARM_OKX_LIVE_CANARY", "actor": "user_manual"},
             )
             with urlopen(request, timeout=2) as response:
                 payload = json.loads(response.read().decode("utf-8"))
@@ -149,19 +148,17 @@ class UnifiedAutoExecutionHttpTests(unittest.TestCase):
             "alphapilot_control_console.http_app.append_audit",
             side_effect=lambda event, payload: audit_events.append((event, payload)) or {},
         ):
-            rejected = Request(
-                self.base_url + "/api/local-control/delete-okx-demo-credential-vault",
-                data=json.dumps({"confirmation": "wrong"}).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
-                method="POST",
+            rejected = secure_json_request(
+                self.base_url,
+                "/api/local-control/delete-okx-demo-credential-vault",
+                {"confirmation": "wrong"},
             )
             with self.assertRaises(HTTPError) as raised:
                 urlopen(rejected, timeout=2)
-            accepted = Request(
-                self.base_url + "/api/local-control/delete-okx-demo-credential-vault",
-                data=json.dumps({"confirmation": "DELETE_OKX_DEMO_CREDENTIAL"}).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
-                method="POST",
+            accepted = secure_json_request(
+                self.base_url,
+                "/api/local-control/delete-okx-demo-credential-vault",
+                {"confirmation": "DELETE_OKX_DEMO_CREDENTIAL"},
             )
             with urlopen(accepted, timeout=2) as response:
                 payload = json.loads(response.read().decode("utf-8"))
@@ -170,8 +167,9 @@ class UnifiedAutoExecutionHttpTests(unittest.TestCase):
         delete.assert_called_once_with()
         self.assertEqual(payload["status"], "deleted")
         self.assertFalse(payload["metadata"]["stored"])
-        self.assertEqual(audit_events[0][0], "demo_vault_deleted")
-        self.assertNotIn("credential", json.dumps(audit_events[0][1]).lower())
+        deleted_events = [payload for event, payload in audit_events if event == "demo_vault_deleted"]
+        self.assertEqual(len(deleted_events), 1)
+        self.assertNotIn("credential", json.dumps(deleted_events[0]).lower())
 
     def test_demo_vault_delete_rejects_non_loopback_client(self) -> None:
         request = Request(

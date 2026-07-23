@@ -79,6 +79,35 @@ class PortfolioRiskTests(unittest.TestCase):
         self.assertIn("max_positions_per_strategy", decision.reasonCodes)
         self.assertIn("max_positions_per_symbol", decision.reasonCodes)
 
+    def test_unverified_actual_open_risk_blocks_new_entry(self) -> None:
+        profile = default_profile("okx_demo")
+        decision = evaluate_portfolio_risk(
+            profile=profile,
+            intent={
+                "strategyId": "strategy-a",
+                "instId": "BTC-USDT-SWAP",
+                "side": "buy",
+                "notionalUsdt": 50,
+                "leverage": 1,
+                "riskPercent": 0.25,
+            },
+            portfolio={
+                "availableEquityUsdt": 1000,
+                "openPositionCount": 1,
+                "openRiskPercent": 0.25,
+                "dailyLossPercent": 0,
+                "drawdownPercent": 0,
+                "canaryLossUsdt": 0,
+                "cooldownActive": False,
+                "dataFresh": True,
+                "liquidityPassed": True,
+                "actualOpenRiskVerified": False,
+            },
+        )
+
+        self.assertFalse(decision.passed)
+        self.assertIn("actual_open_risk_unverified", decision.reasonCodes)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -8,6 +8,7 @@ from pathlib import Path
 from alphapilot_control_console.demo_execution_engine import DemoExecutionEngine
 from alphapilot_control_console.demo_execution_store import DemoExecutionStore
 from alphapilot_control_console.execution_outcome_store import ExecutionOutcomeStore
+from alphapilot_control_console.runtime_identity import RuntimeIdentity
 from alphapilot_control_console.exchange_connectors.okx_demo_private_ws import (
     OkxPrivateWsOrderUnknown,
     OkxPrivateWsUnavailable,
@@ -97,12 +98,52 @@ def signal() -> dict:
     }
 
 
+def runtime_identity() -> RuntimeIdentity:
+    return RuntimeIdentity(
+        runtimeId="runtime-demo-test",
+        environment="okx_demo",
+        processId=1,
+        repositoryCommit="a" * 40,
+        repositoryTag="test",
+        moduleRootHashes={"execution": "b" * 64},
+        releaseId="release-1",
+        releaseHash="release-hash",
+        riskOverlayHash="c" * 64,
+        modelHash="d" * 64,
+        modelPolicyHash="e" * 64,
+        approvalHash="f" * 64,
+        armHash="1" * 64,
+        runtimeLeaseId="lease-demo-test",
+        startedAt="2026-07-10T00:00:00+00:00",
+        lastHeartbeatAt="2026-07-10T00:00:01+00:00",
+        lastScanAt="2026-07-10T00:00:01+00:00",
+        nextScanAt="2026-07-10T00:05:00+00:00",
+    )
+
+
+def build_engine(**kwargs: object) -> DemoExecutionEngine:
+    return DemoExecutionEngine(runtimeIdentity=runtime_identity(), **kwargs)
+
+
 class DemoExecutionEngineTests(unittest.TestCase):
-    def test_experimental_override_is_rejected_before_order(self) -> None:
+    def test_missing_runtime_identity_blocks_before_order_intent(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             store = DemoExecutionStore(Path(directory) / "demo.sqlite")
             client = FakeDemoClient()
             engine = DemoExecutionEngine(client=client, store=store)
+            try:
+                with self.assertRaisesRegex(PermissionError, "runtime_identity_unverified"):
+                    engine.execute(contract=contract(), signal=signal(), portfolio={})
+                self.assertEqual(client.placeCalls, 0)
+                self.assertEqual(store.list_records(), [])
+            finally:
+                store.close()
+
+    def test_experimental_override_is_rejected_before_order(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = DemoExecutionStore(Path(directory) / "demo.sqlite")
+            client = FakeDemoClient()
+            engine = build_engine(client=client, store=store)
             legacy_contract = {**contract(), "releaseMode": "experimental_override"}
 
             with self.assertRaisesRegex(PermissionError, "legacy experimental override"):
@@ -124,7 +165,7 @@ class DemoExecutionEngineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             store = DemoExecutionStore(Path(directory) / "demo.sqlite")
             try:
-                engine = DemoExecutionEngine(client=UnavailableInstrumentClient(), store=store)
+                engine = build_engine(client=UnavailableInstrumentClient(), store=store)
 
                 record = engine.execute(contract=contract(), signal=signal(), portfolio={})
 
@@ -145,7 +186,7 @@ class DemoExecutionEngineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             store = DemoExecutionStore(Path(directory) / "demo.sqlite")
             try:
-                engine = DemoExecutionEngine(client=RejectedClient(), store=store)
+                engine = build_engine(client=RejectedClient(), store=store)
 
                 record = engine.execute(contract=contract(), signal=signal(), portfolio={})
 
@@ -166,7 +207,7 @@ class DemoExecutionEngineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             store = DemoExecutionStore(Path(directory) / "demo.sqlite")
             try:
-                engine = DemoExecutionEngine(
+                engine = build_engine(
                     client=FakeDemoClient(),
                     store=store,
                     clock=lambda: next(timestamps),
@@ -191,7 +232,7 @@ class DemoExecutionEngineTests(unittest.TestCase):
             try:
                 client = FakeDemoClient()
                 private_transport = FakePrivateOrderTransport()
-                engine = DemoExecutionEngine(
+                engine = build_engine(
                     client=client,
                     store=store,
                     orderTransport=private_transport,
@@ -215,7 +256,7 @@ class DemoExecutionEngineTests(unittest.TestCase):
                     ready=True,
                     failure=OkxPrivateWsUnavailable("not ready"),
                 )
-                engine = DemoExecutionEngine(
+                engine = build_engine(
                     client=client,
                     store=store,
                     orderTransport=private_transport,
@@ -239,7 +280,7 @@ class DemoExecutionEngineTests(unittest.TestCase):
                 private_transport = FakePrivateOrderTransport(
                     failure=OkxPrivateWsOrderUnknown("ack timeout"),
                 )
-                engine = DemoExecutionEngine(
+                engine = build_engine(
                     client=client,
                     store=store,
                     orderTransport=private_transport,
@@ -259,7 +300,7 @@ class DemoExecutionEngineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             store = DemoExecutionStore(Path(directory) / "demo.sqlite")
             client = FakeDemoClient()
-            engine = DemoExecutionEngine(client=client, store=store)
+            engine = build_engine(client=client, store=store)
 
             first = engine.execute(contract=contract(), signal=signal(), portfolio={})
             repeated = engine.execute(contract=contract(), signal=signal(), portfolio={})
@@ -283,7 +324,7 @@ class DemoExecutionEngineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             store = DemoExecutionStore(Path(directory) / "demo.sqlite")
             client = FailingClient()
-            engine = DemoExecutionEngine(client=client, store=store)
+            engine = build_engine(client=client, store=store)
             with self.assertRaises(TimeoutError):
                 engine.execute(contract=contract(), signal=signal(), portfolio={})
 
@@ -297,7 +338,7 @@ class DemoExecutionEngineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             store = DemoExecutionStore(Path(directory) / "demo.sqlite")
             client = FakeDemoClient()
-            engine = DemoExecutionEngine(client=client, store=store)
+            engine = build_engine(client=client, store=store)
             engine.activate_kill_switch("unit_test")
 
             with self.assertRaises(RuntimeError):
@@ -308,7 +349,7 @@ class DemoExecutionEngineTests(unittest.TestCase):
     def test_credential_like_signal_field_is_rejected_before_persistence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             store = DemoExecutionStore(Path(directory) / "demo.sqlite")
-            engine = DemoExecutionEngine(client=FakeDemoClient(), store=store)
+            engine = build_engine(client=FakeDemoClient(), store=store)
             unsafe_signal = {**signal(), "apiKey": "must-never-be-stored"}
 
             with self.assertRaises(ValueError):
@@ -322,7 +363,7 @@ class DemoExecutionEngineTests(unittest.TestCase):
             outcome_store = ExecutionOutcomeStore(Path(directory) / "outcomes.sqlite")
             client = FakeDemoClient()
             adaptive = FakeAdaptiveAdapter()
-            engine = DemoExecutionEngine(
+            engine = build_engine(
                 client=client,
                 store=store,
                 outcomeStore=outcome_store,

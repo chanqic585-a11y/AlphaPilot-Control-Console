@@ -10,14 +10,16 @@ class PointInTimeContractTests(unittest.TestCase):
         result = validate_point_in_time(
             source_timestamp="2026-07-22T00:00:00Z",
             available_at="2026-07-22T00:00:01Z",
-            decision_at="2026-07-22T00:00:02Z",
-            order_send_at="2026-07-22T00:00:03Z",
+            observed_at="2026-07-22T00:00:02Z",
+            decision_at="2026-07-22T00:00:03Z",
+            order_send_at="2026-07-22T00:00:04Z",
         )
 
         self.assertTrue(result["passed"])
         self.assertEqual(result["ordering"], [
             "sourceTimestamp",
             "availableAt",
+            "observedAt",
             "decisionAt",
             "orderSendAt",
         ])
@@ -27,12 +29,30 @@ class PointInTimeContractTests(unittest.TestCase):
             validate_point_in_time(
                 source_timestamp="2026-07-22T00:00:02Z",
                 available_at="2026-07-22T00:00:01Z",
+                observed_at="2026-07-22T00:00:02Z",
                 decision_at="2026-07-22T00:00:03Z",
             )
         with self.assertRaises(ValueError):
             validate_point_in_time(
                 source_timestamp="",
                 available_at="2026-07-22T00:00:01Z",
+                observed_at="2026-07-22T00:00:02Z",
+                decision_at="2026-07-22T00:00:03Z",
+            )
+
+    def test_rejects_missing_or_non_monotonic_observed_timestamp(self) -> None:
+        with self.assertRaises(ValueError):
+            validate_point_in_time(
+                source_timestamp="2026-07-22T00:00:00Z",
+                available_at="2026-07-22T00:00:01Z",
+                observed_at="",
+                decision_at="2026-07-22T00:00:03Z",
+            )
+        with self.assertRaises(ValueError):
+            validate_point_in_time(
+                source_timestamp="2026-07-22T00:00:00Z",
+                available_at="2026-07-22T00:00:02Z",
+                observed_at="2026-07-22T00:00:01Z",
                 decision_at="2026-07-22T00:00:03Z",
             )
 

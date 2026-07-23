@@ -57,6 +57,7 @@ class AdaptiveLearningCore:
         validate_point_in_time(
             source_timestamp=signal_at,
             available_at=available_at,
+            observed_at=observed_at,
             decision_at=observed_at,
         )
         started = time.perf_counter()

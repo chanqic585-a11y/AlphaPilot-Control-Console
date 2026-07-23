@@ -10,6 +10,7 @@ from alphapilot_control_console.live_execution_engine import LiveExecutionEngine
 from alphapilot_control_console.live_execution_store import LiveExecutionStore
 from alphapilot_control_console.execution_outcome_store import ExecutionOutcomeStore
 from alphapilot_control_console.risk_profile_store import RiskProfileStore
+from alphapilot_control_console.runtime_identity import RuntimeIdentity
 
 
 def canonical(value: object) -> str:
@@ -47,6 +48,17 @@ class FakeClient:
         return {"code": "0", "data": [{"sCode": "0"}]}
 
 
+class PartialFillClient(FakeClient):
+    def close_position(self, **payload: object) -> dict:
+        self.close_requests.append(dict(payload))
+        remaining = abs(float(self.positions[0]["pos"])) if self.positions else 0.0
+        if remaining > 0.5:
+            self.positions[0]["pos"] = "0.5"
+        else:
+            self.positions = []
+        return {"code": "0", "data": [{"sCode": "0"}]}
+
+
 class FakeAdaptiveAdapter:
     def __init__(self) -> None:
         self.closed: list[dict] = []
@@ -54,6 +66,29 @@ class FakeAdaptiveAdapter:
     def record_closed_outcome(self, outcome: dict, *, signal: dict) -> dict:
         self.closed.append({"outcome": outcome, "signal": signal})
         return {"status": "recorded", "learningSampleId": "sample-1"}
+
+
+def runtime_identity(contract: dict, profile: dict) -> RuntimeIdentity:
+    return RuntimeIdentity(
+        runtimeId="runtime-live-test",
+        environment="okx_live",
+        processId=1,
+        repositoryCommit="a" * 40,
+        repositoryTag="test",
+        moduleRootHashes={"execution": "b" * 64},
+        releaseId=str(contract["liveReleaseId"]),
+        releaseHash=str(contract["liveReleaseHash"]),
+        riskOverlayHash=str(profile["contentHash"]),
+        modelHash="c" * 64,
+        modelPolicyHash="d" * 64,
+        approvalHash="e" * 64,
+        armHash="f" * 64,
+        runtimeLeaseId="lease-live-test",
+        startedAt="2026-07-11T00:00:00+00:00",
+        lastHeartbeatAt="2026-07-11T00:00:01+00:00",
+        lastScanAt="2026-07-11T00:00:01+00:00",
+        nextScanAt="2026-07-11T01:00:00+00:00",
+    )
 
 
 class LiveExecutionEngineTests(unittest.TestCase):
@@ -117,7 +152,12 @@ class LiveExecutionEngineTests(unittest.TestCase):
             "reconciliationMatched": True,
         }
         self.client = FakeClient()
-        self.engine = LiveExecutionEngine(client=self.client, store=self.store)
+        self.runtimeIdentity = runtime_identity(self.contract, self.profile)
+        self.engine = LiveExecutionEngine(
+            client=self.client,
+            store=self.store,
+            runtimeIdentity=self.runtimeIdentity,
+        )
         self.store.set_runtime_flag("killSwitch", False)
         self.store.set_runtime_flag("paused", False)
 
@@ -151,6 +191,7 @@ class LiveExecutionEngineTests(unittest.TestCase):
             client=self.client,
             store=self.store,
             authorityAssertion=reject_authority,
+            runtimeIdentity=self.runtimeIdentity,
         )
         with self.assertRaises(PermissionError):
             engine.execute(
@@ -159,6 +200,20 @@ class LiveExecutionEngineTests(unittest.TestCase):
                 signal=self.signal,
                 portfolio=self.portfolio,
             )
+        self.assertEqual(self.client.orders, [])
+        self.assertEqual(self.store.list_records(), [])
+
+    def test_missing_runtime_identity_blocks_before_order_intent(self) -> None:
+        engine = LiveExecutionEngine(client=self.client, store=self.store)
+
+        with self.assertRaisesRegex(PermissionError, "runtime_identity_unverified"):
+            engine.execute(
+                contract=self.contract,
+                activeProfile=self.profile,
+                signal=self.signal,
+                portfolio=self.portfolio,
+            )
+
         self.assertEqual(self.client.orders, [])
         self.assertEqual(self.store.list_records(), [])
 
@@ -198,7 +253,20 @@ class LiveExecutionEngineTests(unittest.TestCase):
                 confirmation="WRONG",
             )
 
-        result = self.engine.emergency_flatten_and_kill(
+        engine = LiveExecutionEngine(
+            client=self.client,
+            store=self.store,
+            runtimeIdentity=self.runtimeIdentity,
+            privateStateReconciler=lambda: {
+                "restMatched": True,
+                "privateWebsocketMatched": True,
+                "nonzeroPositionCount": 0,
+                "openOrderCount": 0,
+                "unknownOrderCount": 0,
+                "unknownPositionCount": 0,
+            },
+        )
+        result = engine.emergency_flatten_and_kill(
             reason="operator_emergency",
             confirmation="FLATTEN_OKX_LIVE_AND_KILL",
         )
@@ -208,6 +276,77 @@ class LiveExecutionEngineTests(unittest.TestCase):
         self.assertEqual(self.client.close_requests[0]["marginMode"], "isolated")
         self.assertTrue(self.store.runtime_state()["killSwitchActive"])
         self.assertTrue(self.store.runtime_state()["paused"])
+
+    def test_emergency_flatten_retries_partial_fills_until_zero(self) -> None:
+        client = PartialFillClient()
+        client.positions = [
+            {
+                "instId": "BTC-USDT-SWAP",
+                "mgnMode": "isolated",
+                "posSide": "long",
+                "pos": "1",
+            }
+        ]
+        engine = LiveExecutionEngine(
+            client=client,
+            store=self.store,
+            runtimeIdentity=self.runtimeIdentity,
+            privateStateReconciler=lambda: {
+                "restMatched": True,
+                "privateWebsocketMatched": True,
+                "nonzeroPositionCount": 0,
+                "openOrderCount": 0,
+                "unknownOrderCount": 0,
+                "unknownPositionCount": 0,
+            },
+        )
+
+        result = engine.emergency_flatten_and_kill(
+            reason="operator_emergency",
+            confirmation="FLATTEN_OKX_LIVE_AND_KILL",
+        )
+
+        self.assertEqual(result["status"], "flattened_reconciled_zero")
+        self.assertEqual(result["flattenAttemptCount"], 2)
+        self.assertEqual(len(client.close_requests), 2)
+
+    def test_emergency_flatten_never_claims_zero_without_private_stream_proof(self) -> None:
+        self.client.positions = [
+            {
+                "instId": "BTC-USDT-SWAP",
+                "mgnMode": "isolated",
+                "posSide": "long",
+                "pos": "1",
+            }
+        ]
+
+        result = self.engine.emergency_flatten_and_kill(
+            reason="operator_emergency",
+            confirmation="FLATTEN_OKX_LIVE_AND_KILL",
+        )
+
+        self.assertEqual(result["status"], "incomplete_emergency_flatten")
+        self.assertFalse(result["privateStateReconciled"])
+        self.assertTrue(self.store.runtime_state()["killSwitchActive"])
+        self.assertTrue(self.store.runtime_state()["paused"])
+
+    def test_emergency_flatten_returns_incomplete_for_non_isolated_position(self) -> None:
+        self.client.positions = [
+            {
+                "instId": "BTC-USDT-SWAP",
+                "mgnMode": "cross",
+                "posSide": "long",
+                "pos": "1",
+            }
+        ]
+
+        result = self.engine.emergency_flatten_and_kill(
+            reason="operator_emergency",
+            confirmation="FLATTEN_OKX_LIVE_AND_KILL",
+        )
+
+        self.assertEqual(result["status"], "incomplete_emergency_flatten")
+        self.assertIn("non_isolated_position", result["blockers"])
 
     def test_pause_entries_and_cancel_orders_are_distinct_controls(self) -> None:
         self.engine.pause_new_entries("operator_pause")
@@ -226,6 +365,7 @@ class LiveExecutionEngineTests(unittest.TestCase):
             store=self.store,
             outcomeStore=outcome_store,
             adaptiveAdapter=adaptive,
+            runtimeIdentity=self.runtimeIdentity,
         )
         record = engine.execute(
             contract=self.contract,

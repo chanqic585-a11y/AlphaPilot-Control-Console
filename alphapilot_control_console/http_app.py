@@ -137,6 +137,7 @@ from .strategy_factory_continuous_runner import (
     start_strategy_factory_continuous_runner,
     stop_strategy_factory_continuous_runner,
 )
+from .strategy_factory_v2.projection import build_strategy_factory_v2_projection
 from .sandbox_auto_runner import (
     get_local_sandbox_auto_runner_status,
 )
@@ -216,7 +217,11 @@ from .unified_auto_execution_runner import (
     wake_unified_auto_execution_runner,
 )
 from .workflow_validation_demo import run_workflow_validation_demo_fixture
-from .http_write_security import evaluate_http_write
+from .http_write_security import (
+    build_operator_session_projection,
+    ensure_http_write_security_environment,
+    evaluate_http_write,
+)
 
 
 def _json_bytes(payload: object) -> bytes:
@@ -225,6 +230,10 @@ def _json_bytes(payload: object) -> bytes:
 
 _RESPONSE_CACHE: dict[str, tuple[float, object]] = {}
 _DEMO_ENGINEERING_SMOKE_LOCK = threading.Lock()
+
+
+class InvalidJsonBody(ValueError):
+    """Raised before route dispatch when a write body is not a JSON object."""
 
 
 def _is_fresh_query(query: dict[str, list[str]]) -> bool:
@@ -334,6 +343,29 @@ _TOP200_MINIMAL_UI_EXACT_ROUTES = {
     "/api/live/canary-readiness",
 }
 
+_STRATEGY_FACTORY_V2_EXACT_ROUTES = {
+    "/api/research-factory/v2/summary",
+    "/api/research-factory/v2/runs",
+}
+
+
+def _is_strategy_factory_v2_route(path: str) -> bool:
+    return path in _STRATEGY_FACTORY_V2_EXACT_ROUTES or path.startswith(
+        "/api/research-factory/v2/runs/"
+    )
+
+
+def _build_strategy_factory_v2_payload(path: str) -> dict:
+    projection = build_strategy_factory_v2_projection()
+    if path == "/api/research-factory/v2/summary":
+        return projection.summary()
+    if path == "/api/research-factory/v2/runs":
+        return projection.runs()
+    run_id = path.removeprefix("/api/research-factory/v2/runs/").strip("/")
+    if not run_id:
+        raise KeyError("strategy_factory_v2_run_not_found")
+    return projection.run(run_id)
+
 
 def _is_top200_minimal_ui_route(path: str) -> bool:
     return (
@@ -413,15 +445,22 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _read_body_json(self) -> dict:
+        cached = getattr(self, "_request_json_payload", None)
+        if cached is not None:
+            return dict(cached)
         length = int(self.headers.get("Content-Length", "0") or "0")
         if length <= 0:
+            self._request_json_payload = {}
             return {}
-        body = self.rfile.read(length).decode("utf-8")
         try:
+            body = self.rfile.read(length).decode("utf-8")
             payload = json.loads(body)
-        except json.JSONDecodeError:
-            return {}
-        return payload if isinstance(payload, dict) else {}
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise InvalidJsonBody("request body must be valid UTF-8 JSON") from error
+        if not isinstance(payload, dict):
+            raise InvalidJsonBody("request body must be a JSON object")
+        self._request_json_payload = dict(payload)
+        return dict(payload)
 
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
@@ -430,6 +469,17 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         fresh = _is_fresh_query(query)
         if path == "/api/health":
             self._send_json(build_health_payload())
+            return
+        if path == "/api/operator-session":
+            client_host = str(self.client_address[0])
+            if not _request_is_loopback(client_host):
+                self._send_json({"ok": False, "error": "loopback_operator_only"}, 403)
+                return
+            host = str(self.headers.get("Host") or "").strip()
+            if not host:
+                self._send_json({"ok": False, "error": "host_header_required"}, 400)
+                return
+            self._send_json(build_operator_session_projection(origin=f"http://{host}"))
             return
         if path == "/api/adaptive-learning":
             self._send_json(_cached_payload(
@@ -457,6 +507,24 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/research-factory/continuous":
             self._send_json(get_strategy_factory_continuous_status())
+            return
+        if _is_strategy_factory_v2_route(path):
+            try:
+                self._send_json(_build_strategy_factory_v2_payload(path))
+            except KeyError:
+                self._send_json(
+                    {"ok": False, "error": "strategy_factory_v2_run_not_found"},
+                    404,
+                )
+            except (OSError, RuntimeError, ValueError):
+                self._send_json(
+                    {
+                        "ok": False,
+                        "error": "strategy_factory_v2_projection_unavailable",
+                        "message": "Strategy Factory 2.0 ledger is unavailable.",
+                    },
+                    503,
+                )
             return
         if _is_top200_minimal_ui_route(path):
             try:
@@ -1111,19 +1179,29 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         client_host = str(self.client_address[0])
         write_decision = evaluate_http_write(
             client_host=client_host,
+            method="POST",
             path=parsed.path,
             headers=self.headers,
             loopback=_request_is_loopback(client_host),
         )
         if not write_decision.allowed:
             append_audit("http_write_rejected", write_decision.audit_payload())
+            status = 415 if write_decision.reason == "application_json_required" else 403
             self._send_json(
                 {"ok": False, "error": write_decision.reason or "write_forbidden"},
-                403,
+                status,
             )
             return
-        if write_decision.mode == "authenticated_remote":
-            append_audit("http_write_authorized", write_decision.audit_payload())
+        append_audit("http_write_authorized", write_decision.audit_payload())
+        try:
+            self._read_body_json()
+        except InvalidJsonBody as error:
+            append_audit("http_write_malformed_json", write_decision.audit_payload())
+            self._send_json(
+                {"ok": False, "error": "malformed_json", "message": str(error)},
+                400,
+            )
+            return
         if parsed.path == "/api/strategy-execution-policies" or parsed.path.startswith(
             "/api/strategy-execution-policies/"
         ):
@@ -1904,6 +1982,43 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             return
         self._send_json({"error": "not_found"}, 404)
 
+    def _reject_unsupported_write(self, method: str) -> None:
+        parsed = urlparse(self.path)
+        client_host = str(self.client_address[0])
+        write_decision = evaluate_http_write(
+            client_host=client_host,
+            method=method,
+            path=parsed.path,
+            headers=self.headers,
+            loopback=_request_is_loopback(client_host),
+        )
+        if not write_decision.allowed:
+            append_audit("http_write_rejected", write_decision.audit_payload())
+            status = 415 if write_decision.reason == "application_json_required" else 403
+            self._send_json(
+                {"ok": False, "error": write_decision.reason or "write_forbidden"},
+                status,
+            )
+            return
+        append_audit("http_write_authorized", write_decision.audit_payload())
+        try:
+            self._read_body_json()
+        except InvalidJsonBody as error:
+            append_audit("http_write_malformed_json", write_decision.audit_payload())
+            self._send_json(
+                {"ok": False, "error": "malformed_json", "message": str(error)},
+                400,
+            )
+            return
+        append_audit("http_write_method_not_allowed", write_decision.audit_payload())
+        self._send_json({"ok": False, "error": "method_not_allowed"}, 405)
+
+    def do_PUT(self) -> None:  # noqa: N802
+        self._reject_unsupported_write("PUT")
+
+    def do_DELETE(self) -> None:  # noqa: N802
+        self._reject_unsupported_write("DELETE")
+
     def log_message(self, format: str, *args: object) -> None:
         print(f"{self.address_string()} - {format % args}")
 
@@ -1920,6 +2035,13 @@ def build_health_payload() -> dict[str, object]:
 
 def run_server(host: str, port: int) -> None:
     server = ThreadingHTTPServer((host, port), ConsoleHandler)
+    bound_port = int(server.server_address[1])
+    ensure_http_write_security_environment(
+        origins=[
+            f"http://127.0.0.1:{bound_port}",
+            f"http://localhost:{bound_port}",
+        ]
+    )
     start_strategy_factory_continuous_runner()
     credential_bootstrap = bootstrap_demo_credentials()
     resume_incomplete_workflow_runs()

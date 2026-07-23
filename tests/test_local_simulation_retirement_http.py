@@ -11,6 +11,7 @@ from alphapilot_control_console.http_app import ConsoleHandler
 from alphapilot_control_console.local_simulation_retirement import (
     RETIRED_LOCAL_SIMULATION_POST_ROUTES,
 )
+from tests.http_write_test_client import secure_json_request
 
 
 class LocalSimulationRetirementHttpTests(unittest.TestCase):
@@ -27,12 +28,7 @@ class LocalSimulationRetirementHttpTests(unittest.TestCase):
         self.thread.join(timeout=2)
 
     def post(self, path: str) -> dict:
-        request = Request(
-            self.base_url + path,
-            data=b"{}",
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
+        request = secure_json_request(self.base_url, path)
         with self.assertRaises(HTTPError) as raised:
             urlopen(request, timeout=2)
         self.assertEqual(raised.exception.code, 410)

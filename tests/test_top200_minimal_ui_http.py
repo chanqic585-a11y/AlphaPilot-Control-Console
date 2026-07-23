@@ -9,6 +9,7 @@ from urllib.request import Request, urlopen
 from unittest.mock import Mock, patch
 
 from alphapilot_control_console.http_app import ConsoleHandler
+from tests.http_write_test_client import secure_json_request
 
 
 class Top200MinimalUiHttpTests(unittest.TestCase):
@@ -30,12 +31,7 @@ class Top200MinimalUiHttpTests(unittest.TestCase):
             return json.loads(response.read().decode("utf-8"))
 
     def _post(self, path: str, payload: dict) -> dict:
-        request = Request(
-            self.base_url + path,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
+        request = secure_json_request(self.base_url, path, payload)
         with urlopen(request, timeout=2) as response:
             self.assertEqual(response.status, 200)
             return json.loads(response.read().decode("utf-8"))
@@ -112,6 +108,36 @@ class Top200MinimalUiHttpTests(unittest.TestCase):
         serialized = json.dumps(payload).lower()
         self.assertNotIn("apikey", serialized)
         self.assertNotIn("passphrase", serialized)
+
+    def test_strategy_factory_v2_routes_are_read_only_ledger_projections(self) -> None:
+        projection = Mock()
+        projection.summary.return_value = {
+            "schemaVersion": "strategy_factory_v2_summary_v1",
+            "executionAuthorized": False,
+        }
+        projection.runs.return_value = {
+            "schemaVersion": "strategy_factory_v2_runs_v1",
+            "runs": [],
+            "executionAuthorized": False,
+        }
+        projection.run.return_value = {
+            "runId": "run-v2-1",
+            "state": "trial_running",
+            "executionAuthorized": False,
+        }
+
+        with patch(
+            "alphapilot_control_console.http_app.build_strategy_factory_v2_projection",
+            return_value=projection,
+        ):
+            summary = self._get("/api/research-factory/v2/summary")
+            runs = self._get("/api/research-factory/v2/runs")
+            detail = self._get("/api/research-factory/v2/runs/run-v2-1")
+
+        self.assertFalse(summary["executionAuthorized"])
+        self.assertEqual(runs["runs"], [])
+        self.assertEqual(detail["state"], "trial_running")
+        projection.run.assert_called_once_with("run-v2-1")
 
     def test_strategy_execution_policy_routes_are_local_versioned_controls(self) -> None:
         with patch(

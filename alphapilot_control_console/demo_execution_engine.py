@@ -14,6 +14,7 @@ from .demo_execution_store import DemoExecutionRecord, DemoExecutionStore
 from .demo_risk_envelope import evaluate_demo_order_risk
 from .execution_outcome_store import ExecutionOutcomeStore, FormalExecutionOutcome
 from .execution_latency_profile import build_execution_latency_profile
+from .runtime_identity import RuntimeIdentity, assert_runtime_identity
 from .exchange_connectors.okx_demo_private_ws import (
     OkxPrivateWsOrderUnknown,
     OkxPrivateWsUnavailable,
@@ -95,6 +96,7 @@ class DemoExecutionEngine:
         monotonicClock: Callable[[], float] = time.perf_counter,
         orderTransport: Any | None = None,
         latencyProfile: dict[str, Any] | None = None,
+        runtimeIdentity: RuntimeIdentity | None = None,
     ):
         self.client = client
         self.store = store
@@ -104,6 +106,7 @@ class DemoExecutionEngine:
         self.monotonicClock = monotonicClock
         self.orderTransport = orderTransport
         self.latencyProfile = build_execution_latency_profile(latencyProfile)
+        self.runtimeIdentity = runtimeIdentity
 
     def execute(
         self,
@@ -116,6 +119,15 @@ class DemoExecutionEngine:
         _reject_sensitive_fields(signal, "signal")
         _reject_sensitive_fields(portfolio, "portfolio")
         self._validate_contract(contract)
+        expected_identity: dict[str, Any] = {
+            "environment": "okx_demo",
+            "releaseId": str(contract["demoReleaseId"]),
+            "releaseHash": str(contract["releaseContentHash"]),
+        }
+        binding = contract.get("portfolioRuntimeBinding")
+        if isinstance(binding, dict) and str(binding.get("riskOverlayHash") or ""):
+            expected_identity["riskOverlayHash"] = str(binding["riskOverlayHash"])
+        assert_runtime_identity(self.runtimeIdentity, expected=expected_identity)
         if self.store.get_runtime_flag("killSwitch", False):
             raise RuntimeError("OKX Demo kill switch is active")
         if self.store.get_runtime_flag("paused", False):

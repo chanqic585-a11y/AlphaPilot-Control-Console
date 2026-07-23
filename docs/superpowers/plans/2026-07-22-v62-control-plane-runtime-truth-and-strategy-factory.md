@@ -1,3 +1,8 @@
+---
+status: superseded
+supersededBy: AlphaPilot-Docs/docs/superpowers/plans/2026-07-23-v62-4-global-reassessment-strategy-factory-2-ai-orchestration.md
+---
+
 # AlphaPilot V13.27.1.62 Control Plane, Runtime Truth, and Strategy Factory
 
 ## Objective

@@ -8,6 +8,7 @@ from urllib.request import Request, urlopen
 from unittest.mock import patch
 
 from alphapilot_control_console.http_app import ConsoleHandler
+from tests.http_write_test_client import secure_json_request
 
 
 class ExecutionControlHttpTests(unittest.TestCase):
@@ -50,11 +51,10 @@ class ExecutionControlHttpTests(unittest.TestCase):
                 "environment": "okx_demo",
                 "action": "start",
             }
-            request = Request(
-                self.base_url + "/api/execution-control/action",
-                data=json.dumps(request_body).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
-                method="POST",
+            request = secure_json_request(
+                self.base_url,
+                "/api/execution-control/action",
+                request_body,
             )
             with urlopen(request, timeout=2) as response:
                 action_payload = json.loads(response.read().decode("utf-8"))

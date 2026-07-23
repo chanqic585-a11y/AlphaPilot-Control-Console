@@ -11,6 +11,7 @@ from .execution_outcome_store import ExecutionOutcomeStore, FormalExecutionOutco
 from .live_execution_store import LiveExecutionRecord, LiveExecutionStore
 from .portfolio_risk import evaluate_portfolio_risk
 from .point_in_time_contract import validate_point_in_time
+from .runtime_identity import RuntimeIdentity, assert_runtime_identity
 
 
 _TERMINAL = {"filled", "canceled", "rejected", "mmp_canceled"}
@@ -34,12 +35,18 @@ class LiveExecutionEngine:
         outcomeStore: ExecutionOutcomeStore | None = None,
         adaptiveAdapter: Any | None = None,
         authorityAssertion: Callable[[], None] | None = None,
+        runtimeIdentity: RuntimeIdentity | None = None,
+        privateStateReconciler: Callable[[], dict[str, Any]] | None = None,
+        emergencyFlattenMaxAttempts: int = 3,
     ):
         self.client = client
         self.store = store
         self.outcomeStore = outcomeStore
         self.adaptiveAdapter = adaptiveAdapter
         self.authorityAssertion = authorityAssertion or (lambda: None)
+        self.runtimeIdentity = runtimeIdentity
+        self.privateStateReconciler = privateStateReconciler
+        self.emergencyFlattenMaxAttempts = max(1, int(emergencyFlattenMaxAttempts))
 
     def execute(
         self,
@@ -51,6 +58,15 @@ class LiveExecutionEngine:
     ) -> LiveExecutionRecord:
         self.authorityAssertion()
         release = self._validate_contract(contract, activeProfile)
+        assert_runtime_identity(
+            self.runtimeIdentity,
+            expected={
+                "environment": "okx_live",
+                "releaseId": str(contract["liveReleaseId"]),
+                "releaseHash": str(contract["liveReleaseHash"]),
+                "riskOverlayHash": str(activeProfile["contentHash"]),
+            },
+        )
         if self.store.get_runtime_flag("killSwitch", True):
             raise RuntimeError("OKX Live kill switch is active")
         if self.store.get_runtime_flag("paused", True):
@@ -64,6 +80,7 @@ class LiveExecutionEngine:
         validate_point_in_time(
             source_timestamp=signal.get("sourceTimestamp") or signal["signalTime"],
             available_at=signal.get("availableAt") or signal["signalTime"],
+            observed_at=signal.get("observedAt") or signal.get("decisionAt") or signal["signalTime"],
             decision_at=signal.get("decisionAt") or signal["signalTime"],
             order_send_at=order_send_at,
         )
@@ -220,25 +237,37 @@ class LiveExecutionEngine:
         self.store.set_runtime_flag("killSwitch", True)
         self.pause_new_entries(reason)
         cancel_response = self.cancel_open_orders(reason)
-        positions_response = self.client.get_positions()
-        if str(positions_response.get("code") or "") != "0":
-            raise RuntimeError("Unable to read OKX Live positions before emergency flatten")
-        positions = positions_response.get("data") if isinstance(positions_response.get("data"), list) else []
         close_results: list[dict[str, Any]] = []
-        for position in positions:
-            if not isinstance(position, dict) or abs(float(position.get("pos") or 0)) <= 0:
-                continue
-            margin_mode = str(position.get("mgnMode") or "")
-            if margin_mode != "isolated":
-                raise RuntimeError("Emergency flatten encountered a non-isolated position")
-            response = self.client.close_position(
-                instId=str(position.get("instId") or ""),
-                marginMode=margin_mode,
-                posSide=str(position.get("posSide") or "net"),
-            )
-            if str(response.get("code") or "") != "0":
-                raise RuntimeError("OKX Live emergency close-position request failed")
-            close_results.append(response)
+        blockers: list[str] = []
+        flatten_attempt_count = 0
+        for attempt in range(1, self.emergencyFlattenMaxAttempts + 1):
+            positions_response = self.client.get_positions()
+            if str(positions_response.get("code") or "") != "0":
+                blockers.append("rest_position_read_failed")
+                break
+            positions = positions_response.get("data") if isinstance(positions_response.get("data"), list) else []
+            active = [
+                row for row in positions
+                if isinstance(row, dict) and abs(float(row.get("pos") or 0)) > 0
+            ]
+            if not active:
+                break
+            flatten_attempt_count = attempt
+            for position in active:
+                margin_mode = str(position.get("mgnMode") or "")
+                if margin_mode != "isolated":
+                    blockers.append("non_isolated_position")
+                    continue
+                response = self.client.close_position(
+                    instId=str(position.get("instId") or ""),
+                    marginMode=margin_mode,
+                    posSide=str(position.get("posSide") or "net"),
+                )
+                first = _first(response)
+                if str(response.get("code") or "") != "0" or str(first.get("sCode") or "0") != "0":
+                    blockers.append("close_position_request_failed")
+                    continue
+                close_results.append(response)
         final_positions = self.client.get_positions()
         final_orders = self.client.get_open_orders()
         active_positions = [
@@ -246,13 +275,29 @@ class LiveExecutionEngine:
             if isinstance(row, dict) and abs(float(row.get("pos") or 0)) > 0
         ]
         open_orders = [row for row in (final_orders.get("data") or []) if isinstance(row, dict)]
-        reconciled = (
-            str(final_positions.get("code") or "") == "0"
+        rest_reconciled = (
+            str(cancel_response.get("code") or "") == "0"
+            and str(final_positions.get("code") or "") == "0"
             and str(final_orders.get("code") or "") == "0"
             and not active_positions
             and not open_orders
         )
-        status = "flattened_reconciled_zero" if reconciled else "flatten_incomplete_manual_recovery_required"
+        private_state = self._private_state_reconciliation()
+        private_state_reconciled = (
+            private_state.get("restMatched") is True
+            and private_state.get("privateWebsocketMatched") is True
+            and int(private_state.get("nonzeroPositionCount") or 0) == 0
+            and int(private_state.get("openOrderCount") or 0) == 0
+            and int(private_state.get("unknownOrderCount") or 0) == 0
+            and int(private_state.get("unknownPositionCount") or 0) == 0
+        )
+        if not rest_reconciled:
+            blockers.append("rest_zero_state_not_proven")
+        if not private_state_reconciled:
+            blockers.append("private_stream_zero_state_not_proven")
+        blockers = sorted(set(blockers))
+        reconciled = rest_reconciled and private_state_reconciled and not blockers
+        status = "flattened_reconciled_zero" if reconciled else "incomplete_emergency_flatten"
         self.store.set_runtime_flag("lastReconciliationMatched", reconciled)
         self.store.append_event(None, "live_emergency_flatten_completed", {
             "reason": reason,
@@ -261,13 +306,30 @@ class LiveExecutionEngine:
             "remainingPositionCount": len(active_positions),
             "remainingOpenOrderCount": len(open_orders),
             "cancelAllAfterCode": str(cancel_response.get("code") or ""),
+            "flattenAttemptCount": flatten_attempt_count,
+            "restReconciled": rest_reconciled,
+            "privateStateReconciled": private_state_reconciled,
+            "blockers": blockers,
         })
         return {
             "status": status,
             "closeRequestCount": len(close_results),
             "remainingPositionCount": len(active_positions),
             "remainingOpenOrderCount": len(open_orders),
+            "flattenAttemptCount": flatten_attempt_count,
+            "restReconciled": rest_reconciled,
+            "privateStateReconciled": private_state_reconciled,
+            "blockers": blockers,
         }
+
+    def _private_state_reconciliation(self) -> dict[str, Any]:
+        if self.privateStateReconciler is None:
+            return {"status": "not_configured"}
+        try:
+            result = self.privateStateReconciler()
+        except Exception as exc:
+            return {"status": "failed", "errorType": type(exc).__name__}
+        return dict(result) if isinstance(result, dict) else {"status": "invalid_result"}
 
     def activate_kill_switch(self, reason: str) -> dict[str, Any]:
         self.store.set_runtime_flag("killSwitch", True)

@@ -9,6 +9,7 @@ from urllib.request import Request, urlopen
 from unittest.mock import patch
 
 from alphapilot_control_console.http_app import ConsoleHandler
+from tests.http_write_test_client import secure_json_request
 
 
 class StrategyValidationHttpTests(unittest.TestCase):
@@ -26,12 +27,7 @@ class StrategyValidationHttpTests(unittest.TestCase):
 
     def post(self, path: str, payload: dict):
         return urlopen(
-            Request(
-                self.base_url + path,
-                data=json.dumps(payload).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            ),
+            secure_json_request(self.base_url, path, payload),
             timeout=2,
         )
 

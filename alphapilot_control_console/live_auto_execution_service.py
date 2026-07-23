@@ -4,14 +4,15 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from .account_snapshot_projection import build_sanitized_account_snapshot
+from .actual_open_risk import build_actual_open_risk
 from .credential_runtime import live_runtime_credential_status, load_okx_live_credentials
 from .demo_arbitrator import arbitrate_demo_signals
 from .demo_release_scanner import scan_immutable_demo_release
 from .exchange_connectors.okx_live_client import OkxLiveClient
-from .execution_runtime_lease import ExecutionRuntimeLeaseStore
+from .execution_runtime_lease import ExecutionRuntimeLeaseClaim, ExecutionRuntimeLeaseStore
 from .live_canary_service import (
     build_exact_live_canary_arm_readiness,
     live_runtime_gates,
@@ -23,6 +24,13 @@ from .live_release_service import discover_live_releases, validate_live_release_
 from .live_safety_plane import evaluate_experimental_live_floors
 from .portfolio_risk import normalize_risk_profile
 from .risk_profile_store import RISK_PROFILE_STORE_PATH, RiskProfileStore
+from .runtime_identity import RuntimeIdentity
+
+
+RuntimeIdentityFactory = Callable[
+    [Mapping[str, Any], Mapping[str, Any], ExecutionRuntimeLeaseClaim],
+    RuntimeIdentity,
+]
 
 
 def _active_live_profile(path: Path | str = RISK_PROFILE_STORE_PATH) -> dict[str, Any] | None:
@@ -166,10 +174,28 @@ def _portfolio_snapshot(
         if correlation:
             risk_by_correlation[correlation] = risk_by_correlation.get(correlation, 0.0) + risk
     profile = normalize_risk_profile(active_profile.get("profile") if isinstance(active_profile.get("profile"), dict) else {})
+    actual_open_risk = build_actual_open_risk(
+        positions=actual_positions,
+        records=active_records,
+        open_orders=[
+            row
+            for row in (open_orders.get("data") or [])
+            if isinstance(row, dict)
+        ],
+    )
+    exchange_risk_usdt = actual_open_risk["exchangePositionRisk"]
+    open_risk_percent = (
+        float(exchange_risk_usdt) / float(profile["capitalLimitUsdt"]) * 100.0
+        if exchange_risk_usdt is not None and float(profile["capitalLimitUsdt"]) > 0
+        else sum(risk_by_strategy.values())
+    )
     return {
         "availableEquityUsdt": min(available, float(profile["capitalLimitUsdt"])),
         "openPositionCount": len(actual_positions),
-        "openRiskPercent": sum(risk_by_strategy.values()),
+        "openRiskPercent": open_risk_percent,
+        "openRiskUsdt": exchange_risk_usdt,
+        "actualOpenRisk": actual_open_risk,
+        "actualOpenRiskVerified": bool(actual_open_risk["complete"]),
         "activeStrategyIds": sorted(positions_by_strategy),
         "positionsByStrategy": positions_by_strategy,
         "positionsBySymbol": positions_by_symbol,
@@ -194,6 +220,7 @@ def run_live_auto_execution_batch(
     store_path: Path | str = LIVE_EXECUTION_STORE_PATH,
     profile_path: Path | str = RISK_PROFILE_STORE_PATH,
     environment: Mapping[str, str] | None = None,
+    runtime_identity_factory: RuntimeIdentityFactory | None = None,
 ) -> dict[str, Any]:
     source = os.environ if environment is None else environment
     gates = live_runtime_gates(source)
@@ -312,6 +339,11 @@ def run_live_auto_execution_batch(
                         engine.pause("live_signal_release_binding_missing")
                         return {"ok": False, "blockers": ["live_signal_release_binding_missing"], "createdOrderCount": 0, "scans": scans}
                     try:
+                        engine.runtimeIdentity = (
+                            runtime_identity_factory(export, active_profile, lease_claim)
+                            if runtime_identity_factory is not None
+                            else None
+                        )
                         created.append(engine.execute(contract=export, activeProfile=active_profile, signal=signal, portfolio=portfolio))
                     except (PermissionError, RuntimeError, ValueError) as error:
                         engine.pause(f"live_batch_execution_failed:{type(error).__name__}")
