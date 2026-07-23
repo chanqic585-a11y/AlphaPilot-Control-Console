@@ -11,6 +11,11 @@
       "path": "prompts/failure-attribution-v1.txt",
       "enabled": true
     },
+    "failure-attribution-v62-4-2-compact-v1": {
+      "taskTypes": ["failure_attribution"],
+      "path": "prompts/failure-attribution-v62-4-2-compact-v1.txt",
+      "enabled": true
+    },
     "research-review-v1": {
       "taskTypes": ["architecture_review", "security_review", "document_analysis", "code_review"],
       "path": "prompts/research-review-v1.txt",

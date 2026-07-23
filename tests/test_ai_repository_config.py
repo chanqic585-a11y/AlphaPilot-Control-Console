@@ -40,10 +40,17 @@ class AIRepositoryConfigTests(unittest.TestCase):
         registry = PromptRegistry.from_path(root / "config" / "ai_prompt_registry.json")
         strategy = registry.resolve("strategy-hypothesis-v1", "strategy_hypothesis")
         failure = registry.resolve("failure-attribution-v1", "failure_attribution")
+        compact_failure = registry.resolve(
+            "failure-attribution-v62-4-2-compact-v1",
+            "failure_attribution",
+        )
 
         self.assertNotEqual(strategy.content_hash, failure.content_hash)
+        self.assertNotEqual(failure.content_hash, compact_failure.content_hash)
         self.assertIn("untrusted", strategy.content.lower())
         self.assertIn("one variable", failure.content.lower())
+        self.assertIn("compact", compact_failure.content.lower())
+        self.assertIn("maximum", compact_failure.content.lower())
 
     def test_repository_budget_policy_has_bounded_provider_smoke_limits(self) -> None:
         root = Path(__file__).parents[1]
