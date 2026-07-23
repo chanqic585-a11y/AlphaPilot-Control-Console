@@ -57,6 +57,8 @@ class FoundationWorker:
         self.claim: FoundationLeaseClaim | None = None
         self.started_at: str | None = None
         self.cycle_count = 0
+        self.resumed_from_checkpoint = False
+        self.resumed_checkpoint_fencing_token: int | None = None
         self.checkpoints = FoundationCheckpointStore(
             manifest.stateRoot / "checkpoints"
         )
@@ -76,6 +78,25 @@ class FoundationWorker:
                 owner_id=f"{self.manifest.deploymentId}:{self.role.value}:{self.process_id}",
                 ttl_seconds=30,
             )
+            try:
+                checkpoint = self.checkpoints.load_for_resume(
+                    role=self.role,
+                    expected_manifest_hash=self.manifest.manifestHash,
+                    expected_config_hash=self.manifest.configHash,
+                    current_fencing_token=self.claim.fencingToken,
+                )
+            except FileNotFoundError:
+                pass
+            else:
+                progress = checkpoint.get("progress", {})
+                resumed_cycle_count = int(progress.get("cycleCount", 0))
+                if resumed_cycle_count < 0:
+                    raise ValueError("checkpoint_cycle_count_must_be_nonnegative")
+                self.cycle_count = resumed_cycle_count
+                self.resumed_from_checkpoint = True
+                self.resumed_checkpoint_fencing_token = int(
+                    checkpoint["fencingToken"]
+                )
         else:
             self.claim = self.lease_store.heartbeat(
                 self.claim,
@@ -123,6 +144,10 @@ class FoundationWorker:
             "liveArmAllowed": False,
             "withdrawAllowed": False,
             "cycleCount": self.cycle_count,
+            "resumedFromCheckpoint": self.resumed_from_checkpoint,
+            "resumedCheckpointFencingToken": (
+                self.resumed_checkpoint_fencing_token
+            ),
             "healthPath": str(health_path),
             "identityPath": str(identity_path),
             "checkpointPath": str(self.checkpoints.path_for(self.role)),

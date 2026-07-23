@@ -310,6 +310,34 @@ class FoundationPersistenceTests(unittest.TestCase):
                     expected_fencing_token=3,
                 )
 
+    def test_checkpoint_resume_accepts_prior_fencing_token_only(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = FoundationCheckpointStore(Path(directory))
+            store.write(
+                role=FoundationRole.RESEARCH,
+                manifest_hash="a" * 64,
+                config_hash="b" * 64,
+                fencing_token=3,
+                progress={"candidateIndex": 4},
+            )
+
+            resumed = store.load_for_resume(
+                role=FoundationRole.RESEARCH,
+                expected_manifest_hash="a" * 64,
+                expected_config_hash="b" * 64,
+                current_fencing_token=4,
+            )
+
+            self.assertEqual(resumed["progress"]["candidateIndex"], 4)
+            self.assertEqual(resumed["fencingToken"], 3)
+            with self.assertRaises(CheckpointIdentityMismatch):
+                store.load_for_resume(
+                    role=FoundationRole.RESEARCH,
+                    expected_manifest_hash="a" * 64,
+                    expected_config_hash="b" * 64,
+                    current_fencing_token=3,
+                )
+
 
 class FoundationWorkerTests(unittest.TestCase):
     def test_worker_run_once_writes_identity_health_and_checkpoint(self) -> None:
@@ -359,6 +387,62 @@ class FoundationWorkerTests(unittest.TestCase):
                 self.assertFalse(result["orderCapabilityEnabled"])
             finally:
                 worker.close()
+                lease_store.close()
+
+    def test_worker_resumes_cycle_count_after_new_fenced_lease(self) -> None:
+        clock = MutableClock()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = root / "manifest.json"
+            manifest_path.write_text(
+                json.dumps(_manifest_payload(root)),
+                encoding="utf-8",
+            )
+            manifest = FoundationManifest.load(manifest_path)
+            lease_store = FoundationLeaseStore(
+                root / "leases.sqlite",
+                now_factory=clock,
+            )
+            startup_state = StartupState(
+                demoArmed=False,
+                liveArmed=False,
+                openOrderCount=0,
+                unknownOrderCount=0,
+                openPositionCount=0,
+                withdrawEnabled=False,
+            )
+            first = FoundationWorker(
+                manifest=manifest,
+                role=FoundationRole.RESEARCH,
+                lease_store=lease_store,
+                now_factory=clock,
+                process_id=1234,
+            )
+            try:
+                first_health = first.run_once(startup_state)
+                self.assertEqual(first_health["cycleCount"], 1)
+                self.assertEqual(first_health["fencingToken"], 1)
+            finally:
+                first.close()
+
+            second = FoundationWorker(
+                manifest=manifest,
+                role=FoundationRole.RESEARCH,
+                lease_store=lease_store,
+                now_factory=clock,
+                process_id=5678,
+            )
+            try:
+                second_health = second.run_once(startup_state)
+                self.assertEqual(second_health["cycleCount"], 2)
+                self.assertEqual(second_health["fencingToken"], 2)
+                self.assertTrue(second_health["resumedFromCheckpoint"])
+                self.assertEqual(
+                    second_health["resumedCheckpointFencingToken"],
+                    1,
+                )
+            finally:
+                second.close()
                 lease_store.close()
 
 

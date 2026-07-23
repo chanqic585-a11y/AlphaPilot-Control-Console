@@ -94,3 +94,38 @@ class FoundationCheckpointStore:
                 "checkpoint_identity_mismatch:" + ",".join(mismatches)
             )
         return payload
+
+    def load_for_resume(
+        self,
+        *,
+        role: FoundationRole,
+        expected_manifest_hash: str,
+        expected_config_hash: str,
+        current_fencing_token: int,
+    ) -> dict[str, Any]:
+        target = self.path_for(role)
+        payload = json.loads(target.read_text(encoding="utf-8"))
+        checkpoint_hash = str(payload.pop("checkpointHash", ""))
+        if checkpoint_hash != _hash(payload):
+            raise CheckpointIdentityMismatch("checkpoint_hash_mismatch")
+        payload["checkpointHash"] = checkpoint_hash
+        expected = {
+            "role": FoundationRole(role).value,
+            "manifestHash": expected_manifest_hash,
+            "configHash": expected_config_hash,
+        }
+        mismatches = [
+            key
+            for key, value in expected.items()
+            if payload.get(key) != value
+        ]
+        if mismatches:
+            raise CheckpointIdentityMismatch(
+                "checkpoint_identity_mismatch:" + ",".join(mismatches)
+            )
+        checkpoint_fencing_token = int(payload.get("fencingToken", 0))
+        if checkpoint_fencing_token >= int(current_fencing_token):
+            raise CheckpointIdentityMismatch(
+                "checkpoint_fencing_token_is_not_prior"
+            )
+        return payload
