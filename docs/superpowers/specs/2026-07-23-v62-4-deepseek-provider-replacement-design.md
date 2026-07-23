@@ -167,3 +167,20 @@ The report remains value-blind and only emits configured booleans. The fixed red
 7. All local tests pass without real Provider credentials or external calls.
 8. The checkpoint stops at `provider_credentials_required_deepseek_gemini`.
 9. Demo and Live order paths remain LLM-free; Live, Withdraw, Approval, and ARM state are unchanged.
+
+## Implementation Result
+
+Implemented on `feature/v13.27.1.62.4-ai-orchestration-core` with these
+truthful runtime boundaries:
+
+- synchronous adapters: DeepSeek and Gemini;
+- historical provider Batch: Gemini only;
+- local bounded queues remain available for non-provider batch orchestration;
+- credential variables: `DEEPSEEK_API_KEY` and `GEMINI_API_KEY` only;
+- no-credential checkpoint:
+  `provider_credentials_required_deepseek_gemini`;
+- DeepSeek `reasoning_content` and research tool-call envelopes are validated
+  in process; only reasoning hashes may enter the audit ledger;
+- external provider smoke has not been run without process credentials;
+- Demo, Live, Risk, Order, Position, Approval, ARM, reconciliation, and
+  Withdraw behavior was not changed by this provider replacement.
