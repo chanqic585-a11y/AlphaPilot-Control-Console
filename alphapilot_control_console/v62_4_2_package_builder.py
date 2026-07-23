@@ -58,7 +58,8 @@ def verify_manifest_coverage(
     expected = {
         path.relative_to(root).as_posix()
         for path in root.rglob("*")
-        if path.is_file() and path.name != "artifact_manifest.json"
+        if path.is_file()
+        and path.relative_to(root).as_posix() != "artifact_manifest.json"
     }
     rows = manifest.get("artifacts")
     if not isinstance(rows, list):

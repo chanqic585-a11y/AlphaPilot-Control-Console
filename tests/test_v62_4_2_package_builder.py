@@ -35,6 +35,11 @@ def test_manifest_covers_all_files_except_itself(tmp_path: Path) -> None:
         "# Final\n",
         encoding="utf-8",
     )
+    (root / "03_matchability").mkdir()
+    (root / "03_matchability" / "artifact_manifest.json").write_text(
+        json.dumps({"schemaVersion": "historical_manifest_v1"}) + "\n",
+        encoding="utf-8",
+    )
 
     manifest = build_artifact_manifest(root)
     manifest_path = root / "artifact_manifest.json"
@@ -46,6 +51,7 @@ def test_manifest_covers_all_files_except_itself(tmp_path: Path) -> None:
     assert verify_manifest_coverage(root, manifest)["passed"] is True
     assert [row["relativePath"] for row in manifest["artifacts"]] == [
         "00_START_HERE/state.json",
+        "03_matchability/artifact_manifest.json",
         "07_final/final_self_check.md",
     ]
     assert "artifact_manifest.json" not in {
