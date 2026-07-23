@@ -116,6 +116,8 @@ def verify_sqlite_snapshots(receipts_path: Path | str) -> dict[str, object]:
             all_findings.append(f"receipt_{index}:invalid")
             continue
         snapshot_path = Path(str(receipt.get("snapshotPath") or ""))
+        if not snapshot_path.is_absolute():
+            snapshot_path = (source.parent / snapshot_path).resolve()
         row: dict[str, object] = {
             "sourcePath": str(receipt.get("sourcePath") or ""),
             "snapshotPath": str(snapshot_path),
