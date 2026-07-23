@@ -251,14 +251,14 @@ def verify_final_runtime_source_identity(
 
 _VERIFIER_SOURCES: dict[str, str] = {
     "verify_acceptance_package.py": """
-from _bootstrap import load_domain
+from _bootstrap import load_delta
 from pathlib import Path
 import argparse, json
-domain = load_domain()
+delta = load_delta()
 parser = argparse.ArgumentParser()
 parser.add_argument("--package-root", type=Path, required=True)
 args = parser.parse_args()
-print(json.dumps(domain.verify_delta_acceptance_package(args.package_root), indent=2, sort_keys=True))
+print(json.dumps(delta.verify_delta_acceptance_package(args.package_root), indent=2, sort_keys=True))
 """,
     "verify_ai_router.py": """
 from _bootstrap import load_domain

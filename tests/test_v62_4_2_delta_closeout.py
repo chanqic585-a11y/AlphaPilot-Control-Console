@@ -197,6 +197,11 @@ def test_each_delivered_verifier_directly_calls_its_domain_function(
         assert call in scripts[filename]
         if filename != "verify_acceptance_package.py":
             assert "verify_acceptance_package(" not in scripts[filename]
+    acceptance_script = scripts["verify_acceptance_package.py"]
+    assert "from _bootstrap import load_delta" in acceptance_script
+    assert "delta = load_delta()" in acceptance_script
+    assert "delta.verify_delta_acceptance_package(" in acceptance_script
+    assert "domain.verify_delta_acceptance_package(" not in acceptance_script
 
 
 def test_runtime_identity_checks_commit_tag_modules_and_zero_execution_lease(
