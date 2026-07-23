@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import runpy
 from pathlib import Path
 
 from alphapilot_control_console.v62_4_2_delta_closeout import (
@@ -9,6 +10,37 @@ from alphapilot_control_console.v62_4_2_delta_closeout import (
     classify_matchability_evidence,
     verify_final_runtime_source_identity,
 )
+
+
+def test_runtime_builder_resolves_bundled_git_when_path_has_no_git(
+    tmp_path: Path,
+) -> None:
+    script_path = (
+        Path(__file__).resolve().parents[1]
+        / "scripts"
+        / "build_v62_4_1_runtime_evidence.py"
+    )
+    namespace = runpy.run_path(str(script_path))
+    bundled_git = (
+        tmp_path
+        / ".cache"
+        / "codex-runtimes"
+        / "codex-primary-runtime"
+        / "dependencies"
+        / "native"
+        / "git"
+        / "cmd"
+        / "git.exe"
+    )
+    bundled_git.parent.mkdir(parents=True)
+    bundled_git.write_bytes(b"fixture")
+
+    resolved = namespace["_resolve_git_executable"](
+        search_path="",
+        home=tmp_path,
+    )
+
+    assert resolved == str(bundled_git)
 from alphapilot_control_console.v62_4_1_independent_verifiers import (
     verify_sqlite_snapshots,
 )

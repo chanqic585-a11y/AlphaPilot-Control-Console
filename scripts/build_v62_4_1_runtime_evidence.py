@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -58,9 +59,37 @@ def _write_json(path: Path, value: object) -> None:
     )
 
 
+def _resolve_git_executable(
+    *,
+    search_path: str | None = None,
+    home: Path | None = None,
+) -> str:
+    discovered = shutil.which("git", path=search_path)
+    if discovered:
+        return discovered
+
+    bundled = (
+        (home or Path.home())
+        / ".cache"
+        / "codex-runtimes"
+        / "codex-primary-runtime"
+        / "dependencies"
+        / "native"
+        / "git"
+        / "cmd"
+        / "git.exe"
+    )
+    if bundled.is_file():
+        return str(bundled)
+
+    raise FileNotFoundError(
+        "git executable was not found on PATH or in the Codex bundled runtime"
+    )
+
+
 def _git(repo: Path, *args: str) -> str:
     completed = subprocess.run(
-        ["git", "-C", str(repo), *args],
+        [_resolve_git_executable(), "-C", str(repo), *args],
         check=True,
         capture_output=True,
         text=True,
