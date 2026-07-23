@@ -7,15 +7,17 @@ import hashlib
 import json
 import os
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from .ai_orchestration.bootstrap import build_ai_runtime
-from .ai_orchestration.contracts import OrchestrationResult
+from .ai_orchestration.contracts import AIRequest, OrchestrationResult
 from .ai_orchestration.validation import canonical_json
 from .strategy_factory_v2.schemas import validate_failure
 from .v62_4_1_failure_critic_acceptance import (
-    build_failure_critic_request,
+    build_failure_critic_request as build_v62_4_1_failure_critic_request,
     deterministic_merge_failure_reviews,
     load_formal_failure_case,
     load_negative_research_memory,
@@ -45,6 +47,7 @@ _FORBIDDEN_EXCHANGE_ENVIRONMENT = (
     "OKX_LIVE_SECRET_KEY",
     "OKX_LIVE_PASSPHRASE",
 )
+_FAILURE_CRITIC_TOKEN_CEILING = 8_192
 
 
 def _sha256_bytes(value: bytes) -> str:
@@ -67,6 +70,28 @@ def assert_ai_worker_environment() -> None:
     ]
     if present:
         raise RuntimeError("exchange_credentials_forbidden_in_ai_worker")
+
+
+def build_v62_4_2_failure_critic_request(
+    *,
+    formal_case: Mapping[str, Any],
+    negative_memory: Mapping[str, Any],
+) -> AIRequest:
+    """Build the V62.4.2 dual review with bounded reasoning headroom."""
+
+    request = build_v62_4_1_failure_critic_request(
+        formal_case=formal_case,
+        negative_memory=negative_memory,
+    )
+    return replace(
+        request,
+        request_id=f"v62-4-2-failure-attribution-{uuid4().hex}",
+        token_ceiling=_FAILURE_CRITIC_TOKEN_CEILING,
+        metadata={
+            **dict(request.metadata),
+            "acceptanceScope": "v62_4_2_four_case_failure_critic",
+        },
+    )
 
 
 def load_development_failure_cases(
@@ -512,7 +537,7 @@ def run_four_case_failure_critic(
         data_root=runtime_data_root,
     ) as runtime:
         for case in inventory:
-            request = build_failure_critic_request(
+            request = build_v62_4_2_failure_critic_request(
                 formal_case=case,
                 negative_memory=negative_memory,
             )

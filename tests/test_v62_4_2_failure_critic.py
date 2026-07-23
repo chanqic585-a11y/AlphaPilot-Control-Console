@@ -13,6 +13,7 @@ from alphapilot_control_console.v62_4_2_failure_critic import (
     assert_ai_worker_environment,
     build_case_review_receipt,
     build_failure_case_inventory,
+    build_v62_4_2_failure_critic_request,
     categorize_validated_review,
     find_negative_research_memory_hits,
     load_development_failure_cases,
@@ -207,6 +208,30 @@ def test_negative_memory_hits_are_bounded_and_reason_aware() -> None:
     assert len(hits) == 2
     assert hits[0]["matchType"] == "candidate_id"
     assert hits[1]["matchType"] == "reason_code"
+
+
+def test_v62_4_2_failure_critic_request_has_bounded_structured_output_headroom() -> None:
+    request = build_v62_4_2_failure_critic_request(
+        formal_case={
+            "candidateId": "v35_tsmom_crypto_adaptation",
+            "campaignId": "formal-campaign",
+            "artifactHashes": ["sha256:case"],
+            "trialResult": {"formalPass": False},
+        },
+        negative_memory={
+            "records": [],
+            "sourceArtifactHashes": ["sha256:memory"],
+        },
+    )
+
+    assert request.request_id.startswith("v62-4-2-failure-attribution-")
+    assert request.token_ceiling == 8_192
+    assert request.cost_ceiling_usd == 0.5
+    assert request.dual_review is True
+    assert request.tool_names == ()
+    assert request.metadata["acceptanceScope"] == (
+        "v62_4_2_four_case_failure_critic"
+    )
 
 
 def test_case_review_receipt_preserves_dual_outputs_and_no_execution() -> None:
