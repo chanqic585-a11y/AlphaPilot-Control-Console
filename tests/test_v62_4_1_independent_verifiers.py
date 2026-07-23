@@ -5,6 +5,8 @@ import json
 import sqlite3
 from pathlib import Path
 
+import alphapilot_control_console.v62_4_1_independent_verifiers as verifier_module
+
 from alphapilot_control_console.v62_4_1_independent_verifiers import (
     canonical_hash,
     verify_ai_orchestration,
@@ -12,6 +14,7 @@ from alphapilot_control_console.v62_4_1_independent_verifiers import (
     verify_runtime_evidence,
     verify_sqlite_snapshots,
     verify_trial_evidence,
+    verify_ui_endpoint,
     verify_ui_projection,
 )
 
@@ -329,6 +332,66 @@ def test_ui_verifier_checks_current_pilot_fields_and_authority() -> None:
     assert "current_pilot_authority_mismatch" in failed["findings"]
 
 
+def test_ui_endpoint_uses_the_current_strategy_summary_route(
+    monkeypatch,
+) -> None:
+    requests: list[str] = []
+    pilot = {
+        "authority": "current_v62_4_pilot",
+        "campaignId": "campaign-1",
+        "candidateCount": 4,
+        "trialCount": 12,
+        "stableSelectionCount": 2,
+        "formalReadyCandidateCount": 1,
+        "formalBlockedCandidateCount": 1,
+        "formalRunCount": 1,
+        "resultReadCount": 1,
+    }
+    html = " ".join(
+        [
+            'id="strategyCurrentPilot"',
+            'id="strategyPilotCampaign"',
+            'id="strategyPilotCandidateTrials"',
+            'id="strategyPilotStable"',
+            'id="strategyPilotFormalReady"',
+            'id="strategyPilotFormalBlocked"',
+        ]
+    )
+
+    class _Response:
+        def __init__(self, body: str) -> None:
+            self._body = body.encode("utf-8")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return self._body
+
+    def _urlopen(url: str, timeout: float):
+        del timeout
+        requests.append(url)
+        if url.endswith("/"):
+            return _Response(html)
+        return _Response(json.dumps({"currentPilot": pilot}))
+
+    monkeypatch.setattr(verifier_module.urllib.request, "urlopen", _urlopen)
+
+    result = verify_ui_endpoint(
+        "http://127.0.0.1:8892",
+        expected_campaign_id="campaign-1",
+    )
+
+    assert result["passed"] is True
+    assert requests == [
+        "http://127.0.0.1:8892/",
+        "http://127.0.0.1:8892/api/strategy/summary",
+    ]
+
+
 def test_hash_verifier_recomputes_each_manifest_entry(tmp_path: Path) -> None:
     artifact = tmp_path / "evidence" / "summary.json"
     _write_json(artifact, {"status": "passed"})
@@ -367,6 +430,29 @@ def test_hash_verifier_accepts_acceptance_handoff_list_manifest(tmp_path: Path) 
                 "relativePath": "evidence/summary.json",
                 "sizeBytes": artifact.stat().st_size,
                 "sha256": digest,
+            }
+        ],
+    )
+
+    result = verify_artifact_manifest(tmp_path, manifest_path)
+
+    assert result["passed"] is True
+    assert result["artifacts"][0]["status"] == "verified"
+
+
+def test_hash_verifier_accepts_legitimate_zero_byte_artifact(tmp_path: Path) -> None:
+    artifact = tmp_path / "logs" / "server.stderr.log"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_bytes(b"")
+    digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    manifest_path = tmp_path / "artifact_manifest.json"
+    _write_json(
+        manifest_path,
+        [
+            {
+                "relativePath": "logs/server.stderr.log",
+                "sha256": digest,
+                "sizeBytes": 0,
             }
         ],
     )

@@ -130,7 +130,8 @@ def verify_sqlite_snapshots(receipts_path: Path | str) -> dict[str, object]:
         actual_hash = _sha256_file(snapshot_path)
         row["sizeBytes"] = actual_size
         row["sha256"] = actual_hash
-        if int(receipt.get("sizeBytes") or -1) != actual_size:
+        expected_size = receipt.get("sizeBytes")
+        if expected_size is None or int(expected_size) != actual_size:
             findings.append("size_mismatch")
         if str(receipt.get("sha256") or "") != actual_hash:
             findings.append("hash_mismatch")
@@ -638,7 +639,7 @@ def verify_ui_endpoint(
     with urllib.request.urlopen(normalized + "/", timeout=timeout_seconds) as response:
         html_text = response.read().decode("utf-8")
     with urllib.request.urlopen(
-        normalized + "/api/strategy-factory/control?fresh=1",
+        normalized + "/api/strategy/summary",
         timeout=timeout_seconds,
     ) as response:
         api_payload = json.loads(response.read().decode("utf-8"))
@@ -648,7 +649,7 @@ def verify_ui_endpoint(
         expected_campaign_id=expected_campaign_id,
     )
     result["baseUrl"] = normalized
-    result["httpRequests"] = ["/", "/api/strategy-factory/control?fresh=1"]
+    result["httpRequests"] = ["/", "/api/strategy/summary"]
     return result
 
 
@@ -705,7 +706,10 @@ def verify_artifact_manifest(
                 expected_size = item.get("size")
             if expected_size is None:
                 expected_size = item.get("bytes")
-            if status == "verified" and int(expected_size or -1) != actual_size:
+            if (
+                status == "verified"
+                and (expected_size is None or int(expected_size) != actual_size)
+            ):
                 status = "size_mismatch"
         if status != "verified":
             findings.append(f"{relative}:{status}")

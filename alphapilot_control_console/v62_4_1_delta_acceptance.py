@@ -13,7 +13,15 @@ from pathlib import Path
 from typing import Any
 
 
-CONSOLE_CLOSEOUT_TAG = "v13.27.1.62.4.1-closeout-console"
+CONSOLE_CLOSEOUT_TAG = "v13.27.1.62.4.1-handoff-console"
+
+CURRENT_UI_EVIDENCE_MAP = {
+    "desktop-1440-strategy.png": "strategy_factory_desktop.png",
+    "mobile-390-strategy.png": "strategy_factory_mobile_390.png",
+    "desktop-1440-demo.png": "demo_desktop.png",
+    "mobile-390-demo.png": "demo_mobile_390.png",
+    "playwright_acceptance.json": "ui_browser_test_results.json",
+}
 
 
 def _read_json(path: Path) -> Any:
@@ -56,6 +64,63 @@ def copy_evidence_tree(source: Path, destination: Path) -> dict[str, Any]:
     }
 
 
+def build_merged_ui_evidence(
+    *,
+    baseline_root: Path,
+    current_root: Path,
+    destination: Path,
+    required_names: tuple[str, ...],
+) -> dict[str, Any]:
+    """Merge unchanged baseline surfaces with current acceptance captures."""
+
+    baseline_root = baseline_root.resolve()
+    current_root = current_root.resolve()
+    destination = destination.resolve()
+    if not baseline_root.is_dir():
+        raise FileNotFoundError(
+            f"Baseline UI evidence does not exist: {baseline_root}"
+        )
+    if not current_root.is_dir():
+        raise FileNotFoundError(
+            f"Current UI evidence does not exist: {current_root}"
+        )
+    if destination.exists():
+        shutil.rmtree(destination)
+    destination.mkdir(parents=True)
+
+    sources: dict[str, str] = {}
+    for name in required_names:
+        source = baseline_root / name
+        if not source.is_file():
+            raise FileNotFoundError(
+                f"Required baseline UI evidence is missing: {source}"
+            )
+        shutil.copy2(source, destination / name)
+        sources[name] = "v62_4_baseline"
+
+    current_override_count = 0
+    required = set(required_names)
+    for current_name, package_name in CURRENT_UI_EVIDENCE_MAP.items():
+        source = current_root / current_name
+        if package_name not in required or not source.is_file():
+            continue
+        shutil.copy2(source, destination / package_name)
+        sources[package_name] = "v62_4_1_current"
+        current_override_count += 1
+
+    current_archive = destination / "v62_4_1_current"
+    shutil.copytree(current_root, current_archive)
+    return {
+        "baselineRoot": str(baseline_root),
+        "currentRoot": str(current_root),
+        "destination": str(destination),
+        "requiredFileCount": len(required_names),
+        "currentOverrideCount": current_override_count,
+        "baselineFallbackCount": len(required_names) - current_override_count,
+        "sources": sources,
+    }
+
+
 def _failed_gates(gate_matrix: Any) -> list[str]:
     if not isinstance(gate_matrix, dict):
         return []
@@ -91,7 +156,11 @@ def build_formal_closeout_projection(
     metrics = summary.get("baseMetrics", summary)
     return {
         "campaignId": summary.get("campaignId"),
-        "candidateId": summary.get("candidateId") or route.get("candidateId"),
+        "candidateId": (
+            summary.get("candidateId")
+            or route.get("candidateId")
+            or result_root.name
+        ),
         "formalRunCount": int(formal_run_count),
         "resultReadCount": int(result_read_count),
         "formalPass": bool(summary.get("formalPass", False)),

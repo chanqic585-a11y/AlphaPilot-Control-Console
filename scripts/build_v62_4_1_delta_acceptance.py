@@ -35,6 +35,7 @@ from alphapilot_control_console.v62_4_1_acceptance import build_closeout_state
 from alphapilot_control_console.v62_4_1_delta_acceptance import (
     CONSOLE_CLOSEOUT_TAG,
     build_formal_closeout_projection,
+    build_merged_ui_evidence,
     build_security_quality_projection,
     copy_evidence_tree,
 )
@@ -87,6 +88,9 @@ QUALITY_EVIDENCE_ROOT = (
 )
 FORMAL_EVIDENCE_ROOT = (
     WORKSPACE / "validation" / "v62-4-1-formal-v35-tsmom-20260723"
+)
+BASELINE_UI_EVIDENCE_ROOT = (
+    WORKSPACE / "validation" / "v62-4-acceptance-ui-20260723"
 )
 
 CONSOLE_TAG = CONSOLE_CLOSEOUT_TAG
@@ -215,7 +219,7 @@ def read_ui_payload(base_url: str) -> tuple[dict[str, Any], str]:
     with urllib.request.urlopen(normalized + "/", timeout=10) as response:
         html = response.read().decode("utf-8")
     with urllib.request.urlopen(
-        normalized + "/api/strategy-factory/control?fresh=1",
+        normalized + "/api/strategy/summary",
         timeout=10,
     ) as response:
         payload = json.loads(response.read().decode("utf-8"))
@@ -261,6 +265,9 @@ class V6241AcceptanceBuilder:
         matchability_evidence_root: Path,
         quality_evidence_root: Path,
         formal_evidence_root: Path,
+        current_ui_evidence_root: Path,
+        merged_ui_evidence_root: Path,
+        merged_ui_receipt: dict[str, Any],
         ui_base_url: str,
         handoff_prompt: Path,
         base_builder_arguments: dict[str, Any],
@@ -271,6 +278,9 @@ class V6241AcceptanceBuilder:
         self.matchability_evidence_root = matchability_evidence_root
         self.quality_evidence_root = quality_evidence_root
         self.formal_evidence_root = formal_evidence_root
+        self.current_ui_evidence_root = current_ui_evidence_root
+        self.merged_ui_evidence_root = merged_ui_evidence_root
+        self.merged_ui_receipt = merged_ui_receipt
         self.ui_base_url = ui_base_url
         self.handoff_prompt = handoff_prompt
         self.base_builder = base.AcceptanceBuilder(
@@ -280,6 +290,30 @@ class V6241AcceptanceBuilder:
 
     def build(self) -> dict[str, Any]:
         self.base_builder.build()
+        if self.merged_ui_evidence_root.exists():
+            shutil.rmtree(self.merged_ui_evidence_root)
+        current_ui_receipt = copy_evidence_tree(
+            self.current_ui_evidence_root,
+            self.root / "10_ui" / "v62_4_1_current",
+        )
+        write_json(
+            self.root / "10_ui" / "ui_evidence_provenance.json",
+            {
+                **self.merged_ui_receipt,
+                "mergedInputRemovedAfterProjection": True,
+                "currentEvidenceArchive": current_ui_receipt,
+                "classification": {
+                    "v62_4_1_current": (
+                        "authoritative current acceptance captures for "
+                        "changed Strategy and Demo surfaces"
+                    ),
+                    "v62_4_baseline": (
+                        "unchanged baseline captures retained for surfaces "
+                        "outside the V62.4.1 delta"
+                    ),
+                },
+            },
+        )
         result_root = find_formal_result_root(self.formal_evidence_root)
         formal = build_formal_closeout_projection(
             result_root=result_root,
@@ -623,6 +657,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--pilot-root", type=Path, default=PILOT_ROOT)
     parser.add_argument("--provider-smoke-root", type=Path, default=PROVIDER_SMOKE_ROOT)
     parser.add_argument("--ui-evidence-root", type=Path, required=True)
+    parser.add_argument(
+        "--baseline-ui-evidence-root",
+        type=Path,
+        default=BASELINE_UI_EVIDENCE_ROOT,
+    )
     parser.add_argument("--ui-base-url", default="http://127.0.0.1:8892")
     parser.add_argument("--master-prompt", type=Path, required=True)
     parser.add_argument("--acceptance-prompt", type=Path, required=True)
@@ -645,6 +684,18 @@ def main() -> int:
     output.mkdir(parents=True)
     base = load_base_builder()
     configure_base_builder(base)
+    merged_ui_evidence_root = output / ".v62_4_1_merged_ui_input"
+    required_ui_inputs = tuple(
+        name
+        for name in base.REQUIRED_SECTION_FILES["10_ui"]
+        if name.endswith(".png")
+    ) + ("ui_browser_test_results.json",)
+    merged_ui_receipt = build_merged_ui_evidence(
+        baseline_root=arguments.baseline_ui_evidence_root.resolve(),
+        current_root=arguments.ui_evidence_root.resolve(),
+        destination=merged_ui_evidence_root,
+        required_names=required_ui_inputs,
+    )
     builder = V6241AcceptanceBuilder(
         base=base,
         root=output,
@@ -652,13 +703,16 @@ def main() -> int:
         matchability_evidence_root=arguments.matchability_evidence_root.resolve(),
         quality_evidence_root=arguments.quality_evidence_root.resolve(),
         formal_evidence_root=arguments.formal_evidence_root.resolve(),
+        current_ui_evidence_root=arguments.ui_evidence_root.resolve(),
+        merged_ui_evidence_root=merged_ui_evidence_root,
+        merged_ui_receipt=merged_ui_receipt,
         ui_base_url=arguments.ui_base_url,
         handoff_prompt=arguments.handoff_prompt.resolve(),
         base_builder_arguments={
             "pilot_root": arguments.pilot_root.resolve(),
             "provider_smoke_root": arguments.provider_smoke_root.resolve(),
             "test_evidence_root": arguments.quality_evidence_root.resolve(),
-            "ui_evidence_root": arguments.ui_evidence_root.resolve(),
+            "ui_evidence_root": merged_ui_evidence_root,
             "master_prompt": arguments.master_prompt.resolve(),
             "acceptance_prompt": arguments.acceptance_prompt.resolve(),
             "foundation_tools_root": arguments.foundation_tools_root.resolve(),
