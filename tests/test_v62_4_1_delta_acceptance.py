@@ -21,7 +21,7 @@ def _write_json(path: Path, value: object) -> None:
 
 
 def test_console_closeout_tag_does_not_reuse_the_frozen_acceptance_tag() -> None:
-    assert CONSOLE_CLOSEOUT_TAG == "v13.27.1.62.4.1-handoff-console"
+    assert CONSOLE_CLOSEOUT_TAG == "v13.27.1.62.4.1-final-console"
     assert CONSOLE_CLOSEOUT_TAG != "v13.27.1.62.4.1-acceptance-console"
     assert CONSOLE_CLOSEOUT_TAG != "v13.27.1.62.4.1-closeout-console"
 

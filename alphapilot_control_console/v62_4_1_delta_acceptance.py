@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 
-CONSOLE_CLOSEOUT_TAG = "v13.27.1.62.4.1-handoff-console"
+CONSOLE_CLOSEOUT_TAG = "v13.27.1.62.4.1-final-console"
 
 CURRENT_UI_EVIDENCE_MAP = {
     "desktop-1440-strategy.png": "strategy_factory_desktop.png",
