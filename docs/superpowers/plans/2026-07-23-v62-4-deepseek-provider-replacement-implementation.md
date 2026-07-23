@@ -299,7 +299,9 @@ Clear provider variables only in the validation shell and run:
 ```powershell
 Remove-Item Env:DEEPSEEK_API_KEY,Env:GEMINI_API_KEY -ErrorAction SilentlyContinue
 & 'D:\Codex-Workspace\AlphaPilot-Control-Console\.venv\Scripts\python.exe' -m alphapilot_control_console.ai_orchestration.provider_readiness --repository-root .
-& 'D:\Codex-Workspace\AlphaPilot-Control-Console\.venv\Scripts\python.exe' -m alphapilot_control_console.ai_orchestration.provider_smoke --repository-root .
+$dataRoot = 'D:\Codex-Workspace\validation\v62-4-provider-smoke'
+New-Item -ItemType Directory -Force -Path $dataRoot | Out-Null
+& 'D:\Codex-Workspace\AlphaPilot-Control-Console\.venv\Scripts\python.exe' -m alphapilot_control_console.ai_orchestration.provider_smoke --repository-root . --data-root $dataRoot
 ```
 
 Expected: readiness reports both providers unconfigured; smoke exits with the documented provider-credentials-required code without making an external request. Runtime authority fields remain false.
