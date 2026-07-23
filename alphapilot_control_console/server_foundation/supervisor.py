@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from .contracts import FoundationRole
+from .lease import FoundationLeaseStore
 from .manifest import FoundationManifest
 from .reconciliation import StartupState, assert_startup_reconciled
 from .secret_isolation import sanitized_environment_for_role
@@ -93,6 +94,10 @@ class FoundationSupervisor:
                 **_startup_state_payload(startup_state),
             },
         )
+        lease_store = FoundationLeaseStore(
+            self.manifest.stateRoot / "foundation_leases.sqlite"
+        )
+        lease_store.close()
         started: list[FoundationRole] = []
         try:
             for role in selected:
@@ -260,6 +265,18 @@ class FoundationSupervisor:
         pending = set(selected)
         while pending and time.monotonic() < deadline:
             completed: list[FoundationRole] = []
+            lease_store = FoundationLeaseStore(
+                self.manifest.stateRoot / "foundation_leases.sqlite"
+            )
+            try:
+                active_roles = {
+                    str(item["role"])
+                    for item in lease_store.projection()
+                    if item["environment"] == self.manifest.environment
+                    and item["expired"] is False
+                }
+            finally:
+                lease_store.close()
             for role in pending:
                 process = self._processes.get(role)
                 if process is not None:
@@ -276,6 +293,8 @@ class FoundationSupervisor:
                         continue
                     if health.get("status") == "stopped":
                         completed.append(role)
+                elif role.value not in active_roles:
+                    completed.append(role)
             for role in completed:
                 pending.discard(role)
             if pending:
@@ -296,6 +315,56 @@ class FoundationSupervisor:
             "status": "stopped",
             "stoppedRoles": [role.value for role in selected],
             "orderCapabilityEnabled": False,
+        }
+
+    def status(
+        self,
+        *,
+        roles: Sequence[FoundationRole],
+        maximum_age_seconds: float = 15,
+    ) -> dict[str, object]:
+        selected = self._normalize_roles(roles)
+        health = self.health(
+            roles=selected,
+            maximum_age_seconds=maximum_age_seconds,
+        )
+        lease_store = FoundationLeaseStore(
+            self.manifest.stateRoot / "foundation_leases.sqlite"
+        )
+        try:
+            leases = [
+                item
+                for item in lease_store.projection()
+                if item["environment"] == self.manifest.environment
+                and item["role"] in {role.value for role in selected}
+                and item["expired"] is False
+            ]
+        finally:
+            lease_store.close()
+        healthy_count = int(health["healthyRoleCount"])
+        active_lease_count = len(leases)
+        if healthy_count == len(selected) and active_lease_count == len(selected):
+            status = "running_shadow_no_order"
+        elif healthy_count == 0 and active_lease_count == 0:
+            status = "stopped"
+        else:
+            status = "degraded_identity_or_lease_mismatch"
+        return {
+            "schemaVersion": "alphapilot_v63_supervisor_status_v1",
+            "status": status,
+            "deploymentId": self.manifest.deploymentId,
+            "environment": self.manifest.environment,
+            "manifestHash": self.manifest.manifestHash,
+            "configHash": self.manifest.configHash,
+            "healthyRoleCount": healthy_count,
+            "activeLeaseCount": active_lease_count,
+            "expectedRoleCount": len(selected),
+            "orderCapabilityEnabled": False,
+            "demoArmAllowed": False,
+            "liveArmAllowed": False,
+            "withdrawAllowed": False,
+            "roles": health["roles"],
+            "leases": leases,
         }
 
     def _normalize_roles(

@@ -83,32 +83,41 @@ class FoundationSupervisorTests(unittest.TestCase):
                 withdrawEnabled=False,
             )
 
-            start = supervisor.start(
-                roles=(FoundationRole.CONTROL, FoundationRole.MARKET),
-                startup_state=safe_state,
-                startup_timeout_seconds=10,
-                heartbeat_seconds=0.2,
-            )
-            self.assertEqual(start["status"], "started_shadow_no_order")
-            self.assertEqual(set(start["startedRoles"]), {"control", "market"})
-
-            health = supervisor.health(
-                roles=(FoundationRole.CONTROL, FoundationRole.MARKET),
-                maximum_age_seconds=3,
-            )
-            self.assertTrue(health["healthy"])
-            self.assertEqual(health["healthyRoleCount"], 2)
-            self.assertTrue(
-                all(
-                    role["orderCapabilityEnabled"] is False
-                    for role in health["roles"]
+            try:
+                start = supervisor.start(
+                    roles=(FoundationRole.CONTROL, FoundationRole.MARKET),
+                    startup_state=safe_state,
+                    startup_timeout_seconds=10,
+                    heartbeat_seconds=0.2,
                 )
-            )
+                self.assertEqual(start["status"], "started_shadow_no_order")
+                self.assertEqual(set(start["startedRoles"]), {"control", "market"})
 
-            stop = supervisor.stop(
-                roles=(FoundationRole.CONTROL, FoundationRole.MARKET),
-                timeout_seconds=10,
-            )
+                health = supervisor.health(
+                    roles=(FoundationRole.CONTROL, FoundationRole.MARKET),
+                    maximum_age_seconds=3,
+                )
+                self.assertTrue(health["healthy"])
+                self.assertEqual(health["healthyRoleCount"], 2)
+                self.assertTrue(
+                    all(
+                        role["orderCapabilityEnabled"] is False
+                        for role in health["roles"]
+                    )
+                )
+                status = supervisor.status(
+                    roles=(FoundationRole.CONTROL, FoundationRole.MARKET),
+                    maximum_age_seconds=3,
+                )
+                self.assertEqual(status["status"], "running_shadow_no_order")
+                self.assertEqual(status["activeLeaseCount"], 2)
+                self.assertEqual(status["healthyRoleCount"], 2)
+                self.assertFalse(status["orderCapabilityEnabled"])
+            finally:
+                stop = supervisor.stop(
+                    roles=(FoundationRole.CONTROL, FoundationRole.MARKET),
+                    timeout_seconds=10,
+                )
             self.assertEqual(stop["status"], "stopped")
             self.assertEqual(set(stop["stoppedRoles"]), {"control", "market"})
             lease_store = FoundationLeaseStore(
