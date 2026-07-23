@@ -355,6 +355,18 @@ def iter_package_text_files(root: Path):
         yield path
 
 
+def select_remote_tag_commit(ls_remote_output: str, tag: str) -> str | None:
+    """Resolve annotated or lightweight tags to the committed object SHA."""
+
+    refs: dict[str, str] = {}
+    for line in ls_remote_output.splitlines():
+        parts = line.split()
+        if len(parts) == 2:
+            refs[parts[1]] = parts[0]
+    direct = f"refs/tags/{tag}"
+    return refs.get(f"{direct}^{{}}") or refs.get(direct)
+
+
 def validate_data_omission_policy(root: Path) -> dict[str, Any]:
     omitted = root / "omitted_data_manifest.json"
     sample_root = root / "sample_only"

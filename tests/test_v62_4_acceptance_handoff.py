@@ -80,6 +80,16 @@ def test_acceptance_final_scan_excludes_transient_foundation(tmp_path: Path) -> 
     assert transient not in packaged
 
 
+def test_acceptance_resolves_lightweight_and_annotated_remote_tags() -> None:
+    assert hasattr(acceptance_helpers, "select_remote_tag_commit")
+
+    lightweight = "abc123\trefs/tags/v1\n"
+    annotated = "tagobj\trefs/tags/v2\ncommit456\trefs/tags/v2^{}\n"
+
+    assert acceptance_helpers.select_remote_tag_commit(lightweight, "v1") == "abc123"
+    assert acceptance_helpers.select_remote_tag_commit(annotated, "v2") == "commit456"
+
+
 def test_acceptance_layout_covers_all_required_handoff_sections() -> None:
     assert REQUIRED_TOP_LEVEL == tuple(f"{index:02d}_{name}" for index, name in (
         (0, "START_HERE"),

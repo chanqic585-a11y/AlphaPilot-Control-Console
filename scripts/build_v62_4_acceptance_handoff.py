@@ -44,6 +44,7 @@ from alphapilot_control_console.v62_4_acceptance import (
     iter_package_text_files,
     load_pilot_evidence,
     redact_credential_assignments,
+    select_remote_tag_commit,
     validate_data_omission_policy,
     verify_acceptance_package,
 )
@@ -66,7 +67,7 @@ REPOSITORIES = (
     {
         "name": "AlphaPilot-Control-Console",
         "path": CONSOLE_WORKTREE,
-        "tag": "v13.27.1.62.4.1-acceptance-console",
+        "tag": "v13.27.1.62.4.2-acceptance-console",
         "role": "runtime_control_and_web_console",
         "runtimeAuthority": True,
     },
@@ -506,8 +507,15 @@ class AcceptanceBuilder:
                 check=True,
                 timeout=900,
             )
-            remote_ref = git(repository, "ls-remote", "origin", f"refs/tags/{definition['tag']}^{{}}", check=False)
-            remote_hash = remote_ref.split()[0] if remote_ref else None
+            remote_ref = git(
+                repository,
+                "ls-remote",
+                "origin",
+                f"refs/tags/{definition['tag']}",
+                f"refs/tags/{definition['tag']}^{{}}",
+                check=False,
+            )
+            remote_hash = select_remote_tag_commit(remote_ref, definition["tag"])
             remote_results.append(
                 {
                     "repository": definition["name"],
