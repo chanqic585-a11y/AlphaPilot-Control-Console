@@ -41,7 +41,7 @@ class SingleRouteFallbackTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch.dict(
             os.environ,
             {
-                "TEST_OPENAI_FAST_MODEL": "openai-fast-configured",
+                "TEST_DEEPSEEK_FAST_MODEL": "deepseek-fast-configured",
                 "TEST_GEMINI_FAST_MODEL": "gemini-fast-configured",
             },
         ):
@@ -67,26 +67,26 @@ class SingleRouteFallbackTests(unittest.TestCase):
                 {
                     "schemaVersion": "alphapilot_ai_model_registry_v1",
                     "aliases": {
-                        "openai_fast": {
-                            "provider": "openai",
-                            "modelIdEnv": "TEST_OPENAI_FAST_MODEL",
+                        "deepseek_fast": {
+                            "provider": "deepseek",
+                            "modelId": "deepseek-fast-configured",
                             "capabilities": ["fast", "structured_output"],
                         },
                         "gemini_fast": {
                             "provider": "gemini",
-                            "modelIdEnv": "TEST_GEMINI_FAST_MODEL",
+                            "modelId": "gemini-fast-configured",
                             "capabilities": ["fast", "structured_output"],
                         },
                     },
                 }
             )
-            openai = _Adapter("openai", fail=True)
+            deepseek = _Adapter("deepseek", fail=True)
             gemini = _Adapter("gemini")
             ledger = AIAuditLedger(root / "audit.sqlite")
             service = AIOrchestrationService(
                 model_registry=model_registry,
                 prompt_registry=PromptRegistry.from_path(prompt_registry_path),
-                adapters={"openai": openai, "gemini": gemini},
+                adapters={"deepseek": deepseek, "gemini": gemini},
                 audit_ledger=ledger,
             )
             try:
@@ -110,7 +110,7 @@ class SingleRouteFallbackTests(unittest.TestCase):
                 ledger.close()
 
         self.assertEqual(result.status, "accepted")
-        self.assertEqual(openai.calls, 1)
+        self.assertEqual(deepseek.calls, 1)
         self.assertEqual(gemini.calls, 1)
         self.assertEqual(projection["statusCounts"], {"accepted": 1})
         self.assertEqual(projection["events"][0]["routeMode"], "single_fallback")

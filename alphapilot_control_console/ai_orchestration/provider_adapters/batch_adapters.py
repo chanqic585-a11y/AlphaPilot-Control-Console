@@ -6,14 +6,12 @@ import json
 import os
 import urllib.error
 import urllib.request
-import uuid
 from typing import Any, Mapping, Protocol, Sequence
 
 from ..batch_service import BatchProviderStatus, BatchSubmission
 from ..contracts import AIRequest, ModelIdentity
 from ..errors import ProviderResponseError, ProviderUnavailableError
 from .base import parse_json_object
-from .openai_adapter import build_openai_response_body
 
 
 class BatchHTTPTransport(Protocol):
@@ -26,25 +24,6 @@ class BatchHTTPTransport(Protocol):
         json_body: Mapping[str, Any] | None,
         timeout_seconds: float,
     ) -> dict[str, Any]: ...
-
-    def upload_jsonl(
-        self,
-        *,
-        url: str,
-        headers: Mapping[str, str],
-        content: str,
-        filename: str,
-        timeout_seconds: float,
-    ) -> dict[str, Any]: ...
-
-    def download_text(
-        self,
-        *,
-        url: str,
-        headers: Mapping[str, str],
-        timeout_seconds: float,
-    ) -> str: ...
-
 
 class UrllibBatchTransport:
     def _open(self, request: urllib.request.Request, timeout_seconds: float) -> bytes:
@@ -79,153 +58,6 @@ class UrllibBatchTransport:
         if not isinstance(payload, dict):
             raise ProviderResponseError("provider Batch returned a non-object response")
         return payload
-
-    def upload_jsonl(
-        self,
-        *,
-        url: str,
-        headers: Mapping[str, str],
-        content: str,
-        filename: str,
-        timeout_seconds: float,
-    ) -> dict[str, Any]:
-        boundary = "alphapilot-" + uuid.uuid4().hex
-        chunks = [
-            f"--{boundary}\r\nContent-Disposition: form-data; name=\"purpose\"\r\n\r\nbatch\r\n",
-            (
-                f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; "
-                f"filename=\"{filename}\"\r\nContent-Type: application/jsonl\r\n\r\n"
-            ),
-            content,
-            f"\r\n--{boundary}--\r\n",
-        ]
-        request = urllib.request.Request(
-            url,
-            data="".join(chunks).encode("utf-8"),
-            method="POST",
-            headers={**headers, "Content-Type": f"multipart/form-data; boundary={boundary}"},
-        )
-        raw = self._open(request, timeout_seconds).decode("utf-8")
-        try:
-            payload = json.loads(raw)
-        except json.JSONDecodeError as exc:
-            raise ProviderResponseError("provider file upload returned invalid JSON") from exc
-        if not isinstance(payload, dict):
-            raise ProviderResponseError("provider file upload returned a non-object response")
-        return payload
-
-    def download_text(
-        self,
-        *,
-        url: str,
-        headers: Mapping[str, str],
-        timeout_seconds: float,
-    ) -> str:
-        request = urllib.request.Request(url, method="GET", headers=dict(headers))
-        return self._open(request, timeout_seconds).decode("utf-8")
-
-
-class OpenAIBatchAdapter:
-    provider = "openai"
-
-    def __init__(
-        self,
-        *,
-        transport: BatchHTTPTransport | None = None,
-        api_key: str | None = None,
-        base_url: str = "https://api.openai.com",
-        timeout_seconds: float = 90.0,
-    ) -> None:
-        self._transport = transport or UrllibBatchTransport()
-        self._api_key = api_key
-        self._base_url = base_url.rstrip("/")
-        self._timeout_seconds = timeout_seconds
-
-    def _headers(self) -> dict[str, str]:
-        credential = str(self._api_key or os.environ.get("OPENAI_API_KEY") or "").strip()
-        if not credential:
-            raise ProviderUnavailableError("OPENAI_API_KEY is not configured in process memory")
-        return {"Authorization": f"Bearer {credential}"}
-
-    def submit(
-        self,
-        identity: ModelIdentity,
-        requests: Sequence[AIRequest],
-        *,
-        payload_hash: str,
-    ) -> BatchSubmission:
-        if identity.provider != self.provider:
-            raise ProviderResponseError("OpenAI Batch adapter received another provider")
-        lines = [
-            json.dumps(
-                {
-                    "custom_id": request.request_id,
-                    "method": "POST",
-                    "url": "/v1/responses",
-                    "body": build_openai_response_body(identity, request),
-                },
-                separators=(",", ":"),
-            )
-            for request in requests
-        ]
-        uploaded = self._transport.upload_jsonl(
-            url=f"{self._base_url}/v1/files",
-            headers=self._headers(),
-            content="\n".join(lines) + "\n",
-            filename="alphapilot-batch.jsonl",
-            timeout_seconds=self._timeout_seconds,
-        )
-        file_id = str(uploaded.get("id") or "")
-        if not file_id:
-            raise ProviderResponseError("OpenAI Batch upload returned no file identity")
-        created = self._transport.request_json(
-            method="POST",
-            url=f"{self._base_url}/v1/batches",
-            headers=self._headers(),
-            json_body={
-                "input_file_id": file_id,
-                "endpoint": "/v1/responses",
-                "completion_window": "24h",
-                "metadata": {"alphapilot_payload_hash": payload_hash},
-            },
-            timeout_seconds=self._timeout_seconds,
-        )
-        provider_job_id = str(created.get("id") or "")
-        if not provider_job_id:
-            raise ProviderResponseError("OpenAI Batch returned no job identity")
-        return BatchSubmission(provider_job_id, str(created.get("status") or "submitted"))
-
-    def get_status(self, provider_job_id: str) -> BatchProviderStatus:
-        payload = self._transport.request_json(
-            method="GET",
-            url=f"{self._base_url}/v1/batches/{provider_job_id}",
-            headers=self._headers(),
-            json_body=None,
-            timeout_seconds=self._timeout_seconds,
-        )
-        state = str(payload.get("status") or "unknown")
-        counts = payload.get("request_counts") or {}
-        outputs: dict[str, Mapping[str, object]] = {}
-        if state == "completed":
-            output_file_id = str(payload.get("output_file_id") or "")
-            if not output_file_id:
-                raise ProviderResponseError("completed OpenAI Batch has no output file")
-            raw = self._transport.download_text(
-                url=f"{self._base_url}/v1/files/{output_file_id}/content",
-                headers=self._headers(),
-                timeout_seconds=self._timeout_seconds,
-            )
-            outputs = _parse_openai_jsonl(raw)
-        normalized = "failed" if state in {"failed", "cancelled", "expired"} else state
-        return BatchProviderStatus(
-            provider_job_id=provider_job_id,
-            status=normalized,
-            outputs=outputs,
-            total_count=int(counts.get("total") or 0),
-            completed_count=int(counts.get("completed") or 0),
-            failed_count=int(counts.get("failed") or 0),
-        )
-
 
 class GeminiBatchAdapter:
     provider = "gemini"
@@ -327,27 +159,6 @@ def _gemini_generate_content_request(request: AIRequest) -> dict[str, Any]:
             "response_json_schema": request.response_schema,
         },
     }
-
-
-def _parse_openai_jsonl(raw: str) -> dict[str, Mapping[str, object]]:
-    outputs: dict[str, Mapping[str, object]] = {}
-    for line in raw.splitlines():
-        if not line.strip():
-            continue
-        try:
-            item = json.loads(line)
-        except json.JSONDecodeError as exc:
-            raise ProviderResponseError("OpenAI Batch output file contains invalid JSONL") from exc
-        custom_id = str(item.get("custom_id") or "")
-        response = item.get("response") or {}
-        body = response.get("body") or {}
-        if not custom_id or int(response.get("status_code") or 0) != 200:
-            raise ProviderResponseError("OpenAI Batch contains a failed request")
-        output_text = body.get("output_text")
-        if not isinstance(output_text, str):
-            raise ProviderResponseError("OpenAI Batch response has no output_text")
-        outputs[custom_id] = parse_json_object(output_text)
-    return outputs
 
 
 def _normalize_gemini_state(value: object) -> str:

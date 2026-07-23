@@ -12,7 +12,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from .config import ALLOWED_STRATEGY_STATUSES, SAFETY_BOUNDARY, WEB_DIR
+from .config import ALLOWED_STRATEGY_STATUSES, DATA_DIR, PROJECT_ROOT, SAFETY_BOUNDARY, WEB_DIR
+from .ai_control_projection import build_ai_control_projection
 from .adaptive_learning_runtime import build_adaptive_learning_status
 from .credential_runtime import load_okx_demo_credentials
 from .auto_execution_engine import build_auto_execution_engine, run_auto_execution_engine
@@ -486,6 +487,17 @@ class ConsoleHandler(BaseHTTPRequestHandler):
                 "adaptive-learning",
                 5,
                 build_adaptive_learning_status,
+                fresh=fresh,
+            ))
+            return
+        if path == "/api/ai/control":
+            self._send_json(_cached_payload(
+                "ai-control",
+                5,
+                lambda: build_ai_control_projection(
+                    repository_root=PROJECT_ROOT,
+                    data_root=DATA_DIR,
+                ),
                 fresh=fresh,
             ))
             return

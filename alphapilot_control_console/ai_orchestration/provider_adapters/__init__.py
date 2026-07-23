@@ -1,6 +1,7 @@
 """Provider adapters hidden behind AIOrchestrationService."""
 
+from .deepseek_adapter import DeepSeekAdapter
 from .gemini_adapter import GeminiAdapter
-from .openai_adapter import OpenAIAdapter
+from .mock_adapter import MockProviderAdapter
 
-__all__ = ["GeminiAdapter", "OpenAIAdapter"]
+__all__ = ["DeepSeekAdapter", "GeminiAdapter", "MockProviderAdapter"]

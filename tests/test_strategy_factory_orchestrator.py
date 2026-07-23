@@ -65,6 +65,7 @@ class StrategyFactoryOrchestratorTests(unittest.TestCase):
             python_executable=self.root / "python.exe",
             launcher=fake_launcher,
             clock=lambda: FIXED_NOW,
+            negative_memory_path=self.root / "negative_research_memory.jsonl",
         )
 
     def tearDown(self) -> None:
@@ -91,6 +92,9 @@ class StrategyFactoryOrchestratorTests(unittest.TestCase):
         self.assertFalse(run["automaticPromotionAllowed"])
         self.assertFalse(run["forcePassAllowed"])
         self.assertFalse(run["lockedOosTuningAllowed"])
+        self.assertEqual(run["lifecycleState"], "trial_queued")
+        self.assertEqual(run["lifecycle"]["completedTrialCount"], 0)
+        self.assertEqual(run["failureAttributions"], [])
 
         job = json.loads(Path(run["jobJsonPath"]).read_text(encoding="utf-8"))
         self.assertEqual(job["campaignId"], run["campaignId"])
@@ -104,6 +108,15 @@ class StrategyFactoryOrchestratorTests(unittest.TestCase):
         self.assertFalse(job["workerPolicy"]["privateApiAccess"])
         self.assertFalse(job["workerPolicy"]["orderAccess"])
         self.assertEqual(job["workerPolicy"]["maximumConcurrentRuns"], 1)
+        self.assertFalse(job["aiResearchGovernance"]["executionAuthorized"])
+        self.assertEqual(
+            job["aiResearchGovernance"]["draftTypes"],
+            ["HypothesisDraft", "CandidateDraft", "ExperimentDraft"],
+        )
+        self.assertEqual(
+            job["aiResearchGovernance"]["familyContexts"][0]["memoryHitCount"],
+            0,
+        )
 
     def test_candidate_selection_respects_requested_timeframe(self) -> None:
         self.registry_path.write_text(
@@ -578,6 +591,115 @@ class StrategyFactoryOrchestratorTests(unittest.TestCase):
         self.assertEqual(result["approvalCount"], 0)
         self.assertFalse(result["demoArm"])
         self.assertEqual(result["orderCount"], 0)
+
+    def test_receipt_projects_matchability_forward_and_factor_readiness(self) -> None:
+        created = self.orchestrator.create_run(
+            {
+                "operation": "generate",
+                "timeframe": "1h",
+                "mode": "quick",
+                "maxCandidateCount": 1,
+                "maxTrialBudget": 6,
+            }
+        )
+        result = self.orchestrator.record_receipt(
+            created["runId"],
+            {
+                "status": "research_blocked_data",
+                "candidateCount": 1,
+                "trialCount": 6,
+                "releaseCount": 0,
+                "approvalCount": 0,
+                "demoArm": False,
+                "orderCount": 0,
+                "matchability": {
+                    "requestedUniverse": 100,
+                    "publicUniverse": 98,
+                    "exchangeTradable": 90,
+                    "eligibleUniverse": 80,
+                    "componentCompatible": 70,
+                    "lookbackReady": 60,
+                    "dataReady": 50,
+                    "evaluated": 50,
+                    "rawSignals": 8,
+                    "identityPassed": 6,
+                    "cooldownRejected": 1,
+                    "riskRejected": 1,
+                    "orderEligible": 4,
+                    "orders": 2,
+                    "fills": 2,
+                    "closedTrades": 1,
+                },
+                "forwardTask": {
+                    "taskId": "forward-fixture",
+                    "releaseId": "release-fixture",
+                    "releaseHash": "release-hash-fixture",
+                    "startedAt": "2026-07-21T02:00:00Z",
+                    "status": "collecting",
+                    "closedTradeCount": 31,
+                    "effectiveSampleSize": 27.5,
+                    "symbolCoverage": 0.4,
+                    "regimeCoverage": 0.3,
+                    "costCompleteness": 1.0,
+                },
+                "factorModelReadiness": {
+                    "factorRegistry": "passed",
+                    "demoDecisionMode": "rank_only",
+                },
+            },
+        )
+
+        self.assertEqual(result["matchability"]["status"], "positions_open_or_reconciliation_pending")
+        self.assertEqual(result["forwardTask"]["reviewHint"], "preliminary_review_available")
+        self.assertFalse(result["forwardTask"]["automaticPromotionAllowed"])
+        self.assertEqual(result["factorModelReadiness"]["status"], "not_ready")
+        self.assertEqual(result["factorModelReadiness"]["effectiveDecisionMode"], "rule_only")
+        self.assertFalse(result["factorModelReadiness"]["liveEligible"])
+
+    def test_failed_receipt_persists_deduplicated_negative_research_memory(self) -> None:
+        created = self.orchestrator.create_run(
+            {
+                "operation": "generate",
+                "timeframe": "5m",
+                "mode": "quick",
+                "maxCandidateCount": 1,
+                "maxTrialBudget": 4,
+            }
+        )
+        receipt = {
+            "status": "no_stable_candidates",
+            "candidateCount": 1,
+            "eligibleCandidateCount": 1,
+            "trialCount": 4,
+            "reasonCodes": ["minimumProfitFactor", "costStress"],
+            "profitFactor": 0.82,
+            "averageNetR": -0.14,
+            "maximumDrawdownR": 19.2,
+            "releaseCount": 0,
+            "demoReleaseCount": 0,
+            "approvalCount": 0,
+            "demoArm": False,
+            "orderCount": 0,
+            "tradeApiUsed": False,
+            "withdrawApiUsed": False,
+            "privateAccountReadUsed": False,
+        }
+
+        first = self.orchestrator.record_receipt(created["runId"], receipt)
+        self.orchestrator.record_receipt(created["runId"], receipt)
+        rows = [
+            json.loads(line)
+            for line in (self.root / "negative_research_memory.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+
+        self.assertEqual(first["negativeResearchMemory"]["recordCount"], 1)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["strategyId"], "candidate-a")
+        self.assertEqual(rows[0]["failureLayer"], "Cost / Capacity")
+        self.assertIn("lower_gate_after_result", rows[0]["prohibitedRepeats"])
 
     def test_receipt_rejects_any_execution_track_side_effect(self) -> None:
         created = self.orchestrator.create_run(

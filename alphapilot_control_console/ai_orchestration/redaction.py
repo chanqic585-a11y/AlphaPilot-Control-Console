@@ -47,6 +47,11 @@ _PROMPT_INJECTION_PATTERNS = (
         r"(?i)(?:reveal|print|show|exfiltrate).{0,80}(?:system|developer).{0,80}(?:instruction|prompt)",
     ),
     re.compile(r"(?i)<\s*(?:tool_call|function_call|system|developer)\b"),
+    re.compile(
+        r"(?i)\b(?:call|invoke|execute|run|use)\s+"
+        r"(?:place_order|create_order|cancel_order|close_position|modify_position|"
+        r"set_leverage|approve_release|arm_runtime|kill_switch|withdraw|transfer_funds)\b"
+    ),
 )
 
 

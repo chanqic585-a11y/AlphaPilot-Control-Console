@@ -18,13 +18,13 @@ class AIBudgetPolicyTests(unittest.TestCase):
             ledger = AIBudgetLedger(Path(directory) / "budget.sqlite")
             policy = AIBudgetPolicy(
                 ledger=ledger,
-                daily_provider_limits={"openai": 2.0},
+                daily_provider_limits={"deepseek": 2.0},
                 daily_task_limits={"strategy_hypothesis": 1.5},
                 campaign_limits={"campaign-1": 1.0},
             )
             try:
                 policy.record_usage(
-                    provider="openai",
+                    provider="deepseek",
                     task_type="strategy_hypothesis",
                     campaign_id="campaign-1",
                     request_id="request-1",
@@ -32,14 +32,14 @@ class AIBudgetPolicyTests(unittest.TestCase):
                     total_tokens=100,
                 )
                 policy.assert_available(
-                    provider="openai",
+                    provider="deepseek",
                     task_type="strategy_hypothesis",
                     campaign_id="campaign-1",
                     requested_cost_ceiling_usd=0.20,
                 )
                 with self.assertRaises(BudgetExceededError):
                     policy.assert_available(
-                        provider="openai",
+                        provider="deepseek",
                         task_type="strategy_hypothesis",
                         campaign_id="campaign-1",
                         requested_cost_ceiling_usd=0.50,
@@ -61,17 +61,17 @@ class ProviderCircuitBreakerTests(unittest.TestCase):
             clock=lambda: clock[0],
         )
 
-        circuit.record_failure("openai")
-        self.assertEqual(circuit.status("openai"), "degraded")
-        circuit.record_failure("openai")
-        self.assertEqual(circuit.status("openai"), "unavailable")
+        circuit.record_failure("deepseek")
+        self.assertEqual(circuit.status("deepseek"), "degraded")
+        circuit.record_failure("deepseek")
+        self.assertEqual(circuit.status("deepseek"), "unavailable")
         with self.assertRaises(ProviderUnavailableError):
-            circuit.assert_available("openai")
+            circuit.assert_available("deepseek")
 
         clock[0] += 31
-        self.assertEqual(circuit.status("openai"), "degraded")
-        circuit.record_success("openai")
-        self.assertEqual(circuit.status("openai"), "healthy")
+        self.assertEqual(circuit.status("deepseek"), "degraded")
+        circuit.record_success("deepseek")
+        self.assertEqual(circuit.status("deepseek"), "healthy")
 
 
 if __name__ == "__main__":

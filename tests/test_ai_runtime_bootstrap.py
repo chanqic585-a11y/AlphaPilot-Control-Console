@@ -19,11 +19,15 @@ class AIRuntimeBootstrapTests(unittest.TestCase):
                 repository_root=repository_root,
                 data_root=Path(directory),
             )
-            self.assertIsInstance(runtime.service, AIOrchestrationService)
-            self.assertIsInstance(runtime.batch_service, AIBatchOrchestrationService)
-            self.assertTrue(runtime.model_registry_hash.startswith("sha256:"))
-            self.assertTrue(runtime.prompt_registry_hash.startswith("sha256:"))
-            runtime.close()
+            try:
+                self.assertIsInstance(runtime.service, AIOrchestrationService)
+                self.assertIsInstance(runtime.batch_service, AIBatchOrchestrationService)
+                self.assertTrue(runtime.model_registry_hash.startswith("sha256:"))
+                self.assertTrue(runtime.prompt_registry_hash.startswith("sha256:"))
+                self.assertEqual(set(runtime.service._adapters), {"deepseek", "gemini"})
+                self.assertEqual(set(runtime.batch_service._adapters), {"gemini"})
+            finally:
+                runtime.close()
 
 
 if __name__ == "__main__":

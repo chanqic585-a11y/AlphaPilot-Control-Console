@@ -14,9 +14,9 @@ from .budget import AIBudgetLedger, AIBudgetPolicy
 from .circuit_breaker import ProviderCircuitBreaker
 from .model_registry import AIModelRegistry
 from .prompt_registry import PromptRegistry
-from .provider_adapters.batch_adapters import GeminiBatchAdapter, OpenAIBatchAdapter
+from .provider_adapters.batch_adapters import GeminiBatchAdapter
+from .provider_adapters.deepseek_adapter import DeepSeekAdapter
 from .provider_adapters.gemini_adapter import GeminiAdapter
-from .provider_adapters.openai_adapter import OpenAIAdapter
 from .service import AIOrchestrationService
 
 
@@ -68,11 +68,10 @@ def build_ai_runtime(
     budget_config = _load_budget_policy(root / "config" / "ai_budget_policy.json")
 
     sync_adapters = {
-        "openai": OpenAIAdapter(),
+        "deepseek": DeepSeekAdapter(),
         "gemini": GeminiAdapter(),
     }
     batch_adapters = {
-        "openai": OpenAIBatchAdapter(),
         "gemini": GeminiBatchAdapter(),
     }
 

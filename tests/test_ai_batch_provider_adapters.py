@@ -4,9 +4,9 @@ import json
 import unittest
 
 from alphapilot_control_console.ai_orchestration.contracts import AIRequest, ModelIdentity
+from alphapilot_control_console.ai_orchestration.provider_adapters import batch_adapters
 from alphapilot_control_console.ai_orchestration.provider_adapters.batch_adapters import (
     GeminiBatchAdapter,
-    OpenAIBatchAdapter,
 )
 
 
@@ -50,38 +50,9 @@ class RecordingBatchTransport:
 
 
 class BatchProviderAdapterTests(unittest.TestCase):
-    def test_openai_uploads_responses_jsonl_and_reconciles_outputs(self) -> None:
-        transport = RecordingBatchTransport()
-        transport.responses = [
-            {"id": "file-1"},
-            {"id": "batch-1", "status": "validating"},
-            {"id": "batch-1", "status": "completed", "output_file_id": "file-out"},
-        ]
-        output_url = "https://api.openai.com/v1/files/file-out/content"
-        transport.downloads[output_url] = json.dumps(
-            {
-                "custom_id": "one",
-                "response": {
-                    "status_code": 200,
-                    "body": {"output_text": json.dumps({"summary": "ok"})},
-                },
-                "error": None,
-            }
-        )
-        adapter = OpenAIBatchAdapter(transport=transport, api_key="process-only")
-        identity = ModelIdentity("openai_batch", "openai", "configured-openai", frozenset())
-
-        submitted = adapter.submit(identity, [_request("one")], payload_hash="sha256:payload")
-        status = adapter.get_status(submitted.provider_job_id)
-
-        upload = transport.upload_calls[0]
-        self.assertTrue(str(upload["url"]).endswith("/v1/files"))
-        line = json.loads(str(upload["content"]).strip())
-        self.assertEqual(line["url"], "/v1/responses")
-        self.assertFalse(line["body"]["store"])
-        self.assertEqual(transport.json_calls[0]["json_body"]["endpoint"], "/v1/responses")
-        self.assertEqual(status.status, "completed")
-        self.assertEqual(status.outputs, {"one": {"summary": "ok"}})
+    def test_no_deepseek_or_openai_batch_adapter_is_claimed(self) -> None:
+        self.assertFalse(hasattr(batch_adapters, "DeepSeekBatchAdapter"))
+        self.assertFalse(hasattr(batch_adapters, "OpenAIBatchAdapter"))
 
     def test_gemini_uses_inline_batch_generate_content_and_reconciles_outputs(self) -> None:
         transport = RecordingBatchTransport()

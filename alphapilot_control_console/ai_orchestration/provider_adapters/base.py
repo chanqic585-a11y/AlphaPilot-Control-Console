@@ -79,9 +79,30 @@ def usage_from_payload(payload: Mapping[str, Any]) -> tuple[int, int, int]:
     usage = payload.get("usage")
     if not isinstance(usage, Mapping):
         return 0, 0, 0
-    input_tokens = int(usage.get("input_tokens") or usage.get("inputTokens") or 0)
-    output_tokens = int(usage.get("output_tokens") or usage.get("outputTokens") or 0)
+    input_tokens = int(
+        usage.get("input_tokens")
+        or usage.get("inputTokens")
+        or usage.get("total_input_tokens")
+        or 0
+    )
+    output_tokens = int(
+        usage.get("output_tokens")
+        or usage.get("outputTokens")
+        or usage.get("total_output_tokens")
+        or 0
+    )
     total_tokens = int(usage.get("total_tokens") or usage.get("totalTokens") or 0)
     if not total_tokens:
         total_tokens = input_tokens + output_tokens
     return input_tokens, output_tokens, total_tokens
+
+
+def estimate_cost_usd(
+    identity: ModelIdentity,
+    *,
+    input_tokens: int,
+    output_tokens: int,
+) -> float:
+    input_cost = input_tokens * identity.input_cost_per_million_usd / 1_000_000
+    output_cost = output_tokens * identity.output_cost_per_million_usd / 1_000_000
+    return round(input_cost + output_cost, 12)

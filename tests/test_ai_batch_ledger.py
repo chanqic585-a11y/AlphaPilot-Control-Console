@@ -15,14 +15,14 @@ class AIBatchLedgerTests(unittest.TestCase):
             try:
                 first = ledger.register(
                     idempotency_key="campaign-1:failure-attribution",
-                    provider="openai",
-                    model_alias="openai_batch",
+                    provider="gemini",
+                    model_alias="gemini_batch",
                     request_hashes=["sha256:a", "sha256:b"],
                 )
                 second = ledger.register(
                     idempotency_key="campaign-1:failure-attribution",
-                    provider="openai",
-                    model_alias="openai_batch",
+                    provider="gemini",
+                    model_alias="gemini_batch",
                     request_hashes=["sha256:a", "sha256:b"],
                 )
                 projection = ledger.projection()
@@ -59,8 +59,8 @@ class AIBatchLedgerTests(unittest.TestCase):
             try:
                 job = ledger.register(
                     idempotency_key="campaign-2",
-                    provider="openai",
-                    model_alias="openai_batch",
+                    provider="gemini",
+                    model_alias="gemini_batch",
                     request_hashes=["sha256:a"],
                 )
                 submitted = ledger.mark_submitted(job["batchJobId"], "provider-job-1")

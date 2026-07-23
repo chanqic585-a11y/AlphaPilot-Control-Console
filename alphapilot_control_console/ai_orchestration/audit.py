@@ -33,6 +33,7 @@ class AIAuditLedger:
                 routeMode TEXT NOT NULL,
                 inputHash TEXT NOT NULL,
                 responseHashesJson TEXT NOT NULL,
+                reasoningContentHashesJson TEXT NOT NULL DEFAULT '[]',
                 providerAliasesJson TEXT NOT NULL,
                 modelAliasesJson TEXT NOT NULL,
                 registryHash TEXT NOT NULL,
@@ -62,6 +63,7 @@ class AIAuditLedger:
         for name, definition in (
             ("promptRegistryHash", "TEXT NOT NULL DEFAULT ''"),
             ("promptContentHash", "TEXT NOT NULL DEFAULT ''"),
+            ("reasoningContentHashesJson", "TEXT NOT NULL DEFAULT '[]'"),
             ("schemaValidationStatus", "TEXT NOT NULL DEFAULT 'not_run'"),
             ("semanticValidationStatus", "TEXT NOT NULL DEFAULT 'not_run'"),
         ):
@@ -83,6 +85,9 @@ class AIAuditLedger:
             "routeMode": str(event.get("routeMode") or "unknown"),
             "inputHash": str(event.get("inputHash") or ""),
             "responseHashesJson": json.dumps(event.get("responseHashes") or [], separators=(",", ":")),
+            "reasoningContentHashesJson": json.dumps(
+                event.get("reasoningContentHashes") or [], separators=(",", ":")
+            ),
             "providerAliasesJson": json.dumps(event.get("providers") or [], separators=(",", ":")),
             "modelAliasesJson": json.dumps(event.get("modelAliases") or [], separators=(",", ":")),
             "registryHash": str(event.get("registryHash") or ""),
@@ -111,7 +116,8 @@ class AIAuditLedger:
             """
             INSERT INTO AIOrchestrationAuditEvents (
                 occurredAt, requestId, taskType, status, routeMode, inputHash,
-                responseHashesJson, providerAliasesJson, modelAliasesJson,
+                responseHashesJson, reasoningContentHashesJson,
+                providerAliasesJson, modelAliasesJson,
                 registryHash, promptVersion, artifactHashesJson, redactionCount,
                 promptRegistryHash, promptContentHash, schemaValidationStatus,
                 semanticValidationStatus,
@@ -119,7 +125,8 @@ class AIAuditLedger:
                 totalTokens, estimatedCostUsd, latencyMs, errorType
             ) VALUES (
                 :occurredAt, :requestId, :taskType, :status, :routeMode, :inputHash,
-                :responseHashesJson, :providerAliasesJson, :modelAliasesJson,
+                :responseHashesJson, :reasoningContentHashesJson,
+                :providerAliasesJson, :modelAliasesJson,
                 :registryHash, :promptVersion, :artifactHashesJson, :redactionCount,
                 :promptRegistryHash, :promptContentHash, :schemaValidationStatus,
                 :semanticValidationStatus,
@@ -137,6 +144,7 @@ class AIAuditLedger:
             """
             SELECT sequence, occurredAt, requestId, taskType, status, routeMode,
                    inputHash, responseHashesJson, providerAliasesJson,
+                   reasoningContentHashesJson,
                    modelAliasesJson, registryHash, promptVersion,
                    promptRegistryHash, promptContentHash,
                    schemaValidationStatus, semanticValidationStatus,
@@ -162,6 +170,9 @@ class AIAuditLedger:
                     "routeMode": row["routeMode"],
                     "inputHash": row["inputHash"],
                     "responseHashes": json.loads(row["responseHashesJson"]),
+                    "reasoningContentHashes": json.loads(
+                        row["reasoningContentHashesJson"]
+                    ),
                     "providers": json.loads(row["providerAliasesJson"]),
                     "modelAliases": json.loads(row["modelAliasesJson"]),
                     "registryHash": row["registryHash"],

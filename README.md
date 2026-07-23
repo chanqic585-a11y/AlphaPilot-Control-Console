@@ -3,7 +3,7 @@
 Current version:
 
 ```text
-Control Console runtime: AlphaPilot V13.27.1.62
+Control Console runtime: AlphaPilot V13.27.1.62.4
 Quant workflow compatibility: V13.27.11 formal-backtest progress semantics
 ```
 
@@ -2681,3 +2681,41 @@ pass, approve itself, ARM Demo or Live, or place an order. The current Demo
 runtime stays on its existing frozen code until a zero-order, zero-position
 checkpoint permits a deliberate restart with process-only credentials and a
 fresh process ARM. Live and Withdraw remain disabled.
+
+## V13.27.1.62.4 DeepSeek + Gemini AI Orchestration
+
+The research-only AI boundary now uses DeepSeek and Gemini. DeepSeek requests
+use the official `https://api.deepseek.com` endpoint and retain the `deepseek`
+provider identity in routing, schemas, audit metadata, and operator output.
+Business modules cannot call provider SDKs directly; every synchronous request
+must pass through `AIOrchestrationService`. Historical batch work uses Gemini
+Batch or the local bounded queue. AlphaPilot does not claim a DeepSeek Batch
+integration.
+
+Only these process environment variable names are accepted:
+
+```text
+DEEPSEEK_API_KEY
+GEMINI_API_KEY
+```
+
+Credential values must not be placed in the UI, JSON configuration, SQLite,
+logs, evidence artifacts, source control, or Codex conversations. The isolated
+AI worker can receive these two provider credentials, but it rejects exchange
+private credentials and has no order, position, risk, Approval, ARM, Live, or
+Withdraw authority. Raw DeepSeek `reasoning_content` remains process-only;
+audit persistence stores only its SHA-256 identity.
+
+Without provider credentials, the truthful mechanical checkpoint is:
+
+```text
+provider_credentials_required_deepseek_gemini
+```
+
+The fixed redacted provider smoke input is
+`sha256:9868eccb0254a18d5a90bd2b6d5c6138b105395dbaf5133871273a5c2ebc96df`.
+Each smoke request is limited to 512 output tokens and USD 0.05. After both
+environment variables are configured in the dedicated AI worker process, run
+DeepSeek-only, Gemini-only, and dual independent review smokes in that order.
+Provider provisioning is not a Demo or Live Release approval and does not ARM
+any runtime.

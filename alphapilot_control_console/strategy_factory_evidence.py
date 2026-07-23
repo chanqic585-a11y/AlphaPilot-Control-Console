@@ -163,16 +163,49 @@ def project_strategy_factory_execution_evidence(
     )
     development_completed = development_status == "completed"
     formal_run_count = _integer(summary.get("formalRunCount") or receipt.get("formalRunCount"))
+    formal_job_count = _integer(
+        summary.get("formalJobCount")
+        or receipt.get("formalJobCount")
+        or formal_run_count
+    )
+    formal_claim_count = _integer(
+        summary.get("formalClaimCount") or receipt.get("formalClaimCount")
+    )
+    formal_attempt_count = _integer(
+        summary.get("formalAttemptCount") or receipt.get("formalAttemptCount")
+    )
+    formal_result_count = _integer(
+        summary.get("formalResultCount") or receipt.get("formalResultCount")
+    )
     result_read_count = _integer(summary.get("resultReadCount") or receipt.get("resultReadCount"))
     locked_oos_read_count = _integer(
         summary.get("lockedOosReadCount")
         or receipt.get("lockedOosReadCount")
         or receipt.get("lockedOosAccessCount")
     )
-    if result_read_count > 0:
+    formal_chain_complete = all(
+        count > 0
+        for count in (
+            formal_job_count,
+            formal_claim_count,
+            formal_attempt_count,
+            formal_result_count,
+            result_read_count,
+        )
+    )
+    if formal_chain_complete:
         formal_status = "completed"
         validation_level = "formal_results_available"
-    elif formal_run_count > 0:
+    elif any(
+        count > 0
+        for count in (
+            formal_job_count,
+            formal_claim_count,
+            formal_attempt_count,
+            formal_result_count,
+            result_read_count,
+        )
+    ):
         formal_status = "running"
         validation_level = "formal_running"
     else:
@@ -234,6 +267,10 @@ def project_strategy_factory_execution_evidence(
         "formal": {
             "status": formal_status,
             "formalRunCount": formal_run_count,
+            "formalJobCount": formal_job_count,
+            "formalClaimCount": formal_claim_count,
+            "formalAttemptCount": formal_attempt_count,
+            "formalResultCount": formal_result_count,
             "resultReadCount": result_read_count,
             "lockedOosReadCount": locked_oos_read_count,
             "releaseCount": _integer(summary.get("releaseCount") or receipt.get("releaseCount")),

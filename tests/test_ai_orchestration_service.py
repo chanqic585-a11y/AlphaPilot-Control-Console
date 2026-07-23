@@ -59,19 +59,19 @@ STRATEGY_SCHEMA = {
 REGISTRY = {
     "schemaVersion": "alphapilot_ai_model_registry_v1",
     "aliases": {
-        "openai_reasoning_primary": {
-            "provider": "openai",
-            "modelIdEnv": "TEST_OPENAI_MODEL",
+        "deepseek_reasoning_primary": {
+            "provider": "deepseek",
+            "modelId": "deepseek-v4-pro",
             "capabilities": ["reasoning", "structured_output"],
         },
         "gemini_reasoning_primary": {
             "provider": "gemini",
-            "modelIdEnv": "TEST_GEMINI_MODEL",
+            "modelId": "gemini-configured",
             "capabilities": ["reasoning", "structured_output"],
         },
-        "openai_fast": {
-            "provider": "openai",
-            "modelIdEnv": "TEST_OPENAI_FAST_MODEL",
+        "deepseek_fast": {
+            "provider": "deepseek",
+            "modelId": "deepseek-v4-flash",
             "capabilities": ["fast", "structured_output"],
         },
     },
@@ -94,9 +94,16 @@ def _strategy_output(*, mechanism: str = "liquidity_recovery") -> dict:
 
 
 class FakeAdapter:
-    def __init__(self, provider: str, output: dict) -> None:
+    def __init__(
+        self,
+        provider: str,
+        output: dict,
+        *,
+        reasoning_content: str = "",
+    ) -> None:
         self.provider = provider
         self.output = output
+        self.reasoning_content = reasoning_content
         self.calls: list[tuple] = []
 
     def generate(self, identity, request):
@@ -110,6 +117,7 @@ class FakeAdapter:
             usage=AIUsage(input_tokens=10, output_tokens=5, total_tokens=15),
             latency_ms=12,
             provider_request_id=f"{self.provider}-response",
+            reasoning_content=self.reasoning_content,
         )
 
 
@@ -160,29 +168,29 @@ class AIOrchestrationServiceTests(unittest.TestCase):
         )
         return PromptRegistry.from_path(registry_path)
 
-    def _service(self, directory: str, openai_output: dict, gemini_output: dict):
+    def _service(self, directory: str, deepseek_output: dict, gemini_output: dict):
         registry = AIModelRegistry.from_mapping(REGISTRY)
-        openai = FakeAdapter("openai", openai_output)
+        deepseek = FakeAdapter("deepseek", deepseek_output)
         gemini = FakeAdapter("gemini", gemini_output)
         ledger = AIAuditLedger(Path(directory) / "ai-audit.sqlite")
         service = AIOrchestrationService(
             model_registry=registry,
             prompt_registry=self._prompt_registry(directory),
-            adapters={"openai": openai, "gemini": gemini},
+            adapters={"deepseek": deepseek, "gemini": gemini},
             audit_ledger=ledger,
         )
-        return service, openai, gemini, ledger
+        return service, deepseek, gemini, ledger
 
     def test_strategy_hypothesis_requires_independent_dual_review(self) -> None:
         with tempfile.TemporaryDirectory() as directory, patch.dict(
             os.environ,
             {
-                "TEST_OPENAI_MODEL": "openai-configured",
+                "TEST_DEEPSEEK_MODEL": "deepseek-v4-pro",
                 "TEST_GEMINI_MODEL": "gemini-configured",
-                "TEST_OPENAI_FAST_MODEL": "openai-fast-configured",
+                "TEST_DEEPSEEK_FAST_MODEL": "deepseek-v4-flash",
             },
         ):
-            service, openai, gemini, ledger = self._service(
+            service, deepseek, gemini, ledger = self._service(
                 directory, _strategy_output(), _strategy_output()
             )
             try:
@@ -191,11 +199,11 @@ class AIOrchestrationServiceTests(unittest.TestCase):
             finally:
                 ledger.close()
 
-        self.assertEqual(len(openai.calls), 1)
+        self.assertEqual(len(deepseek.calls), 1)
         self.assertEqual(len(gemini.calls), 1)
         self.assertEqual(result.status, "accepted")
         self.assertEqual(result.output["mechanism"], "liquidity_recovery")
-        provider_request = openai.calls[0][1]
+        provider_request = deepseek.calls[0][1]
         self.assertIn("Platform research prompt", provider_request.payload["platformPrompt"])
         self.assertEqual(
             provider_request.payload["untrustedData"],
@@ -205,13 +213,56 @@ class AIOrchestrationServiceTests(unittest.TestCase):
         self.assertTrue(projection["events"][0]["promptContentHash"].startswith("sha256:"))
         self.assertNotIn("redacted evidence", repr(projection))
 
+    def test_reasoning_is_returned_but_only_hashes_are_persisted(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            registry = AIModelRegistry.from_mapping(REGISTRY)
+            primary_reasoning = "private primary reasoning must remain in process"
+            reviewer_reasoning = "private reviewer reasoning must remain in process"
+            deepseek = FakeAdapter(
+                "deepseek",
+                _strategy_output(),
+                reasoning_content=primary_reasoning,
+            )
+            gemini = FakeAdapter(
+                "gemini",
+                _strategy_output(),
+                reasoning_content=reviewer_reasoning,
+            )
+            ledger_path = Path(directory) / "ai-audit.sqlite"
+            ledger = AIAuditLedger(ledger_path)
+            service = AIOrchestrationService(
+                model_registry=registry,
+                prompt_registry=self._prompt_registry(directory),
+                adapters={"deepseek": deepseek, "gemini": gemini},
+                audit_ledger=ledger,
+            )
+            try:
+                result = service.execute(_request())
+                projection = ledger.projection()
+            finally:
+                ledger.close()
+
+            persisted = ledger_path.read_bytes()
+
+        self.assertEqual(
+            result.reasoning_contents,
+            (primary_reasoning, reviewer_reasoning),
+        )
+        hashes = projection["events"][0]["reasoningContentHashes"]
+        self.assertEqual(len(hashes), 2)
+        self.assertTrue(all(value.startswith("sha256:") for value in hashes))
+        self.assertNotIn(primary_reasoning, repr(projection))
+        self.assertNotIn(reviewer_reasoning, repr(projection))
+        self.assertNotIn(primary_reasoning.encode("utf-8"), persisted)
+        self.assertNotIn(reviewer_reasoning.encode("utf-8"), persisted)
+
     def test_critical_dual_review_disagreement_requires_human_review(self) -> None:
         with tempfile.TemporaryDirectory() as directory, patch.dict(
             os.environ,
             {
-                "TEST_OPENAI_MODEL": "openai-configured",
+                "TEST_DEEPSEEK_MODEL": "deepseek-v4-pro",
                 "TEST_GEMINI_MODEL": "gemini-configured",
-                "TEST_OPENAI_FAST_MODEL": "openai-fast-configured",
+                "TEST_DEEPSEEK_FAST_MODEL": "deepseek-v4-flash",
             },
         ):
             service, _, _, ledger = self._service(
@@ -233,9 +284,9 @@ class AIOrchestrationServiceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch.dict(
             os.environ,
             {
-                "TEST_OPENAI_MODEL": "openai-configured",
+                "TEST_DEEPSEEK_MODEL": "deepseek-v4-pro",
                 "TEST_GEMINI_MODEL": "gemini-configured",
-                "TEST_OPENAI_FAST_MODEL": "openai-fast-configured",
+                "TEST_DEEPSEEK_FAST_MODEL": "deepseek-v4-flash",
             },
         ):
             service, _, _, ledger = self._service(directory, invalid, _strategy_output())
@@ -254,12 +305,12 @@ class AIOrchestrationServiceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch.dict(
             os.environ,
             {
-                "TEST_OPENAI_MODEL": "openai-configured",
+                "TEST_DEEPSEEK_MODEL": "deepseek-v4-pro",
                 "TEST_GEMINI_MODEL": "gemini-configured",
-                "TEST_OPENAI_FAST_MODEL": "openai-fast-configured",
+                "TEST_DEEPSEEK_FAST_MODEL": "deepseek-v4-flash",
             },
         ):
-            service, openai, gemini, ledger = self._service(
+            service, deepseek, gemini, ledger = self._service(
                 directory, _strategy_output(), _strategy_output()
             )
             try:
@@ -268,26 +319,26 @@ class AIOrchestrationServiceTests(unittest.TestCase):
             finally:
                 ledger.close()
 
-        self.assertEqual(openai.calls, [])
+        self.assertEqual(deepseek.calls, [])
         self.assertEqual(gemini.calls, [])
 
     def test_dual_review_does_not_degrade_to_one_provider(self) -> None:
         with tempfile.TemporaryDirectory() as directory, patch.dict(
             os.environ,
             {
-                "TEST_OPENAI_MODEL": "openai-configured",
+                "TEST_DEEPSEEK_MODEL": "deepseek-v4-pro",
                 "TEST_GEMINI_MODEL": "gemini-configured",
-                "TEST_OPENAI_FAST_MODEL": "openai-fast-configured",
+                "TEST_DEEPSEEK_FAST_MODEL": "deepseek-v4-flash",
             },
         ):
             registry = AIModelRegistry.from_mapping(REGISTRY)
-            openai = FakeAdapter("openai", _strategy_output())
+            deepseek = FakeAdapter("deepseek", _strategy_output())
             gemini = FailingAdapter("gemini", _strategy_output())
             ledger = AIAuditLedger(Path(directory) / "ai-audit.sqlite")
             service = AIOrchestrationService(
                 model_registry=registry,
                 prompt_registry=self._prompt_registry(directory),
-                adapters={"openai": openai, "gemini": gemini},
+                adapters={"deepseek": deepseek, "gemini": gemini},
                 audit_ledger=ledger,
             )
             try:
@@ -297,7 +348,7 @@ class AIOrchestrationServiceTests(unittest.TestCase):
             finally:
                 ledger.close()
 
-        self.assertEqual(len(openai.calls), 1)
+        self.assertEqual(len(deepseek.calls), 1)
         self.assertEqual(len(gemini.calls), 1)
         self.assertEqual(projection["statusCounts"], {"provider_failed": 1})
 
@@ -305,26 +356,26 @@ class AIOrchestrationServiceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch.dict(
             os.environ,
             {
-                "TEST_OPENAI_MODEL": "openai-configured",
+                "TEST_DEEPSEEK_MODEL": "deepseek-v4-pro",
                 "TEST_GEMINI_MODEL": "gemini-configured",
-                "TEST_OPENAI_FAST_MODEL": "openai-fast-configured",
+                "TEST_DEEPSEEK_FAST_MODEL": "deepseek-v4-flash",
             },
         ):
             registry = AIModelRegistry.from_mapping(REGISTRY)
-            openai = FakeAdapter("openai", _strategy_output())
+            deepseek = FakeAdapter("deepseek", _strategy_output())
             gemini = FakeAdapter("gemini", _strategy_output())
             audit = AIAuditLedger(Path(directory) / "ai-audit.sqlite")
             budget_ledger = AIBudgetLedger(Path(directory) / "budget.sqlite")
             budget = AIBudgetPolicy(
                 ledger=budget_ledger,
-                daily_provider_limits={"openai": 0.1, "gemini": 0.1},
+                daily_provider_limits={"deepseek": 0.1, "gemini": 0.1},
                 daily_task_limits={"strategy_hypothesis": 0.1},
                 campaign_limits={"unscoped": 0.1},
             )
             service = AIOrchestrationService(
                 model_registry=registry,
                 prompt_registry=self._prompt_registry(directory),
-                adapters={"openai": openai, "gemini": gemini},
+                adapters={"deepseek": deepseek, "gemini": gemini},
                 audit_ledger=audit,
                 budget_policy=budget,
                 circuit_breaker=ProviderCircuitBreaker(),
@@ -336,8 +387,73 @@ class AIOrchestrationServiceTests(unittest.TestCase):
                 budget_ledger.close()
                 audit.close()
 
-        self.assertEqual(openai.calls, [])
+        self.assertEqual(deepseek.calls, [])
         self.assertEqual(gemini.calls, [])
+
+    def test_response_budget_treats_token_ceiling_as_output_only(self) -> None:
+        request = _request()
+        request = AIRequest(
+            request_id=request.request_id,
+            task_type=request.task_type,
+            payload=request.payload,
+            response_schema=request.response_schema,
+            sensitivity=request.sensitivity,
+            prompt_version=request.prompt_version,
+            artifact_hashes=request.artifact_hashes,
+            dual_review=False,
+            token_ceiling=512,
+            cost_ceiling_usd=request.cost_ceiling_usd,
+        )
+        response = AIResponse(
+            request_id=request.request_id,
+            provider="deepseek",
+            model_alias="deepseek_fast",
+            model_id="deepseek-v4-flash",
+            output=_strategy_output(),
+            usage=AIUsage(
+                input_tokens=900,
+                output_tokens=120,
+                total_tokens=1020,
+                estimated_cost_usd=0.01,
+            ),
+            latency_ms=10,
+            provider_request_id="response-1",
+        )
+
+        AIOrchestrationService._enforce_budget(request, [response])
+
+    def test_response_budget_rejects_output_above_token_ceiling(self) -> None:
+        request = _request()
+        request = AIRequest(
+            request_id=request.request_id,
+            task_type=request.task_type,
+            payload=request.payload,
+            response_schema=request.response_schema,
+            sensitivity=request.sensitivity,
+            prompt_version=request.prompt_version,
+            artifact_hashes=request.artifact_hashes,
+            dual_review=False,
+            token_ceiling=512,
+            cost_ceiling_usd=request.cost_ceiling_usd,
+        )
+        response = AIResponse(
+            request_id=request.request_id,
+            provider="deepseek",
+            model_alias="deepseek_fast",
+            model_id="deepseek-v4-flash",
+            output=_strategy_output(),
+            usage=AIUsage(
+                input_tokens=10,
+                output_tokens=513,
+                total_tokens=523,
+                estimated_cost_usd=0.01,
+            ),
+            latency_ms=10,
+            provider_request_id="response-1",
+        )
+
+        with self.assertRaisesRegex(BudgetExceededError, "output token"):
+            AIOrchestrationService._enforce_budget(request, [response])
 
 
 if __name__ == "__main__":

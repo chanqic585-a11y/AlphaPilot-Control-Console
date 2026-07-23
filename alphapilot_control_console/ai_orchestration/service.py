@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from typing import Mapping, Protocol
 
@@ -177,6 +178,16 @@ class AIOrchestrationService:
             disagreements=disagreements,
             execution_authorized=False,
             route_mode=route.mode,
+            reasoning_contents=tuple(
+                item.reasoning_content
+                for item in responses
+                if item.reasoning_content
+            ),
+            tool_calls=tuple(
+                tool_call
+                for item in responses
+                for tool_call in item.tool_calls
+            ),
         )
 
     def _execute_single_route(
@@ -256,11 +267,9 @@ class AIOrchestrationService:
 
     @staticmethod
     def _enforce_budget(request: AIRequest, responses: list[AIResponse]) -> None:
-        total_tokens = sum(item.usage.total_tokens for item in responses)
         total_cost = sum(item.usage.estimated_cost_usd for item in responses)
-        provider_count = max(1, len(responses))
-        if total_tokens > request.token_ceiling * provider_count:
-            raise BudgetExceededError("AI token ceiling exceeded")
+        if any(item.usage.output_tokens > request.token_ceiling for item in responses):
+            raise BudgetExceededError("AI output token ceiling exceeded")
         if total_cost > request.cost_ceiling_usd:
             raise BudgetExceededError("AI cost ceiling exceeded")
 
@@ -306,6 +315,12 @@ class AIOrchestrationService:
                 "routeMode": route_mode,
                 "inputHash": prepared.input_hash,
                 "responseHashes": [item.output_hash for item in validated],
+                "reasoningContentHashes": [
+                    "sha256:"
+                    + hashlib.sha256(item.reasoning_content.encode("utf-8")).hexdigest()
+                    for item in responses
+                    if item.reasoning_content
+                ],
                 "providers": [item.provider for item in responses],
                 "modelAliases": [item.model_alias for item in responses],
                 "registryHash": self._model_registry.registry_hash,

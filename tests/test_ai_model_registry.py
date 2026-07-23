@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 from alphapilot_control_console.ai_orchestration.errors import ModelRegistryError
 from alphapilot_control_console.ai_orchestration.model_registry import AIModelRegistry
@@ -13,11 +11,10 @@ from alphapilot_control_console.ai_orchestration.model_registry import AIModelRe
 REGISTRY = {
     "schemaVersion": "alphapilot_ai_model_registry_v1",
     "aliases": {
-        "openai_reasoning_primary": {
-            "provider": "openai",
-            "modelIdEnv": "TEST_OPENAI_REASONING_MODEL",
+        "deepseek_reasoning_primary": {
+            "provider": "deepseek",
+            "modelId": "configured-model",
             "capabilities": ["reasoning", "structured_output"],
-            "batchAlias": "openai_batch",
             "supportsStructuredOutput": True,
             "supportsFunctionCalling": True,
             "supportsFiles": False,
@@ -27,33 +24,54 @@ REGISTRY = {
             "latencyTier": "standard",
             "costTier": "high",
             "previewOrStable": "stable",
+            "inputUsdPerMillionTokens": 0.435,
+            "outputUsdPerMillionTokens": 0.87,
             "enabled": True,
-        },
-        "openai_batch": {
-            "provider": "openai",
-            "modelIdEnv": "TEST_OPENAI_BATCH_MODEL",
-            "capabilities": ["batch", "structured_output"],
         },
     },
 }
 
 
 class AIModelRegistryTests(unittest.TestCase):
-    def test_resolves_model_identity_from_environment_without_code_default(self) -> None:
-        with patch.dict(os.environ, {"TEST_OPENAI_REASONING_MODEL": "configured-model"}, clear=False):
-            registry = AIModelRegistry.from_mapping(REGISTRY)
-            identity = registry.resolve("openai_reasoning_primary")
+    def test_resolves_model_identity_from_versioned_registry_config(self) -> None:
+        registry = AIModelRegistry.from_mapping(REGISTRY)
+        identity = registry.resolve("deepseek_reasoning_primary")
 
-        self.assertEqual(identity.alias, "openai_reasoning_primary")
-        self.assertEqual(identity.provider, "openai")
+        self.assertEqual(identity.alias, "deepseek_reasoning_primary")
+        self.assertEqual(identity.provider, "deepseek")
         self.assertEqual(identity.model_id, "configured-model")
         self.assertIn("structured_output", identity.capabilities)
+        self.assertEqual(identity.input_cost_per_million_usd, 0.435)
+        self.assertEqual(identity.output_cost_per_million_usd, 0.87)
 
-    def test_missing_model_environment_is_blocked(self) -> None:
-        with patch.dict(os.environ, {}, clear=True):
-            registry = AIModelRegistry.from_mapping(REGISTRY)
-            with self.assertRaisesRegex(ModelRegistryError, "TEST_OPENAI_REASONING_MODEL"):
-                registry.resolve("openai_reasoning_primary")
+    def test_model_environment_indirection_is_blocked(self) -> None:
+        unsafe = {
+            "schemaVersion": "alphapilot_ai_model_registry_v1",
+            "aliases": {
+                "deepseek_reasoning_primary": {
+                    "provider": "deepseek",
+                    "modelIdEnv": "EXTRA_MODEL_ENV",
+                    "capabilities": ["reasoning"],
+                }
+            },
+        }
+        with self.assertRaisesRegex(ModelRegistryError, "modelId"):
+            AIModelRegistry.from_mapping(unsafe)
+
+    def test_openai_provider_is_no_longer_active(self) -> None:
+        unsafe = {
+            "schemaVersion": "alphapilot_ai_model_registry_v1",
+            "aliases": {
+                "legacy_openai": {
+                    "provider": "openai",
+                    "modelId": "legacy-model",
+                    "capabilities": ["reasoning"],
+                }
+            },
+        }
+
+        with self.assertRaisesRegex(ModelRegistryError, "unsupported provider"):
+            AIModelRegistry.from_mapping(unsafe)
 
     def test_unknown_alias_is_blocked(self) -> None:
         registry = AIModelRegistry.from_mapping(REGISTRY)
@@ -81,13 +99,16 @@ class AIModelRegistryTests(unittest.TestCase):
         item = next(
             entry
             for entry in registry.describe()["aliases"]
-            if entry["alias"] == "openai_reasoning_primary"
+            if entry["alias"] == "deepseek_reasoning_primary"
         )
 
         self.assertTrue(item["supportsStructuredOutput"])
         self.assertTrue(item["supportsFunctionCalling"])
         self.assertEqual(item["contextLimit"], 100000)
         self.assertEqual(item["latencyTier"], "standard")
+        self.assertEqual(item["modelId"], "configured-model")
+        self.assertEqual(item["inputUsdPerMillionTokens"], 0.435)
+        self.assertTrue(item["configured"])
         self.assertTrue(item["enabled"])
 
 

@@ -1,10 +1,9 @@
-"""Versioned model aliases resolved only from configuration and environment."""
+"""Versioned model aliases resolved only from repository configuration."""
 
 from __future__ import annotations
 
 import hashlib
 import json
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
@@ -45,7 +44,7 @@ def _reject_credentials(value: Any, path: str = "") -> None:
 class _RegistryEntry:
     alias: str
     provider: str
-    model_id_env: str
+    model_id: str
     capabilities: frozenset[str]
     batch_alias: str | None = None
     supports_structured_output: bool = False
@@ -57,6 +56,8 @@ class _RegistryEntry:
     latency_tier: str = "standard"
     cost_tier: str = "standard"
     preview_or_stable: str = "stable"
+    input_cost_per_million_usd: float = 0.0
+    output_cost_per_million_usd: float = 0.0
     enabled: bool = True
 
 
@@ -87,20 +88,24 @@ class AIModelRegistry:
             if not isinstance(raw, Mapping):
                 raise ModelRegistryError(f"invalid model registry entry: {alias}")
             provider = str(raw.get("provider") or "").strip().lower()
-            model_id_env = str(raw.get("modelIdEnv") or "").strip()
+            model_id = str(raw.get("modelId") or "").strip()
             capabilities = raw.get("capabilities") or []
-            if provider not in {"openai", "gemini"}:
+            if provider not in {"deepseek", "gemini"}:
                 raise ModelRegistryError(f"unsupported provider for alias {alias}")
-            if not model_id_env:
-                raise ModelRegistryError(f"modelIdEnv is required for alias {alias}")
-            if "modelId" in raw:
-                raise ModelRegistryError(f"literal modelId is forbidden for alias {alias}")
+            if not model_id:
+                raise ModelRegistryError(f"modelId is required for alias {alias}")
+            if "modelIdEnv" in raw:
+                raise ModelRegistryError(f"modelIdEnv is forbidden for alias {alias}")
             if not isinstance(capabilities, list) or any(not isinstance(item, str) for item in capabilities):
                 raise ModelRegistryError(f"invalid capabilities for alias {alias}")
+            input_cost = float(raw.get("inputUsdPerMillionTokens") or 0.0)
+            output_cost = float(raw.get("outputUsdPerMillionTokens") or 0.0)
+            if input_cost < 0 or output_cost < 0:
+                raise ModelRegistryError(f"negative token pricing is forbidden for alias {alias}")
             entries[str(alias)] = _RegistryEntry(
                 alias=str(alias),
                 provider=provider,
-                model_id_env=model_id_env,
+                model_id=model_id,
                 capabilities=frozenset(capabilities),
                 batch_alias=str(raw.get("batchAlias") or "").strip() or None,
                 supports_structured_output=bool(raw.get("supportsStructuredOutput", False)),
@@ -112,6 +117,8 @@ class AIModelRegistry:
                 latency_tier=str(raw.get("latencyTier") or "standard"),
                 cost_tier=str(raw.get("costTier") or "standard"),
                 preview_or_stable=str(raw.get("previewOrStable") or "stable"),
+                input_cost_per_million_usd=input_cost,
+                output_cost_per_million_usd=output_cost,
                 enabled=bool(raw.get("enabled", True)),
             )
         registry_hash = "sha256:" + hashlib.sha256(_canonical_json(payload).encode("utf-8")).hexdigest()
@@ -122,19 +129,16 @@ class AIModelRegistry:
             entry = self._entries[alias]
         except KeyError as exc:
             raise ModelRegistryError(f"unknown model alias: {alias}") from exc
-        model_id = str(os.environ.get(entry.model_id_env) or "").strip()
-        if not model_id:
-            raise ModelRegistryError(
-                f"model alias {alias} requires environment variable {entry.model_id_env}"
-            )
         if not entry.enabled:
             raise ModelRegistryError(f"model alias is disabled: {alias}")
         return ModelIdentity(
             alias=entry.alias,
             provider=entry.provider,
-            model_id=model_id,
+            model_id=entry.model_id,
             capabilities=entry.capabilities,
             registry_hash=self.registry_hash,
+            input_cost_per_million_usd=entry.input_cost_per_million_usd,
+            output_cost_per_million_usd=entry.output_cost_per_million_usd,
         )
 
     def describe(self) -> dict[str, Any]:
@@ -145,7 +149,7 @@ class AIModelRegistry:
                 {
                     "alias": entry.alias,
                     "provider": entry.provider,
-                    "modelIdEnv": entry.model_id_env,
+                    "modelId": entry.model_id,
                     "capabilities": sorted(entry.capabilities),
                     "batchAlias": entry.batch_alias,
                     "supportsStructuredOutput": entry.supports_structured_output,
@@ -157,8 +161,10 @@ class AIModelRegistry:
                     "latencyTier": entry.latency_tier,
                     "costTier": entry.cost_tier,
                     "previewOrStable": entry.preview_or_stable,
+                    "inputUsdPerMillionTokens": entry.input_cost_per_million_usd,
+                    "outputUsdPerMillionTokens": entry.output_cost_per_million_usd,
                     "enabled": entry.enabled,
-                    "configured": bool(str(os.environ.get(entry.model_id_env) or "").strip()),
+                    "configured": bool(entry.model_id),
                 }
                 for entry in sorted(self._entries.values(), key=lambda item: item.alias)
             ],
