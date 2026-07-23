@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from alphapilot_control_console.v62_4_1_delta_acceptance import (
+    CONSOLE_CLOSEOUT_TAG,
     build_formal_closeout_projection,
     build_security_quality_projection,
     copy_evidence_tree,
@@ -16,6 +17,11 @@ def _write_json(path: Path, value: object) -> None:
         json.dumps(value, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+
+
+def test_console_closeout_tag_does_not_reuse_the_frozen_acceptance_tag() -> None:
+    assert CONSOLE_CLOSEOUT_TAG == "v13.27.1.62.4.1-closeout-console"
+    assert CONSOLE_CLOSEOUT_TAG != "v13.27.1.62.4.1-acceptance-console"
 
 
 def test_formal_closeout_projection_preserves_single_run_failure_truth(

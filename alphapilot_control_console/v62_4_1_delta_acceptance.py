@@ -13,6 +13,9 @@ from pathlib import Path
 from typing import Any
 
 
+CONSOLE_CLOSEOUT_TAG = "v13.27.1.62.4.1-closeout-console"
+
+
 def _read_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8-sig"))
 

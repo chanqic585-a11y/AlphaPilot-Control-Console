@@ -33,6 +33,7 @@ from alphapilot_control_console.v62_4_acceptance import (
 )
 from alphapilot_control_console.v62_4_1_acceptance import build_closeout_state
 from alphapilot_control_console.v62_4_1_delta_acceptance import (
+    CONSOLE_CLOSEOUT_TAG,
     build_formal_closeout_projection,
     build_security_quality_projection,
     copy_evidence_tree,
@@ -88,7 +89,7 @@ FORMAL_EVIDENCE_ROOT = (
     WORKSPACE / "validation" / "v62-4-1-formal-v35-tsmom-20260723"
 )
 
-CONSOLE_TAG = "v13.27.1.62.4.1-acceptance-console"
+CONSOLE_TAG = CONSOLE_CLOSEOUT_TAG
 QUANT_TAG = "v13.27.1.62.4.1-formal-quant"
 DOCS_TAG = "v13.27.1.62.4.1-acceptance-docs"
 MOBILE_TAG = "v13.15.0-mobile"
