@@ -27,6 +27,7 @@ from alphapilot_control_console.v62_4_2_delta_closeout import (
 )
 from alphapilot_control_console.v62_4_2_package_builder import (
     build_artifact_manifest,
+    copy_current_quality_evidence,
     create_fresh_package_root,
     sha256_file,
     verify_manifest_coverage,
@@ -149,9 +150,9 @@ def build_package(args: argparse.Namespace) -> dict[str, object]:
         "skipped_xfailed_inventory.json",
     ):
         _copy_file(base_quality / name, strategy_destination / name)
-    _copy_file(
+    copy_current_quality_evidence(
         args.current_checks.resolve(),
-        strategy_destination / "v62_4_2_current_checks.json",
+        strategy_destination,
     )
     _copy_file(
         args.provider_smoke.resolve(),

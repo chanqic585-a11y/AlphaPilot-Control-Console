@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +25,44 @@ def create_fresh_package_root(path: Path | str) -> Path:
         raise FileExistsError(f"fresh_output_directory_required:{root}")
     root.mkdir(parents=True)
     return root
+
+
+def copy_current_quality_evidence(
+    current_checks_path: Path | str,
+    destination: Path | str,
+) -> list[str]:
+    """Copy the quality receipt and only the log files it references."""
+
+    checks_path = Path(current_checks_path)
+    target = Path(destination)
+    payload = json.loads(checks_path.read_text(encoding="utf-8"))
+    checks = payload.get("checks")
+    if not isinstance(checks, dict):
+        raise ValueError("current_quality_checks_missing")
+
+    log_names = {
+        str(value["log"])
+        for value in checks.values()
+        if isinstance(value, dict) and isinstance(value.get("log"), str)
+    }
+    target.mkdir(parents=True, exist_ok=True)
+    receipt_name = "v62_4_2_current_checks.json"
+    shutil.copy2(checks_path, target / receipt_name)
+    copied = {receipt_name}
+    for name in sorted(log_names):
+        relative = Path(name)
+        if (
+            relative.is_absolute()
+            or len(relative.parts) != 1
+            or name in {"", ".", ".."}
+        ):
+            raise ValueError(f"unsafe_current_quality_log_path:{name}")
+        source = checks_path.parent / relative
+        if not source.is_file():
+            raise FileNotFoundError(source)
+        shutil.copy2(source, target / relative.name)
+        copied.add(relative.name)
+    return sorted(copied)
 
 
 def build_artifact_manifest(package_root: Path | str) -> dict[str, Any]:

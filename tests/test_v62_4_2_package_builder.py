@@ -7,6 +7,7 @@ import pytest
 
 from alphapilot_control_console.v62_4_2_package_builder import (
     build_artifact_manifest,
+    copy_current_quality_evidence,
     create_fresh_package_root,
     verify_manifest_coverage,
 )
@@ -57,3 +58,40 @@ def test_manifest_covers_all_files_except_itself(tmp_path: Path) -> None:
     assert "artifact_manifest.json" not in {
         row["relativePath"] for row in manifest["artifacts"]
     }
+
+
+def test_copy_current_quality_evidence_includes_only_referenced_logs(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "quality"
+    source.mkdir()
+    checks = source / "current_quality_checks.json"
+    checks.write_text(
+        json.dumps(
+            {
+                "passed": True,
+                "checks": {
+                    "pytest": {"status": "passed", "log": "pytest.log"},
+                    "compileall": {
+                        "status": "passed",
+                        "log": "compileall.log",
+                    },
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (source / "pytest.log").write_text("951 passed\n", encoding="utf-8")
+    (source / "compileall.log").write_text("passed\n", encoding="utf-8")
+    (source / "unreferenced.txt").write_text("do not copy\n", encoding="utf-8")
+
+    destination = tmp_path / "package" / "05_strategy_and_quality"
+    copied = copy_current_quality_evidence(checks, destination)
+
+    assert copied == [
+        "compileall.log",
+        "pytest.log",
+        "v62_4_2_current_checks.json",
+    ]
+    assert sorted(path.name for path in destination.iterdir()) == copied
