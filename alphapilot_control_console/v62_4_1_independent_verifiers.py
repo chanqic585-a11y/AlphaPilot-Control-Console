@@ -450,6 +450,8 @@ def _ai_request(
 def verify_ai_orchestration(
     repository_root: Path | str,
     provider_smoke_path: Path | str,
+    *,
+    failure_critic_summary_path: Path | str | None = None,
 ) -> dict[str, object]:
     """Resolve real routes and source boundaries without provider credentials."""
 
@@ -545,6 +547,32 @@ def verify_ai_orchestration(
         findings.append("provider_smoke_runtime_armed")
     if bool(smoke.get("withdrawEnabled")):
         findings.append("provider_smoke_withdraw_enabled")
+    failure_critic_projection: dict[str, object] = {"status": "not_supplied"}
+    if failure_critic_summary_path is not None:
+        critic = _load_json(Path(failure_critic_summary_path))
+        failure_critic_projection = {
+            key: critic.get(key)
+            for key in (
+                "status",
+                "summaryHash",
+                "caseCount",
+                "acceptedCaseCount",
+                "criticalDisagreementCaseCount",
+                "executionAuthorized",
+                "demoArm",
+                "liveArm",
+                "orderCount",
+                "withdrawEnabled",
+            )
+        }
+        if bool(critic.get("executionAuthorized")):
+            findings.append("failure_critic_has_execution_authority")
+        if bool(critic.get("demoArm")) or bool(critic.get("liveArm")):
+            findings.append("failure_critic_runtime_armed")
+        if int(critic.get("orderCount") or 0) != 0:
+            findings.append("failure_critic_has_orders")
+        if bool(critic.get("withdrawEnabled")):
+            findings.append("failure_critic_withdraw_enabled")
     return {
         "schemaVersion": "v62_4_1_ai_independent_verifier_v1",
         "passed": not findings,
@@ -556,7 +584,7 @@ def verify_ai_orchestration(
         "directProviderImports": direct_provider_imports,
         "executionPathAiImports": execution_path_ai_imports,
         "providerSmokeChecks": checks,
-        "realHistoricalFailureCriticWorkflow": "not_run",
+        "realHistoricalFailureCriticWorkflow": failure_critic_projection,
     }
 
 

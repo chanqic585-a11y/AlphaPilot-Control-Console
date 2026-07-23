@@ -105,6 +105,21 @@ def _normalize_broad_audit(payload: dict[str, Any]) -> dict[str, object]:
     }
 
 
+def _build_current_test_results_summary(
+    current_checks: dict[str, Any],
+) -> dict[str, object]:
+    checks = dict(current_checks.get("checks") or {})
+    pytest_check = dict(checks.get("pytest") or {})
+    return {
+        "schemaVersion": "v62_4_2_current_test_results_summary_v1",
+        "status": "passed" if current_checks.get("passed") is True else "failed",
+        "testCount": int(pytest_check.get("testCount") or 0),
+        "subtestCount": int(pytest_check.get("subtestCount") or 0),
+        "checks": checks,
+        "source": "current_quality_checks.json",
+    }
+
+
 def build_package(args: argparse.Namespace) -> dict[str, object]:
     root = create_fresh_package_root(args.output_root.resolve())
     generated_at = datetime.now(timezone.utc).isoformat()
@@ -154,6 +169,10 @@ def build_package(args: argparse.Namespace) -> dict[str, object]:
         args.current_checks.resolve(),
         strategy_destination,
     )
+    _write_json(
+        strategy_destination / "test_results_summary.json",
+        _build_current_test_results_summary(_read_json(args.current_checks.resolve())),
+    )
     _copy_file(
         args.provider_smoke.resolve(),
         strategy_destination / "provider_smoke.json",
@@ -192,6 +211,7 @@ def build_package(args: argparse.Namespace) -> dict[str, object]:
     ai_verification = verify_ai_orchestration(
         args.repository_root.resolve(),
         strategy_destination / "provider_smoke.json",
+        failure_critic_summary_path=critic_source,
     )
     trial_verification = verify_trial_evidence(
         strategy_destination / "raw_pilot_artifacts"

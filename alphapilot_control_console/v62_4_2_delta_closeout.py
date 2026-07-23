@@ -268,8 +268,9 @@ domain = load_domain()
 parser = argparse.ArgumentParser()
 parser.add_argument("--repository-root", type=Path, required=True)
 parser.add_argument("--provider-smoke", type=Path, required=True)
+parser.add_argument("--failure-critic-summary", type=Path)
 args = parser.parse_args()
-print(json.dumps(domain.verify_ai_orchestration(args.repository_root, args.provider_smoke), indent=2, sort_keys=True))
+print(json.dumps(domain.verify_ai_orchestration(args.repository_root, args.provider_smoke, failure_critic_summary_path=args.failure_critic_summary), indent=2, sort_keys=True))
 """,
     "verify_hashes.py": """
 from _bootstrap import load_domain

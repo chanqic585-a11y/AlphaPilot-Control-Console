@@ -300,6 +300,64 @@ def test_ai_verifier_checks_real_router_registry_and_execution_boundaries(
     assert "provider_smoke_has_execution_authority" in failed["findings"]
 
 
+def test_ai_verifier_projects_completed_failure_critic_evidence(
+    tmp_path: Path,
+) -> None:
+    smoke_path = tmp_path / "provider_smoke_summary.json"
+    _write_json(
+        smoke_path,
+        {
+            "status": "provider_smoke_passed",
+            "providers": {
+                "deepseek": {"status": "accepted"},
+                "gemini": {"status": "accepted"},
+                "dual": {"status": "accepted"},
+            },
+            "executionAuthority": False,
+            "exchangePrivateCredentialsPresent": False,
+            "demoArm": False,
+            "liveArm": False,
+            "withdrawEnabled": False,
+        },
+    )
+    critic_path = tmp_path / "four_case_failure_critic_summary.json"
+    _write_json(
+        critic_path,
+        {
+            "status": "completed_with_blockers",
+            "summaryHash": "sha256:critic",
+            "caseCount": 4,
+            "acceptedCaseCount": 0,
+            "criticalDisagreementCaseCount": 4,
+            "executionAuthorized": False,
+            "demoArm": False,
+            "liveArm": False,
+            "orderCount": 0,
+            "withdrawEnabled": False,
+        },
+    )
+
+    result = verify_ai_orchestration(
+        Path(__file__).resolve().parents[1],
+        smoke_path,
+        failure_critic_summary_path=critic_path,
+    )
+
+    assert result["passed"] is True
+    assert result["realHistoricalFailureCriticWorkflow"] == {
+        "status": "completed_with_blockers",
+        "summaryHash": "sha256:critic",
+        "caseCount": 4,
+        "acceptedCaseCount": 0,
+        "criticalDisagreementCaseCount": 4,
+        "executionAuthorized": False,
+        "demoArm": False,
+        "liveArm": False,
+        "orderCount": 0,
+        "withdrawEnabled": False,
+    }
+
+
 def test_ui_verifier_checks_current_pilot_fields_and_authority() -> None:
     pilot = {
         "authority": "current_v62_4_acceptance_pilot",

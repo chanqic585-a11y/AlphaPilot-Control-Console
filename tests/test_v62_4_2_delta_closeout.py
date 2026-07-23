@@ -202,6 +202,36 @@ def test_each_delivered_verifier_directly_calls_its_domain_function(
     assert "delta = load_delta()" in acceptance_script
     assert "delta.verify_delta_acceptance_package(" in acceptance_script
     assert "domain.verify_delta_acceptance_package(" not in acceptance_script
+    assert "--failure-critic-summary" in scripts["verify_ai_router.py"]
+
+
+def test_current_test_summary_uses_current_quality_evidence() -> None:
+    script_path = (
+        Path(__file__).resolve().parents[1]
+        / "scripts"
+        / "build_v62_4_2_delta_acceptance.py"
+    )
+    namespace = runpy.run_path(str(script_path))
+
+    summary = namespace["_build_current_test_results_summary"](
+        {
+            "passed": True,
+            "checks": {
+                "pytest": {
+                    "status": "passed",
+                    "testCount": 952,
+                    "subtestCount": 139,
+                },
+                "compileall": {"status": "passed"},
+                "gitDiffCheck": {"status": "passed"},
+            },
+        }
+    )
+
+    assert summary["status"] == "passed"
+    assert summary["testCount"] == 952
+    assert summary["subtestCount"] == 139
+    assert summary["source"] == "current_quality_checks.json"
 
 
 def test_runtime_identity_checks_commit_tag_modules_and_zero_execution_lease(

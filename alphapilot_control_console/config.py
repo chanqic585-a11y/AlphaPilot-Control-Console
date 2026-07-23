@@ -5,7 +5,16 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DATA_DIR = PROJECT_ROOT / "data"
+
+
+def _resolve_data_dir() -> Path:
+    configured = os.environ.get("ALPHAPILOT_DATA_DIR")
+    if configured:
+        return Path(configured).expanduser().resolve()
+    return PROJECT_ROOT / "data"
+
+
+DATA_DIR = _resolve_data_dir()
 WEB_DIR = PROJECT_ROOT / "web"
 
 DEFAULT_WORKSPACE = Path("D:/Codex-Workspace")
