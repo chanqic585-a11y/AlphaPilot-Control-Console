@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import json
-import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 from alphapilot_control_console.ai_orchestration.batch import AIBatchLedger
 from alphapilot_control_console.ai_orchestration.batch_service import (
@@ -83,11 +81,6 @@ class AIBatchOrchestrationServiceTests(unittest.TestCase):
             {
                 "schemaVersion": "alphapilot_ai_model_registry_v1",
                 "aliases": {
-                    "openai_batch": {
-                        "provider": "openai",
-                        "modelId": "configured-openai-batch",
-                        "capabilities": ["batch", "structured_output"],
-                    },
                     "gemini_batch": {
                         "provider": "gemini",
                         "modelId": "configured-gemini-batch",
@@ -97,25 +90,18 @@ class AIBatchOrchestrationServiceTests(unittest.TestCase):
             }
         )
         ledger = AIBatchLedger(root / "batch.sqlite")
-        openai = FakeBatchAdapter("openai")
         gemini = FakeBatchAdapter("gemini")
         service = AIBatchOrchestrationService(
             model_registry=model_registry,
             prompt_registry=PromptRegistry.from_path(prompt_registry_path),
-            adapters={"openai": openai, "gemini": gemini},
+            adapters={"gemini": gemini},
             ledger=ledger,
         )
-        return service, ledger, openai, gemini
+        return service, ledger, gemini
 
-    def test_submits_dual_provider_batches_once_with_redacted_prompt_envelopes(self) -> None:
-        with tempfile.TemporaryDirectory() as directory, patch.dict(
-            os.environ,
-            {
-                "TEST_OPENAI_BATCH_MODEL": "configured-openai-batch",
-                "TEST_GEMINI_BATCH_MODEL": "configured-gemini-batch",
-            },
-        ):
-            service, ledger, openai, gemini = self._service(directory)
+    def test_submits_one_gemini_batch_once_with_redacted_prompt_envelopes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            service, ledger, gemini = self._service(directory)
             try:
                 first = service.submit(
                     requests=[_request("one"), _request("two")],
@@ -128,29 +114,22 @@ class AIBatchOrchestrationServiceTests(unittest.TestCase):
             finally:
                 ledger.close()
 
-        self.assertEqual(len(first), 2)
+        self.assertEqual(len(first), 1)
         self.assertEqual(first, second)
-        self.assertEqual(len(openai.submissions), 1)
         self.assertEqual(len(gemini.submissions), 1)
-        submitted_request = openai.submissions[0][1][0]
+        submitted_request = gemini.submissions[0][1][0]
         self.assertIn("untrusted", submitted_request.payload["platformPrompt"].lower())
         self.assertEqual(submitted_request.payload["untrustedData"], {"evidence": "one"})
 
     def test_completed_batch_outputs_are_schema_and_semantic_validated_before_close(self) -> None:
-        with tempfile.TemporaryDirectory() as directory, patch.dict(
-            os.environ,
-            {
-                "TEST_OPENAI_BATCH_MODEL": "configured-openai-batch",
-                "TEST_GEMINI_BATCH_MODEL": "configured-gemini-batch",
-            },
-        ):
-            service, ledger, openai, _ = self._service(directory)
+        with tempfile.TemporaryDirectory() as directory:
+            service, ledger, gemini = self._service(directory)
             requests = [_request("one")]
             try:
                 jobs = service.submit(requests=requests, idempotency_key="campaign-2")
-                openai_job = next(item for item in jobs if item["provider"] == "openai")
-                openai.statuses[openai_job["providerJobId"]] = BatchProviderStatus(
-                    provider_job_id=openai_job["providerJobId"],
+                gemini_job = jobs[0]
+                gemini.statuses[gemini_job["providerJobId"]] = BatchProviderStatus(
+                    provider_job_id=gemini_job["providerJobId"],
                     status="completed",
                     outputs={
                         "one": {
@@ -159,7 +138,7 @@ class AIBatchOrchestrationServiceTests(unittest.TestCase):
                         }
                     },
                 )
-                completed = service.refresh(openai_job["batchJobId"], requests=requests)
+                completed = service.refresh(gemini_job["batchJobId"], requests=requests)
             finally:
                 ledger.close()
 
@@ -167,26 +146,20 @@ class AIBatchOrchestrationServiceTests(unittest.TestCase):
         self.assertTrue(completed["resultArtifactHash"].startswith("sha256:"))
 
     def test_invalid_batch_output_remains_untrusted(self) -> None:
-        with tempfile.TemporaryDirectory() as directory, patch.dict(
-            os.environ,
-            {
-                "TEST_OPENAI_BATCH_MODEL": "configured-openai-batch",
-                "TEST_GEMINI_BATCH_MODEL": "configured-gemini-batch",
-            },
-        ):
-            service, ledger, openai, _ = self._service(directory)
+        with tempfile.TemporaryDirectory() as directory:
+            service, ledger, gemini = self._service(directory)
             requests = [_request("one")]
             try:
                 jobs = service.submit(requests=requests, idempotency_key="campaign-3")
-                openai_job = next(item for item in jobs if item["provider"] == "openai")
-                openai.statuses[openai_job["providerJobId"]] = BatchProviderStatus(
-                    provider_job_id=openai_job["providerJobId"],
+                gemini_job = jobs[0]
+                gemini.statuses[gemini_job["providerJobId"]] = BatchProviderStatus(
+                    provider_job_id=gemini_job["providerJobId"],
                     status="completed",
                     outputs={"one": {"summary": "missing provenance"}},
                 )
                 with self.assertRaises(OutputValidationError):
-                    service.refresh(openai_job["batchJobId"], requests=requests)
-                current = ledger.get(openai_job["batchJobId"])
+                    service.refresh(gemini_job["batchJobId"], requests=requests)
+                current = ledger.get(gemini_job["batchJobId"])
             finally:
                 ledger.close()
 

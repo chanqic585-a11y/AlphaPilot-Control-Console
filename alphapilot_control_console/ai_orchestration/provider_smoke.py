@@ -14,7 +14,7 @@ from .service import AIOrchestrationService
 
 
 _SMOKE_TASKS = (
-    "provider_smoke_openai",
+    "provider_smoke_deepseek",
     "provider_smoke_gemini",
     "provider_smoke_dual",
 )
@@ -108,7 +108,7 @@ def run_provider_smoke(
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Run synthetic OpenAI-only, Gemini-only and dual-model smokes."
+        description="Run synthetic DeepSeek-only, Gemini-only and dual-model smokes."
     )
     parser.add_argument("--repository-root", type=Path, required=True)
     parser.add_argument("--data-root", type=Path, required=True)

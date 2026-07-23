@@ -195,13 +195,17 @@ class AIOrchestrationBoundaryTests(unittest.TestCase):
         self.assertEqual(findings, [])
 
     def test_compliance_scan_detects_a_direct_sdk_import(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            (root / "business.py").write_text("from openai import OpenAI\n", encoding="utf-8")
-            findings = find_direct_provider_imports(root)
+        for module_source, expected_module in (
+            ("from openai import OpenAI\n", "openai"),
+            ("from deepseek import DeepSeek\n", "deepseek"),
+        ):
+            with self.subTest(module=expected_module), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "business.py").write_text(module_source, encoding="utf-8")
+                findings = find_direct_provider_imports(root)
 
-        self.assertEqual(len(findings), 1)
-        self.assertEqual(findings[0]["module"], "openai")
+            self.assertEqual(len(findings), 1)
+            self.assertEqual(findings[0]["module"], expected_module)
 
 
 if __name__ == "__main__":

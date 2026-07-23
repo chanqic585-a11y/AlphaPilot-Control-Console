@@ -14,7 +14,7 @@ from .budget import AIBudgetLedger, AIBudgetPolicy
 from .circuit_breaker import ProviderCircuitBreaker
 from .model_registry import AIModelRegistry
 from .prompt_registry import PromptRegistry
-from .provider_adapters.batch_adapters import GeminiBatchAdapter, OpenAIBatchAdapter
+from .provider_adapters.batch_adapters import GeminiBatchAdapter
 from .provider_adapters.deepseek_adapter import DeepSeekAdapter
 from .provider_adapters.gemini_adapter import GeminiAdapter
 from .service import AIOrchestrationService
@@ -72,7 +72,6 @@ def build_ai_runtime(
         "gemini": GeminiAdapter(),
     }
     batch_adapters = {
-        "openai": OpenAIBatchAdapter(),
         "gemini": GeminiBatchAdapter(),
     }
 

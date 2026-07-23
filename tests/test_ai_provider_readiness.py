@@ -20,10 +20,15 @@ class AIProviderReadinessTests(unittest.TestCase):
             environ={},
         )
 
-        self.assertEqual(report["status"], "provider_credentials_required")
+        self.assertEqual(
+            report["status"], "provider_credentials_required_deepseek_gemini"
+        )
         self.assertEqual(
             report["requiredEnvironmentVariables"],
-            ["OPENAI_API_KEY", "GEMINI_API_KEY"],
+            ["DEEPSEEK_API_KEY", "GEMINI_API_KEY"],
+        )
+        self.assertEqual(
+            report["providerConfigured"], {"deepseek": False, "gemini": False}
         )
         rendered = json.dumps(report, sort_keys=True)
         self.assertNotIn("api-key-value", rendered)
@@ -33,12 +38,12 @@ class AIProviderReadinessTests(unittest.TestCase):
         root = Path(__file__).parents[1]
         partial = build_provider_readiness_report(
             repository_root=root,
-            environ={"OPENAI_API_KEY": "api-key-value"},
+            environ={"DEEPSEEK_API_KEY": "api-key-value"},
         )
         complete = build_provider_readiness_report(
             repository_root=root,
             environ={
-                "OPENAI_API_KEY": "api-key-value",
+                "DEEPSEEK_API_KEY": "api-key-value",
                 "GEMINI_API_KEY": "secret-value",
             },
         )
@@ -63,6 +68,7 @@ class AIProviderReadinessTests(unittest.TestCase):
         self.assertEqual(identity["workerId"], "alphapilot-ai-worker-v62.4")
         self.assertFalse(identity["executionAuthority"])
         self.assertFalse(identity["exchangePrivateCredentialsPresent"])
+        self.assertEqual(identity["allowedProviders"], ["deepseek", "gemini"])
         self.assertTrue(identity["identityHash"].startswith("sha256:"))
 
     def test_smoke_input_hash_is_fixed_after_local_redaction(self) -> None:
@@ -74,7 +80,7 @@ class AIProviderReadinessTests(unittest.TestCase):
     def test_only_two_provider_credentials_are_required(self) -> None:
         self.assertEqual(
             CREDENTIAL_ENVIRONMENT_VARIABLES,
-            ("OPENAI_API_KEY", "GEMINI_API_KEY"),
+            ("DEEPSEEK_API_KEY", "GEMINI_API_KEY"),
         )
 
 

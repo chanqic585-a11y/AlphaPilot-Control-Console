@@ -14,7 +14,7 @@ from .errors import AIWorkerIsolationError
 from .redaction import LocalRedactor
 
 
-CREDENTIAL_ENVIRONMENT_VARIABLES = ("OPENAI_API_KEY", "GEMINI_API_KEY")
+CREDENTIAL_ENVIRONMENT_VARIABLES = ("DEEPSEEK_API_KEY", "GEMINI_API_KEY")
 _EXCHANGE_PRIVATE_CREDENTIAL_NAMES = frozenset(
     {
         "OKX_API_KEY",
@@ -55,7 +55,7 @@ _WORKER_IDENTITY_BASE = {
     "processBoundary": "dedicated_no_exchange_credentials",
     "executionAuthority": False,
     "exchangePrivateCredentialsPresent": False,
-    "allowedProviders": ["openai", "gemini"],
+    "allowedProviders": ["deepseek", "gemini"],
 }
 _SMOKE_RESPONSE_SCHEMA = {
     "type": "object",
@@ -166,12 +166,12 @@ def build_provider_readiness_report(
     root = Path(repository_root).resolve()
     worker_identity = build_ai_worker_identity(environ=active_environment)
     configured = {
-        "openai": _has_value(active_environment, "OPENAI_API_KEY"),
+        "deepseek": _has_value(active_environment, "DEEPSEEK_API_KEY"),
         "gemini": _has_value(active_environment, "GEMINI_API_KEY"),
     }
     configured_count = sum(configured.values())
     if configured_count == 0:
-        status = "provider_credentials_required"
+        status = "provider_credentials_required_deepseek_gemini"
     elif configured_count == len(configured):
         status = "provider_credentials_ready"
     else:

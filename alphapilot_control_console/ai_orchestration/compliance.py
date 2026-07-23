@@ -9,6 +9,7 @@ from typing import Iterable
 
 _PROVIDER_MODULE_PREFIXES = (
     "openai",
+    "deepseek",
     "google.genai",
     "google.generativeai",
     "anthropic",

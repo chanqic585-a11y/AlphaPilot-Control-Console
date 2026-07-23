@@ -27,14 +27,14 @@ class AIProviderSmokeTests(unittest.TestCase):
             "summary": "Synthetic provider boundary is valid.",
             "sourceArtifactHashes": ["fixture:provider-smoke-v62-4"],
         }
-        openai = MockProviderAdapter(provider="openai", output=output)
+        deepseek = MockProviderAdapter(provider="deepseek", output=output)
         gemini = MockProviderAdapter(provider="gemini", output=output)
         with tempfile.TemporaryDirectory() as directory:
             ledger = AIAuditLedger(Path(directory) / "audit.sqlite")
             service = AIOrchestrationService(
                 model_registry=registry,
                 prompt_registry=prompts,
-                adapters={"openai": openai, "gemini": gemini},
+                adapters={"deepseek": deepseek, "gemini": gemini},
                 audit_ledger=ledger,
             )
             try:
@@ -45,9 +45,9 @@ class AIProviderSmokeTests(unittest.TestCase):
         self.assertEqual(report["status"], "provider_smoke_passed")
         self.assertEqual(
             [item["taskType"] for item in report["checks"]],
-            ["provider_smoke_openai", "provider_smoke_gemini", "provider_smoke_dual"],
+            ["provider_smoke_deepseek", "provider_smoke_gemini", "provider_smoke_dual"],
         )
-        self.assertEqual(len(openai.requests), 2)
+        self.assertEqual(len(deepseek.requests), 2)
         self.assertEqual(len(gemini.requests), 2)
         self.assertNotIn("Synthetic provider boundary is valid", repr(report))
         self.assertTrue(all(item["responseHashes"] for item in report["checks"]))
@@ -60,7 +60,7 @@ class AIProviderSmokeTests(unittest.TestCase):
             "summary": "Validated.",
             "sourceArtifactHashes": ["fixture:provider-smoke-v62-4"],
         }
-        openai = MockProviderAdapter(provider="openai", output=output)
+        deepseek = MockProviderAdapter(provider="deepseek", output=output)
         gemini = MockProviderAdapter(provider="gemini", output=output)
         with tempfile.TemporaryDirectory() as directory:
             ledger = AIAuditLedger(Path(directory) / "audit.sqlite")
@@ -71,7 +71,7 @@ class AIProviderSmokeTests(unittest.TestCase):
                 prompt_registry=PromptRegistry.from_path(
                     root / "config" / "ai_prompt_registry.json"
                 ),
-                adapters={"openai": openai, "gemini": gemini},
+                adapters={"deepseek": deepseek, "gemini": gemini},
                 audit_ledger=ledger,
             )
             try:
