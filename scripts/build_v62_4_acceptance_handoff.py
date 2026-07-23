@@ -40,7 +40,10 @@ from alphapilot_control_console.v62_4_acceptance import (
     build_formal_job_rows,
     build_runtime_projection,
     detect_credential_material,
+    find_foundation_sample_root,
+    iter_package_text_files,
     load_pilot_evidence,
+    redact_credential_assignments,
     validate_data_omission_policy,
     verify_acceptance_package,
 )
@@ -63,7 +66,7 @@ REPOSITORIES = (
     {
         "name": "AlphaPilot-Control-Console",
         "path": CONSOLE_WORKTREE,
-        "tag": "v13.27.1.62.4-acceptance-console",
+        "tag": "v13.27.1.62.4.1-acceptance-console",
         "role": "runtime_control_and_web_console",
         "runtimeAuthority": True,
     },
@@ -388,7 +391,7 @@ class AcceptanceBuilder:
         data_omission = self.root / "00_START_HERE" / "data_omission"
         copy_file(self.foundation_root / "metadata" / "omitted_data_manifest.json", data_omission / "omitted_data_manifest.json")
         copy_file(self.foundation_root / "metadata" / "omitted_data_manifest.csv", data_omission / "omitted_data_manifest.csv")
-        copy_tree(self.foundation_root / "data-governance" / "sample_only", data_omission / "sample_only")
+        copy_tree(find_foundation_sample_root(self.foundation_root), data_omission / "sample_only")
         write_json(
             self.root / "00_START_HERE" / "known_issues_summary.json",
             {
@@ -579,9 +582,12 @@ class AcceptanceBuilder:
         write_json(destination / "changed_file_inventory.json", changed_files)
         write_json(destination / "generated_vs_handwritten_audit.json", {"status": "classified_by_git_and_artifact_manifest", "generatedRoots": ["reports/", "validation/", "16_final/"], "handwrittenRoots": ["alphapilot_control_console/", "alphapilot/", "scripts/", "tests/"]})
         write_json(destination / "large_file_manifest.json", large_files)
-        (destination / "baseline_to_current_diff.patch").write_text("\n".join(baseline_patches), encoding="utf-8")
+        (destination / "baseline_to_current_diff.patch").write_text(
+            redact_credential_assignments("\n".join(baseline_patches)),
+            encoding="utf-8",
+        )
         copy_tree(self.foundation_root / "metadata", destination / "data_governance")
-        copy_tree(self.foundation_root / "sample_only", destination / "sample_only")
+        copy_tree(find_foundation_sample_root(self.foundation_root), destination / "sample_only")
         omission = validate_data_omission_policy(destination / "data_governance")
         # The sample directory is mapped one level above data_governance.
         omission["sampleFileCount"] = len([path for path in (destination / "sample_only").rglob("*") if path.is_file()])
@@ -1199,10 +1205,9 @@ raise SystemExit(0 if output["passed"] else 1)
 
     def build_final(self) -> None:
         destination = self.root / "16_final"
+        shutil.rmtree(self.foundation_root, ignore_errors=True)
         package_credential_hits = []
-        for path in sorted(item for item in self.root.rglob("*") if item.is_file()):
-            if path.suffix.lower() in {".png", ".zip", ".sqlite", ".db", ".bundle"}:
-                continue
+        for path in iter_package_text_files(self.root):
             try:
                 reasons = detect_credential_material(path.read_text(encoding="utf-8"))
             except (UnicodeDecodeError, OSError):
@@ -1213,7 +1218,9 @@ raise SystemExit(0 if output["passed"] else 1)
         data_omission_root = self.root / "00_START_HERE" / "data_omission"
         data_policy = validate_data_omission_policy(data_omission_root)
         self_check = {
-            "status": "accepted_with_nonblocking_p2" if not package_credential_hits else "failed",
+            "status": "accepted_with_nonblocking_p2"
+            if not package_credential_hits and data_policy["passed"]
+            else "failed",
             "pilotCandidateCount": self.pilot["summary"]["candidateCount"],
             "pilotTrialCount": self.pilot["summary"]["trialCount"],
             "pilotCompletedTrialCount": self.pilot["summary"]["completedTrialCount"],
@@ -1255,7 +1262,6 @@ raise SystemExit(0 if output["passed"] else 1)
             encoding="utf-8",
         )
         write_json(destination / "package_hash_verification.json", {"status": "pending_external_zip_hash", "reason": "The ZIP SHA-256 is written next to the archive after compression; embedding it would be recursive.", "independentFreshExtractionRequired": True})
-        shutil.rmtree(self.foundation_root, ignore_errors=True)
         manifest = build_artifact_manifest(self.root)
         write_json(self.root / MANIFEST_RELATIVE_PATH, manifest)
         missing_expected = [

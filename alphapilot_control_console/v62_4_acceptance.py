@@ -142,6 +142,7 @@ MANIFEST_RELATIVE_PATH = "16_final/artifact_manifest.json"
 
 MARKET_DATA_SUFFIXES = {".csv", ".parquet", ".pq", ".feather"}
 MARKET_DATA_TOKENS = ("usdt", "swap", "ohlcv", "candle", "kline", "ticker", "market")
+PACKAGE_BINARY_SUFFIXES = {".png", ".zip", ".sqlite", ".db", ".bundle"}
 
 _ASSIGNMENT_SECRET = re.compile(
     r"(?i)\b(?:deepseek|gemini|openai|okx)?[_-]?(?:api[_-]?key|secret[_-]?key|passphrase|password|token)\s*[:=]\s*"
@@ -321,6 +322,37 @@ def detect_credential_material(text: str) -> list[str]:
             reasons.append("credential_assignment")
             break
     return reasons
+
+
+def redact_credential_assignments(text: str) -> str:
+    """Redact assignment-shaped credential fixtures before evidence export."""
+
+    def replace(match: re.Match[str]) -> str:
+        value_start = match.start(1) - match.start(0)
+        return f"{match.group(0)[:value_start]}redacted"
+
+    return _ASSIGNMENT_SECRET.sub(replace, text)
+
+
+def find_foundation_sample_root(foundation_root: Path) -> Path:
+    """Return the canonical sample-only root with legacy layout fallback."""
+
+    preferred = foundation_root / "sample_only"
+    if preferred.exists():
+        return preferred
+    return foundation_root / "data-governance" / "sample_only"
+
+
+def iter_package_text_files(root: Path):
+    """Yield final package text candidates, excluding transient build inputs."""
+
+    for path in sorted(item for item in root.rglob("*") if item.is_file()):
+        relative = path.relative_to(root)
+        if relative.parts and relative.parts[0] == ".foundation":
+            continue
+        if path.suffix.lower() in PACKAGE_BINARY_SUFFIXES:
+            continue
+        yield path
 
 
 def validate_data_omission_policy(root: Path) -> dict[str, Any]:

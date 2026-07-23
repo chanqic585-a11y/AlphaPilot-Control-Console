@@ -5,6 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import alphapilot_control_console.v62_4_acceptance as acceptance_helpers
+
 from alphapilot_control_console.v62_4_acceptance import (
     REQUIRED_TOP_LEVEL,
     REQUIRED_SECTION_FILES,
@@ -39,6 +41,43 @@ def test_acceptance_builder_cli_loads_from_repository_root() -> None:
 
     assert completed.returncode == 0, completed.stderr
     assert "--output-root" in completed.stdout
+
+
+def test_acceptance_redacts_credential_assignments_before_packaging() -> None:
+    assert hasattr(acceptance_helpers, "redact_credential_assignments")
+
+    redacted = acceptance_helpers.redact_credential_assignments(
+        'DEEPSEEK_API_KEY=sk-real-secret\nGEMINI_API_KEY="test-only-placeholder"'
+    )
+
+    assert "sk-real-secret" not in redacted
+    assert "test-only-placeholder" not in redacted
+    assert detect_credential_material(redacted) == []
+
+
+def test_acceptance_uses_foundation_sample_only_root(tmp_path: Path) -> None:
+    assert hasattr(acceptance_helpers, "find_foundation_sample_root")
+    preferred = tmp_path / "sample_only"
+    legacy = tmp_path / "data-governance" / "sample_only"
+    preferred.mkdir(parents=True)
+    legacy.mkdir(parents=True)
+
+    assert acceptance_helpers.find_foundation_sample_root(tmp_path) == preferred
+
+
+def test_acceptance_final_scan_excludes_transient_foundation(tmp_path: Path) -> None:
+    assert hasattr(acceptance_helpers, "iter_package_text_files")
+    transient = tmp_path / ".foundation" / "tool.py"
+    visible = tmp_path / "00_START_HERE" / "README_CN.md"
+    transient.parent.mkdir(parents=True)
+    visible.parent.mkdir(parents=True)
+    transient.write_text("DEEPSEEK_API_KEY=sk-real-secret", encoding="utf-8")
+    visible.write_text("No credentials are present.", encoding="utf-8")
+
+    packaged = list(acceptance_helpers.iter_package_text_files(tmp_path))
+
+    assert visible in packaged
+    assert transient not in packaged
 
 
 def test_acceptance_layout_covers_all_required_handoff_sections() -> None:
