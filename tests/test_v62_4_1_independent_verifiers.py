@@ -302,7 +302,7 @@ def test_ai_verifier_checks_real_router_registry_and_execution_boundaries(
 
 def test_ui_verifier_checks_current_pilot_fields_and_authority() -> None:
     pilot = {
-        "authority": "current_v62_4_pilot",
+        "authority": "current_v62_4_acceptance_pilot",
         "campaignId": "campaign-1",
         "candidateCount": 4,
         "trialCount": 12,
@@ -315,12 +315,14 @@ def test_ui_verifier_checks_current_pilot_fields_and_authority() -> None:
     payload = {"strategy": {"currentPilot": pilot}}
     html = " ".join(
         [
-            'id="strategyCurrentPilot"',
-            'id="strategyPilotCampaign"',
-            'id="strategyPilotCandidateTrials"',
-            'id="strategyPilotStable"',
-            'id="strategyPilotFormalReady"',
-            'id="strategyPilotFormalBlocked"',
+            'data-preview-page="strategy"',
+            'id="pilotCampaignId"',
+            'id="pilotCandidateCount"',
+            'id="pilotTrialCount"',
+            'id="pilotStableCount"',
+            'id="pilotFormalReadyCount"',
+            'id="pilotFormalBlockedCount"',
+            'id="pilotFormalRunCount"',
         ]
     )
     passed = verify_ui_projection(payload, html, expected_campaign_id="campaign-1")
@@ -337,7 +339,7 @@ def test_ui_endpoint_uses_the_current_strategy_summary_route(
 ) -> None:
     requests: list[str] = []
     pilot = {
-        "authority": "current_v62_4_pilot",
+        "authority": "current_v62_4_acceptance_pilot",
         "campaignId": "campaign-1",
         "candidateCount": 4,
         "trialCount": 12,
@@ -349,12 +351,14 @@ def test_ui_endpoint_uses_the_current_strategy_summary_route(
     }
     html = " ".join(
         [
-            'id="strategyCurrentPilot"',
-            'id="strategyPilotCampaign"',
-            'id="strategyPilotCandidateTrials"',
-            'id="strategyPilotStable"',
-            'id="strategyPilotFormalReady"',
-            'id="strategyPilotFormalBlocked"',
+            'data-preview-page="strategy"',
+            'id="pilotCampaignId"',
+            'id="pilotCandidateCount"',
+            'id="pilotTrialCount"',
+            'id="pilotStableCount"',
+            'id="pilotFormalReadyCount"',
+            'id="pilotFormalBlockedCount"',
+            'id="pilotFormalRunCount"',
         ]
     )
 

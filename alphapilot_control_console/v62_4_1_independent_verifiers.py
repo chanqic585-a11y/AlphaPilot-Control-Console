@@ -559,12 +559,13 @@ def verify_ai_orchestration(
 
 
 _PILOT_ELEMENT_IDS = (
-    "strategyCurrentPilot",
-    "strategyPilotCampaign",
-    "strategyPilotCandidateTrials",
-    "strategyPilotStable",
-    "strategyPilotFormalReady",
-    "strategyPilotFormalBlocked",
+    "pilotCampaignId",
+    "pilotCandidateCount",
+    "pilotTrialCount",
+    "pilotStableCount",
+    "pilotFormalReadyCount",
+    "pilotFormalBlockedCount",
+    "pilotFormalRunCount",
 )
 
 
@@ -584,8 +585,10 @@ def verify_ui_projection(
     if not isinstance(pilot, Mapping):
         findings.append("current_pilot_missing")
         pilot = {}
-    if pilot.get("authority") != "current_v62_4_pilot":
+    if pilot.get("authority") != "current_v62_4_acceptance_pilot":
         findings.append("current_pilot_authority_mismatch")
+    if 'data-preview-page="strategy"' not in html_text:
+        findings.append("strategy_preview_route_mismatch")
     if str(pilot.get("campaignId") or "") != expected_campaign_id:
         findings.append("current_pilot_campaign_mismatch")
     for field in (
@@ -607,7 +610,7 @@ def verify_ui_projection(
     ]
     findings.extend(f"missing_dom_element:{item}" for item in missing_elements)
     return {
-        "schemaVersion": "v62_4_1_ui_independent_verifier_v1",
+        "schemaVersion": "v62_4_1_ui_independent_verifier_v2",
         "passed": not findings,
         "findings": findings,
         "campaignId": pilot.get("campaignId"),
