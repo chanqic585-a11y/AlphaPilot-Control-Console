@@ -48,6 +48,10 @@ from alphapilot_control_console.v62_4_acceptance import (
     validate_data_omission_policy,
     verify_acceptance_package,
 )
+from alphapilot_control_console.v62_4_1_acceptance import (
+    build_candidate_failure_attribution,
+    derive_acceptance_status,
+)
 
 
 WORKSPACE = Path(r"D:\Codex-Workspace")
@@ -734,28 +738,29 @@ class AcceptanceBuilder:
         write_json(destination / "pilot_campaign_summary.json", summary)
         write_json(destination / "pilot_candidate_manifest.json", self.pilot["candidates"])
         write_json(destination / "pilot_trial_manifest.json", self.pilot["trials"])
-        failures = []
-        for trial in self.pilot["trials"]:
-            result = trial.get("result") or {}
-            if result.get("status") in {"failed", "blocked", "rejected"} or result.get("failureAttribution"):
-                failures.append(
-                    {
-                        "candidateId": trial.get("candidateId"),
-                        "trialId": trial.get("trialId"),
-                        "failureLayer": result.get("failureLayer") or "development_gate",
-                        "reasonCodes": result.get("reasonCodes") or result.get("failureAttribution") or [],
-                        "missingField": result.get("missingField"),
-                        "instrument": trial.get("instrument"),
-                        "timeframe": trial.get("timeframe"),
-                        "requiredRows": result.get("requiredRows"),
-                        "availableRows": result.get("availableRows"),
-                        "gate": result.get("gate"),
-                        "repairability": result.get("repairability", "bounded_single_variable_only"),
-                        "prohibitedRepair": "do_not_read_locked_oos_or_force_pass",
-                        "nextSingleVariableExperiment": result.get("nextSingleVariableExperiment"),
-                    }
-                )
-        write_json(destination / "pilot_failure_attribution.json", {"failureCount": len(failures), "failures": failures})
+        projections = json.loads(
+            (Path(self.pilot["reportRoot"]) / "development_projection.json").read_text(
+                encoding="utf-8"
+            )
+        ).get("projections", [])
+        selections = json.loads(
+            (Path(self.pilot["reportRoot"]) / "neighborhood_selection.json").read_text(
+                encoding="utf-8"
+            )
+        ).get("selections", [])
+        attribution = build_candidate_failure_attribution(
+            candidate_ids=[
+                str(candidate["candidateId"]) for candidate in self.pilot["candidates"]
+            ],
+            projections=projections,
+            selections=selections,
+            formal_handoff=self.pilot["formalHandoff"],
+        )
+        for failure in attribution["failures"]:
+            failure["prohibitedRepair"] = (
+                "do_not_read_locked_oos_or_force_pass"
+            )
+        write_json(destination / "pilot_failure_attribution.json", attribution)
         write_json(destination / "pilot_formal_handoff.json", self.pilot["formalHandoff"])
         source_root = Path(self.pilot["reportRoot"])
         copy_tree(source_root, destination / "raw_pilot_artifacts")
@@ -1143,7 +1148,12 @@ class AcceptanceBuilder:
         destination = self.root / "14_known_issues"
         issues = [
             {"issueId": "V62.4-RUNTIME-OFFLINE", "severity": "P1", "status": "open", "impact": "Runtime identity, reconciliation and matchability cannot be independently evaluated.", "safety": "newEntriesAllowed=false"},
-            {"issueId": "V62.4-FORMAL-NOT-RUN", "severity": "P1", "status": "expected_boundary", "impact": "The Formal-ready candidate is not a Formal pass or release.", "safety": "releaseCount=0; orderCount=0"},
+            {"issueId": "V62.4-FORMAL-NOT-RUN", "severity": "P1", "status": "open", "impact": "The Formal-ready candidate is not a Formal pass or release.", "safety": "releaseCount=0; orderCount=0"},
+            {"issueId": "V62.4-MATCHABILITY-NOT-RUN", "severity": "P1", "status": "open", "impact": "30d/90d and broad-universe signal frequency are not independently measured.", "safety": "no release or order may be inferred"},
+            {"issueId": "V62.4-TEST-QUALITY-INCOMPLETE", "severity": "P1", "status": "open", "impact": "Mutation, disconnect, static security, browser and performance evidence is incomplete.", "safety": "not_run remains not_run"},
+            {"issueId": "V62.4-VERIFIERS-NOT-INDEPENDENT", "severity": "P1", "status": "open", "impact": "Section verifiers delegate to one shared verifier and do not establish independent semantic coverage.", "safety": "package cannot self-accept"},
+            {"issueId": "V62.4-UI-PILOT-TRUTH-STALE", "severity": "P1", "status": "open", "impact": "The primary Strategy Factory UI does not project the current V62.4 Pilot campaign.", "safety": "UI does not authorize execution"},
+            {"issueId": "V62.4-AI-CRITIC-WORKFLOW-NOT-RUN", "severity": "P1", "status": "open", "impact": "Provider smoke passed, but a real historical-failure dual-model critic workflow is not evidenced.", "safety": "AI worker has no exchange credentials or order authority"},
             {"issueId": "V62.4-ADAPTIVE-LEARNING-NOT-LIVE-READY", "severity": "P1", "status": "open", "impact": "No production Factor Bench, purged walk-forward or Live-eligible model artifact.", "safety": "Live and Withdraw remain disabled"},
         ]
         write_json(destination / "open_issue_ledger.json", issues)
@@ -1225,10 +1235,22 @@ raise SystemExit(0 if output["passed"] else 1)
         write_json(destination / "credential_scan.json", {"status": "passed" if not package_credential_hits else "failed", "credentialHits": package_credential_hits, "rawCredentialsExported": False})
         data_omission_root = self.root / "00_START_HERE" / "data_omission"
         data_policy = validate_data_omission_policy(data_omission_root)
+        issues = json.loads(
+            (
+                self.root
+                / "14_known_issues"
+                / "open_issue_ledger.json"
+            ).read_text(encoding="utf-8")
+        )
+        acceptance = derive_acceptance_status(
+            credential_scan_passed=not package_credential_hits,
+            data_omission_passed=bool(data_policy["passed"]),
+            issues=issues,
+        )
         self_check = {
-            "status": "accepted_with_nonblocking_p2"
-            if not package_credential_hits and data_policy["passed"]
-            else "failed",
+            "status": acceptance["status"],
+            "blockingIssueIds": acceptance["blockingIssueIds"],
+            "nonBlockingIssueIds": acceptance["nonBlockingIssueIds"],
             "pilotCandidateCount": self.pilot["summary"]["candidateCount"],
             "pilotTrialCount": self.pilot["summary"]["trialCount"],
             "pilotCompletedTrialCount": self.pilot["summary"]["completedTrialCount"],
@@ -1262,10 +1284,11 @@ raise SystemExit(0 if output["passed"] else 1)
             encoding="utf-8",
         )
         (destination / "final_closeout_cn.md").write_text(
-            "# AlphaPilot V62.4 验收收口\n\n"
+            "# AlphaPilot V62.4 独立验收整改起点\n\n"
             "V62.4 已完成多模型编排基础、DeepSeek/Gemini 脱敏 Smoke 和有界真实策略工厂 Pilot。"
             "Pilot 共 4 个候选、12 个真实 Trial，2 个开发稳定候选、1 个 Formal-ready 候选；Formal 尚未运行，不能声明正式通过或生成 Release。\n\n"
             "打包时交易 Runtime 离线，因此运行身份、对账和匹配率保持 `unverified/not_evaluable`，并强制 `newEntriesAllowed=false`。"
+            "当前结论为 `blocked_remediation_required`，必须关闭 P1 后才可重新验收。"
             "本验收包不构成 Demo/Live Release 批准或 ARM，不执行订单，不接 Withdraw。\n",
             encoding="utf-8",
         )
