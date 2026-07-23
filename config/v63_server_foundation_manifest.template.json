@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "alphapilot_v63_server_manifest_v1",
+  "deploymentId": "alphapilot-v63-local-first-foundation",
+  "environment": "local_v63_shadow",
+  "mode": "shadow_no_order",
+  "stateRoot": "D:\\Codex-Workspace\\runtime\\v63",
+  "repositoryCommit": "0000000000000000000000000000000000000000",
+  "repositoryTag": "v13.27.1.63-server-foundation-console",
+  "configVersion": "v63-foundation-config-v1",
+  "roles": [
+    {
+      "role": "control",
+      "enabled": true,
+      "cpu": 0.25,
+      "memoryMb": 512,
+      "port": 8863
+    },
+    {
+      "role": "market",
+      "enabled": true,
+      "cpu": 0.75,
+      "memoryMb": 1024,
+      "port": 8864
+    },
+    {
+      "role": "demo",
+      "enabled": true,
+      "cpu": 0.5,
+      "memoryMb": 768,
+      "port": 8865
+    },
+    {
+      "role": "research",
+      "enabled": true,
+      "cpu": 1.25,
+      "memoryMb": 2048,
+      "port": 8866
+    },
+    {
+      "role": "ai",
+      "enabled": true,
+      "cpu": 0.75,
+      "memoryMb": 1280,
+      "port": 8867
+    },
+    {
+      "role": "factor",
+      "enabled": true,
+      "cpu": 0.5,
+      "memoryMb": 896,
+      "port": 8868
+    }
+  ],
+  "hostReserveMemoryMb": 1536,
+  "maxConcurrentBatchRoles": 2
+}

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "alphapilot_v63_startup_state_v1",
+  "source": "explicit_no_order_shadow_attestation",
+  "demoArmed": false,
+  "liveArmed": false,
+  "openOrderCount": 0,
+  "unknownOrderCount": 0,
+  "openPositionCount": 0,
+  "withdrawEnabled": false
+}

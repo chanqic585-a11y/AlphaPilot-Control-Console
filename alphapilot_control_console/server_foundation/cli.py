@@ -12,6 +12,7 @@ from .contracts import FOUNDATION_ROLES, FoundationRole
 from .lease import FoundationLeaseStore
 from .manifest import FoundationManifest
 from .reconciliation import StartupState
+from .resource_budget import validate_resource_budget
 from .sqlite_backup import (
     RestoreGuard,
     create_online_backup,
@@ -118,6 +119,36 @@ def _status(args: argparse.Namespace) -> int:
     return 0 if result["status"] == "running_shadow_no_order" else 2
 
 
+def _validate(args: argparse.Namespace) -> int:
+    manifest = FoundationManifest.load(Path(args.manifest))
+    resource_budget = validate_resource_budget(manifest)
+    payload = {
+        "schemaVersion": "alphapilot_v63_foundation_validation_v1",
+        "passed": (
+            resource_budget.passed
+            and manifest.mode.value == "shadow_no_order"
+            and not manifest.orderCapabilityEnabled
+            and len(manifest.roles) == len(FOUNDATION_ROLES)
+        ),
+        "deploymentId": manifest.deploymentId,
+        "environment": manifest.environment,
+        "mode": manifest.mode.value,
+        "roleCount": len(manifest.roles),
+        "repositoryCommit": manifest.repositoryCommit,
+        "repositoryTag": manifest.repositoryTag,
+        "manifestHash": manifest.manifestHash,
+        "configHash": manifest.configHash,
+        "stateRoot": str(manifest.stateRoot),
+        "orderCapabilityEnabled": manifest.orderCapabilityEnabled,
+        "demoArmAllowed": False,
+        "liveArmAllowed": False,
+        "withdrawAllowed": False,
+        "resourceBudget": resource_budget.to_dict(),
+    }
+    _print_json(payload)
+    return 0 if payload["passed"] else 2
+
+
 def _backup(args: argparse.Namespace) -> int:
     receipt = create_online_backup(
         Path(args.source),
@@ -202,6 +233,13 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_supervisor_arguments(status)
     status.add_argument("--maximum-age-seconds", type=float, default=15.0)
     status.set_defaults(handler=_status)
+
+    validate = subcommands.add_parser(
+        "validate",
+        help="validate one materialized no-order deployment manifest",
+    )
+    validate.add_argument("--manifest", required=True)
+    validate.set_defaults(handler=_validate)
 
     backup = subcommands.add_parser("backup", help="online-backup one SQLite file")
     backup.add_argument("--source", required=True)

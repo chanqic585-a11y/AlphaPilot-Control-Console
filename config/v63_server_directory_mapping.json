@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "alphapilot_v63_server_directory_mapping_v1",
+  "localWorkspaceRoot": "D:\\Codex-Workspace",
+  "localRepositoryRoot": "D:\\Codex-Workspace\\AlphaPilot-Control-Console",
+  "localRuntimeRoot": "D:\\Codex-Workspace\\runtime\\v63",
+  "serverApplicationRoot": "/opt/alphapilot/v63",
+  "serverRuntimeRoot": "/var/lib/alphapilot/v63",
+  "runtimeDirectories": [
+    "config",
+    "leases",
+    "roles",
+    "checkpoints",
+    "backups",
+    "logs",
+    "receipts",
+    "evidence"
+  ],
+  "mutableDataPolicy": "runtime_root_only",
+  "repositoryPolicy": "read_only_release_checkout",
+  "secretPolicy": "process_environment_only",
+  "orderPolicy": "forbidden_shadow_no_order"
+}
