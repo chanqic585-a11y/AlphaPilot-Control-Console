@@ -1,0 +1,27 @@
+{
+  "approvalGranted": false,
+  "authority": "current_v62_4_acceptance_pilot",
+  "campaignId": "v62-4-real-trial-pilot-okx-20260723",
+  "candidateCount": 4,
+  "demoArm": false,
+  "formalBlockedCandidateCount": 1,
+  "formalBlockedCandidateIds": [
+    "v35_tsmom_source_replication"
+  ],
+  "formalReadyCandidateCount": 1,
+  "formalReadyCandidateIds": [
+    "v35_tsmom_crypto_adaptation"
+  ],
+  "formalRunCount": 0,
+  "readOnly": true,
+  "resultReadCount": 0,
+  "schemaVersion": "alphapilot_v62_4_current_pilot_projection_v1",
+  "sourceHashes": {
+    "campaignSummary": "sha256:355297b11796990232d6dbbcb502cb22c7755555647ea341ca52c69e9d1279b9",
+    "formalHandoff": "sha256:b048e0c0c4445ad3a7f7f1ab334a6af106c999f6d955288e80f0039415615d5a"
+  },
+  "stableSelectionCount": 2,
+  "status": "awaiting_formal_validation",
+  "strategyOrderCount": 0,
+  "trialCount": 12
+}

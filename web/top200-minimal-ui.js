@@ -359,6 +359,24 @@
     }
   }
 
+  function renderCurrentPilot(pilot) {
+    const panel = byId("strategyCurrentPilot");
+    if (!panel) return;
+    if (!pilot?.campaignId) {
+      panel.hidden = true;
+      return;
+    }
+    panel.hidden = false;
+    byId("strategyPilotStatus").textContent = pilot.status || "unknown";
+    byId("strategyPilotCampaign").textContent = pilot.campaignId;
+    byId("strategyPilotCampaign").title = pilot.campaignId;
+    byId("strategyPilotCandidateTrials").textContent =
+      `${Number(pilot.candidateCount || 0)} / ${Number(pilot.trialCount || 0)}`;
+    byId("strategyPilotStable").textContent = Number(pilot.stableSelectionCount || 0);
+    byId("strategyPilotFormalReady").textContent = Number(pilot.formalReadyCandidateCount || 0);
+    byId("strategyPilotFormalBlocked").textContent = Number(pilot.formalBlockedCandidateCount || 0);
+  }
+
   function renderAiControl(payload) {
     const health = payload?.providerHealth || {};
     const healthLabel = Object.entries(health)
@@ -367,7 +385,16 @@
     const modelCount = Number(payload?.modelCount ?? payload?.models?.length ?? 0);
     const batchCount = Number(payload?.queue?.batchJobCount || 0);
     const campaignBudget = payload?.budget?.defaultCampaignLimitUsd;
+    const currentCredentials = payload?.currentCredentialState || {};
+    const historicalSmoke = payload?.historicalProviderSmoke || {};
     byId("strategyAiProviderHealth").textContent = healthLabel;
+    byId("strategyAiCurrentCredentialState").textContent =
+      currentCredentials.status === "ready" ? "当前进程已配置" : "当前进程未配置";
+    const acceptedSmokeCount = (historicalSmoke.acceptedTaskTypes || []).length;
+    byId("strategyAiHistoricalSmoke").textContent =
+      historicalSmoke.status === "provider_smoke_passed"
+        ? `历史通过 · ${acceptedSmokeCount} 项`
+        : "无可用历史 Smoke";
     byId("strategyAiModelSummary").textContent = `${modelCount} 个版本化模型别名`;
     byId("strategyAiQueueSummary").textContent = batchCount ? `${batchCount} 个批量任务` : "队列为空";
     byId("strategyAiBudgetSummary").textContent = campaignBudget == null
@@ -396,6 +423,7 @@
         fetchJson("/api/ai/control"),
       ]);
       renderAiControl(aiControl);
+      renderCurrentPilot(summary.currentPilot);
       const current = (releases.releases || []).find((item) => item.status === "can_enter_demo");
       const progress = Math.max(0, Math.min(100, Number(factory.progressPercent || 0)));
       const track = byId("top200ResearchProgressBar")?.parentElement;
@@ -445,6 +473,13 @@
         factoryDemoArm: factory.demoArm ?? false,
         factoryOrderCount: factory.orderCount ?? 0,
         route: summary.route,
+        currentPilot: summary.currentPilot ? {
+          authority: summary.currentPilot.authority,
+          campaignId: summary.currentPilot.campaignId,
+          formalRunCount: summary.currentPilot.formalRunCount,
+          resultReadCount: summary.currentPilot.resultReadCount,
+          sourceHashes: summary.currentPilot.sourceHashes,
+        } : null,
       }, null, 2);
       byId("top200StrategyUpdatedAt").textContent = `最后更新 ${formatTimestamp(summary.updatedAt)}`;
       setIssue(

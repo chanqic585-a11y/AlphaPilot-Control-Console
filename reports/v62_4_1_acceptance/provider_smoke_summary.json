@@ -1,0 +1,30 @@
+{
+  "checks": [
+    {
+      "executionAuthorized": false,
+      "routeMode": "single",
+      "status": "accepted",
+      "taskType": "provider_smoke_deepseek"
+    },
+    {
+      "executionAuthorized": false,
+      "routeMode": "single",
+      "status": "accepted",
+      "taskType": "provider_smoke_gemini"
+    },
+    {
+      "executionAuthorized": false,
+      "routeMode": "dual",
+      "status": "accepted",
+      "taskType": "provider_smoke_dual"
+    }
+  ],
+  "credentialsPersisted": false,
+  "executionAuthorized": false,
+  "providerSmokeInputHash": "sha256:9868eccb0254a18d5a90bd2b6d5c6138b105395dbaf5133871273a5c2ebc96df",
+  "runtimeArmed": false,
+  "schemaVersion": "alphapilot_v62_4_provider_smoke_summary_v1",
+  "sourceHash": "sha256:2b8f8e5149a3a1fb1485fa4c3bdec97a31b085f2608e0863184196b816308e1f",
+  "status": "provider_smoke_passed",
+  "withdrawEnabled": false
+}

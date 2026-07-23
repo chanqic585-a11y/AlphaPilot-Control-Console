@@ -102,6 +102,19 @@
               <div><span>数据不足</span><strong id="top200DataInsufficient">0</strong></div>
               <div><span>系统问题</span><strong id="top200SystemIssue">0</strong></div>
             </div>
+            <section id="strategyCurrentPilot" class="adaptive-learning-summary" hidden>
+              <div class="adaptive-learning-head">
+                <div><p class="panel-eyebrow">CURRENT ACCEPTANCE PILOT</p><h3>当前验收 Pilot</h3></div>
+                <strong id="strategyPilotStatus" class="badge neutral">正在读取</strong>
+              </div>
+              <div class="adaptive-learning-metrics">
+                <div><span>Campaign</span><strong id="strategyPilotCampaign">--</strong></div>
+                <div><span>候选 / Trial</span><strong id="strategyPilotCandidateTrials">--</strong></div>
+                <div><span>稳定选择</span><strong id="strategyPilotStable">--</strong></div>
+                <div><span>Formal-ready</span><strong id="strategyPilotFormalReady">--</strong></div>
+                <div><span>Formal-blocked</span><strong id="strategyPilotFormalBlocked">--</strong></div>
+              </div>
+            </section>
             <section id="strategyAdaptiveLearning" class="adaptive-learning-summary" aria-labelledby="strategyAdaptiveLearningTitle">
               <div class="adaptive-learning-head">
                 <div><p class="panel-eyebrow">ADAPTIVE LEARNING</p><h3 id="strategyAdaptiveLearningTitle">因子与模型版本</h3></div>
@@ -117,6 +130,8 @@
               <summary>AI 研究控制</summary>
               <div class="adaptive-learning-metrics">
                 <div><span>Provider</span><strong id="strategyAiProviderHealth">正在读取</strong></div>
+                <div><span>当前凭据</span><strong id="strategyAiCurrentCredentialState">正在读取</strong></div>
+                <div><span>历史 Smoke</span><strong id="strategyAiHistoricalSmoke">正在读取</strong></div>
                 <div><span>模型注册</span><strong id="strategyAiModelSummary">--</strong></div>
                 <div><span>任务队列</span><strong id="strategyAiQueueSummary">--</strong></div>
                 <div><span>成本预算</span><strong id="strategyAiBudgetSummary">--</strong></div>

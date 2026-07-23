@@ -54,11 +54,45 @@ class AIControlProjectionTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            smoke_path = root / "provider_smoke_summary.json"
+            smoke_path.write_text(
+                json.dumps(
+                    {
+                        "schemaVersion": "alphapilot_v62_4_provider_smoke_summary_v1",
+                        "status": "provider_smoke_passed",
+                        "providerSmokeInputHash": "sha256:fixed-redacted-input",
+                        "checks": [
+                            {
+                                "taskType": "provider_smoke_deepseek",
+                                "routeMode": "single",
+                                "status": "accepted",
+                                "executionAuthorized": False,
+                            },
+                            {
+                                "taskType": "provider_smoke_gemini",
+                                "routeMode": "single",
+                                "status": "accepted",
+                                "executionAuthorized": False,
+                            },
+                            {
+                                "taskType": "provider_smoke_dual",
+                                "routeMode": "dual",
+                                "status": "accepted",
+                                "executionAuthorized": False,
+                            },
+                        ],
+                        "credentialsPersisted": False,
+                        "sourceHash": "sha256:smoke",
+                    }
+                ),
+                encoding="utf-8",
+            )
 
             projection = build_ai_control_projection(
                 repository_root=root,
                 data_root=root / "data",
                 environment={},
+                provider_smoke_status_path=smoke_path,
             )
 
         self.assertEqual(projection["status"], "provider_credentials_required")
@@ -68,6 +102,24 @@ class AIControlProjectionTests(unittest.TestCase):
         self.assertEqual(projection["queue"]["status"], "empty")
         self.assertNotIn("apiKey", json.dumps(projection))
         self.assertFalse(projection["executionAuthorized"])
+        self.assertEqual(
+            projection["currentCredentialState"]["status"],
+            "provider_credentials_required",
+        )
+        self.assertEqual(
+            projection["historicalProviderSmoke"]["status"],
+            "provider_smoke_passed",
+        )
+        self.assertEqual(
+            projection["historicalProviderSmoke"]["acceptedTaskTypes"],
+            [
+                "provider_smoke_deepseek",
+                "provider_smoke_gemini",
+                "provider_smoke_dual",
+            ],
+        )
+        self.assertFalse(projection["historicalProviderSmoke"]["executionAuthorized"])
+        self.assertFalse(projection["historicalProviderSmoke"]["credentialsPersisted"])
 
 
 if __name__ == "__main__":

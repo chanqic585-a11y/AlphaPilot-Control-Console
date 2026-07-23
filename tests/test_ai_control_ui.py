@@ -14,11 +14,18 @@ class AIControlUiTests(unittest.TestCase):
 
         self.assertIn('id="strategyAiControl"', html)
         self.assertIn('id="strategyAiProviderHealth"', html)
+        self.assertIn('id="strategyAiCurrentCredentialState"', html)
+        self.assertIn('id="strategyAiHistoricalSmoke"', html)
         self.assertIn('id="strategyAiModelSummary"', html)
         self.assertIn('id="strategyAiQueueSummary"', html)
         self.assertIn('id="strategyAiBudgetSummary"', html)
         self.assertIn('/api/ai/control', script)
         self.assertIn('renderAiControl', script)
+        self.assertIn('renderCurrentPilot', script)
+        self.assertIn('id="strategyCurrentPilot"', html)
+        self.assertIn('id="strategyPilotCampaign"', html)
+        self.assertIn('id="strategyPilotFormalReady"', html)
+        self.assertIn('id="strategyPilotFormalBlocked"', html)
         self.assertNotIn('DEEPSEEK_API_KEY', html)
         self.assertNotIn('GEMINI_API_KEY', html)
 

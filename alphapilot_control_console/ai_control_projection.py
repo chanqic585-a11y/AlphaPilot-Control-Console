@@ -33,6 +33,7 @@ def build_ai_control_projection(
     repository_root: Path | str,
     data_root: Path | str,
     environment: Mapping[str, str] | None = None,
+    provider_smoke_status_path: Path | str | None = None,
 ) -> dict[str, Any]:
     root = Path(repository_root)
     storage = Path(data_root) / "ai_orchestration"
@@ -57,10 +58,42 @@ def build_ai_control_projection(
         if all(value == "configured" for value in provider_health.values())
         else "provider_credentials_required"
     )
+    smoke_path = (
+        Path(provider_smoke_status_path)
+        if provider_smoke_status_path is not None
+        else root
+        / "reports"
+        / "v62_4_1_acceptance"
+        / "provider_smoke_summary.json"
+    )
+    historical_smoke = _read_json(smoke_path)
+    historical_checks = historical_smoke.get("checks") or []
+    accepted_task_types = [
+        str(check.get("taskType"))
+        for check in historical_checks
+        if isinstance(check, Mapping)
+        and check.get("status") == "accepted"
+        and check.get("taskType")
+    ]
     return {
         "schemaVersion": "alphapilot_ai_control_projection_v1",
         "status": status,
         "providerHealth": provider_health,
+        "currentCredentialState": {
+            "status": status,
+            "providerHealth": provider_health,
+            "credentialsPersisted": False,
+        },
+        "historicalProviderSmoke": {
+            "status": historical_smoke.get("status") or "not_available",
+            "providerSmokeInputHash": historical_smoke.get(
+                "providerSmokeInputHash"
+            ),
+            "acceptedTaskTypes": accepted_task_types,
+            "executionAuthorized": False,
+            "credentialsPersisted": False,
+            "sourceHash": historical_smoke.get("sourceHash"),
+        },
         "modelCount": len(enabled_models),
         "models": [
             {

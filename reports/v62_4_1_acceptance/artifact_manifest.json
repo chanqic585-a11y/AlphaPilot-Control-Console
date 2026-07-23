@@ -1,0 +1,23 @@
+{
+  "approvalGranted": false,
+  "artifactCount": 2,
+  "artifacts": [
+    {
+      "bytes": 861,
+      "path": "current_pilot_projection.json",
+      "sha256": "1f58d7e77bdd077b42061c295647b32c7aa2b05c3e8039596d98da745d34033d"
+    },
+    {
+      "bytes": 877,
+      "path": "provider_smoke_summary.json",
+      "sha256": "5a81ca34fb22511f4b32e8908ff6ae4fc2ea2d2c1bf6c6a1cfadedff9cb56fe5"
+    }
+  ],
+  "demoArm": false,
+  "executionAuthorized": false,
+  "liveEnabled": false,
+  "readOnly": true,
+  "schemaVersion": "alphapilot_v62_4_1_ui_evidence_manifest_v1",
+  "strategyOrderCount": 0,
+  "withdrawEnabled": false
+}

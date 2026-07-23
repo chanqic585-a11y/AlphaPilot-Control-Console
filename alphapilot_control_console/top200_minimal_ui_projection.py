@@ -45,6 +45,7 @@ class Top200MinimalUiProjection:
         live_readiness_root: Path | None = None,
         adaptive_governance_root: Path | None = None,
         terminal_projection: TradingTerminalProjection | None = None,
+        current_pilot_path: Path | None = None,
     ) -> None:
         self.evidence_root = Path(evidence_root)
         self.matchability_root = (
@@ -78,6 +79,9 @@ class Top200MinimalUiProjection:
             else None
         )
         self.terminal_projection = terminal_projection
+        self.current_pilot_path = (
+            Path(current_pilot_path) if current_pilot_path is not None else None
+        )
 
     @staticmethod
     def _terminal_connection_status(summary: dict[str, Any]) -> str:
@@ -325,6 +329,44 @@ class Top200MinimalUiProjection:
             "updatedAt": updated_at,
         }
 
+    def _current_pilot_projection(self) -> dict[str, Any] | None:
+        path = self.current_pilot_path
+        if path is None or not path.is_file():
+            return None
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+        if not isinstance(payload, dict):
+            return None
+        if payload.get("authority") != "current_v62_4_acceptance_pilot":
+            return None
+        return {
+            "schemaVersion": payload.get("schemaVersion"),
+            "authority": payload.get("authority"),
+            "campaignId": payload.get("campaignId"),
+            "status": payload.get("status"),
+            "candidateCount": int(payload.get("candidateCount") or 0),
+            "trialCount": int(payload.get("trialCount") or 0),
+            "stableSelectionCount": int(payload.get("stableSelectionCount") or 0),
+            "formalReadyCandidateCount": int(
+                payload.get("formalReadyCandidateCount") or 0
+            ),
+            "formalBlockedCandidateCount": int(
+                payload.get("formalBlockedCandidateCount") or 0
+            ),
+            "formalRunCount": int(payload.get("formalRunCount") or 0),
+            "resultReadCount": int(payload.get("resultReadCount") or 0),
+            "formalReadyCandidateIds": list(
+                payload.get("formalReadyCandidateIds") or []
+            ),
+            "formalBlockedCandidateIds": list(
+                payload.get("formalBlockedCandidateIds") or []
+            ),
+            "sourceHashes": dict(payload.get("sourceHashes") or {}),
+            "readOnly": True,
+        }
+
     def strategy_summary(self) -> dict[str, Any]:
         release = self._release()
         approval = self._approval_with_current_demo_runtime()
@@ -347,6 +389,7 @@ class Top200MinimalUiProjection:
             "approved": bool(approval.get("approved")),
             "demoArm": bool(approval.get("demoArm")),
             "route": approval.get("route"),
+            "currentPilot": self._current_pilot_projection(),
             "updatedAt": (
                 approval.get("runtimeUpdatedAt")
                 or factory["updatedAt"]
@@ -382,6 +425,7 @@ class Top200MinimalUiProjection:
             "generatedAt": release.get("generatedAt"),
             "supersedesReleaseId": release.get("supersedesReleaseId"),
             "supersedesReleaseHash": release.get("supersedesReleaseHash"),
+            "evidenceRole": "current_demo_release",
         }
 
     def strategy_releases(self) -> dict[str, Any]:
@@ -834,6 +878,20 @@ def build_top200_minimal_ui_projection() -> Top200MinimalUiProjection:
         ),
         None,
     )
+    configured_current_pilot = os.environ.get(
+        "ALPHAPILOT_V62_4_CURRENT_PILOT_PATH"
+    )
+    default_current_pilot = (
+        PROJECT_ROOT
+        / "reports"
+        / "v62_4_1_acceptance"
+        / "current_pilot_projection.json"
+    )
+    current_pilot_path = (
+        Path(configured_current_pilot).expanduser().resolve()
+        if configured_current_pilot
+        else default_current_pilot
+    )
     return Top200MinimalUiProjection(
         root,
         matchability_root,
@@ -852,6 +910,9 @@ def build_top200_minimal_ui_projection() -> Top200MinimalUiProjection:
         ),
         adaptive_governance_root=adaptive_governance_root,
         terminal_projection=TradingTerminalProjection(),
+        current_pilot_path=(
+            current_pilot_path if current_pilot_path.is_file() else None
+        ),
     )
 
 

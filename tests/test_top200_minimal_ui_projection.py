@@ -156,7 +156,34 @@ class Top200MinimalUiProjectionTests(unittest.TestCase):
                 "recentFillCount": 2,
             },
         )
-        self.projection = Top200MinimalUiProjection(self.root)
+        self.current_pilot_path = self.root / "current_pilot_projection.json"
+        _write_json(
+            self.root,
+            "current_pilot_projection.json",
+            {
+                "schemaVersion": "alphapilot_v62_4_current_pilot_projection_v1",
+                "authority": "current_v62_4_acceptance_pilot",
+                "campaignId": "v62-4-real-trial-pilot-okx-20260723",
+                "status": "awaiting_formal_validation",
+                "candidateCount": 4,
+                "trialCount": 12,
+                "stableSelectionCount": 2,
+                "formalReadyCandidateCount": 1,
+                "formalBlockedCandidateCount": 1,
+                "formalRunCount": 0,
+                "resultReadCount": 0,
+                "formalReadyCandidateIds": ["v35_tsmom_crypto_adaptation"],
+                "formalBlockedCandidateIds": ["v35_tsmom_source_replication"],
+                "sourceHashes": {
+                    "campaignSummary": "sha256:campaign",
+                    "formalHandoff": "sha256:handoff",
+                },
+            },
+        )
+        self.projection = Top200MinimalUiProjection(
+            self.root,
+            current_pilot_path=self.current_pilot_path,
+        )
 
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
@@ -187,6 +214,27 @@ class Top200MinimalUiProjectionTests(unittest.TestCase):
         self.assertEqual(
             releases["historicalReleases"][0]["statusLabel"],
             "已被新版替代",
+        )
+
+    def test_strategy_projection_prioritizes_current_acceptance_pilot_without_relabeling_demo_release(self) -> None:
+        summary = self.projection.strategy_summary()
+
+        self.assertEqual(summary["currentPilot"]["campaignId"], "v62-4-real-trial-pilot-okx-20260723")
+        self.assertEqual(summary["currentPilot"]["candidateCount"], 4)
+        self.assertEqual(summary["currentPilot"]["trialCount"], 12)
+        self.assertEqual(summary["currentPilot"]["stableSelectionCount"], 2)
+        self.assertEqual(summary["currentPilot"]["formalReadyCandidateCount"], 1)
+        self.assertEqual(summary["currentPilot"]["formalBlockedCandidateCount"], 1)
+        self.assertEqual(summary["currentPilot"]["formalRunCount"], 0)
+        self.assertEqual(summary["currentPilot"]["resultReadCount"], 0)
+        self.assertEqual(summary["currentPilot"]["authority"], "current_v62_4_acceptance_pilot")
+
+        releases = self.projection.strategy_releases()
+        self.assertEqual(releases["releases"][0]["releaseId"], "provisional_research_demo_top200_fixture")
+        self.assertEqual(releases["releases"][0]["evidenceRole"], "current_demo_release")
+        self.assertNotEqual(
+            releases["releases"][0]["releaseId"],
+            summary["currentPilot"]["campaignId"],
         )
 
     def test_research_factory_projection_prefers_active_persisted_run(self) -> None:
