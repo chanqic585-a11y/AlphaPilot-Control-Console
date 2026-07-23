@@ -49,6 +49,7 @@ class DeepSeekAdapter:
             timeout_seconds=self._timeout_seconds,
         )
         latency_ms = max(0, int((time.perf_counter() - started) * 1000))
+        _assert_not_truncated(payload)
         message = _extract_message(payload)
         output = parse_json_object(_extract_final_content(message))
         input_tokens, output_tokens, total_tokens = _usage_from_deepseek(payload)
@@ -126,6 +127,17 @@ def _extract_message(payload: Mapping[str, Any]) -> Mapping[str, Any]:
             if isinstance(message, Mapping):
                 return message
     raise ProviderResponseError("DeepSeek response has no final JSON content")
+
+
+def _assert_not_truncated(payload: Mapping[str, Any]) -> None:
+    choices = payload.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return
+    choice = choices[0]
+    if isinstance(choice, Mapping) and choice.get("finish_reason") == "length":
+        raise ProviderResponseError(
+            "DeepSeek output was truncated before JSON validation"
+        )
 
 
 def _extract_final_content(message: Mapping[str, Any]) -> str:

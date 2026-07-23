@@ -234,6 +234,85 @@ def test_v62_4_2_failure_critic_request_has_bounded_structured_output_headroom()
     )
 
 
+def test_v62_4_2_failure_critic_request_bounds_memory_and_source_hashes() -> None:
+    records = [
+        {
+            "eventId": index,
+            "candidateId": (
+                "v35_tsmom_crypto_adaptation"
+                if index in {21, 55, 89}
+                else f"archived-{index}"
+            ),
+            "reason": (
+                "formal_validation"
+                if index in {22, 56, 90}
+                else "unrelated"
+            ),
+            "sourceArtifactHash": f"sha256:{index:064x}",
+        }
+        for index in range(100)
+    ]
+    request = build_v62_4_2_failure_critic_request(
+        formal_case={
+            "candidateId": "v35_tsmom_crypto_adaptation",
+            "campaignId": "formal-campaign",
+            "artifactHashes": ["sha256:case"],
+            "trialResult": {
+                "formalPass": False,
+                "blockers": ["formal_validation"],
+            },
+        },
+        negative_memory={
+            "recordCount": len(records),
+            "records": records,
+            "sourceArtifactHashes": [
+                f"sha256:{index + 1000:064x}" for index in range(100)
+            ],
+        },
+    )
+
+    selected = request.payload["negativeResearchMemory"]
+    selection = request.payload["negativeResearchMemorySelection"]
+    assert 1 <= len(selected) <= 8
+    assert all(
+        record["candidateId"] == "v35_tsmom_crypto_adaptation"
+        or record["reason"] == "formal_validation"
+        for record in selected
+    )
+    assert selection["originalRecordCount"] == 100
+    assert selection["selectedRecordCount"] == len(selected)
+    assert selection["memorySnapshotHash"].startswith("sha256:")
+    assert request.artifact_hashes == (
+        "sha256:case",
+        selection["memorySnapshotHash"],
+    )
+
+
+def test_v62_4_2_failure_critic_response_schema_is_compact() -> None:
+    request = build_v62_4_2_failure_critic_request(
+        formal_case={
+            "candidateId": "v35_tsmom_crypto_adaptation",
+            "campaignId": "formal-campaign",
+            "artifactHashes": ["sha256:case"],
+            "trialResult": {"formalPass": False},
+        },
+        negative_memory={
+            "records": [],
+            "sourceArtifactHashes": ["sha256:memory"],
+        },
+    )
+
+    properties = request.response_schema["properties"]
+    assert properties["facts"]["maxItems"] == 3
+    assert properties["facts"]["items"]["maxLength"] == 240
+    assert properties["inferences"]["maxItems"] == 3
+    assert properties["prohibitedRepair"]["maxItems"] == 4
+    assert properties["nextExperiment"]["maxLength"] == 320
+    assert properties["sourceArtifactHashes"]["maxItems"] == 8
+    assert request.payload["outputConstraints"]["compactJsonOnly"] is True
+    assert request.prompt_version == "failure-attribution-v62-4-2-compact-v1"
+
+
 def test_case_review_receipt_preserves_dual_outputs_and_no_execution() -> None:
     result = OrchestrationResult(
         request_id="request-1",

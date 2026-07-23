@@ -161,6 +161,40 @@ class ProviderAdapterTests(unittest.TestCase):
                 _request(),
             )
 
+    def test_deepseek_reports_provider_truncation_before_json_parse(self) -> None:
+        adapter = DeepSeekAdapter(
+            transport=RecordingTransport(
+                {
+                    "id": "chatcmpl-truncated",
+                    "choices": [
+                        {
+                            "finish_reason": "length",
+                            "message": {
+                                "content": '{"summary":"unterminated',
+                                "reasoning_content": "",
+                            },
+                        }
+                    ],
+                    "usage": {},
+                }
+            ),
+            api_key="process-only",
+        )
+
+        with self.assertRaisesRegex(
+            ProviderResponseError,
+            "output was truncated",
+        ):
+            adapter.generate(
+                ModelIdentity(
+                    "deepseek_reasoning_primary",
+                    "deepseek",
+                    "deepseek-v4-pro",
+                    frozenset(),
+                ),
+                _request(),
+            )
+
     def test_deepseek_rejects_unrequested_or_forbidden_tool_call(self) -> None:
         adapter = DeepSeekAdapter(
             transport=RecordingTransport(

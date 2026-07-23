@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import os
+from copy import deepcopy
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from pathlib import Path
@@ -15,7 +16,7 @@ from uuid import uuid4
 from .ai_orchestration.bootstrap import build_ai_runtime
 from .ai_orchestration.contracts import AIRequest, OrchestrationResult
 from .ai_orchestration.validation import canonical_json
-from .strategy_factory_v2.schemas import validate_failure
+from .strategy_factory_v2.schemas import FAILURE_RESPONSE_SCHEMA, validate_failure
 from .v62_4_1_failure_critic_acceptance import (
     build_failure_critic_request as build_v62_4_1_failure_critic_request,
     deterministic_merge_failure_reviews,
@@ -48,6 +49,33 @@ _FORBIDDEN_EXCHANGE_ENVIRONMENT = (
     "OKX_LIVE_PASSPHRASE",
 )
 _FAILURE_CRITIC_TOKEN_CEILING = 8_192
+_FAILURE_CRITIC_MEMORY_LIMIT = 8
+
+
+def _build_compact_failure_response_schema() -> dict[str, Any]:
+    schema = deepcopy(FAILURE_RESPONSE_SCHEMA)
+    properties = schema["properties"]
+    properties["facts"].update(
+        {"maxItems": 3, "items": {"type": "string", "maxLength": 240}}
+    )
+    properties["inferences"].update(
+        {"maxItems": 3, "items": {"type": "string", "maxLength": 240}}
+    )
+    properties["repairability"]["maxLength"] = 160
+    properties["prohibitedRepair"].update(
+        {"maxItems": 4, "items": {"type": "string", "maxLength": 160}}
+    )
+    properties["nextExperiment"]["maxLength"] = 320
+    properties["changedVariable"]["maxLength"] = 80
+    properties["parentStrategy"]["maxLength"] = 160
+    properties["familyFingerprint"]["maxLength"] = 160
+    properties["sourceArtifactHashes"].update(
+        {"maxItems": 8, "items": {"type": "string", "maxLength": 96}}
+    )
+    return schema
+
+
+_COMPACT_FAILURE_RESPONSE_SCHEMA = _build_compact_failure_response_schema()
 
 
 def _sha256_bytes(value: bytes) -> str:
@@ -77,19 +105,70 @@ def build_v62_4_2_failure_critic_request(
     formal_case: Mapping[str, Any],
     negative_memory: Mapping[str, Any],
 ) -> AIRequest:
-    """Build the V62.4.2 dual review with bounded reasoning headroom."""
+    """Build a compact, hash-bound V62.4.2 dual review."""
 
+    memory_records = [
+        dict(item)
+        for item in list(negative_memory.get("records") or [])
+        if isinstance(item, Mapping)
+    ]
+    memory_source_hashes = sorted(
+        {
+            str(item)
+            for item in list(negative_memory.get("sourceArtifactHashes") or [])
+            if str(item)
+        }
+    )
+    memory_snapshot_hash = _sha256_json(
+        {
+            "records": memory_records,
+            "sourceArtifactHashes": memory_source_hashes,
+        }
+    )
+    selected_memory = find_negative_research_memory_hits(
+        case=formal_case,
+        negative_memory={"records": memory_records},
+        limit=_FAILURE_CRITIC_MEMORY_LIMIT,
+    )
+    if not selected_memory:
+        selected_memory = memory_records[:3]
+    bounded_memory = {
+        "records": selected_memory,
+        "sourceArtifactHashes": [memory_snapshot_hash],
+    }
     request = build_v62_4_1_failure_critic_request(
         formal_case=formal_case,
-        negative_memory=negative_memory,
+        negative_memory=bounded_memory,
     )
     return replace(
         request,
         request_id=f"v62-4-2-failure-attribution-{uuid4().hex}",
+        payload={
+            **dict(request.payload),
+            "negativeResearchMemorySelection": {
+                "selectionMode": "candidate_or_reason_match_then_recent_fallback",
+                "originalRecordCount": len(memory_records),
+                "selectedRecordCount": len(selected_memory),
+                "memorySnapshotHash": memory_snapshot_hash,
+            },
+            "outputConstraints": {
+                "compactJsonOnly": True,
+                "maximumFacts": 3,
+                "maximumInferences": 3,
+                "maximumProhibitedRepairs": 4,
+                "noMarkdown": True,
+                "noNarrativeOutsideSchema": True,
+            },
+        },
+        response_schema=_COMPACT_FAILURE_RESPONSE_SCHEMA,
+        prompt_version="failure-attribution-v62-4-2-compact-v1",
         token_ceiling=_FAILURE_CRITIC_TOKEN_CEILING,
         metadata={
             **dict(request.metadata),
             "acceptanceScope": "v62_4_2_four_case_failure_critic",
+            "negativeMemorySnapshotHash": memory_snapshot_hash,
+            "negativeMemorySelectedRecordCount": len(selected_memory),
+            "responseMode": "compact_failure_critic_v1",
         },
     )
 
