@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from alphapilot_control_console.v62_4_1_acceptance import (
+    build_closeout_state,
     build_candidate_failure_attribution,
     derive_acceptance_status,
 )
@@ -197,3 +198,51 @@ def test_candidate_attribution_covers_unselected_and_formal_blocked_candidates()
     assert formal_failure["selectedTrialId"] == "tsmom-capacity-0"
 
     assert "tsmom-ready" not in by_candidate
+
+
+def test_closeout_state_closes_engineering_p1_but_keeps_live_model_blocked() -> None:
+    result = build_closeout_state(
+        failure_critic_passed=True,
+        formal_run_count=1,
+        result_read_count=1,
+        formal_pass=False,
+        formal_route="archive_s01_current_version",
+    )
+
+    by_id = {item["issueId"]: item for item in result["issues"]}
+    assert result["status"] == "blocked_remediation_required"
+    assert result["blockingIssueIds"] == [
+        "A-P1-009-ADAPTIVE-LEARNING-NOT-LIVE-READY"
+    ]
+    assert by_id["A-P1-001-RUNTIME-IDENTITY"]["status"] == "closed"
+    assert by_id["A-P1-002-FORMAL-NOT-RUN"]["status"] == "closed"
+    assert by_id["A-P1-003-FAILURE-ATTRIBUTION"]["status"] == "closed"
+    assert by_id["A-P1-008-AI-CRITIC-WORKFLOW"]["status"] == "closed"
+    assert by_id["A-P1-009-ADAPTIVE-LEARNING-NOT-LIVE-READY"]["status"] == "open"
+    assert result["formal"] == {
+        "formalRunCount": 1,
+        "resultReadCount": 1,
+        "formalPass": False,
+        "route": "archive_s01_current_version",
+    }
+    assert result["releaseCount"] == 0
+    assert result["orderCount"] == 0
+    assert result["demoArm"] is False
+    assert result["live"] is False
+    assert result["withdraw"] is False
+
+
+def test_closeout_state_keeps_real_ai_critic_open_until_dual_review_passes() -> None:
+    result = build_closeout_state(
+        failure_critic_passed=False,
+        formal_run_count=1,
+        result_read_count=1,
+        formal_pass=False,
+        formal_route="archive_s01_current_version",
+    )
+
+    assert result["blockingIssueIds"] == [
+        "A-P1-003-FAILURE-ATTRIBUTION",
+        "A-P1-008-AI-CRITIC-WORKFLOW",
+        "A-P1-009-ADAPTIVE-LEARNING-NOT-LIVE-READY",
+    ]

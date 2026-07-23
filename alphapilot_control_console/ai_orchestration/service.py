@@ -188,6 +188,10 @@ class AIOrchestrationService:
                 for item in responses
                 for tool_call in item.tool_calls
             ),
+            validated_outputs=tuple(
+                dict(item.response.output)
+                for item in validated
+            ),
         )
 
     def _execute_single_route(

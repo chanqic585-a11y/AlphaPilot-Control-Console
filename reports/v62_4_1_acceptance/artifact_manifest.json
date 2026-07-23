@@ -3,9 +3,9 @@
   "artifactCount": 2,
   "artifacts": [
     {
-      "bytes": 861,
+      "bytes": 1201,
       "path": "current_pilot_projection.json",
-      "sha256": "1f58d7e77bdd077b42061c295647b32c7aa2b05c3e8039596d98da745d34033d"
+      "sha256": "6b57768fa3f1213e86b4d8bae232b505a66dac856b06cfb525f0e43f1a91727b"
     },
     {
       "bytes": 877,

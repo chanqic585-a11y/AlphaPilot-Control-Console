@@ -71,6 +71,73 @@ class V6241UiEvidenceTests(unittest.TestCase):
             with self.assertRaises(UiEvidenceError):
                 build_current_pilot_projection(summary_path, handoff_path)
 
+    def test_projects_completed_formal_receipt_over_stale_pilot_counts(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            summary_path = root / "campaign_summary.json"
+            handoff_path = root / "formal_handoff.json"
+            receipt_path = root / "formal_result_read_receipt.json"
+            _write(
+                summary_path,
+                {
+                    "campaignId": "pilot-1",
+                    "status": "awaiting_formal_validation",
+                    "candidateCount": 4,
+                    "trialCount": 12,
+                    "stableSelectionCount": 2,
+                    "formalReadyCandidateCount": 1,
+                    "formalBlockedCandidateCount": 1,
+                    "formalRunCount": 0,
+                    "resultReadCount": 0,
+                },
+            )
+            _write(
+                handoff_path,
+                {
+                    "campaignId": "pilot-1",
+                    "formalRunCount": 0,
+                    "resultReadCount": 0,
+                    "readyCandidates": [{"candidateId": "candidate-ready"}],
+                    "blockedCandidates": [{"candidateId": "candidate-blocked"}],
+                },
+            )
+            _write(
+                receipt_path,
+                {
+                    "campaignId": "formal-campaign-1",
+                    "candidateId": "candidate-ready",
+                    "formalRunCount": 1,
+                    "resultReadCount": 1,
+                    "formalResultCount": 1,
+                    "route": "archive_s01_current_version",
+                    "releaseCount": 0,
+                    "demoArm": False,
+                    "orderCount": 0,
+                    "selectedResultFields": {"formalPass": [False, False]},
+                },
+            )
+
+            payload = build_current_pilot_projection(
+                summary_path,
+                handoff_path,
+                formal_result_receipt_path=receipt_path,
+            )
+
+        self.assertEqual(payload["status"], "formal_completed_not_passed")
+        self.assertEqual(payload["formalRunCount"], 1)
+        self.assertEqual(payload["resultReadCount"], 1)
+        self.assertEqual(payload["formalCampaignId"], "formal-campaign-1")
+        self.assertEqual(payload["formalCandidateId"], "candidate-ready")
+        self.assertFalse(payload["formalPass"])
+        self.assertEqual(payload["formalRoute"], "archive_s01_current_version")
+        self.assertEqual(payload["releaseCount"], 0)
+        self.assertFalse(payload["demoArm"])
+        self.assertEqual(payload["strategyOrderCount"], 0)
+        self.assertRegex(
+            payload["sourceHashes"]["formalResultReadReceipt"],
+            r"^sha256:[0-9a-f]{64}$",
+        )
+
     def test_sanitizes_historical_provider_smoke_without_credentials(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "provider_smoke.json"

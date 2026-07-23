@@ -278,6 +278,11 @@ class AIOrchestrationServiceTests(unittest.TestCase):
         self.assertEqual(result.status, "human_review_required")
         self.assertIn("mechanism", result.disagreements)
         self.assertFalse(result.execution_authorized)
+        self.assertEqual(len(result.validated_outputs), 2)
+        self.assertEqual(
+            [output["mechanism"] for output in result.validated_outputs],
+            ["liquidity_recovery", "trend_continuation"],
+        )
 
     def test_invalid_schema_output_is_rejected_and_audited_without_raw_output(self) -> None:
         invalid = {"mechanism": "missing-most-fields", "secret": "must-not-persist"}

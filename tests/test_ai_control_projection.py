@@ -120,6 +120,9 @@ class AIControlProjectionTests(unittest.TestCase):
         )
         self.assertFalse(projection["historicalProviderSmoke"]["executionAuthorized"])
         self.assertFalse(projection["historicalProviderSmoke"]["credentialsPersisted"])
+        self.assertIsNotNone(
+            projection["historicalProviderSmoke"]["evidenceFileModifiedAt"]
+        )
 
 
 if __name__ == "__main__":

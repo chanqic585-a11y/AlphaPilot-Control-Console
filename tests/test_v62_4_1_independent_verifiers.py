@@ -353,3 +353,25 @@ def test_hash_verifier_recomputes_each_manifest_entry(tmp_path: Path) -> None:
     failed = verify_artifact_manifest(tmp_path, manifest_path)
     assert failed["passed"] is False
     assert failed["artifacts"][0]["status"] == "hash_mismatch"
+
+
+def test_hash_verifier_accepts_acceptance_handoff_list_manifest(tmp_path: Path) -> None:
+    artifact = tmp_path / "evidence" / "summary.json"
+    _write_json(artifact, {"status": "passed"})
+    digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    manifest_path = tmp_path / "artifact_manifest.json"
+    _write_json(
+        manifest_path,
+        [
+            {
+                "relativePath": "evidence/summary.json",
+                "sizeBytes": artifact.stat().st_size,
+                "sha256": digest,
+            }
+        ],
+    )
+
+    result = verify_artifact_manifest(tmp_path, manifest_path)
+
+    assert result["passed"] is True
+    assert result["artifacts"][0]["status"] == "verified"

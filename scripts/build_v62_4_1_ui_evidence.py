@@ -35,6 +35,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--campaign-summary", required=True, type=Path)
     parser.add_argument("--formal-handoff", required=True, type=Path)
+    parser.add_argument("--formal-result-receipt", type=Path)
     parser.add_argument("--provider-smoke", required=True, type=Path)
     parser.add_argument("--output-root", required=True, type=Path)
     args = parser.parse_args()
@@ -47,6 +48,11 @@ def main() -> int:
             build_current_pilot_projection(
                 args.campaign_summary.resolve(),
                 args.formal_handoff.resolve(),
+                formal_result_receipt_path=(
+                    args.formal_result_receipt.resolve()
+                    if args.formal_result_receipt
+                    else None
+                ),
             ),
         ),
         _write_json(

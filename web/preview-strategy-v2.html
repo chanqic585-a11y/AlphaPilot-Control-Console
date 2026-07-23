@@ -72,9 +72,37 @@
         </div>
       </section>
 
+      <section class="work-section">
+        <div class="section-head">
+          <div><p class="eyebrow">CURRENT ACCEPTANCE PILOT</p><h2>当前验收 Pilot</h2></div>
+          <span id="pilotCampaignStatus" class="quiet-label">读取中</span>
+        </div>
+        <div class="metric-strip">
+          <div><span>Campaign</span><strong id="pilotCampaignId">--</strong></div>
+          <div><span>候选</span><strong id="pilotCandidateCount">0</strong></div>
+          <div><span>试验</span><strong id="pilotTrialCount">0</strong></div>
+          <div><span>稳定选择</span><strong id="pilotStableCount">0</strong></div>
+          <div><span>Formal-ready</span><strong id="pilotFormalReadyCount">0</strong></div>
+          <div><span>Formal-blocked</span><strong id="pilotFormalBlockedCount">0</strong></div>
+          <div><span>Formal 运行 / 结果读取</span><strong id="pilotFormalRunCount">0 / 0</strong></div>
+        </div>
+      </section>
+
+      <section class="work-section">
+        <div class="section-head">
+          <div><p class="eyebrow">AI ORCHESTRATION</p><h2>AI 编排状态</h2></div>
+          <span class="quiet-label">只读投影</span>
+        </div>
+        <div class="metric-strip">
+          <div><span>当前进程凭据</span><strong id="aiCredentialState">读取中</strong></div>
+          <div><span>历史 Provider Smoke</span><strong id="aiHistoricalSmokeState">读取中</strong></div>
+          <div><span>Smoke 证据文件时间</span><strong id="aiHistoricalSmokeTime">--</strong></div>
+        </div>
+      </section>
+
       <div class="split-layout">
         <section class="work-section">
-          <div class="section-head"><div><p class="eyebrow">RELEASES</p><h2>候选与 Release</h2></div><strong id="releaseCount">0</strong></div>
+          <div class="section-head"><div><p class="eyebrow">RELEASES</p><h2>当前 Demo / 历史 Release</h2></div><strong id="releaseCount">0</strong></div>
           <div id="releaseList" class="strategy-grid"><p class="empty">正在读取 Release。</p></div>
         </section>
         <section class="work-section">

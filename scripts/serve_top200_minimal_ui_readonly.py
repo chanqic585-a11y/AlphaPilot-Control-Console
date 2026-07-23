@@ -1,7 +1,13 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from http.server import ThreadingHTTPServer
+from pathlib import Path
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
 
 from alphapilot_control_console.http_app import ConsoleHandler
 

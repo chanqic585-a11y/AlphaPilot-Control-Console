@@ -126,3 +126,4 @@ class OrchestrationResult:
     route_mode: str = "single"
     reasoning_contents: tuple[str, ...] = ()
     tool_calls: tuple[AIProviderToolCall, ...] = ()
+    validated_outputs: tuple[Mapping[str, Any], ...] = ()

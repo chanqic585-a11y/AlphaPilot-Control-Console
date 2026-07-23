@@ -106,8 +106,23 @@ class UiPreviewV2Tests(unittest.TestCase):
         html = self._html("/")
         script = (ROOT / "web" / "ui-preview-v2.js").read_text(encoding="utf-8")
 
+        self.assertIn("当前验收 Pilot", html)
+        self.assertIn('id="pilotCampaignId"', html)
+        self.assertIn('id="pilotCandidateCount"', html)
+        self.assertIn('id="pilotTrialCount"', html)
+        self.assertIn('id="pilotStableCount"', html)
+        self.assertIn('id="pilotFormalReadyCount"', html)
+        self.assertIn('id="pilotFormalBlockedCount"', html)
+        self.assertIn('id="pilotFormalRunCount"', html)
+        self.assertIn("AI 编排状态", html)
+        self.assertIn('id="aiCredentialState"', html)
+        self.assertIn('id="aiHistoricalSmokeState"', html)
+        self.assertIn('id="aiHistoricalSmokeTime"', html)
+        self.assertIn("/api/ai/control", script)
+        self.assertIn("strategy.currentPilot", script)
         self.assertIn("历史未通过", html)
         self.assertIn("历史数据不足", html)
+        self.assertIn("当前 Demo / 历史 Release", html)
         self.assertIn('rows(releases, "historicalReleases")', script)
         self.assertNotIn(
             "[...candidateItems, ...releaseItems, ...historicalReleaseItems]",

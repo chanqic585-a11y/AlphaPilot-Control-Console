@@ -660,7 +660,13 @@ def verify_artifact_manifest(
 
     root = Path(package_root)
     manifest = _load_json(Path(manifest_path))
-    rows = manifest.get("artifacts") if isinstance(manifest, Mapping) else None
+    rows = (
+        manifest.get("artifacts")
+        if isinstance(manifest, Mapping)
+        else manifest
+        if isinstance(manifest, list)
+        else None
+    )
     if not isinstance(rows, list):
         return {
             "schemaVersion": "v62_4_1_hash_independent_verifier_v1",

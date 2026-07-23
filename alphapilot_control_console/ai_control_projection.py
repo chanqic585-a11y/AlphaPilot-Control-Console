@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -67,6 +68,13 @@ def build_ai_control_projection(
         / "provider_smoke_summary.json"
     )
     historical_smoke = _read_json(smoke_path)
+    try:
+        smoke_file_modified_at = datetime.fromtimestamp(
+            smoke_path.stat().st_mtime,
+            tz=UTC,
+        ).isoformat().replace("+00:00", "Z")
+    except OSError:
+        smoke_file_modified_at = None
     historical_checks = historical_smoke.get("checks") or []
     accepted_task_types = [
         str(check.get("taskType"))
@@ -93,6 +101,7 @@ def build_ai_control_projection(
             "executionAuthorized": False,
             "credentialsPersisted": False,
             "sourceHash": historical_smoke.get("sourceHash"),
+            "evidenceFileModifiedAt": smoke_file_modified_at,
         },
         "modelCount": len(enabled_models),
         "models": [

@@ -28,6 +28,14 @@
     armed: "运行中", approved_not_armed: "已批准，未 ARM", waiting_approval: "等待批准",
     can_enter_demo: "可进入 Demo", pending_human_review: "待人工审核", superseded_unapproved: "历史版本",
   })[status] || value(status, "等待");
+  const credentialStateLabel = (status) => ({
+    ready: "当前凭据已注入",
+    provider_credentials_required: "当前凭据未注入",
+  })[status] || value(status, "当前状态不可用");
+  const historicalSmokeLabel = (status) => ({
+    provider_smoke_passed: "历史 Smoke 已通过",
+    not_available: "无历史 Smoke 证据",
+  })[status] || value(status, "历史状态不可用");
 
   async function getJson(path) {
     const response = await fetch(path, { headers: { Accept: "application/json" }, cache: "no-store" });
@@ -247,10 +255,11 @@
   }
 
   async function refreshStrategy() {
-    const [factory, strategy, releases] = await Promise.all([
+    const [factory, strategy, releases, ai] = await Promise.all([
       getJson("/api/research-factory/summary"),
       getJson("/api/strategy/summary"),
       getJson("/api/strategy/releases"),
+      getJson("/api/ai/control"),
     ]);
     const progress = Math.max(0, Math.min(100, Number(factory.progressPercent) || 0));
     byId("factoryStatus").textContent = statusLabel(factory.status);
@@ -264,6 +273,20 @@
     byId("dataInsufficientCount").textContent = value(counts.dataInsufficient, "0");
     byId("systemIssueCount").textContent = value(counts.systemIssue, "0");
     byId("strategyUpdatedAt").textContent = formatTime(strategy.updatedAt || factory.updatedAt);
+    const pilot = strategy.currentPilot || {};
+    byId("pilotCampaignStatus").textContent = statusLabel(pilot.status);
+    byId("pilotCampaignId").textContent = value(pilot.campaignId);
+    byId("pilotCandidateCount").textContent = value(pilot.candidateCount, "0");
+    byId("pilotTrialCount").textContent = value(pilot.trialCount, "0");
+    byId("pilotStableCount").textContent = value(pilot.stableSelectionCount, "0");
+    byId("pilotFormalReadyCount").textContent = value(pilot.formalReadyCandidateCount, "0");
+    byId("pilotFormalBlockedCount").textContent = value(pilot.formalBlockedCandidateCount, "0");
+    byId("pilotFormalRunCount").textContent = `${value(pilot.formalRunCount, "0")} / ${value(pilot.resultReadCount, "0")}`;
+    const currentCredentials = ai.currentCredentialState || {};
+    const historicalSmoke = ai.historicalProviderSmoke || {};
+    byId("aiCredentialState").textContent = credentialStateLabel(currentCredentials.status);
+    byId("aiHistoricalSmokeState").textContent = historicalSmokeLabel(historicalSmoke.status);
+    byId("aiHistoricalSmokeTime").textContent = formatTime(historicalSmoke.evidenceFileModifiedAt);
     const allReleaseItems = rows(releases, "releases");
     const projectedHistoricalItems = rows(releases, "historicalReleases");
     const historicalReleaseItems = [
@@ -285,6 +308,10 @@
     byId("auditSummary").textContent = JSON.stringify({
       factory,
       strategy,
+      ai: {
+        currentCredentialState: currentCredentials,
+        historicalProviderSmoke: historicalSmoke,
+      },
       historicalReleaseCount: historicalReleaseItems.length,
     }, null, 2);
     byId("updatedAt").textContent = `更新 ${formatTime(strategy.updatedAt || factory.updatedAt || new Date().toISOString())}`;

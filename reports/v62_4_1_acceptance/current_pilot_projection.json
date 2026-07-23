@@ -8,20 +8,26 @@
   "formalBlockedCandidateIds": [
     "v35_tsmom_source_replication"
   ],
+  "formalCampaignId": "v36_tsmom_formal_v35_tsmom_crypto_adaptation_f9927348723c6029",
+  "formalCandidateId": "v35_tsmom_crypto_adaptation",
+  "formalPass": false,
   "formalReadyCandidateCount": 1,
   "formalReadyCandidateIds": [
     "v35_tsmom_crypto_adaptation"
   ],
-  "formalRunCount": 0,
+  "formalRoute": "archive_s01_current_version",
+  "formalRunCount": 1,
   "readOnly": true,
-  "resultReadCount": 0,
+  "releaseCount": 0,
+  "resultReadCount": 1,
   "schemaVersion": "alphapilot_v62_4_current_pilot_projection_v1",
   "sourceHashes": {
     "campaignSummary": "sha256:355297b11796990232d6dbbcb502cb22c7755555647ea341ca52c69e9d1279b9",
-    "formalHandoff": "sha256:b048e0c0c4445ad3a7f7f1ab334a6af106c999f6d955288e80f0039415615d5a"
+    "formalHandoff": "sha256:b048e0c0c4445ad3a7f7f1ab334a6af106c999f6d955288e80f0039415615d5a",
+    "formalResultReadReceipt": "sha256:49bf24d140f8cb988fa94210eadda78becb0ba7ea96cf34e9aba27bb3df17f0f"
   },
   "stableSelectionCount": 2,
-  "status": "awaiting_formal_validation",
+  "status": "formal_completed_not_passed",
   "strategyOrderCount": 0,
   "trialCount": 12
 }

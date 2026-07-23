@@ -39,6 +39,8 @@ def _candidate_ids(rows: object) -> list[str]:
 def build_current_pilot_projection(
     campaign_summary_path: Path,
     formal_handoff_path: Path,
+    *,
+    formal_result_receipt_path: Path | None = None,
 ) -> dict[str, Any]:
     campaign_summary_path = Path(campaign_summary_path)
     formal_handoff_path = Path(formal_handoff_path)
@@ -61,7 +63,7 @@ def build_current_pilot_projection(
         handoff.get("resultReadCount") or 0
     ):
         raise UiEvidenceError("formal result read counts differ")
-    return {
+    projection = {
         "schemaVersion": "alphapilot_v62_4_current_pilot_projection_v1",
         "authority": "current_v62_4_acceptance_pilot",
         "campaignId": campaign_id,
@@ -84,6 +86,51 @@ def build_current_pilot_projection(
         "demoArm": False,
         "strategyOrderCount": 0,
     }
+    if formal_result_receipt_path is None:
+        return projection
+
+    receipt_path = Path(formal_result_receipt_path)
+    receipt = _read_object(receipt_path)
+    formal_candidate_id = str(receipt.get("candidateId") or "")
+    if not formal_candidate_id or formal_candidate_id not in ready_ids:
+        raise UiEvidenceError(
+            "formal result receipt candidate is not a formal-ready pilot candidate"
+        )
+    run_count = int(receipt.get("formalRunCount") or 0)
+    read_count = int(receipt.get("resultReadCount") or 0)
+    if run_count != 1 or read_count != 1:
+        raise UiEvidenceError("formal result receipt must prove exactly one run and read")
+    result_fields = receipt.get("selectedResultFields") or {}
+    if not isinstance(result_fields, dict):
+        result_fields = {}
+    formal_pass_values = {
+        value
+        for value in result_fields.get("formalPass") or []
+        if isinstance(value, bool)
+    }
+    if len(formal_pass_values) != 1:
+        raise UiEvidenceError("formal result receipt has ambiguous formalPass evidence")
+    formal_pass = formal_pass_values.pop()
+    projection.update(
+        {
+            "status": (
+                "formal_completed_passed"
+                if formal_pass
+                else "formal_completed_not_passed"
+            ),
+            "formalRunCount": run_count,
+            "resultReadCount": read_count,
+            "formalCampaignId": str(receipt.get("campaignId") or ""),
+            "formalCandidateId": formal_candidate_id,
+            "formalPass": formal_pass,
+            "formalRoute": receipt.get("route"),
+            "releaseCount": int(receipt.get("releaseCount") or 0),
+            "demoArm": bool(receipt.get("demoArm")),
+            "strategyOrderCount": int(receipt.get("orderCount") or 0),
+        }
+    )
+    projection["sourceHashes"]["formalResultReadReceipt"] = _file_hash(receipt_path)
+    return projection
 
 
 def build_provider_smoke_summary(source_path: Path) -> dict[str, Any]:
