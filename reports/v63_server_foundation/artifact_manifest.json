@@ -1,0 +1,17 @@
+{
+  "artifactCount": 2,
+  "artifacts": [
+    {
+      "path": "v63_foundation_evidence.json",
+      "sha256": "3f5d1aee86b8da80fc1b3af93907f6867e73aae57b6114052a3f4c12dab2e7b1",
+      "sizeBytes": 5768
+    },
+    {
+      "path": "v63_foundation_closeout.md",
+      "sha256": "057349d6b0888b215fbbf6d1dec019c73cd6b6c5fdafff455c181d2886c9c994",
+      "sizeBytes": 733
+    }
+  ],
+  "manifestHash": "05ed3e646ff5f4a2ecc6591e0c49b51dfeb3bc9f0196dd88225708017c53857f",
+  "schemaVersion": "alphapilot_v63_foundation_artifact_manifest_v1"
+}

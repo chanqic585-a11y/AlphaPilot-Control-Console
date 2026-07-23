@@ -1,0 +1,176 @@
+{
+  "checkpointResume": {
+    "roleTransitions": [
+      {
+        "disposition": "resumed_same_identity",
+        "initialCycleCount": 54,
+        "initialFencingToken": 5,
+        "resumedCycleCount": 135,
+        "resumedFencingToken": 6,
+        "role": "control"
+      },
+      {
+        "disposition": "resumed_same_identity",
+        "initialCycleCount": 54,
+        "initialFencingToken": 5,
+        "resumedCycleCount": 135,
+        "resumedFencingToken": 6,
+        "role": "market"
+      },
+      {
+        "disposition": "resumed_same_identity",
+        "initialCycleCount": 54,
+        "initialFencingToken": 5,
+        "resumedCycleCount": 135,
+        "resumedFencingToken": 6,
+        "role": "demo"
+      },
+      {
+        "disposition": "resumed_same_identity",
+        "initialCycleCount": 54,
+        "initialFencingToken": 5,
+        "resumedCycleCount": 135,
+        "resumedFencingToken": 6,
+        "role": "research"
+      },
+      {
+        "disposition": "resumed_same_identity",
+        "initialCycleCount": 54,
+        "initialFencingToken": 5,
+        "resumedCycleCount": 135,
+        "resumedFencingToken": 6,
+        "role": "ai"
+      },
+      {
+        "disposition": "resumed_same_identity",
+        "initialCycleCount": 54,
+        "initialFencingToken": 5,
+        "resumedCycleCount": 135,
+        "resumedFencingToken": 6,
+        "role": "factor"
+      }
+    ],
+    "sameIdentityResumeVerified": true
+  },
+  "foundationIdentity": {
+    "configHash": "c063197feb75f2f9df8ef2d4783dbc0d2df7a267da43b0ea3968ba574e1606a2",
+    "deploymentId": "alphapilot-v63-local-first-foundation",
+    "manifestHash": "d9e0c00324cb5f26ee32f1967ecc9df695fcf084ba44d95b858e75285a334a1d",
+    "mode": "shadow_no_order",
+    "repositoryCommit": "743bcbf7306d26a2c62ec24b125782b2fb82ee77",
+    "repositoryTag": "v13.27.1.63-server-foundation-console-runtime"
+  },
+  "generatedAt": "2026-07-23T22:42:43.622016+00:00",
+  "parallelTracks": {
+    "artifactCount": 3,
+    "manifestHash": "v63_parallel_track_manifest_8d19026297c9e3b5018ffce31c5a464c6accbcb5fbe6826890dff2dff04e2707",
+    "sourceHash": "60eb5810c938cc00deb98dd750c9e47817b6757bff16cac5c4e98c81416b4b93"
+  },
+  "runtime": {
+    "healthy": true,
+    "healthyRoleCount": 6,
+    "initialHealthHash": "8f2f532e3eb6e7915a09a926ddbf9fe54cd7dfc657305216e95552f36ad30bf4",
+    "resumedHealthHash": "74ca4aaf03284ea1ed32bfbba8e0151039fa90fcd6dbdc42754590357cc4a707",
+    "roles": [
+      "control",
+      "market",
+      "demo",
+      "research",
+      "ai",
+      "factor"
+    ]
+  },
+  "safety": {
+    "demoArmAllowed": false,
+    "liveArmAllowed": false,
+    "ordersAllowed": false,
+    "withdrawAllowed": false
+  },
+  "schemaVersion": "alphapilot_v63_foundation_evidence_v1",
+  "sourceReceiptHashes": {
+    "backup": "50d96bb49beb693fbbaaf3b0e4b6610051bb092625a3aea8df6a7bc1ece4187e",
+    "manifest": "876943d0f6264094ddea157a0d94219fa2d5e56a5d7967be8d1f63ed5a6e6b05",
+    "restore": "7605ca46831ab0b97f757e8ca72a5bf97433542998d70a991150e233a52120e4"
+  },
+  "sqlite": {
+    "backupRestoreVerified": true,
+    "integrityPassed": true,
+    "journalMode": "wal",
+    "restoreGuard": {
+      "activeLeaseCount": 0,
+      "allRolesStopped": true,
+      "demoArmed": false,
+      "liveArmed": false
+    },
+    "sha256": "035eda4ad98a19775ae58a3996ef12610008459048a787187cfdf86e7767bae8",
+    "tableCounts": {
+      "FoundationLeaseEvents": 4822,
+      "FoundationLeaseSequences": 6,
+      "FoundationRuntimeLeases": 0
+    },
+    "userVersion": 0
+  },
+  "status": "foundation_passed_with_research_blockers",
+  "trackB": {
+    "campaignId": "v63-fresh-mechanism-campaign-20260724",
+    "formalRunCount": 0,
+    "lockedOosReadCount": 0,
+    "resultReadCount": 0,
+    "sourceHash": "983479c6c84024f5a17eabd67cc2854d0e530779e1379e1ce578a37a08baf16c",
+    "status": "preregistered_dry_preparation_only"
+  },
+  "trackC": {
+    "checks": {
+      "coverage": {
+        "command": "python -m coverage --version",
+        "reason": "coverage_module_unavailable_in_verified_test_runtime",
+        "status": "not_run"
+      },
+      "deployment_scripts": {
+        "allRolesStoppedAfterAcceptance": true,
+        "allSixRolesHealthy": true,
+        "consoleCommit": "4abaffc96348381f7406bf761bf8353b53124d1e",
+        "evidence": "D:/Codex-Workspace/runtime/v63",
+        "fencingTokenAfter": 4,
+        "fencingTokenBefore": 3,
+        "sameIdentityResumeVerified": true,
+        "status": "passed"
+      },
+      "factor_bench": {
+        "benchmarkStatus": "completed",
+        "eligibleFactorCount": 0,
+        "evidence": "reports/factor_lab/factor_benchmark_report.json",
+        "formalTrialCount": 32,
+        "readinessPassed": true,
+        "status": "passed"
+      },
+      "observer": {
+        "evidence": "reports/v55_1_adaptive_learning/offline_evidence_binding.json",
+        "reason": "no_validated_crypto_factor_subset_and_qlib_campaign_not_run",
+        "status": "blocked"
+      },
+      "qlib": {
+        "evidence": "reports/v13_27_1_12/qlib_readiness_gate.json",
+        "modelCampaignRun": false,
+        "qlibCampaignMayRun": false,
+        "reason": "c_formal_ready,pit_median_at_least_30,fresh_holdout_ready",
+        "status": "blocked"
+      },
+      "security_findings": {
+        "classification": "legacy_test_fixture_documentation_and_negative_safety_boundaries",
+        "evidence": "scripts/check_safety.ps1",
+        "matchedFileCount": 231,
+        "status": "passed",
+        "termMatchCount": 634,
+        "v63OrderCapabilityEnabled": false
+      }
+    },
+    "counts": {
+      "blocked": 2,
+      "not_run": 1,
+      "passed": 3
+    },
+    "overallStatus": "completed_with_blockers",
+    "sourceHash": "24ad39b0049059b8e41d4845cb5a167fb17dc23f9816f2b1ece97687ce93b407"
+  }
+}
