@@ -332,7 +332,7 @@ class WorkflowUiContractTests(unittest.TestCase):
         self.assertIn('id="issueGuidanceDialog"', self.html)
         self.assertIn('id="issueGuidanceNextAction"', self.html)
         self.assertIn('/issue-guidance.js?v=20260715-demo-runtime-recovery', self.html)
-        self.assertIn('/app.js?v=20260715-demo-runtime-recovery', self.html)
+        self.assertIn('/app.js?v=20260723-v62-4-write-security', self.html)
         self.assertIn("ALPHAPILOT_ISSUE_ACK_V1", self.issue_js)
         self.assertIn("function issueFingerprint", self.issue_js)
         self.assertIn("localStorage", self.issue_js)

@@ -15,7 +15,7 @@ from alphapilot_control_console.demo_engineering_smoke_service import (
     STRATEGY_EVIDENCE_STORE_PATHS,
     run_demo_engineering_smoke,
 )
-from tests.test_demo_engineering_smoke_service import SuccessfulClient, universe
+from tests.test_demo_engineering_smoke_service import SuccessfulClient, runtime_identity, universe
 
 
 def _digest(path: Path) -> str:
@@ -56,6 +56,7 @@ class DemoEngineeringSmokeIsolationTests(unittest.TestCase):
                     universe=universe(),
                     deterministicTrigger=True,
                     storePath=smoke_ledger,
+                    runtimeIdentity=runtime_identity(contract),
                 )
 
             self.assertEqual(result["status"], "completed")

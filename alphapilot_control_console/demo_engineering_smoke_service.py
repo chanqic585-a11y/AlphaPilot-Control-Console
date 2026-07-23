@@ -13,6 +13,7 @@ from .demo_engineering_smoke_contract import validate_demo_engineering_smoke_con
 from .demo_engineering_smoke_store import DemoEngineeringSmokeRecord, DemoEngineeringSmokeStore
 from .demo_execution_engine import DemoExecutionEngine
 from .demo_execution_store import DemoExecutionStore
+from .runtime_identity import RuntimeIdentity
 
 
 DEMO_ENGINEERING_SMOKE_STORE_PATH = DATA_DIR / "demo_engineering_smoke.sqlite"
@@ -167,6 +168,7 @@ def run_demo_engineering_smoke(
     deterministicTrigger: bool,
     storePath: Path | str = DEMO_ENGINEERING_SMOKE_STORE_PATH,
     executionEngineFactory: Callable[..., DemoExecutionEngine] = DemoExecutionEngine,
+    runtimeIdentity: RuntimeIdentity | None = None,
     orderStatusChecks: int = 3,
 ) -> dict[str, Any]:
     _assert_isolated_store_path(storePath)
@@ -244,7 +246,11 @@ def run_demo_engineering_smoke(
             if str(leverage_response.get("code")) != "0":
                 raise RuntimeError("Demo leverage setup failed")
             execution_store = DemoExecutionStore(storePath)
-            engine = executionEngineFactory(client=client, store=execution_store)
+            engine = executionEngineFactory(
+                client=client,
+                store=execution_store,
+                runtimeIdentity=runtimeIdentity,
+            )
             if execution_store.get_runtime_flag("paused", False):
                 engine.resume()
             signal = {

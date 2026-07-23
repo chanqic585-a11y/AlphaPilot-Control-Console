@@ -10,6 +10,7 @@ from alphapilot_control_console.demo_engineering_smoke_service import (
     reconcile_demo_engineering_smoke,
     run_demo_engineering_smoke,
 )
+from alphapilot_control_console.runtime_identity import RuntimeIdentity
 
 
 def universe() -> dict:
@@ -23,6 +24,29 @@ def universe() -> dict:
         "authenticatedInstrumentHash": "private-hash",
         "blockers": [],
     }
+
+
+def runtime_identity(contract: dict) -> RuntimeIdentity:
+    return RuntimeIdentity(
+        runtimeId="engineering-smoke-test-runtime",
+        environment="okx_demo",
+        processId=1,
+        repositoryCommit="test-commit",
+        repositoryTag="test-tag",
+        moduleRootHashes={"demo_engineering_smoke": "test-module-hash"},
+        releaseId=str(contract["releaseId"]),
+        releaseHash=str(contract["releaseHash"]),
+        riskOverlayHash="engineering-smoke-risk-overlay",
+        modelHash="engineering-smoke-model",
+        modelPolicyHash="engineering-smoke-model-policy",
+        approvalHash="engineering-smoke-approval",
+        armHash="engineering-smoke-arm",
+        runtimeLeaseId="engineering-smoke-lease",
+        startedAt="2026-07-15T00:00:00+00:00",
+        lastHeartbeatAt="2026-07-15T00:01:00+00:00",
+        lastScanAt="2026-07-15T00:02:00+00:00",
+        nextScanAt="2026-07-15T00:03:00+00:00",
+    )
 
 
 class SuccessfulClient:
@@ -66,12 +90,14 @@ class DemoEngineeringSmokeServiceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "engineering.sqlite"
             client = SuccessfulClient()
+            contract = self._contract(temporary)
             result = run_demo_engineering_smoke(
                 client=client,
-                contract=self._contract(temporary),
+                contract=contract,
                 universe=universe(),
                 deterministicTrigger=True,
                 storePath=path,
+                runtimeIdentity=runtime_identity(contract),
             )
             status = build_demo_engineering_smoke_status(storePath=path)
 
@@ -92,12 +118,14 @@ class DemoEngineeringSmokeServiceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "engineering.sqlite"
             client = SuccessfulClient()
+            contract = self._contract(temporary)
             options = dict(
                 client=client,
-                contract=self._contract(temporary),
+                contract=contract,
                 universe=universe(),
                 deterministicTrigger=True,
                 storePath=path,
+                runtimeIdentity=runtime_identity(contract),
             )
             first = run_demo_engineering_smoke(**options)
             duplicate = run_demo_engineering_smoke(**options)
@@ -135,12 +163,14 @@ class DemoEngineeringSmokeServiceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "engineering.sqlite"
             client = RejectedClient()
+            contract = self._contract(temporary)
             options = dict(
                 client=client,
-                contract=self._contract(temporary),
+                contract=contract,
                 universe=universe(),
                 deterministicTrigger=True,
                 storePath=path,
+                runtimeIdentity=runtime_identity(contract),
             )
             results = [run_demo_engineering_smoke(**options) for _ in range(4)]
 
@@ -159,12 +189,14 @@ class DemoEngineeringSmokeServiceTests(unittest.TestCase):
                 return {"code": "0", "data": []}
 
         with tempfile.TemporaryDirectory() as temporary:
+            contract = self._contract(temporary)
             result = run_demo_engineering_smoke(
                 client=TimeoutClient(),
-                contract=self._contract(temporary),
+                contract=contract,
                 universe=universe(),
                 deterministicTrigger=True,
                 storePath=Path(temporary) / "engineering.sqlite",
+                runtimeIdentity=runtime_identity(contract),
             )
 
         self.assertEqual(result["status"], "failed")
@@ -180,12 +212,14 @@ class DemoEngineeringSmokeServiceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "engineering.sqlite"
             client = OrphanClient()
+            contract = self._contract(temporary)
             result = run_demo_engineering_smoke(
                 client=client,
-                contract=self._contract(temporary),
+                contract=contract,
                 universe=universe(),
                 deterministicTrigger=True,
                 storePath=path,
+                runtimeIdentity=runtime_identity(contract),
             )
             reconciled = reconcile_demo_engineering_smoke(client=client, storePath=path)
 

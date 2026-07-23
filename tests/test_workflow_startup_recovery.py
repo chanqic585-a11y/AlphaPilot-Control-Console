@@ -58,6 +58,7 @@ class WorkflowStartupRecoveryTests(unittest.TestCase):
 
     def test_server_startup_recovers_interrupted_workflows(self) -> None:
         server = Mock()
+        server.server_address = ("127.0.0.1", 8877)
         lifecycle: list[str] = []
         server.serve_forever.side_effect = lambda: lifecycle.append("serve")
 
