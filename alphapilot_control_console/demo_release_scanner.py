@@ -202,6 +202,14 @@ def _btc_context(snapshot: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def calculate_demo_btc_context(
+    factors: dict[str, float | None],
+) -> dict[str, Any]:
+    """Build the trusted BTC regime context from an already computed factor row."""
+
+    return _btc_context({"_precomputedFactors": dict(factors)})
+
+
 def _between(value: Any, lower: Any, upper: Any) -> bool:
     if value is None:
         return False
@@ -288,6 +296,16 @@ def _evaluate_strategy_family_policy(
     else:
         checks.append(_check("supported_family", False, family, ["breakout", "squeeze_breakout", "mean_reversion", "short_rejection"]))
     return all(row["matched"] for row in checks), checks
+
+
+def evaluate_demo_strategy_policy(
+    factors: dict[str, Any],
+    btc_context: dict[str, Any],
+    policy: dict[str, Any],
+) -> tuple[bool, list[dict[str, Any]]]:
+    """Evaluate one immutable strategy policy without sizing or order access."""
+
+    return _evaluate_strategy_family_policy(factors, btc_context, policy)
 
 
 def _size_signal(
