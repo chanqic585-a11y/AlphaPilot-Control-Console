@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import alphapilot_control_console.v62_4_acceptance as acceptance_helpers
+import scripts.build_v62_4_acceptance_handoff as acceptance_builder
 
 from alphapilot_control_console.v62_4_acceptance import (
     REQUIRED_TOP_LEVEL,
@@ -331,3 +332,67 @@ def test_independent_verifier_reports_a_manifested_file_deleted_after_packaging(
     assert "14_known_issues/open_issue_ledger.json" in result["missing"]
     assert "14_known_issues/open_issue_ledger.json:missing" in result["hashMismatch"]
     assert result["passed"] is False
+
+
+def test_generated_verifier_does_not_mutate_package_with_bytecode(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    repository_root = Path(__file__).resolve().parents[1]
+    monkeypatch.setattr(acceptance_builder, "CONSOLE_WORKTREE", repository_root)
+    _write_minimum_acceptance_tree(tmp_path)
+    destination = tmp_path / "15_independent_verification"
+    builder = acceptance_builder.AcceptanceBuilder.__new__(
+        acceptance_builder.AcceptanceBuilder
+    )
+    builder._write_verifier_scripts(destination)
+    _write_json(
+        tmp_path / "05_strategy_factory" / "pilot_campaign_summary.json",
+        {
+            "candidateCount": 0,
+            "trialCount": 0,
+            "completedTrialCount": 0,
+            "formalRunCount": 0,
+        },
+    )
+    _write_json(tmp_path / "05_strategy_factory" / "pilot_candidate_manifest.json", [])
+    _write_json(tmp_path / "05_strategy_factory" / "pilot_trial_manifest.json", [])
+    (tmp_path / "05_strategy_factory" / "formal_job_ledger.jsonl").write_text(
+        "",
+        encoding="utf-8",
+    )
+    _write_json(
+        tmp_path / "10_ui" / "ui_data_source_matrix.json",
+        {"productionFixtureData": False, "fields": []},
+    )
+    _write_json(
+        tmp_path / "06_ai_orchestration" / "forbidden_tool_audit.json",
+        {"forbiddenTradingToolCallCount": 0},
+    )
+    manifest = build_artifact_manifest(tmp_path)
+    _write_json(tmp_path / "16_final" / "artifact_manifest.json", manifest)
+    before = sorted(
+        path.relative_to(tmp_path).as_posix()
+        for path in tmp_path.rglob("*")
+        if path.is_file()
+    )
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(destination / "verify_acceptance_package.py"),
+            str(tmp_path),
+        ],
+        cwd=destination,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    after = sorted(
+        path.relative_to(tmp_path).as_posix()
+        for path in tmp_path.rglob("*")
+        if path.is_file()
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert after == before

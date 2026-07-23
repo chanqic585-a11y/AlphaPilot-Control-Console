@@ -1175,6 +1175,7 @@ class AcceptanceBuilder:
 import json
 import sys
 from pathlib import Path
+sys.dont_write_bytecode = True
 from _v62_4_acceptance import verify_acceptance_package
 
 root = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path(__file__).resolve().parents[1]
@@ -1195,6 +1196,7 @@ raise SystemExit(0 if result.get("passed") else 1)
 import json
 import sys
 from pathlib import Path
+sys.dont_write_bytecode = True
 from _v62_4_acceptance import verify_acceptance_package
 
 root = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path(__file__).resolve().parents[1]
