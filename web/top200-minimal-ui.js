@@ -355,16 +355,43 @@
     }
   }
 
+  function renderAiControl(payload) {
+    const health = payload?.providerHealth || {};
+    const healthLabel = Object.entries(health)
+      .map(([provider, status]) => `${provider}: ${status === "configured" ? "已配置" : "待配置"}`)
+      .join(" · ") || "无 Provider 状态";
+    const modelCount = Number(payload?.modelCount ?? payload?.models?.length ?? 0);
+    const batchCount = Number(payload?.queue?.batchJobCount || 0);
+    const campaignBudget = payload?.budget?.defaultCampaignLimitUsd;
+    byId("strategyAiProviderHealth").textContent = healthLabel;
+    byId("strategyAiModelSummary").textContent = `${modelCount} 个版本化模型别名`;
+    byId("strategyAiQueueSummary").textContent = batchCount ? `${batchCount} 个批量任务` : "队列为空";
+    byId("strategyAiBudgetSummary").textContent = campaignBudget == null
+      ? "按版本化策略限制"
+      : `单 Campaign 上限 ${campaignBudget} USD`;
+    byId("strategyAiRoutingSummary").textContent = JSON.stringify({
+      status: payload?.status || "unknown",
+      routing: payload?.routing || {},
+      promptVersionCount: payload?.promptVersionCount || 0,
+      auditEventCount: payload?.auditEventCount || 0,
+      credentialsPersisted: payload?.credentialsPersisted === true,
+      exchangeCredentialsAvailableToWorker: payload?.exchangeCredentialsAvailableToWorker === true,
+      executionAuthorized: payload?.executionAuthorized === true,
+    }, null, 2);
+  }
+
   async function refreshStrategy() {
     if (strategyLoading || !byId("top200MinimalStrategy")) return;
     strategyLoading = true;
     try {
-      const [factory, summary, releases, continuous] = await Promise.all([
+      const [factory, summary, releases, continuous, aiControl] = await Promise.all([
         fetchJson("/api/research-factory/summary"),
         fetchJson("/api/strategy/summary"),
         fetchJson("/api/strategy/releases"),
         fetchJson("/api/research-factory/continuous"),
+        fetchJson("/api/ai/control"),
       ]);
+      renderAiControl(aiControl);
       const current = (releases.releases || []).find((item) => item.status === "can_enter_demo");
       const progress = Math.max(0, Math.min(100, Number(factory.progressPercent || 0)));
       const track = byId("top200ResearchProgressBar")?.parentElement;

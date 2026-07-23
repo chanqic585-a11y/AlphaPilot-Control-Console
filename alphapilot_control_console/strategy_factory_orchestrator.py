@@ -18,6 +18,21 @@ from .strategy_factory_outcomes import (
     read_strategy_factory_outcome,
 )
 from .strategy_factory_evidence import project_strategy_factory_execution_evidence
+from .strategy_factory_lifecycle import (
+    build_failure_attributions,
+    project_strategy_factory_lifecycle,
+)
+from .strategy_factory_readiness import (
+    build_forward_task,
+    build_matchability_funnel,
+    project_factor_model_readiness,
+)
+from .ai_research_governor import (
+    AIResearchGovernor,
+    append_negative_research_records,
+    build_negative_research_record,
+    load_negative_research_memory,
+)
 
 
 DEFAULT_STATE_PATH = DATA_DIR / "strategy_factory" / "strategy_factory.sqlite"
@@ -147,6 +162,7 @@ class StrategyFactoryOrchestrator:
         development_profile_path: Path | None = None,
         launcher: Callable[..., dict[str, Any]] = _default_launcher,
         clock: Callable[[], datetime] = _utc_now,
+        negative_memory_path: Path | None = None,
     ) -> None:
         self.state_path = Path(state_path)
         self.artifact_root = Path(artifact_root)
@@ -169,6 +185,10 @@ class StrategyFactoryOrchestrator:
             configured_profile or DEFAULT_DEVELOPMENT_PROFILE_PATH
         )
         self.development_profile_required = configured_profile is not None
+        self.negative_memory_path = Path(
+            negative_memory_path
+            or DATA_DIR / "strategy_factory" / "negative_research_memory.jsonl"
+        )
         self.launcher = launcher
         self.clock = clock
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
@@ -394,6 +414,30 @@ class StrategyFactoryOrchestrator:
             timeframe=timeframe,
             operation=operation,
         )
+        known_families = {
+            str(item.get("familyId") or ""): item
+            for item in registry["families"]
+            if isinstance(item, dict) and item.get("familyId")
+        }
+        governor = AIResearchGovernor(
+            load_negative_research_memory(self.negative_memory_path)
+        )
+        family_contexts = []
+        for family_id in family_ids:
+            family = known_families[family_id]
+            family_contexts.append(
+                governor.prepare_generation_context(
+                    family_id=family_id,
+                    hypothesis=str(
+                        family.get("mechanism")
+                        or family.get("hypothesis")
+                        or family.get("title")
+                        or family_id
+                    ),
+                    timeframe=timeframe,
+                    direction=str(payload.get("direction") or "both"),
+                )
+            )
         now = _iso(self.clock())
         suffix = uuid4().hex[:12]
         program_id = f"strategy_factory_program_{suffix}"
@@ -472,6 +516,18 @@ class StrategyFactoryOrchestrator:
                 "automaticPromotionAllowed": False,
                 "maximumConcurrentRuns": MAX_CONCURRENT_RUNS,
                 "processPriority": "below_normal",
+            },
+            "aiResearchGovernance": {
+                "schemaVersion": "alphapilot_ai_research_governance_v1",
+                "draftTypes": [
+                    "HypothesisDraft",
+                    "CandidateDraft",
+                    "ExperimentDraft",
+                ],
+                "familyContexts": family_contexts,
+                "deterministicValidationRequired": True,
+                "automaticPromotionAllowed": False,
+                "executionAuthorized": False,
             },
         }
         if development_profile:
@@ -737,6 +793,99 @@ class StrategyFactoryOrchestrator:
             outcome_root=Path(row["jobJsonPath"]).parent / "outcome",
             created_at=now,
         )
+        attributions = build_failure_attributions(
+            config=config,
+            receipt=receipt,
+            execution_evidence={},
+            outcome=outcome,
+        )
+        memory_receipt: dict[str, Any] | None = None
+        if attributions:
+            contexts = {
+                str(item.get("familyId") or ""): item
+                for item in (
+                    (config.get("aiResearchGovernance") or {}).get("familyContexts")
+                    or []
+                )
+                if isinstance(item, dict)
+            }
+            records = []
+            for attribution in attributions:
+                family_id = str(attribution.get("familyId") or "unknown_family")
+                context = contexts.get(family_id) or {}
+                records.append(
+                    build_negative_research_record(
+                        strategy_id=str(
+                            attribution.get("candidateId") or "unknown_candidate"
+                        ),
+                        family_id=family_id,
+                        parent_version=str(
+                            attribution.get("parentStrategy") or "none"
+                        ),
+                        hypothesis=str(
+                            context.get("hypothesis")
+                            or config.get("hypothesis")
+                            or family_id
+                        ),
+                        failure_layer=str(
+                            attribution.get("failureLayer") or "Implementation"
+                        ),
+                        metrics={
+                            key: receipt.get(key)
+                            for key in (
+                                "profitFactor",
+                                "averageNetR",
+                                "maximumDrawdownR",
+                                "tradeCount",
+                                "trialCount",
+                            )
+                            if receipt.get(key) is not None
+                        },
+                        cost={
+                            key: receipt.get(key)
+                            for key in (
+                                "roundTripCostRate",
+                                "costStressPassed",
+                                "slippageBps",
+                            )
+                            if receipt.get(key) is not None
+                        },
+                        capacity={
+                            key: receipt.get(key)
+                            for key in (
+                                "eligibleSymbolCount",
+                                "capacityPassed",
+                                "maximumParticipationRate",
+                            )
+                            if receipt.get(key) is not None
+                        },
+                        stability={
+                            key: receipt.get(key)
+                            for key in (
+                                "walkForwardPassed",
+                                "pbo",
+                                "stableCandidateCount",
+                            )
+                            if receipt.get(key) is not None
+                        },
+                        regime={
+                            "failedRegimes": receipt.get("failedRegimes") or [],
+                            "timeframe": config.get("timeframe"),
+                        },
+                        signal_correlation=attribution.get("signalCorrelation"),
+                        prohibited_repeats=attribution.get("prohibitedRepair") or [],
+                    )
+                )
+            memory_receipt = append_negative_research_records(
+                self.negative_memory_path,
+                records,
+            )
+            _write_json_atomic(
+                Path(row["jobJsonPath"]).parent
+                / "outcome"
+                / "negative_research_memory_receipt.json",
+                memory_receipt,
+            )
         formal_validation_count = int(
             outcome.get("formalValidationCandidateCount") or 0
         )
@@ -848,6 +997,17 @@ class StrategyFactoryOrchestrator:
                 },
                 created_at=now,
             )
+        if memory_receipt and int(memory_receipt["appendedCount"]):
+            self._append_event(
+                run_id,
+                "negative_research_memory_updated",
+                {
+                    "appendedCount": memory_receipt["appendedCount"],
+                    "recordCount": memory_receipt["recordCount"],
+                    "memoryHash": memory_receipt["memoryHash"],
+                },
+                created_at=now,
+            )
         self.connection.commit()
         return self.get_run(run_id)
 
@@ -919,6 +1079,73 @@ class StrategyFactoryOrchestrator:
             updated_at=row["updatedAt"],
             completed_at=row["completedAt"],
         )
+        lifecycle = project_strategy_factory_lifecycle(
+            legacy_status=str(row["status"]),
+            config=config,
+            receipt=receipt,
+            execution_evidence=execution_evidence,
+            outcome=outcome,
+        )
+        failure_attributions = build_failure_attributions(
+            config=config,
+            receipt=receipt,
+            execution_evidence=execution_evidence,
+            outcome=outcome,
+        )
+        memory_receipt_path = (
+            Path(row["jobJsonPath"]).parent
+            / "outcome"
+            / "negative_research_memory_receipt.json"
+        )
+        negative_research_memory: dict[str, Any] = {}
+        if memory_receipt_path.is_file():
+            try:
+                loaded_memory_receipt = json.loads(
+                    memory_receipt_path.read_text(encoding="utf-8")
+                )
+            except (OSError, json.JSONDecodeError):
+                loaded_memory_receipt = {}
+            if isinstance(loaded_memory_receipt, dict):
+                negative_research_memory = loaded_memory_receipt
+        matchability: dict[str, Any] = {}
+        matchability_source = receipt.get("matchability")
+        if isinstance(matchability_source, dict):
+            try:
+                matchability = build_matchability_funnel(matchability_source)
+            except (TypeError, ValueError) as error:
+                matchability = {
+                    "schemaVersion": "alphapilot_matchability_funnel_v1",
+                    "status": "invalid_evidence",
+                    "blockers": [str(error)],
+                    "executionAuthorized": False,
+                }
+        forward_task: dict[str, Any] = {}
+        forward_source = receipt.get("forwardTask")
+        if isinstance(forward_source, dict):
+            try:
+                forward_task = build_forward_task(
+                    task_id=str(forward_source["taskId"]),
+                    release_id=str(forward_source["releaseId"]),
+                    release_hash=str(forward_source["releaseHash"]),
+                    started_at=str(forward_source["startedAt"]),
+                    status=str(forward_source["status"]),
+                    closed_trade_count=int(forward_source.get("closedTradeCount") or 0),
+                    effective_sample_size=float(forward_source.get("effectiveSampleSize") or 0),
+                    symbol_coverage=float(forward_source.get("symbolCoverage") or 0),
+                    regime_coverage=float(forward_source.get("regimeCoverage") or 0),
+                    cost_completeness=float(forward_source.get("costCompleteness") or 0),
+                )
+            except (KeyError, TypeError, ValueError) as error:
+                forward_task = {
+                    "schemaVersion": "alphapilot_forward_task_v1",
+                    "status": "invalid_evidence",
+                    "blockers": [str(error)],
+                    "automaticPromotionAllowed": False,
+                }
+        factor_source = receipt.get("factorModelReadiness")
+        factor_model_readiness = project_factor_model_readiness(
+            factor_source if isinstance(factor_source, dict) else {}
+        )
         return {
             "runId": row["runId"],
             "researchRunId": row["runId"],
@@ -963,6 +1190,14 @@ class StrategyFactoryOrchestrator:
             "executionBoundary": config["executionBoundary"],
             "workerPolicy": config.get("workerPolicy") or {},
             "executionEvidence": execution_evidence,
+            "lifecycleState": lifecycle["state"],
+            "lifecycle": lifecycle,
+            "completedTrialCount": lifecycle["completedTrialCount"],
+            "failureAttributions": failure_attributions,
+            "negativeResearchMemory": negative_research_memory,
+            "matchability": matchability,
+            "forwardTask": forward_task,
+            "factorModelReadiness": factor_model_readiness,
             **outcome,
         }
 
