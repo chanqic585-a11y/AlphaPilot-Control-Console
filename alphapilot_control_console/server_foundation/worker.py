@@ -10,7 +10,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from .checkpoint import FoundationCheckpointStore
+from .checkpoint import (
+    CheckpointIdentityMismatch,
+    FoundationCheckpointStore,
+)
 from .contracts import FoundationRole
 from .identity import build_runtime_identity
 from .lease import FoundationLeaseClaim, FoundationLeaseStore
@@ -59,6 +62,8 @@ class FoundationWorker:
         self.cycle_count = 0
         self.resumed_from_checkpoint = False
         self.resumed_checkpoint_fencing_token: int | None = None
+        self.checkpoint_resume_disposition = "started_without_checkpoint"
+        self.superseded_checkpoint_path: str | None = None
         self.checkpoints = FoundationCheckpointStore(
             manifest.stateRoot / "checkpoints"
         )
@@ -87,6 +92,21 @@ class FoundationWorker:
                 )
             except FileNotFoundError:
                 pass
+            except CheckpointIdentityMismatch as exc:
+                if not exc.is_supersedable_runtime_identity_change:
+                    self.close()
+                    raise
+                try:
+                    archived = self.checkpoints.archive_superseded(
+                        role=self.role
+                    )
+                except Exception:
+                    self.close()
+                    raise
+                self.checkpoint_resume_disposition = (
+                    "started_fresh_new_identity"
+                )
+                self.superseded_checkpoint_path = str(archived)
             else:
                 progress = checkpoint.get("progress", {})
                 resumed_cycle_count = int(progress.get("cycleCount", 0))
@@ -96,6 +116,9 @@ class FoundationWorker:
                 self.resumed_from_checkpoint = True
                 self.resumed_checkpoint_fencing_token = int(
                     checkpoint["fencingToken"]
+                )
+                self.checkpoint_resume_disposition = (
+                    "resumed_same_identity"
                 )
         else:
             self.claim = self.lease_store.heartbeat(
@@ -148,6 +171,10 @@ class FoundationWorker:
             "resumedCheckpointFencingToken": (
                 self.resumed_checkpoint_fencing_token
             ),
+            "checkpointResumeDisposition": (
+                self.checkpoint_resume_disposition
+            ),
+            "supersededCheckpointPath": self.superseded_checkpoint_path,
             "healthPath": str(health_path),
             "identityPath": str(identity_path),
             "checkpointPath": str(self.checkpoints.path_for(self.role)),

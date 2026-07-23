@@ -445,6 +445,90 @@ class FoundationWorkerTests(unittest.TestCase):
                 second.close()
                 lease_store.close()
 
+    def test_worker_archives_checkpoint_when_manifest_identity_changes(self) -> None:
+        clock = MutableClock()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            first_manifest_path = root / "manifest-first.json"
+            first_payload = _manifest_payload(root)
+            first_manifest_path.write_text(
+                json.dumps(first_payload),
+                encoding="utf-8",
+            )
+            first_manifest = FoundationManifest.load(first_manifest_path)
+            lease_store = FoundationLeaseStore(
+                root / "leases.sqlite",
+                now_factory=clock,
+            )
+            startup_state = StartupState(
+                demoArmed=False,
+                liveArmed=False,
+                openOrderCount=0,
+                unknownOrderCount=0,
+                openPositionCount=0,
+                withdrawEnabled=False,
+            )
+            first = FoundationWorker(
+                manifest=first_manifest,
+                role=FoundationRole.RESEARCH,
+                lease_store=lease_store,
+                now_factory=clock,
+                process_id=1234,
+            )
+            try:
+                first_health = first.run_once(startup_state)
+                self.assertEqual(first_health["cycleCount"], 1)
+            finally:
+                first.close()
+
+            second_manifest_path = root / "manifest-second.json"
+            second_payload = _manifest_payload(root)
+            second_payload["repositoryCommit"] = "b" * 40
+            second_manifest_path.write_text(
+                json.dumps(second_payload),
+                encoding="utf-8",
+            )
+            second_manifest = FoundationManifest.load(second_manifest_path)
+            second = FoundationWorker(
+                manifest=second_manifest,
+                role=FoundationRole.RESEARCH,
+                lease_store=lease_store,
+                now_factory=clock,
+                process_id=5678,
+            )
+            try:
+                second_health = second.run_once(startup_state)
+                self.assertEqual(second_health["cycleCount"], 1)
+                self.assertEqual(second_health["fencingToken"], 2)
+                self.assertFalse(second_health["resumedFromCheckpoint"])
+                self.assertEqual(
+                    second_health["checkpointResumeDisposition"],
+                    "started_fresh_new_identity",
+                )
+                archived_path = Path(
+                    second_health["supersededCheckpointPath"]
+                )
+                self.assertTrue(archived_path.is_file())
+                archived = json.loads(
+                    archived_path.read_text(encoding="utf-8")
+                )
+                self.assertEqual(
+                    archived["manifestHash"],
+                    first_manifest.manifestHash,
+                )
+                current = json.loads(
+                    Path(second_health["checkpointPath"]).read_text(
+                        encoding="utf-8"
+                    )
+                )
+                self.assertEqual(
+                    current["manifestHash"],
+                    second_manifest.manifestHash,
+                )
+            finally:
+                second.close()
+                lease_store.close()
+
 
 if __name__ == "__main__":
     unittest.main()

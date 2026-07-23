@@ -15,6 +15,24 @@ from .contracts import FoundationRole
 class CheckpointIdentityMismatch(PermissionError):
     """Raised when a checkpoint belongs to another frozen runtime identity."""
 
+    def __init__(self, reason: str) -> None:
+        self.reason = str(reason)
+        super().__init__(self.reason)
+
+    @property
+    def is_supersedable_runtime_identity_change(self) -> bool:
+        prefix = "checkpoint_identity_mismatch:"
+        if not self.reason.startswith(prefix):
+            return False
+        fields = {
+            field
+            for field in self.reason.removeprefix(prefix).split(",")
+            if field
+        }
+        return bool(fields) and fields.issubset(
+            {"manifestHash", "configHash"}
+        )
+
 
 def _hash(payload: dict[str, Any]) -> str:
     return hashlib.sha256(
@@ -129,3 +147,36 @@ class FoundationCheckpointStore:
                 "checkpoint_fencing_token_is_not_prior"
             )
         return payload
+
+    def archive_superseded(
+        self,
+        *,
+        role: FoundationRole,
+    ) -> Path:
+        role = FoundationRole(role)
+        target = self.path_for(role)
+        raw = target.read_bytes()
+        payload = json.loads(raw.decode("utf-8"))
+        checkpoint_hash = str(payload.pop("checkpointHash", ""))
+        if checkpoint_hash != _hash(payload):
+            raise CheckpointIdentityMismatch("checkpoint_hash_mismatch")
+        if payload.get("role") != role.value:
+            raise CheckpointIdentityMismatch(
+                "checkpoint_identity_mismatch:role"
+            )
+
+        archive_root = self.root / "superseded"
+        archive_root.mkdir(parents=True, exist_ok=True)
+        destination = (
+            archive_root
+            / f"{role.value}.{checkpoint_hash}.checkpoint.json"
+        )
+        if destination.exists():
+            if destination.read_bytes() != raw:
+                raise CheckpointIdentityMismatch(
+                    "superseded_checkpoint_collision"
+                )
+            target.unlink()
+        else:
+            os.replace(target, destination)
+        return destination
