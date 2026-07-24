@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>AlphaPilot V63.1 控制台</title>
+    <link rel="stylesheet" href="/v63a.css">
+  </head>
+  <body data-connection="connecting">
+    <div class="shell">
+      <aside class="sidebar" aria-label="主导航">
+        <a class="brand" href="/v63a/control" aria-label="AlphaPilot V63.1 总览">
+          <span class="brand-mark">AP</span>
+          <span>
+            <strong>AlphaPilot</strong>
+            <small>V63.1 状态控制台</small>
+          </span>
+        </a>
+        <nav class="nav-list">
+          <a data-route="control" href="/v63a/control"><span>C</span>总览</a>
+          <a data-route="evolution" href="/v63a/evolution"><span>E</span>进化池</a>
+          <a data-route="demo" href="/v63a/demo"><span>D</span>Demo</a>
+          <a data-route="live" href="/v63a/live"><span>L</span>实盘</a>
+        </nav>
+        <section class="sidebar-status" aria-live="polite">
+          <div class="status-line">
+            <i id="connection-dot"></i>
+            <span id="connection-label">正在连接</span>
+          </div>
+          <small id="heartbeat-time">等待首个心跳</small>
+        </section>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">STATE-DRIVEN PROJECTION</p>
+            <h1 id="page-title">AlphaPilot V63.1</h1>
+          </div>
+          <div class="topbar-meta">
+            <span class="mode-badge">只读 Shadow</span>
+            <time id="beijing-clock">--</time>
+          </div>
+        </header>
+
+        <div id="stale-banner" class="system-banner danger" hidden>
+          实时连接已中断超过 3 秒。页面数值已标记为 Stale / 数据陈旧，请勿据此判断当前交易状态。
+        </div>
+        <div id="conflict-banner" class="system-banner warning" hidden>
+          底层状态已变更，请基于最新状态操作
+        </div>
+        <div id="error-banner" class="system-banner danger" hidden></div>
+
+        <section id="app" class="page" aria-live="polite">
+          <div class="loading-state">正在读取真实 Projection…</div>
+        </section>
+      </main>
+    </div>
+    <script src="/v63a.js" defer></script>
+  </body>
+</html>

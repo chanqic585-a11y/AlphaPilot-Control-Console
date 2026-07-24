@@ -129,7 +129,10 @@ class V631ProjectionSource:
         if scope == "strategy-detail":
             if not object_id:
                 raise ValueError("strategy_id_required")
-            strategy = self.top200_projection.strategy_release(object_id)
+            try:
+                strategy = self.top200_projection.strategy_release(object_id)
+            except KeyError:
+                strategy = self._current_pilot_candidate(object_id)
             return {
                 **strategy,
                 "status": _status(strategy.get("status")),
@@ -229,6 +232,46 @@ class V631ProjectionSource:
                 "executionAuthorized": False,
             }
         raise KeyError(scope)
+
+    def _current_pilot_candidate(self, candidate_id: str) -> dict[str, object]:
+        summary = self.top200_projection.strategy_summary()
+        pilot = summary.get("currentPilot")
+        if not isinstance(pilot, dict):
+            raise KeyError(candidate_id)
+
+        ready_ids = {
+            str(value)
+            for value in pilot.get("formalReadyCandidateIds") or []
+            if value
+        }
+        blocked_ids = {
+            str(value)
+            for value in pilot.get("formalBlockedCandidateIds") or []
+            if value
+        }
+        if candidate_id in ready_ids:
+            formal_role = "formal_ready"
+            status = "waiting"
+        elif candidate_id in blocked_ids:
+            formal_role = "formal_blocked"
+            status = "blocked"
+        else:
+            raise KeyError(candidate_id)
+
+        return {
+            "strategyId": candidate_id,
+            "candidateId": candidate_id,
+            "displayName": candidate_id,
+            "campaignId": pilot.get("campaignId"),
+            "pilotStatus": pilot.get("status"),
+            "formalRole": formal_role,
+            "status": status,
+            "metricsAvailable": False,
+            "evidenceStatus": "identity_only",
+            "sourceAuthority": pilot.get("authority"),
+            "sourceHashes": dict(pilot.get("sourceHashes") or {}),
+            "readOnly": True,
+        }
 
     def page_projection(
         self,

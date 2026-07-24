@@ -160,6 +160,32 @@ class V631ProjectionContractTests(unittest.TestCase):
             )
         self.assertEqual(version_error.exception.code, "cursor_state_version_mismatch")
 
+    def test_cursor_rejects_payload_tampering(self) -> None:
+        first = paginate_items(
+            [{"candidateId": str(index), "sequence": index} for index in range(20)],
+            limit=5,
+            cursor=None,
+            scope="evolution-pool",
+            state_version="state-v1",
+            key=lambda item: (item["sequence"], item["candidateId"]),
+        )
+        self.assertIsNotNone(first.nextCursor)
+
+        tampered = str(first.nextCursor)
+        replacement = "A" if tampered[-1] != "A" else "B"
+        tampered = f"{tampered[:-1]}{replacement}"
+
+        with self.assertRaises(CursorError) as raised:
+            paginate_items(
+                [{"candidateId": str(index), "sequence": index} for index in range(20)],
+                limit=5,
+                cursor=tampered,
+                scope="evolution-pool",
+                state_version="state-v1",
+                key=lambda item: (item["sequence"], item["candidateId"]),
+            )
+        self.assertEqual(raised.exception.code, "cursor_invalid")
+
     def test_page_size_is_clamped_to_contract_maximum(self) -> None:
         page = paginate_items(
             [{"candidateId": str(index), "sequence": index} for index in range(500)],

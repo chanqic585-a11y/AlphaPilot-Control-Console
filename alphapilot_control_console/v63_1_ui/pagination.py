@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import hmac
 import json
+import secrets
 from dataclasses import dataclass
 from typing import Any, Callable, Generic, Iterable, TypeVar
 
@@ -11,6 +13,7 @@ T = TypeVar("T")
 DEFAULT_PAGE_SIZE = 50
 MAX_PAGE_SIZE = 200
 _CURSOR_CONTEXT = b"alphapilot-v63.1-cursor-v1"
+_CURSOR_SECRET = secrets.token_bytes(32)
 
 
 class CursorError(ValueError):
@@ -47,7 +50,11 @@ def _canonical_bytes(payload: dict[str, Any]) -> bytes:
 
 
 def _signature(payload: dict[str, Any]) -> str:
-    return hashlib.sha256(_CURSOR_CONTEXT + _canonical_bytes(payload)).hexdigest()
+    return hmac.new(
+        _CURSOR_SECRET,
+        _CURSOR_CONTEXT + _canonical_bytes(payload),
+        hashlib.sha256,
+    ).hexdigest()
 
 
 def encode_cursor(
@@ -78,7 +85,11 @@ def decode_cursor(value: str, *, scope: str) -> dict[str, Any]:
         digest = envelope["digest"]
     except (ValueError, UnicodeError, json.JSONDecodeError, KeyError, TypeError) as error:
         raise CursorError("cursor_invalid") from error
-    if not isinstance(payload, dict) or digest != _signature(payload):
+    if (
+        not isinstance(payload, dict)
+        or not isinstance(digest, str)
+        or not hmac.compare_digest(digest, _signature(payload))
+    ):
         raise CursorError("cursor_invalid")
     if payload.get("scope") != scope:
         raise CursorError("cursor_scope_mismatch")

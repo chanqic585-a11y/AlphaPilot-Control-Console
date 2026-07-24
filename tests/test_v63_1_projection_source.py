@@ -166,6 +166,44 @@ class V631ProjectionSourceTests(unittest.TestCase):
                 self.assertFalse(projection["executionAuthorized"])
                 self.assertFalse(projection.get("armed", False))
 
+    def test_current_pilot_candidate_resolves_without_a_release(self) -> None:
+        class _PilotOnlyTop200(_FakeTop200):
+            def strategy_summary(self) -> dict[str, Any]:
+                summary = super().strategy_summary()
+                summary["currentPilot"] = {
+                    "authority": "current_v62_4_acceptance_pilot",
+                    "campaignId": "pilot-1",
+                    "status": "formal_completed_not_passed",
+                    "formalReadyCandidateIds": ["candidate-ready"],
+                    "formalBlockedCandidateIds": ["candidate-blocked"],
+                    "sourceHashes": {"campaignSummary": "sha256:abc"},
+                }
+                return summary
+
+            def strategy_release(self, strategy_id: str) -> dict[str, Any]:
+                raise KeyError(strategy_id)
+
+        source = V631ProjectionSource(
+            top200_projection=_PilotOnlyTop200(),
+            strategy_factory=self.factory,
+            terminal_projection=self.terminal,
+        )
+
+        projection = source.object_projection(
+            "strategy-detail",
+            object_id="candidate-ready",
+        )
+
+        self.assertEqual(projection["candidateId"], "candidate-ready")
+        self.assertEqual(projection["campaignId"], "pilot-1")
+        self.assertEqual(projection["formalRole"], "formal_ready")
+        self.assertEqual(
+            projection["sourceAuthority"],
+            "current_v62_4_acceptance_pilot",
+        )
+        self.assertFalse(projection["metricsAvailable"])
+        self.assertFalse(projection["executionAuthorized"])
+
 
 if __name__ == "__main__":
     unittest.main()

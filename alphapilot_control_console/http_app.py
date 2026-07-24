@@ -223,6 +223,7 @@ from .http_write_security import (
     ensure_http_write_security_environment,
     evaluate_http_write,
 )
+from .v63_1_ui.http import V631HttpRouter
 
 
 def _json_bytes(payload: object) -> bytes:
@@ -231,6 +232,7 @@ def _json_bytes(payload: object) -> bytes:
 
 _RESPONSE_CACHE: dict[str, tuple[float, object]] = {}
 _DEMO_ENGINEERING_SMOKE_LOCK = threading.Lock()
+_V63_ROUTER = V631HttpRouter()
 
 
 class InvalidJsonBody(ValueError):
@@ -445,6 +447,28 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _send_v63_heartbeat_stream(self, *, once: bool) -> None:
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Connection", "close" if once else "keep-alive")
+        self.end_headers()
+        try:
+            while _V63_ROUTER.enabled:
+                payload = json.dumps(
+                    _V63_ROUTER.heartbeat_payload(),
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                )
+                self.wfile.write(f"event: heartbeat\ndata: {payload}\n\n".encode("utf-8"))
+                self.wfile.flush()
+                if once:
+                    self.close_connection = True
+                    return
+                time.sleep(1)
+        except (BrokenPipeError, ConnectionResetError, TimeoutError):
+            return
+
     def _read_body_json(self) -> dict:
         cached = getattr(self, "_request_json_payload", None)
         if cached is not None:
@@ -468,6 +492,18 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         path = parsed.path
         query = parse_qs(parsed.query or "")
         fresh = _is_fresh_query(query)
+        v63_result = _V63_ROUTER.handle_get(path, query)
+        if v63_result is not None:
+            self._send_json(v63_result.payload, v63_result.status)
+            return
+        if path == "/api/v63/events" and _V63_ROUTER.enabled:
+            once = str((query.get("once") or [""])[0]).lower() in {
+                "1",
+                "true",
+                "yes",
+            }
+            self._send_v63_heartbeat_stream(once=once)
+            return
         if path == "/api/health":
             self._send_json(build_health_payload())
             return
@@ -1168,6 +1204,12 @@ class ConsoleHandler(BaseHTTPRequestHandler):
         if path == "/api/strategy-slots":
             self._send_json(list_strategy_slots())
             return
+        if path == "/v63a" or path.startswith("/v63a/"):
+            if not _V63_ROUTER.enabled:
+                self._send_json({"error": "not_found"}, 404)
+                return
+            self._send_static(WEB_DIR / "v63a.html")
+            return
         if path == "/ui-preview/demo-v2":
             self._send_static(WEB_DIR / "preview-demo-v2.html")
             return
@@ -1188,6 +1230,16 @@ class ConsoleHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
+        if parsed.path.startswith("/api/v63/"):
+            self._send_json(
+                {
+                    "ok": False,
+                    "error": "v63_projection_api_read_only",
+                    "executionAuthorized": False,
+                },
+                405,
+            )
+            return
         client_host = str(self.client_address[0])
         write_decision = evaluate_http_write(
             client_host=client_host,
