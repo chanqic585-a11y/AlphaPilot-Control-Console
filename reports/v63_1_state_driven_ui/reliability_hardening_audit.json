@@ -1,0 +1,40 @@
+{
+  "connectionLiveness": {
+    "coreRealtimeValuesMarkedStale": true,
+    "heartbeatManager": "global",
+    "navigationRedIndicator": true,
+    "recoveryVerified": true,
+    "staleAfterSeconds": 3,
+    "status": "passed"
+  },
+  "cursorPagination": {
+    "allListsBounded": true,
+    "frontendUnboundedAppend": false,
+    "hasMore": true,
+    "nextCursor": true,
+    "status": "passed",
+    "tamperDetection": true
+  },
+  "generatedAt": "2026-07-24T10:17:04.059234Z",
+  "knownLimitations": [],
+  "repositoryCommit": "eb5009f18feb18c27f18814f41e195a47c8e2f2d",
+  "schemaVersion": "alphapilot_v63_1_reliability_hardening_audit_v1",
+  "sourceHashes": {
+    "alphapilot_control_console/http_app.py": "0b8d14978be395c9d84337b52be2d22e35a75ab30b26480f9f840ae156a6e284",
+    "alphapilot_control_console/v63_1_ui/contracts.py": "44969aab712a394342c5ca1b12f50375220e32b46adf16f13887fd2ff2578f20",
+    "alphapilot_control_console/v63_1_ui/http.py": "cdc1fdcd1218ef82867f8e1d1e128a5330b849b6c1128837b694a1058d1dba82",
+    "alphapilot_control_console/v63_1_ui/pagination.py": "df13d9da5b969628ea638e6e1f0739ed4b16fd2f774f22048cd9a0cecfd2f6a8",
+    "alphapilot_control_console/v63_1_ui/service.py": "05fc28b5199343d5df538e33830736a21dc95b02d552bbc7bc4288f3de82ba54",
+    "alphapilot_control_console/v63_1_ui/source.py": "434993ae77030385db4ec566105d9aa386bbe8d55461bd57623d70198f99e997",
+    "web/v63a.css": "9f6718b44517662cedef44e59e4d63dc94237bfb59396f8031ab9acb3fe30f78",
+    "web/v63a.html": "f9f52b3f075fc0a204d073c908313ea838ff9a2b4ca18c3186e4cfb34a386be5",
+    "web/v63a.js": "60f558ce868354ac4d44f393c3a5500d4c9dc54ea75e199d3160593700ba6fb7"
+  },
+  "stateVersionMismatch": {
+    "automaticProjectionRefresh": true,
+    "httpStatus": 409,
+    "persistentOperatorWarning": "底层状态已变更，请基于最新状态操作",
+    "status": "passed"
+  },
+  "status": "passed"
+}

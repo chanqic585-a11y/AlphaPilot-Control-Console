@@ -1,0 +1,188 @@
+{
+  "artifactCount": 33,
+  "artifacts": [
+    {
+      "bytes": 1573,
+      "path": "action_catalog.json",
+      "sha256": "b5bcb4fdcfc44830c4a4eeae1cdd0035c249826d9c2ace7abafa4cbba1a4662b"
+    },
+    {
+      "bytes": 1901,
+      "path": "api_contract_catalog.json",
+      "sha256": "4caa4c9fe6bb850c0049546af1d735356ed2b6229e3005858f478301096a5045"
+    },
+    {
+      "bytes": 1755,
+      "path": "color_semantic_audit.json",
+      "sha256": "4a79d532350d926c505e4bcad2eacf7808e6af3cc6c580a4e9918531187c72c5"
+    },
+    {
+      "bytes": 1413,
+      "path": "demo_live_command_denial_audit.json",
+      "sha256": "5b6748c8b9bcb38a7a72b4da86af61f96200cf638db76cc77d53676f698dcee6"
+    },
+    {
+      "bytes": 1404,
+      "path": "frontend_feature_flag_receipt.json",
+      "sha256": "568fb871de3c5bba312b092dc23a8111f3e2b0a4faaa00eac6c6e1bdbd5ce58d"
+    },
+    {
+      "bytes": 1422,
+      "path": "machine_code_leak_scan.json",
+      "sha256": "bef041917def052163737ea3f237e08a1bd59c1404f4ec16369f277b88884dc1"
+    },
+    {
+      "bytes": 1363,
+      "path": "next_action_uniqueness_audit.json",
+      "sha256": "568da3494da15452e16ba9fd584c05bd47171435d93123fab3b4227d65aa08e7"
+    },
+    {
+      "bytes": 1841,
+      "path": "page_projection_inventory.json",
+      "sha256": "a06c40f003f1b99bfcd4266882b6dbef6fe2d4bb700e8c791bce9424dd322be3"
+    },
+    {
+      "bytes": 1913,
+      "path": "reliability_hardening_audit.json",
+      "sha256": "32d478cd0c83fea350ec0741d3b32b8202a71429e5dda9948cbc7eb292150cd6"
+    },
+    {
+      "bytes": 1517,
+      "path": "research_execution_isolation_audit.json",
+      "sha256": "ed4c7a35be17e92056240403bd4fb76a48404b133d2db3178d64603557086f1d"
+    },
+    {
+      "bytes": 1828,
+      "path": "route_inventory.json",
+      "sha256": "6ba95a6f5ecff0ff8ee0f202476d1d5fcbdbdb36025c4d93a3b272dbf4fff8f8"
+    },
+    {
+      "bytes": 1853,
+      "path": "runtime_regression_receipt.json",
+      "sha256": "42f77d1dce14a690bc06538f5e879ea363feeb60b012a73edd870663fcb8cdc2"
+    },
+    {
+      "bytes": 77095,
+      "path": "screenshots/control-desktop.png",
+      "sha256": "a5934ca8b7b3672eaa23cb8a2bf2e5fb24414e114c7edd32d965ae2d53b5dd1a"
+    },
+    {
+      "bytes": 31537,
+      "path": "screenshots/control-mobile-375.png",
+      "sha256": "d8439d231992a21948f5f3e2b76fbb29661ae2d96cc6671043b9df01f040a159"
+    },
+    {
+      "bytes": 34118,
+      "path": "screenshots/control-mobile-390.png",
+      "sha256": "c750cdfe31b3fc7c9024baf908f74d0a5ce3f950eb74b3d6748ef457f31c8c02"
+    },
+    {
+      "bytes": 53390,
+      "path": "screenshots/demo-desktop.png",
+      "sha256": "c30191fa11c8b9294e4a0927a377cbd138fd35053adcd41e053bf8e133ad3229"
+    },
+    {
+      "bytes": 24252,
+      "path": "screenshots/demo-mobile-375.png",
+      "sha256": "6dc303e4676dc73d8d8678ab3f6bb3ecab96c08da7529807cb31faa8ab1da989"
+    },
+    {
+      "bytes": 25786,
+      "path": "screenshots/demo-mobile-390.png",
+      "sha256": "267ba1a5c2fbe1d1d533684c799260b2dfbc74ce6cfcb4f80a816868848c2791"
+    },
+    {
+      "bytes": 39861,
+      "path": "screenshots/evolution-desktop.png",
+      "sha256": "534a6bfaf01a2f623904bdf087d57f6047f48aa2a3d27feedf09a11f3e046035"
+    },
+    {
+      "bytes": 22806,
+      "path": "screenshots/evolution-mobile-375.png",
+      "sha256": "bcd6280a5c9673e30a57d62aab8ce7042115676337ae1174505c31b20774812c"
+    },
+    {
+      "bytes": 22611,
+      "path": "screenshots/evolution-mobile-390.png",
+      "sha256": "30a0060b1d2558ee63bb6d330801bad3eec69f71a8032fec6cccf582b98fae43"
+    },
+    {
+      "bytes": 54723,
+      "path": "screenshots/live-desktop.png",
+      "sha256": "306e83e8ee2afa505668709bf603552a51edd293b3bbc657b1c4c6bbf0e13d08"
+    },
+    {
+      "bytes": 25270,
+      "path": "screenshots/live-mobile-375.png",
+      "sha256": "38e4a0fe97f1298dd48581860ced78ca3d8e6d704f47de8110b7a515d7205e34"
+    },
+    {
+      "bytes": 25758,
+      "path": "screenshots/live-mobile-390.png",
+      "sha256": "a19a9571db7562f1e861b0ec999037c79e39eead14815697d205d2257b6dfb89"
+    },
+    {
+      "bytes": 83214,
+      "path": "screenshots/live-stale-375.jpg",
+      "sha256": "ac15cf2dc3f76f451f6f865f452a3b5feabbee8c6c10065c44e85699d6b3ec2e"
+    },
+    {
+      "bytes": 73448,
+      "path": "screenshots/strategy-desktop.png",
+      "sha256": "b4540c6bc42ee4f7fc95ffa59d1e63f414a06715cedc75fa2139fbe43914bb30"
+    },
+    {
+      "bytes": 30925,
+      "path": "screenshots/strategy-mobile-375.png",
+      "sha256": "91cc8b31cbd5acfb65b332dca42ff42f4cbb5b877ecae73c374f6a7a7ff6d59f"
+    },
+    {
+      "bytes": 31097,
+      "path": "screenshots/strategy-mobile-390.png",
+      "sha256": "ef8b84d304414fe470fb5fb60cff68dc38113da7928421514567dea2353752f6"
+    },
+    {
+      "bytes": 2573,
+      "path": "status_presentation_catalog.json",
+      "sha256": "072ed9d65253e76aecfd1f8ac4a8417df3a055654c0980bcd085813065e0ed5d"
+    },
+    {
+      "bytes": 1433,
+      "path": "track_b_status_projection.json",
+      "sha256": "a5407e7c3dcd8caf7ff1fff3fee4b50be2a2d3ad99b3f4d47830ac7a156f87d7"
+    },
+    {
+      "bytes": 1457,
+      "path": "track_c_status_projection.json",
+      "sha256": "25706ce77b9720db8a01f9d695c2c45d46834277414d6a45782710e0d38a049f"
+    },
+    {
+      "bytes": 4337,
+      "path": "ui_visual_regression_manifest.json",
+      "sha256": "dd3774c569317a5312e60374c37fd05337a5c9fb06f93f1030e7f4f3225c9bd7"
+    },
+    {
+      "bytes": 2076,
+      "path": "v63_1_closeout.md",
+      "sha256": "6a32604d6720414bbf628c7080c65aacd1a846f320ca5924a3ac54e8a38f6ad2"
+    }
+  ],
+  "executionAuthorized": false,
+  "generatedAt": "2026-07-24T10:17:04.059234Z",
+  "knownLimitations": [],
+  "readOnly": true,
+  "repositoryCommit": "eb5009f18feb18c27f18814f41e195a47c8e2f2d",
+  "schemaVersion": "alphapilot_v63_1_artifact_manifest_v1",
+  "sourceHashes": {
+    "alphapilot_control_console/http_app.py": "0b8d14978be395c9d84337b52be2d22e35a75ab30b26480f9f840ae156a6e284",
+    "alphapilot_control_console/v63_1_ui/contracts.py": "44969aab712a394342c5ca1b12f50375220e32b46adf16f13887fd2ff2578f20",
+    "alphapilot_control_console/v63_1_ui/http.py": "cdc1fdcd1218ef82867f8e1d1e128a5330b849b6c1128837b694a1058d1dba82",
+    "alphapilot_control_console/v63_1_ui/pagination.py": "df13d9da5b969628ea638e6e1f0739ed4b16fd2f774f22048cd9a0cecfd2f6a8",
+    "alphapilot_control_console/v63_1_ui/service.py": "05fc28b5199343d5df538e33830736a21dc95b02d552bbc7bc4288f3de82ba54",
+    "alphapilot_control_console/v63_1_ui/source.py": "434993ae77030385db4ec566105d9aa386bbe8d55461bd57623d70198f99e997",
+    "web/v63a.css": "9f6718b44517662cedef44e59e4d63dc94237bfb59396f8031ab9acb3fe30f78",
+    "web/v63a.html": "f9f52b3f075fc0a204d073c908313ea838ff9a2b4ca18c3186e4cfb34a386be5",
+    "web/v63a.js": "60f558ce868354ac4d44f393c3a5500d4c9dc54ea75e199d3160593700ba6fb7"
+  },
+  "status": "passed"
+}
