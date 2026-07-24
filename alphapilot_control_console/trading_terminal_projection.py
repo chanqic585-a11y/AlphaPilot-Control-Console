@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import sqlite3
 from pathlib import Path
@@ -47,6 +48,25 @@ def _first(mapping: dict[str, Any], *keys: str) -> Any:
         if mapping.get(key) not in (None, ""):
             return mapping[key]
     return None
+
+
+def _bounded_limit(value: int) -> int:
+    return max(1, min(int(value), 200))
+
+
+def _cursor_tuple(
+    value: tuple[Any, ...] | dict[str, Any] | None,
+    fields: tuple[str, ...],
+) -> tuple[str, ...] | None:
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        cursor = tuple(str(value.get(field) or "") for field in fields)
+    else:
+        cursor = tuple(str(item) for item in value)
+    if len(cursor) != len(fields) or any(not item for item in cursor):
+        raise ValueError("Projection cursor key is incomplete")
+    return cursor
 
 
 class TradingTerminalProjection:
@@ -190,6 +210,163 @@ class TradingTerminalProjection:
                 return snapshot
         return None
 
+    @staticmethod
+    def _record_from_row(environment: str, row: sqlite3.Row) -> dict[str, Any]:
+        signal = _json(row["signalJson"], {})
+        order = _json(row["orderPayloadJson"], {})
+        signal = signal if isinstance(signal, dict) else {}
+        order = order if isinstance(order, dict) else {}
+        release_id = (
+            row["demoReleaseId"]
+            if environment == "okx_demo"
+            else row["liveReleaseId"]
+        )
+        strategy_id = _first(
+            signal,
+            "strategyId",
+            "strategyCandidateId",
+            "candidateId",
+        )
+        if environment == "okx_live":
+            strategy_id = strategy_id or row["strategyCandidateId"]
+        return {
+            "recordId": row["recordId"],
+            "releaseId": release_id,
+            "strategyId": strategy_id or release_id,
+            "instrumentId": _first(signal, "instrumentId", "instId")
+            or _first(order, "instId", "instrumentId"),
+            "side": _first(signal, "side", "direction") or order.get("side"),
+            "status": row["status"],
+            "exchangeOrderId": row["exchangeOrderId"],
+            "orderType": _first(order, "ordType", "orderType"),
+            "quantity": _first(order, "sz", "quantity", "size"),
+            "price": _first(order, "px", "price"),
+            "createdAt": row["createdAt"],
+            "updatedAt": row["updatedAt"],
+        }
+
+    def _record_count(self, environment: str) -> int:
+        connection = self._execution_connection(environment)
+        if connection is None:
+            return 0
+        table = "DemoExecutionRecords" if environment == "okx_demo" else "LiveExecutionRecords"
+        try:
+            if not _table_exists(connection, table):
+                return 0
+            row = connection.execute(f"SELECT COUNT(*) AS total FROM {table}").fetchone()
+            return int(row["total"] if row else 0)
+        finally:
+            connection.close()
+
+    def _record_state_version(self, environment: str) -> str:
+        connection = self._execution_connection(environment)
+        if connection is None:
+            return hashlib.sha256(f"{environment}:missing".encode("utf-8")).hexdigest()[:24]
+        table = "DemoExecutionRecords" if environment == "okx_demo" else "LiveExecutionRecords"
+        try:
+            if not _table_exists(connection, table):
+                seed = f"{environment}:empty"
+            else:
+                row = connection.execute(
+                    f"""
+                    SELECT COUNT(*) AS total, MAX(updatedAt) AS latestUpdatedAt
+                    FROM {table}
+                    """
+                ).fetchone()
+                latest = connection.execute(
+                    f"""
+                    SELECT recordId, updatedAt
+                    FROM {table}
+                    ORDER BY updatedAt DESC, recordId DESC
+                    LIMIT 1
+                    """
+                ).fetchone()
+                seed = ":".join(
+                    (
+                        environment,
+                        str(row["total"] if row else 0),
+                        str(row["latestUpdatedAt"] if row else ""),
+                        str(latest["recordId"] if latest else ""),
+                        str(latest["updatedAt"] if latest else ""),
+                    )
+                )
+            return hashlib.sha256(seed.encode("utf-8")).hexdigest()[:24]
+        finally:
+            connection.close()
+
+    def _event_state_version(self, environment: str) -> str:
+        connection = _connect_read_only(self.runtime_store_path)
+        if connection is None:
+            seed = f"{environment}:events:missing"
+        else:
+            try:
+                if not _table_exists(connection, "AutoExecutionEvents"):
+                    seed = f"{environment}:events:empty"
+                else:
+                    row = connection.execute(
+                        """
+                        SELECT COUNT(*) AS total, MAX(eventId) AS latestEventId,
+                               MAX(createdAt) AS latestCreatedAt
+                        FROM AutoExecutionEvents
+                        WHERE environment = ?
+                        """,
+                        (environment,),
+                    ).fetchone()
+                    seed = ":".join(
+                        (
+                            environment,
+                            "events",
+                            str(row["total"] if row else 0),
+                            str(row["latestEventId"] if row else ""),
+                            str(row["latestCreatedAt"] if row else ""),
+                        )
+                    )
+            finally:
+                connection.close()
+        return hashlib.sha256(seed.encode("utf-8")).hexdigest()[:24]
+
+    def _records_page(
+        self,
+        environment: str,
+        *,
+        limit: int,
+        after: dict[str, str] | None,
+    ) -> tuple[list[dict[str, Any]], bool]:
+        connection = self._execution_connection(environment)
+        if connection is None:
+            return [], False
+        table = "DemoExecutionRecords" if environment == "okx_demo" else "LiveExecutionRecords"
+        try:
+            if not _table_exists(connection, table):
+                return [], False
+            params: list[Any] = []
+            where = ""
+            if after is not None:
+                created_at = str(after.get("createdAt") or "")
+                record_id = str(after.get("recordId") or "")
+                if not created_at or not record_id:
+                    raise ValueError("Order cursor key is incomplete")
+                where = "WHERE createdAt < ? OR (createdAt = ? AND recordId < ?)"
+                params.extend((created_at, created_at, record_id))
+            params.append(limit + 1)
+            rows = connection.execute(
+                f"""
+                SELECT *
+                FROM {table}
+                {where}
+                ORDER BY createdAt DESC, recordId DESC
+                LIMIT ?
+                """,
+                params,
+            ).fetchall()
+            has_more = len(rows) > limit
+            return [
+                self._record_from_row(environment, row)
+                for row in rows[:limit]
+            ], has_more
+        finally:
+            connection.close()
+
     def _records(self, environment: str) -> list[dict[str, Any]]:
         connection = self._execution_connection(environment)
         if connection is None:
@@ -201,43 +378,7 @@ class TradingTerminalProjection:
             rows = connection.execute(
                 f"SELECT * FROM {table} ORDER BY createdAt, recordId"
             ).fetchall()
-            records: list[dict[str, Any]] = []
-            for row in rows:
-                signal = _json(row["signalJson"], {})
-                order = _json(row["orderPayloadJson"], {})
-                signal = signal if isinstance(signal, dict) else {}
-                order = order if isinstance(order, dict) else {}
-                release_id = (
-                    row["demoReleaseId"]
-                    if environment == "okx_demo"
-                    else row["liveReleaseId"]
-                )
-                strategy_id = _first(
-                    signal,
-                    "strategyId",
-                    "strategyCandidateId",
-                    "candidateId",
-                )
-                if environment == "okx_live":
-                    strategy_id = strategy_id or row["strategyCandidateId"]
-                records.append(
-                    {
-                        "recordId": row["recordId"],
-                        "releaseId": release_id,
-                        "strategyId": strategy_id or release_id,
-                        "instrumentId": _first(signal, "instrumentId", "instId")
-                        or _first(order, "instId", "instrumentId"),
-                        "side": _first(signal, "side", "direction") or order.get("side"),
-                        "status": row["status"],
-                        "exchangeOrderId": row["exchangeOrderId"],
-                        "orderType": _first(order, "ordType", "orderType"),
-                        "quantity": _first(order, "sz", "quantity", "size"),
-                        "price": _first(order, "px", "price"),
-                        "createdAt": row["createdAt"],
-                        "updatedAt": row["updatedAt"],
-                    }
-                )
-            return records
+            return [self._record_from_row(environment, row) for row in rows]
         finally:
             connection.close()
 
@@ -272,7 +413,7 @@ class TradingTerminalProjection:
         environment = self._normalize_environment(environment)
         runtime = self._runtime(environment)
         snapshot = self._account_snapshot(environment)
-        records = self._records(environment)
+        record_count = self._record_count(environment)
         scan = self._latest_scan(environment)
         issues: list[dict[str, str]] = []
         if runtime["lastError"]:
@@ -329,7 +470,7 @@ class TradingTerminalProjection:
             "floatingPnl": floating_pnl,
             "openPositionCount": open_position_count,
             "runningStrategyCount": len(strategy_ids) if runtime["armed"] else 0,
-            "strategyOrderCount": len(records),
+            "strategyOrderCount": record_count,
             "scanFunnel": {key: value for key, value in scan.items() if key != "releaseAudits"},
             "issues": issues,
             "updatedAt": snapshot.get("updatedAt") if snapshot else runtime["updatedAt"],
@@ -424,6 +565,120 @@ class TradingTerminalProjection:
             ]
         return {"environment": environment, "strategies": rows, "readOnly": True}
 
+    def strategies_page(
+        self,
+        environment: str,
+        *,
+        limit: int = 100,
+        after: tuple[Any, ...] | dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Return only the latest bounded strategy scan projection.
+
+        Deliberately does not join the full execution ledger. Orders and
+        positions have their own keyset-paginated endpoints.
+        """
+
+        environment = self._normalize_environment(environment)
+        bounded = _bounded_limit(limit)
+        runtime = self._runtime(environment)
+        scan = self._latest_scan(environment)
+        audits_by_identity: dict[tuple[str, str], dict[str, Any]] = {}
+        for item in scan["releaseAudits"]:
+            if not isinstance(item, dict):
+                continue
+            identity = (
+                str(item.get("strategyId") or item.get("releaseId") or ""),
+                str(item.get("releaseId") or ""),
+            )
+            if not identity[0]:
+                continue
+            existing = audits_by_identity.get(identity)
+            if existing is None:
+                audits_by_identity[identity] = dict(item)
+                continue
+            for field in (
+                "marketInstrumentCount",
+                "liquidityEligibleCount",
+                "deepScreenRequired",
+                "deepScreenCompleted",
+                "matchedSignalCount",
+            ):
+                existing[field] = max(
+                    int(existing.get(field) or 0),
+                    int(item.get(field) or 0),
+                )
+        ordered = sorted(audits_by_identity.items(), key=lambda item: item[0], reverse=True)
+        cursor = _cursor_tuple(after, ("strategyId", "releaseId"))
+        if cursor is not None:
+            ordered = [item for item in ordered if item[0] < cursor]
+        selected = ordered[: bounded + 1]
+        has_more = len(selected) > bounded
+        selected = selected[:bounded]
+        rows: list[dict[str, Any]] = []
+        for (strategy_id, release_id), audit in selected:
+            timeframe = audit.get("timeframe")
+            display_name = str(
+                audit.get("displayName")
+                or audit.get("name")
+                or strategy_id
+                or release_id
+            )
+            rows.append(
+                {
+                    "strategyId": strategy_id,
+                    "releaseId": release_id,
+                    "name": display_name,
+                    "displayName": display_name,
+                    "timeframe": timeframe,
+                    "timeframes": [timeframe] if timeframe else [],
+                    "status": "running" if runtime["armed"] else "not_armed",
+                    "latestScanAt": scan["completedAt"],
+                    "latestScan": {
+                        "marketInstrumentCount": int(
+                            audit.get("marketInstrumentCount") or 0
+                        ),
+                        "liquidityEligibleCount": int(
+                            audit.get("liquidityEligibleCount") or 0
+                        ),
+                        "deepScreenRequired": int(
+                            audit.get("deepScreenRequired") or 0
+                        ),
+                        "deepScreenCompleted": int(
+                            audit.get("deepScreenCompleted") or 0
+                        ),
+                        "matchedSignalCount": int(
+                            audit.get("matchedSignalCount") or 0
+                        ),
+                    },
+                    "orderCount": None,
+                    "openPositionCount": None,
+                    "todayPnl": None,
+                    "floatingPnl": None,
+                }
+            )
+        state_seed = json.dumps(
+            {
+                "environment": environment,
+                "eventId": scan["eventId"],
+                "completedAt": scan["completedAt"],
+                "identities": sorted(audits_by_identity),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        state_version = hashlib.sha256(state_seed.encode("utf-8")).hexdigest()[:24]
+        last = selected[-1][0] if selected else None
+        return {
+            "environment": environment,
+            "items": rows,
+            "totalCount": len(audits_by_identity),
+            "hasMore": has_more,
+            "nextKey": last if has_more else None,
+            "stateVersion": state_version,
+            "source": "latest_closed_candle_scan_audit",
+            "readOnly": True,
+        }
+
     def positions(self, environment: str) -> dict[str, Any]:
         environment = self._normalize_environment(environment)
         snapshot = self._account_snapshot(environment)
@@ -455,5 +710,197 @@ class TradingTerminalProjection:
             "strategyOrderCount": len(records),
             "source": "execution_ledger",
             "rawExchangePayloadExcluded": True,
+            "readOnly": True,
+        }
+
+    def orders_page(
+        self,
+        environment: str,
+        *,
+        limit: int = 100,
+        after: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        environment = self._normalize_environment(environment)
+        bounded_limit = max(1, min(int(limit), 200))
+        records, has_more = self._records_page(
+            environment,
+            limit=bounded_limit,
+            after=after,
+        )
+        last = records[-1] if records else None
+        return {
+            "environment": environment,
+            "items": records,
+            "totalCount": self._record_count(environment),
+            "hasMore": has_more,
+            "nextKey": (
+                {
+                    "createdAt": str(last["createdAt"]),
+                    "recordId": str(last["recordId"]),
+                }
+                if has_more and last
+                else None
+            ),
+            "stateVersion": self._record_state_version(environment),
+            "source": "execution_ledger",
+            "rawExchangePayloadExcluded": True,
+            "readOnly": True,
+        }
+
+    def positions_page(
+        self,
+        environment: str,
+        *,
+        limit: int = 100,
+        after: tuple[Any, ...] | dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        environment = self._normalize_environment(environment)
+        bounded = _bounded_limit(limit)
+        snapshot = self._account_snapshot(environment)
+        if snapshot is None:
+            seed = f"{environment}:positions:unavailable"
+            return {
+                "environment": environment,
+                "items": [],
+                "totalCount": None,
+                "hasMore": False,
+                "nextKey": None,
+                "stateVersion": hashlib.sha256(seed.encode("utf-8")).hexdigest()[:24],
+                "dataStatus": "unavailable_process_credentials_required",
+                "readOnly": True,
+            }
+        raw_positions = snapshot.get("positions")
+        positions = (
+            [dict(item) for item in raw_positions if isinstance(item, dict)]
+            if isinstance(raw_positions, list)
+            else []
+        )
+
+        def position_key(item: dict[str, Any]) -> tuple[str, str, str, str]:
+            identity = json.dumps(
+                item,
+                ensure_ascii=True,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            return (
+                str(item.get("instrumentId") or item.get("instId") or ""),
+                str(item.get("strategyId") or item.get("releaseId") or "account"),
+                str(item.get("side") or item.get("positionSide") or "net"),
+                hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16],
+            )
+
+        keyed = sorted(
+            ((position_key(item), item) for item in positions),
+            key=lambda row: row[0],
+            reverse=True,
+        )
+        cursor = _cursor_tuple(
+            after,
+            ("instrumentId", "strategyId", "side", "positionHash"),
+        )
+        if cursor is not None:
+            keyed = [item for item in keyed if item[0] < cursor]
+        selected = keyed[: bounded + 1]
+        has_more = len(selected) > bounded
+        selected = selected[:bounded]
+        state_seed = json.dumps(
+            {
+                "environment": environment,
+                "updatedAt": snapshot.get("updatedAt"),
+                "keys": [key for key, _ in keyed],
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return {
+            "environment": environment,
+            "items": [item for _, item in selected],
+            "totalCount": len(positions),
+            "hasMore": has_more,
+            "nextKey": selected[-1][0] if has_more and selected else None,
+            "stateVersion": hashlib.sha256(
+                state_seed.encode("utf-8")
+            ).hexdigest()[:24],
+            "dataStatus": str(snapshot.get("status") or "available"),
+            "updatedAt": snapshot.get("updatedAt"),
+            "readOnly": True,
+        }
+
+    def events_page(
+        self,
+        environment: str,
+        *,
+        limit: int = 100,
+        after: tuple[Any, ...] | dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        environment = self._normalize_environment(environment)
+        bounded = _bounded_limit(limit)
+        connection = _connect_read_only(self.runtime_store_path)
+        if connection is None:
+            return {
+                "environment": environment,
+                "items": [],
+                "totalCount": 0,
+                "hasMore": False,
+                "nextKey": None,
+                "stateVersion": self._event_state_version(environment),
+                "rawPayloadExcluded": True,
+                "readOnly": True,
+            }
+        try:
+            if not _table_exists(connection, "AutoExecutionEvents"):
+                rows: list[sqlite3.Row] = []
+                total = 0
+            else:
+                cursor = _cursor_tuple(after, ("eventId",))
+                where = "AND eventId < ?" if cursor is not None else ""
+                params: list[Any] = [environment]
+                if cursor is not None:
+                    params.append(int(cursor[0]))
+                params.append(bounded + 1)
+                rows = connection.execute(
+                    f"""
+                    SELECT eventId, eventType, createdAt
+                    FROM AutoExecutionEvents
+                    WHERE environment = ? {where}
+                    ORDER BY eventId DESC
+                    LIMIT ?
+                    """,
+                    params,
+                ).fetchall()
+                total_row = connection.execute(
+                    """
+                    SELECT COUNT(*) AS total
+                    FROM AutoExecutionEvents
+                    WHERE environment = ?
+                    """,
+                    (environment,),
+                ).fetchone()
+                total = int(total_row["total"] if total_row else 0)
+            has_more = len(rows) > bounded
+            page_rows = rows[:bounded]
+            items = [
+                {
+                    "eventId": int(row["eventId"]),
+                    "eventType": row["eventType"],
+                    "createdAt": row["createdAt"],
+                }
+                for row in page_rows
+            ]
+        finally:
+            connection.close()
+        return {
+            "environment": environment,
+            "items": items,
+            "totalCount": total,
+            "hasMore": has_more,
+            "nextKey": (
+                (str(items[-1]["eventId"]),)
+                if has_more and items
+                else None
+            ),
+            "stateVersion": self._event_state_version(environment),
+            "rawPayloadExcluded": True,
             "readOnly": True,
         }

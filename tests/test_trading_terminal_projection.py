@@ -159,6 +159,90 @@ class TradingTerminalProjectionTests(unittest.TestCase):
         self.assertEqual(orders[0]["exchangeOrderId"], "demo-order-1")
         self.assertNotIn("exchangeResponse", orders[0])
 
+    def test_order_page_uses_keyset_pagination_without_duplicates(self) -> None:
+        demo = DemoExecutionStore(self.demo_path)
+        for index in range(1, 5):
+            demo.create_intent(
+                idempotencyKey=f"signal-page-{index}",
+                demoReleaseId="release-v62",
+                signal={
+                    "strategyId": "strategy-v62",
+                    "instrumentId": f"ASSET-{index}-USDT-SWAP",
+                    "side": "buy",
+                },
+                orderPayload={
+                    "instId": f"ASSET-{index}-USDT-SWAP",
+                    "side": "buy",
+                    "sz": "1",
+                },
+            )
+        demo.close()
+
+        first = self.projection.orders_page("okx_demo", limit=2)
+        second = self.projection.orders_page(
+            "okx_demo",
+            limit=2,
+            after=first["nextKey"],
+        )
+        third = self.projection.orders_page(
+            "okx_demo",
+            limit=2,
+            after=second["nextKey"],
+        )
+
+        self.assertEqual(len(first["items"]), 2)
+        self.assertEqual(len(second["items"]), 2)
+        self.assertEqual(len(third["items"]), 1)
+        self.assertTrue(first["hasMore"])
+        self.assertTrue(second["hasMore"])
+        self.assertFalse(third["hasMore"])
+        record_ids = [
+            item["recordId"]
+            for page in (first, second, third)
+            for item in page["items"]
+        ]
+        self.assertEqual(len(record_ids), len(set(record_ids)))
+        self.assertEqual(first["totalCount"], 5)
+        self.assertNotIn("exchangeResponse", first["items"][0])
+
+    def test_summary_counts_orders_without_loading_full_record_payloads(self) -> None:
+        def fail_if_loaded(environment: str) -> list[dict[str, object]]:
+            raise AssertionError(f"full record load is forbidden for {environment}")
+
+        self.projection._records = fail_if_loaded  # type: ignore[method-assign]
+
+        summary = self.projection.summary("okx_demo")
+
+        self.assertEqual(summary["strategyOrderCount"], 1)
+
+    def test_strategy_page_does_not_load_all_execution_records(self) -> None:
+        def fail_if_loaded(environment: str) -> list[dict[str, object]]:
+            raise AssertionError(f"full record load is forbidden for {environment}")
+
+        self.projection._records = fail_if_loaded  # type: ignore[method-assign]
+
+        page = self.projection.strategies_page("okx_demo", limit=1)
+
+        self.assertEqual(len(page["items"]), 1)
+        self.assertFalse(page["hasMore"])
+        self.assertEqual(page["items"][0]["strategyId"], "strategy-v62")
+        self.assertIn("stateVersion", page)
+
+    def test_position_and_runtime_event_pages_are_bounded(self) -> None:
+        runtime = UnifiedAutoExecutionStore(self.runtime_path)
+        runtime.append_event("okx_demo", "heartbeat_blocked", {"reason": "fixture"})
+        runtime.close()
+
+        positions = self.projection.positions_page("okx_demo", limit=1)
+        events = self.projection.events_page("okx_demo", limit=1)
+
+        self.assertEqual(len(positions["items"]), 1)
+        self.assertFalse(positions["hasMore"])
+        self.assertEqual(positions["items"][0]["instrumentId"], "BTC-USDT-SWAP")
+        self.assertEqual(len(events["items"]), 1)
+        self.assertTrue(events["hasMore"])
+        self.assertNotIn("payloadJson", events["items"][0])
+
     def test_missing_live_snapshot_is_not_reported_as_zero(self) -> None:
         summary = self.projection.summary("okx_live")
 

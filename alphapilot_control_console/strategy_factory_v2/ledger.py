@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
+from hashlib import sha256
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
@@ -416,6 +417,76 @@ class StrategyFactoryV2:
             (bounded_limit,),
         ).fetchall()
         return [self._project(row) for row in rows]
+
+    def projection_state_version(self) -> str:
+        """Return a compact version for read-only run projections."""
+
+        row = self.connection.execute(
+            """
+            SELECT
+                (SELECT COUNT(*) FROM StrategyFactoryV2Runs) AS runCount,
+                (SELECT COALESCE(MAX(eventId), 0) FROM StrategyFactoryV2Events) AS maxEventId,
+                (SELECT COALESCE(MAX(failureId), 0) FROM StrategyFactoryV2Failures)
+                    AS maxFailureId,
+                (SELECT COALESCE(MAX(evidenceId), 0) FROM StrategyFactoryV2FormalEvidence)
+                    AS maxEvidenceId
+            """
+        ).fetchone()
+        identity = _json(
+            {
+                "runCount": int(row["runCount"]),
+                "maxEventId": int(row["maxEventId"]),
+                "maxFailureId": int(row["maxFailureId"]),
+                "maxEvidenceId": int(row["maxEvidenceId"]),
+            }
+        )
+        return f"strategy-factory-v2:{sha256(identity.encode('utf-8')).hexdigest()}"
+
+    def list_runs_page(
+        self,
+        *,
+        limit: int = 100,
+        after: tuple[Any, ...] | list[Any] | None = None,
+    ) -> dict[str, Any]:
+        """Read one bounded keyset page ordered by ``createdAt, runId``."""
+
+        bounded_limit = max(1, min(int(limit), 200))
+        parameters: tuple[Any, ...]
+        if after is None:
+            where_clause = ""
+            parameters = (bounded_limit + 1,)
+        else:
+            if len(after) != 2:
+                raise StrategyFactoryV2Error("run_page_cursor_invalid")
+            created_at, run_id = (str(value) for value in after)
+            where_clause = """
+            WHERE createdAt < ?
+               OR (createdAt = ? AND runId < ?)
+            """
+            parameters = (created_at, created_at, run_id, bounded_limit + 1)
+
+        rows = self.connection.execute(
+            f"""
+            SELECT * FROM StrategyFactoryV2Runs
+            {where_clause}
+            ORDER BY createdAt DESC, runId DESC
+            LIMIT ?
+            """,
+            parameters,
+        ).fetchall()
+        has_more = len(rows) > bounded_limit
+        page_rows = rows[:bounded_limit]
+        items = [self._project(row) for row in page_rows]
+        next_key = None
+        if has_more and page_rows:
+            last = page_rows[-1]
+            next_key = (str(last["createdAt"]), str(last["runId"]))
+        return {
+            "items": items,
+            "hasMore": has_more,
+            "nextKey": next_key,
+            "stateVersion": self.projection_state_version(),
+        }
 
     def _record_formal(self, run_id: str, evidence_type: str, artifact_hash: str) -> None:
         if evidence_type not in _FORMAL_COLUMNS or not artifact_hash.strip():

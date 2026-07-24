@@ -50,13 +50,26 @@ def _signature(payload: dict[str, Any]) -> str:
     return hashlib.sha256(_CURSOR_CONTEXT + _canonical_bytes(payload)).hexdigest()
 
 
-def _encode_cursor(payload: dict[str, Any]) -> str:
+def encode_cursor(
+    *,
+    scope: str,
+    state_version: str,
+    last: tuple[Any, ...],
+) -> str:
+    if not scope.strip() or not state_version.strip() or not last:
+        raise ValueError("scope, state_version and last are required")
+    payload = {
+        "version": 1,
+        "scope": scope,
+        "stateVersion": state_version,
+        "last": list(last),
+    }
     envelope = {"payload": payload, "digest": _signature(payload)}
     raw = _canonical_bytes(envelope)
     return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
 
 
-def _decode_cursor(value: str) -> dict[str, Any]:
+def decode_cursor(value: str, *, scope: str) -> dict[str, Any]:
     try:
         padding = "=" * (-len(value) % 4)
         raw = base64.urlsafe_b64decode((value + padding).encode("ascii"))
@@ -67,10 +80,15 @@ def _decode_cursor(value: str) -> dict[str, Any]:
         raise CursorError("cursor_invalid") from error
     if not isinstance(payload, dict) or digest != _signature(payload):
         raise CursorError("cursor_invalid")
+    if payload.get("scope") != scope:
+        raise CursorError("cursor_scope_mismatch")
+    last = payload.get("last")
+    if not isinstance(last, list):
+        raise CursorError("cursor_invalid")
     return payload
 
 
-def _clamp_limit(limit: int | str | None) -> int:
+def normalize_page_size(limit: int | str | None) -> int:
     try:
         parsed = int(limit if limit is not None else DEFAULT_PAGE_SIZE)
     except (TypeError, ValueError):
@@ -89,12 +107,10 @@ def paginate_items(
 ) -> CursorPage[T]:
     if not scope.strip() or not state_version.strip():
         raise ValueError("scope and state_version are required")
-    page_size = _clamp_limit(limit)
+    page_size = normalize_page_size(limit)
     ordered = sorted(items, key=key, reverse=True)
     if cursor:
-        decoded = _decode_cursor(cursor)
-        if decoded.get("scope") != scope:
-            raise CursorError("cursor_scope_mismatch")
+        decoded = decode_cursor(cursor, scope=scope)
         if decoded.get("stateVersion") != state_version:
             raise CursorError("cursor_state_version_mismatch")
         last = decoded.get("last")
@@ -108,13 +124,10 @@ def paginate_items(
     page_items = selected[:page_size]
     next_cursor = None
     if has_more and page_items:
-        next_cursor = _encode_cursor(
-            {
-                "version": 1,
-                "scope": scope,
-                "stateVersion": state_version,
-                "last": list(key(page_items[-1])),
-            }
+        next_cursor = encode_cursor(
+            scope=scope,
+            state_version=state_version,
+            last=key(page_items[-1]),
         )
     return CursorPage(
         items=page_items,
