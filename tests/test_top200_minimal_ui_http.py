@@ -233,6 +233,49 @@ class Top200MinimalUiHttpTests(unittest.TestCase):
         factory.resume_run.assert_called_once_with("factory-run-1")
         self.assertEqual(factory.close.call_count, 3)
 
+    def test_strategy_factory_continuous_runner_has_local_enable_and_disable_routes(self) -> None:
+        status = {
+            "enabled": False,
+            "phase": "disabled",
+            "currentRunId": None,
+        }
+        enabled = {
+            "enabled": True,
+            "phase": "running",
+            "currentRunId": "factory-run-1",
+        }
+        disabled = {
+            "enabled": False,
+            "phase": "disabled_after_current_run",
+            "currentRunId": "factory-run-1",
+        }
+
+        with patch(
+            "alphapilot_control_console.http_app.get_strategy_factory_continuous_status",
+            return_value=status,
+        ) as read_status, patch(
+            "alphapilot_control_console.http_app.run_strategy_factory_continuous_action",
+            side_effect=[enabled, disabled],
+        ) as run_action:
+            current = self._get("/api/research-factory/continuous")
+            started = self._post(
+                "/api/research-factory/continuous/enable",
+                {},
+            )
+            stopped = self._post(
+                "/api/research-factory/continuous/disable",
+                {},
+            )
+
+        self.assertEqual(current, status)
+        self.assertEqual(started, enabled)
+        self.assertEqual(stopped, disabled)
+        read_status.assert_called_once_with()
+        self.assertEqual(
+            [call.args[0] for call in run_action.call_args_list],
+            ["enable", "disable"],
+        )
+
     def test_strategy_factory_write_route_rejects_sensitive_fields(self) -> None:
         with self.assertRaises(HTTPError) as raised:
             self._post(

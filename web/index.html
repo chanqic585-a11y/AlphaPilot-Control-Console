@@ -79,6 +79,7 @@
               </div>
               <div class="top200-head-actions">
                 <button id="top200FactoryPauseResumeButton" type="button" class="secondary" hidden>暂停研究</button>
+                <button id="strategyFactoryContinuousButton" type="button" class="secondary" data-enabled="false">持续研究</button>
                 <button id="top200StrategyGenerateButton" type="button">生成 / 组合策略</button>
               </div>
             </div>
@@ -91,6 +92,7 @@
                 <span id="top200ResearchProgressBar"></span>
               </div>
               <small id="top200ResearchCurrent">正在读取冻结 Campaign。</small>
+              <small id="strategyFactoryContinuousStatus" class="strategy-factory-continuous-status">持续研究未启动。</small>
             </div>
             <div id="top200StrategyIssue" class="top200-issue-banner" hidden></div>
             <div class="top200-result-grid" aria-label="研究结果状态">
@@ -175,6 +177,36 @@
                 </div>
                 <p class="strategy-factory-boundary">研究完成后只生成可复核结果，不会自动批准、ARM 或创建订单。</p>
                 <p id="strategyFactoryFormStatus" class="strategy-factory-form-status" aria-live="polite"></p>
+                <section id="strategyFactoryTaskEvidence" class="strategy-factory-task-evidence" aria-live="polite" hidden>
+                  <div class="strategy-factory-task-head">
+                    <div>
+                      <small>当前任务</small>
+                      <strong id="strategyFactoryTaskStage">等待启动</strong>
+                    </div>
+                    <span id="strategyFactoryTaskRuntime">--</span>
+                  </div>
+                  <div id="strategyFactoryTaskProgress" class="strategy-factory-task-progress" role="progressbar" aria-label="策略研究进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                    <span id="strategyFactoryTaskProgressBar"></span>
+                  </div>
+                  <div class="strategy-factory-evidence-grid">
+                    <section>
+                      <h4>数据与分区</h4>
+                      <div id="strategyFactoryDataEvidence">等待数据检查。</div>
+                    </section>
+                    <section>
+                      <h4>交易指标与成本</h4>
+                      <div id="strategyFactoryMetricEvidence">等待 Development 回测。</div>
+                    </section>
+                  </div>
+                  <section class="strategy-factory-formal-evidence">
+                    <h4>验证层级</h4>
+                    <div id="strategyFactoryFormalEvidence">Formal 正式验证：未运行 · 锁定 OOS 未读取</div>
+                  </section>
+                  <details class="strategy-factory-artifacts">
+                    <summary>运行 Artifact</summary>
+                    <div id="strategyFactoryArtifactEvidence">尚未生成 Artifact。</div>
+                  </details>
+                </section>
                 <div class="strategy-factory-actions">
                   <button id="strategyFactoryCancel" type="button" class="secondary">取消</button>
                   <button id="strategyFactorySubmit" type="submit">启动研究</button>

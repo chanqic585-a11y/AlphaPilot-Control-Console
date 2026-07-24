@@ -17,6 +17,7 @@ from .strategy_factory_outcomes import (
     build_strategy_factory_outcome,
     read_strategy_factory_outcome,
 )
+from .strategy_factory_evidence import project_strategy_factory_execution_evidence
 
 
 DEFAULT_STATE_PATH = DATA_DIR / "strategy_factory" / "strategy_factory.sqlite"
@@ -47,6 +48,7 @@ VISIBLE_STAGES = (
     "tuning_backtest",
     "robustness",
     "portfolio_evaluation",
+    "formal_handoff",
     "complete",
 )
 TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
@@ -315,6 +317,9 @@ class StrategyFactoryOrchestrator:
         registry: dict[str, Any],
         requested_family_ids: list[str],
         maximum: int,
+        *,
+        timeframe: str,
+        operation: str,
     ) -> tuple[list[str], list[str]]:
         known_families = {
             str(item.get("familyId") or ""): item
@@ -328,7 +333,18 @@ class StrategyFactoryOrchestrator:
         candidate_ids: list[str] = []
         selected_families: list[str] = []
         for family_id in family_ids:
-            variants = known_families[family_id].get("variants") or []
+            family = known_families[family_id]
+            parameters = family.get("parameters") or {}
+            supported_timeframes = {
+                str(value).strip()
+                for value in parameters.get("timeframes") or []
+                if str(value).strip()
+            }
+            if supported_timeframes and timeframe not in supported_timeframes:
+                continue
+            if operation == "generate" and parameters.get("role") == "context_only":
+                continue
+            variants = family.get("variants") or []
             family_candidates = [
                 str(item.get("candidateId") or "")
                 for item in variants
@@ -375,6 +391,8 @@ class StrategyFactoryOrchestrator:
             registry,
             requested_families,
             maximum_candidates,
+            timeframe=timeframe,
+            operation=operation,
         )
         now = _iso(self.clock())
         suffix = uuid4().hex[:12]
@@ -702,12 +720,12 @@ class StrategyFactoryOrchestrator:
         result_class = {
             "immutable_release_ready": "can_enter_demo",
             "waiting_exact_release_approval": "can_enter_demo",
+            "awaiting_formal_validation": "needs_forward_validation",
             "research_blocked_data": "data_insufficient",
             "no_stable_candidates": "failed",
             "no_survivor": "failed",
             "research_zero_qualified": "failed",
         }.get(status, "system_issue" if status in {"failed", "error"} else "needs_forward_validation")
-        survivor_count = int(receipt.get("releaseCount") or 0)
         now = _iso(self.clock())
         config = json.loads(row["configJson"])
         outcome = build_strategy_factory_outcome(
@@ -719,7 +737,72 @@ class StrategyFactoryOrchestrator:
             outcome_root=Path(row["jobJsonPath"]).parent / "outcome",
             created_at=now,
         )
-        self.connection.execute(
+        formal_validation_count = int(
+            outcome.get("formalValidationCandidateCount") or 0
+        )
+        formal_ready_count = int(outcome.get("formalReadyCandidateCount") or 0)
+        formal_blocked_count = int(outcome.get("formalBlockedCandidateCount") or 0)
+        awaiting_formal = (
+            status == "awaiting_formal_validation"
+            and formal_validation_count > 0
+            and not int(receipt.get("releaseCount") or 0)
+        )
+        if awaiting_formal:
+            result_class = (
+                "needs_forward_validation"
+                if formal_ready_count > 0
+                else "data_insufficient"
+                if formal_blocked_count > 0
+                else "needs_forward_validation"
+            )
+        survivor_count = (
+            int(receipt.get("releaseCount") or 0) + formal_validation_count
+        )
+        if awaiting_formal:
+            stage = "formal_handoff"
+            stage_index = VISIBLE_STAGES.index(stage)
+            progress = round(stage_index * 100 / len(VISIBLE_STAGES))
+            self.connection.execute(
+                """
+                UPDATE StrategyFactoryRuns
+                SET status = 'awaiting_formal_validation', pid = NULL,
+                    stage = ?, stageIndex = ?, stageCount = ?, completedCount = ?,
+                    totalCount = ?, progressPercent = ?, resultClass = ?,
+                    survivorCount = ?, receiptJson = ?, updatedAt = ?, completedAt = NULL
+                WHERE runId = ?
+                """,
+                (
+                    stage,
+                    stage_index,
+                    len(VISIBLE_STAGES),
+                    stage_index,
+                    len(VISIBLE_STAGES),
+                    progress,
+                    result_class,
+                    survivor_count,
+                    _canonical_json(receipt),
+                    now,
+                    run_id,
+                ),
+            )
+            self._append_event(
+                run_id,
+                "formal_handoff_required",
+                {
+                    "formalHandoffStatus": outcome.get("formalHandoffStatus"),
+                    "formalReadyCandidateCount": formal_ready_count,
+                    "formalBlockedCandidateCount": formal_blocked_count,
+                    "formalRunCount": 0,
+                    "resultReadCount": 0,
+                    "releaseCount": 0,
+                    "approvalCount": 0,
+                    "demoArm": False,
+                    "orderCount": 0,
+                },
+                created_at=now,
+            )
+        else:
+            self.connection.execute(
             """
             UPDATE StrategyFactoryRuns
             SET status = 'completed', stage = 'complete', stageIndex = ?,
@@ -740,8 +823,8 @@ class StrategyFactoryOrchestrator:
                 now,
                 run_id,
             ),
-        )
-        self._append_event(run_id, "completed", receipt, created_at=now)
+            )
+            self._append_event(run_id, "completed", receipt, created_at=now)
         if int(outcome["candidateReviewRequestCount"]):
             self._append_event(
                 run_id,
@@ -826,6 +909,16 @@ class StrategyFactoryOrchestrator:
         outcome = read_strategy_factory_outcome(
             Path(row["jobJsonPath"]).parent / "outcome"
         )
+        execution_evidence = project_strategy_factory_execution_evidence(
+            output_root=Path(row["artifactPath"]),
+            campaign_id=str(row["campaignId"]),
+            config=config,
+            receipt=receipt,
+            created_at=row["createdAt"],
+            started_at=row["startedAt"],
+            updated_at=row["updatedAt"],
+            completed_at=row["completedAt"],
+        )
         return {
             "runId": row["runId"],
             "researchRunId": row["runId"],
@@ -869,6 +962,7 @@ class StrategyFactoryOrchestrator:
             "readOnly": False,
             "executionBoundary": config["executionBoundary"],
             "workerPolicy": config.get("workerPolicy") or {},
+            "executionEvidence": execution_evidence,
             **outcome,
         }
 

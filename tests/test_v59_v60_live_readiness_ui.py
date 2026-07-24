@@ -23,6 +23,76 @@ def _write_json(root: Path, name: str, payload: dict) -> None:
 
 
 class V59V60LiveReadinessUiTests(unittest.TestCase):
+    def test_live_projection_prefers_versioned_technical_readiness(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            governance = root / "governance"
+            governance.mkdir()
+            _write_json(
+                root,
+                "experimental_live_release.json",
+                {
+                    "releaseId": "experimental_live_canary_fixture",
+                    "releaseHash": "experimental_live_release_fixture",
+                    "riskOverlayHash": "live_risk_overlay_fixture",
+                },
+            )
+            _write_json(root, "exact_live_approval_request.json", {})
+            _write_json(
+                root,
+                "adaptive_learning_live_readiness.json",
+                {
+                    "passed": False,
+                    "status": "blocked_not_ready",
+                    "modelMode": "observer",
+                    "blockers": [
+                        "adaptive_evidence_not_ready:exactHumanApproval",
+                        "adaptive_evidence_not_ready:qlibCampaignReady",
+                    ],
+                },
+            )
+            _write_json(
+                governance,
+                "adaptive_learning_technical_readiness_gate.json",
+                {
+                    "passed": False,
+                    "status": "blocked_not_ready",
+                    "modelMode": "observer",
+                    "exactApprovalEvaluated": False,
+                    "blockers": [
+                        "adaptive_evidence_not_ready:qlibOfflineCampaignReady",
+                        "live_model_mode_not_decision_participating",
+                    ],
+                },
+            )
+            _write_json(
+                root,
+                "live_engineering_smoke_binding.json",
+                {"status": "not_run", "checks": {}},
+            )
+            _write_json(root, "live_execution_state.json", {})
+            _write_json(root, "live_experiment_profile.json", {})
+            for name in (
+                "live_order_ledger.json",
+                "live_fill_ledger.json",
+                "live_position_ledger.json",
+            ):
+                _write_json(root, name, {"status": "not_run", "records": []})
+
+            projection = Top200MinimalUiProjection(
+                root,
+                live_readiness_root=root,
+                adaptive_governance_root=governance,
+            )
+            summary = projection.live_canary_readiness()
+
+        self.assertEqual(summary["adaptiveLearning"]["blockerCount"], 2)
+        self.assertNotIn(
+            "adaptive_evidence_not_ready:exactHumanApproval",
+            summary["adaptiveLearning"]["blockers"],
+        )
+        self.assertFalse(summary["adaptiveLearning"]["exactApprovalEvaluated"])
+
     def test_live_projection_is_truthful_and_actionable(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

@@ -81,6 +81,15 @@
     if (typeof dialog.showModal === "function" && !dialog.open) dialog.showModal();
   }
 
+  function currentFactoryIssue(factory) {
+    if (factory.primaryBlocker) return String(factory.primaryBlocker);
+    if (factory.resultClass === "system_issue" || factory.status === "failed") {
+      const runId = factory.runId ? `（${factory.runId}）` : "";
+      return `策略工厂本次运行未完成${runId}。请重新运行；若再次失败，请展开审计详情查看日志。Demo 运行不受影响。`;
+    }
+    return "";
+  }
+
   function emptyRow(columns, text) {
     return `<tr><td colspan="${columns}" class="empty">${escapeHtml(text)}</td></tr>`;
   }
@@ -254,7 +263,14 @@
     byId("dataInsufficientCount").textContent = value(counts.dataInsufficient, "0");
     byId("systemIssueCount").textContent = value(counts.systemIssue, "0");
     byId("strategyUpdatedAt").textContent = formatTime(strategy.updatedAt || factory.updatedAt);
-    const releaseItems = rows(releases, "releases");
+    const allReleaseItems = rows(releases, "releases");
+    const projectedHistoricalItems = rows(releases, "historicalReleases");
+    const historicalReleaseItems = [
+      ...projectedHistoricalItems,
+      ...allReleaseItems.filter((item) => String(item.status || "").startsWith("superseded")),
+    ];
+    const historicalIds = new Set(historicalReleaseItems.map((item) => item.releaseId).filter(Boolean));
+    const releaseItems = allReleaseItems.filter((item) => !historicalIds.has(item.releaseId));
     const candidateItems = rows(releases, "candidateReviews");
     const displayItems = [...candidateItems, ...releaseItems];
     byId("releaseCount").textContent = String(displayItems.length);
@@ -265,9 +281,13 @@
       const forward = await getJson(`/api/strategy/releases/${encodeURIComponent(current.releaseId)}/forward-validation`);
       byId("forwardValidation").innerHTML = `<strong>${escapeHtml(statusLabel(forward.status))}</strong><p>闭合交易 ${escapeHtml(value(forward.closedTradeCount, "0"))} · 运行 ${escapeHtml(value(forward.runningDayCount, "0"))} 天</p><p>${escapeHtml(value(forward.blocker, "没有阻塞"))}</p>`;
     }
-    byId("auditSummary").textContent = JSON.stringify({ factory, strategy }, null, 2);
+    byId("auditSummary").textContent = JSON.stringify({
+      factory,
+      strategy,
+      historicalReleaseCount: historicalReleaseItems.length,
+    }, null, 2);
     byId("updatedAt").textContent = `更新 ${formatTime(strategy.updatedAt || factory.updatedAt || new Date().toISOString())}`;
-    const blocker = factory.primaryBlocker || (Number(counts.systemIssue) > 0 ? "策略工厂存在系统问题" : "");
+    const blocker = currentFactoryIssue(factory);
     if (blocker && factory.status !== "waiting_exact_release_approval") {
       showIssue(value(blocker), "strategy_factory_blocker");
     } else if (candidateItems.length) {

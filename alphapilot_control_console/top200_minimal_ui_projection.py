@@ -43,6 +43,7 @@ class Top200MinimalUiProjection:
         strategy_factory_artifact_root: Path | None = None,
         strategy_factory_quant_root: Path | None = None,
         live_readiness_root: Path | None = None,
+        adaptive_governance_root: Path | None = None,
         terminal_projection: TradingTerminalProjection | None = None,
     ) -> None:
         self.evidence_root = Path(evidence_root)
@@ -70,6 +71,11 @@ class Top200MinimalUiProjection:
         )
         self.live_readiness_root = (
             Path(live_readiness_root) if live_readiness_root is not None else None
+        )
+        self.adaptive_governance_root = (
+            Path(adaptive_governance_root)
+            if adaptive_governance_root is not None
+            else None
         )
         self.terminal_projection = terminal_projection
 
@@ -160,6 +166,21 @@ class Top200MinimalUiProjection:
         ):
             armed = arm.get("action") == "arm" and arm.get("status") == "armed"
             approval["demoArm"] = armed
+            approval["route"] = "armed" if armed else "approved_not_armed"
+        return approval
+
+    def _approval_with_current_demo_runtime(self) -> dict[str, Any]:
+        approval = self._approval()
+        if self.terminal_projection is None:
+            return approval
+        terminal = self.terminal_projection.summary("okx_demo")
+        armed = bool(terminal.get("armed")) and bool(approval.get("approved"))
+        approval["demoArm"] = armed
+        approval["strategyOrderCount"] = int(
+            terminal.get("strategyOrderCount") or 0
+        )
+        approval["runtimeUpdatedAt"] = terminal.get("updatedAt")
+        if approval.get("approved"):
             approval["route"] = "armed" if armed else "approved_not_armed"
         return approval
 
@@ -306,7 +327,7 @@ class Top200MinimalUiProjection:
 
     def strategy_summary(self) -> dict[str, Any]:
         release = self._release()
-        approval = self._approval()
+        approval = self._approval_with_current_demo_runtime()
         factory = self._strategy_factory_outcomes()
         result_counts = {key: 0 for key in self.RESULT_CLASSES}
         result_counts["canEnterDemo"] = 1
@@ -326,13 +347,17 @@ class Top200MinimalUiProjection:
             "approved": bool(approval.get("approved")),
             "demoArm": bool(approval.get("demoArm")),
             "route": approval.get("route"),
-            "updatedAt": factory["updatedAt"] or release.get("generatedAt"),
+            "updatedAt": (
+                approval.get("runtimeUpdatedAt")
+                or factory["updatedAt"]
+                or release.get("generatedAt")
+            ),
             "readOnly": True,
         }
 
     def _current_release_projection(self) -> dict[str, Any]:
         release = self._release()
-        approval = self._approval()
+        approval = self._approval_with_current_demo_runtime()
         return {
             "releaseId": release.get("releaseId"),
             "releaseHash": release.get("releaseHash"),
@@ -365,13 +390,18 @@ class Top200MinimalUiProjection:
         historical = {
             "releaseId": old.get("oldReleaseId"),
             "releaseHash": old.get("oldReleaseHash"),
+            "name": "V46 历史 Release",
+            "type": "historical",
             "status": old.get("status") or "superseded_unapproved",
+            "statusLabel": "已被新版替代",
+            "primaryAction": "查看审计",
             "approved": bool(old.get("oldApproved")),
             "demoArm": bool(old.get("oldDemoArm")),
             "readOnly": True,
         }
         return {
-            "releases": [self._current_release_projection(), historical],
+            "releases": [self._current_release_projection()],
+            "historicalReleases": [historical],
             "candidateReviews": factory["candidateReviews"],
             "candidateReviewCount": factory["pendingCandidateReviewCount"],
             "activeReleaseCount": 1,
@@ -382,7 +412,11 @@ class Top200MinimalUiProjection:
         current = self._current_release_projection()
         if release_id == current["releaseId"]:
             return current
-        for release in self.strategy_releases()["releases"]:
+        projected = self.strategy_releases()
+        for release in [
+            *projected["releases"],
+            *projected["historicalReleases"],
+        ]:
             if release.get("releaseId") == release_id:
                 return release
         raise KeyError(release_id)
@@ -408,7 +442,7 @@ class Top200MinimalUiProjection:
 
     def demo_summary(self) -> dict[str, Any]:
         release = self._release()
-        approval = self._approval()
+        approval = self._approval_with_current_demo_runtime()
         smoke = self._smoke()
         reconciliation = self._load("engineering_smoke_rest_reconciliation_audit.json")
         smoke_passed = smoke.get("status") == "passed" and bool(
@@ -659,7 +693,10 @@ class Top200MinimalUiProjection:
     def live_canary_readiness(self) -> dict[str, Any]:
         release = self._load_live("experimental_live_release.json")
         approval = self._load_live("exact_live_approval_request.json")
-        adaptive = self._load_live("adaptive_learning_live_readiness.json")
+        adaptive = self._load_optional(
+            self.adaptive_governance_root,
+            "adaptive_learning_technical_readiness_gate.json",
+        ) or self._load_live("adaptive_learning_live_readiness.json")
         smoke = self._load_live("live_engineering_smoke_binding.json")
         execution = self._load_live("live_execution_state.json")
         profile = self._load_live("live_experiment_profile.json")
@@ -734,6 +771,9 @@ class Top200MinimalUiProjection:
                 "status": adaptive.get("status"),
                 "passed": adaptive_passed,
                 "modelMode": adaptive.get("modelMode"),
+                "exactApprovalEvaluated": bool(
+                    adaptive.get("exactApprovalEvaluated")
+                ),
                 "blockerCount": len(adaptive.get("blockers") or []),
                 "blockers": list(adaptive.get("blockers") or []),
             },
@@ -782,6 +822,18 @@ def build_top200_minimal_ui_projection() -> Top200MinimalUiProjection:
     live_readiness_root = (
         PROJECT_ROOT / "reports" / "v54_v60" / "v59_v60_live_canary_readiness"
     )
+    adaptive_governance_parent = (
+        PROJECT_ROOT / "reports" / "v60_1_adaptive_learning_governance"
+    )
+    adaptive_governance_root = next(
+        (
+            path
+            for path in sorted(adaptive_governance_parent.glob("*"), reverse=True)
+            if path.is_dir()
+            and (path / "adaptive_learning_technical_readiness_gate.json").is_file()
+        ),
+        None,
+    )
     return Top200MinimalUiProjection(
         root,
         matchability_root,
@@ -798,6 +850,7 @@ def build_top200_minimal_ui_projection() -> Top200MinimalUiProjection:
             if (live_readiness_root / "experimental_live_release.json").is_file()
             else None
         ),
+        adaptive_governance_root=adaptive_governance_root,
         terminal_projection=TradingTerminalProjection(),
     )
 

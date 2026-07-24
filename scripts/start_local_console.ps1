@@ -26,8 +26,15 @@ function Get-ConsoleHealth {
 }
 
 function Open-ConsoleBrowser {
-    if (-not $NoBrowser) {
-        Start-Process $ConsoleUrl
+    if ($NoBrowser) {
+        return
+    }
+
+    try {
+        Start-Process -FilePath "explorer.exe" -ArgumentList $ConsoleUrl -ErrorAction Stop
+    }
+    catch {
+        Start-Process -FilePath $ConsoleUrl
     }
 }
 

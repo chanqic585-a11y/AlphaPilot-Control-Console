@@ -181,6 +181,14 @@ class Top200MinimalUiProjectionTests(unittest.TestCase):
         self.assertEqual(release["releaseHash"], "provisional_demo_release_fixture")
         self.assertEqual(release["status"], "can_enter_demo")
 
+        releases = self.projection.strategy_releases()
+        self.assertEqual(len(releases["releases"]), 1)
+        self.assertEqual(len(releases["historicalReleases"]), 1)
+        self.assertEqual(
+            releases["historicalReleases"][0]["statusLabel"],
+            "已被新版替代",
+        )
+
     def test_research_factory_projection_prefers_active_persisted_run(self) -> None:
         quant_root = self.root / "quant"
         registry_path = quant_root / "research/source_registry/strategy_research_source_registry.json"
@@ -228,6 +236,168 @@ class Top200MinimalUiProjectionTests(unittest.TestCase):
         summary = projection.research_factory_summary()
         self.assertEqual(summary["researchRunId"], created["runId"])
         self.assertEqual(summary["status"], "queued")
+
+    def test_research_factory_run_projects_truthful_development_evidence(self) -> None:
+        quant_root = self.root / "quant-evidence"
+        registry_path = quant_root / "research/source_registry/strategy_research_source_registry.json"
+        registry_path.parent.mkdir(parents=True)
+        registry_path.write_text(
+            json.dumps(
+                {
+                    "families": [
+                        {
+                            "familyId": "family-a",
+                            "variants": [{"candidateId": "candidate-a"}],
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        state_path = self.root / "factory-evidence.sqlite"
+        artifact_root = self.root / "factory-evidence-runs"
+        factory = StrategyFactoryOrchestrator(
+            state_path=state_path,
+            artifact_root=artifact_root,
+            quant_root=quant_root,
+            source_registry_path=registry_path,
+            launcher=lambda **_kwargs: {"pid": 1, "started": True},
+        )
+        created = factory.create_run(
+            {
+                "operation": "generate",
+                "timeframe": "1h",
+                "mode": "quick",
+                "maxCandidateCount": 1,
+                "maxTrialBudget": 3,
+            }
+        )
+        campaign_root = Path(created["artifactPath"]) / created["campaignId"]
+        campaign_root.mkdir(parents=True)
+        _write_json(
+            campaign_root,
+            "campaign_summary.json",
+            {
+                "campaignId": created["campaignId"],
+                "status": "awaiting_formal_validation",
+                "candidateCount": 1,
+                "trialCount": 3,
+                "developmentReplayStatus": "completed",
+                "formalRunCount": 0,
+                "resultReadCount": 0,
+                "lockedOosReadCount": 0,
+                "releaseCount": 0,
+            },
+        )
+        _write_json(
+            campaign_root,
+            "preregistration.json",
+            {
+                "campaignId": created["campaignId"],
+                "selectionSplit": "development",
+                "comparisonPanel": {
+                    "developmentStart": "2021-02-01T00:00:00Z",
+                    "developmentEnd": "2025-01-01T00:00:00Z",
+                    "dataSnapshotId": "snapshot-fixture",
+                    "costPolicyHash": "cost-policy-fixture",
+                },
+            },
+        )
+        _write_json(
+            campaign_root,
+            "development_replay_audit.json",
+            {
+                "campaignId": created["campaignId"],
+                "status": "completed",
+                "formalRunCount": 0,
+                "resultReadCount": 0,
+                "lockedOosReadCount": 0,
+                "snapshotAudit": {
+                    "snapshotId": "snapshot-fixture",
+                    "verifiedPartitionCount": 2,
+                    "partitions": [
+                        {
+                            "instrumentId": "BTC-USDT-SWAP",
+                            "timeframe": "1h",
+                            "rowCount": 100,
+                        },
+                        {
+                            "instrumentId": "ETH-USDT-SWAP",
+                            "timeframe": "1h",
+                            "rowCount": 120,
+                        },
+                    ],
+                },
+                "trialAudit": [
+                    {"candidateId": "candidate-a", "trialId": "trial-a", "eventCount": 12}
+                ],
+            },
+        )
+        _write_json(
+            campaign_root,
+            "development_projection.json",
+            {
+                "campaignId": created["campaignId"],
+                "projectionCount": 1,
+                "projections": [
+                    {
+                        "candidateId": "candidate-a",
+                        "trialId": "trial-a",
+                        "split": "development",
+                        "profitFactor": 1.25,
+                        "selectionNetR": 0.18,
+                        "maxDrawdownR": 2.5,
+                        "typeSpecificMetrics": {
+                            "eventCount": 12,
+                            "totalNetR": 2.16,
+                            "totalCostR": 0.42,
+                            "averageNetR": 0.18,
+                        },
+                    }
+                ],
+            },
+        )
+        _write_json(
+            campaign_root,
+            "artifact_manifest.json",
+            {
+                "campaignId": created["campaignId"],
+                "artifacts": [
+                    {"path": "campaign_summary.json", "sha256": "summary-sha"},
+                    {"path": "development_projection.json", "sha256": "projection-sha"},
+                ],
+            },
+        )
+        factory.close()
+
+        projection = Top200MinimalUiProjection(
+            self.root,
+            strategy_factory_state_path=state_path,
+            strategy_factory_artifact_root=artifact_root,
+            strategy_factory_quant_root=quant_root,
+        )
+
+        run = projection.research_factory_run(created["runId"])
+        evidence = run["executionEvidence"]
+        self.assertEqual(evidence["evaluationMode"], "real_development_backtest")
+        self.assertEqual(evidence["validationLevel"], "development_only")
+        self.assertEqual(evidence["development"]["status"], "completed")
+        self.assertEqual(evidence["development"]["selectionSplit"], "development")
+        self.assertEqual(evidence["development"]["verifiedPartitionCount"], 2)
+        self.assertEqual(evidence["development"]["instrumentCount"], 2)
+        self.assertEqual(evidence["development"]["totalRowCount"], 220)
+        self.assertEqual(evidence["development"]["candidateCount"], 1)
+        self.assertEqual(evidence["development"]["trialCount"], 3)
+        self.assertEqual(evidence["development"]["eventCount"], 12)
+        self.assertEqual(evidence["development"]["bestTrial"]["profitFactor"], 1.25)
+        self.assertEqual(evidence["development"]["bestTrial"]["totalCostR"], 0.42)
+        self.assertEqual(evidence["formal"]["status"], "not_run")
+        self.assertEqual(evidence["formal"]["formalRunCount"], 0)
+        self.assertEqual(evidence["formal"]["lockedOosReadCount"], 0)
+        self.assertEqual(
+            [item["name"] for item in evidence["artifacts"]],
+            ["campaign_summary.json", "development_projection.json"],
+        )
 
     def test_research_factory_run_refreshes_finished_worker_receipt(self) -> None:
         quant_root = self.root / "quant-refresh"
@@ -712,6 +882,39 @@ class Top200MinimalUiProjectionTests(unittest.TestCase):
         self.assertEqual(summary["route"], "approved_not_armed")
         self.assertEqual(summary["strategyOrderCount"], 0)
         self.assertEqual(demo_strategy["status"], "approved_not_armed")
+
+    def test_strategy_summary_uses_current_runtime_over_historical_arm_audit(self) -> None:
+        terminal = Mock()
+        terminal.summary.return_value = {
+            "environment": "okx_demo",
+            "runtimeStatus": "disarmed",
+            "desiredEnabled": True,
+            "armed": False,
+            "strategyOrderCount": 0,
+            "updatedAt": "2026-07-22T02:00:00Z",
+        }
+        projection = Top200MinimalUiProjection(
+            self.root,
+            terminal_projection=terminal,
+        )
+        projection._approval = Mock(return_value={
+            "approved": True,
+            "demoArm": True,
+            "route": "armed",
+            "strategyOrderCount": 0,
+        })
+
+        summary = projection.strategy_summary()
+        release = projection.strategy_releases()["releases"][0]
+
+        self.assertTrue(summary["approved"])
+        self.assertFalse(summary["demoArm"])
+        self.assertEqual(summary["armedReleaseCount"], 0)
+        self.assertEqual(summary["route"], "approved_not_armed")
+        self.assertFalse(release["demoArm"])
+        self.assertEqual(release["route"], "approved_not_armed")
+        self.assertGreaterEqual(terminal.summary.call_count, 2)
+        terminal.summary.assert_called_with("okx_demo")
 
 
 if __name__ == "__main__":

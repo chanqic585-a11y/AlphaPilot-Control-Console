@@ -7,6 +7,17 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 
+_FORMAL_HANDOFF_ZERO_COUNTERS = (
+    "formalRunCount",
+    "formalInputReadCount",
+    "resultReadCount",
+    "lockedOosAccessCount",
+    "releaseCount",
+    "approvalCount",
+    "orderCount",
+)
+
+
 def _canonical_json(payload: object) -> str:
     return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
@@ -90,6 +101,148 @@ def _load_releases(
     return [dict(item) for item in releases if isinstance(item, Mapping)]
 
 
+def _load_formal_validation_candidates(
+    *,
+    receipt: Mapping[str, Any],
+    campaign_id: str,
+    output_root: Path,
+    configured_candidates: Sequence[str],
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    if str(receipt.get("status") or "") != "awaiting_formal_validation":
+        return [], {
+            "formalHandoffStatus": None,
+            "formalHandoffHash": None,
+            "formalReadyCandidateCount": 0,
+            "formalBlockedCandidateCount": 0,
+        }
+    supplied = str(receipt.get("artifactPath") or "").strip()
+    if not supplied:
+        raise ValueError("strategy_factory_selection_artifact_missing")
+    summary_path = Path(supplied)
+    if not _inside(summary_path, output_root):
+        raise ValueError("strategy_factory_artifact_path_outside_run")
+    selection_path = summary_path.parent / "neighborhood_selection.json"
+    if not selection_path.is_file():
+        raise ValueError("strategy_factory_neighborhood_selection_missing")
+    bundle = _read_object(selection_path)
+    if str(bundle.get("campaignId") or "") != campaign_id:
+        raise ValueError("strategy_factory_selection_campaign_mismatch")
+    selections = bundle.get("selections")
+    if not isinstance(selections, list):
+        raise ValueError("strategy_factory_selections_invalid")
+
+    configured = set(configured_candidates)
+    selected: dict[str, dict[str, Any]] = {}
+    for selection in selections:
+        if not isinstance(selection, Mapping) or not bool(selection.get("eligible")):
+            continue
+        candidate_id = str(selection.get("candidateId") or "").strip()
+        trial_id = str(selection.get("selectedTrialId") or "").strip()
+        if candidate_id not in configured:
+            raise ValueError("strategy_factory_selection_candidate_mismatch")
+        if not trial_id or candidate_id in selected:
+            raise ValueError("strategy_factory_selection_identity_invalid")
+        selected[candidate_id] = {
+            "candidateId": candidate_id,
+            "trialId": trial_id,
+            "reason": str(
+                selection.get("reason") or "stable_parameter_neighborhood"
+            ),
+            "status": "awaiting_formal_validation",
+        }
+
+    handoff_path = summary_path.parent / "formal_handoff.json"
+    if not handoff_path.is_file():
+        return list(selected.values()), {
+            "formalHandoffStatus": "awaiting_external_readiness",
+            "formalHandoffHash": None,
+            "formalReadyCandidateCount": 0,
+            "formalBlockedCandidateCount": 0,
+        }
+
+    handoff = _read_object(handoff_path)
+    if str(handoff.get("campaignId") or "") != campaign_id:
+        raise ValueError("strategy_factory_formal_handoff_campaign_mismatch")
+    handoff_status = str(handoff.get("status") or "").strip()
+    handoff_hash = str(handoff.get("handoffHash") or "").strip()
+    if handoff_status not in {
+        "awaiting_external_readiness",
+        "ready_to_freeze",
+        "partially_ready_to_freeze",
+        "blocked_before_freeze",
+    }:
+        raise ValueError("strategy_factory_formal_handoff_status_invalid")
+    if not handoff_hash:
+        raise ValueError("strategy_factory_formal_handoff_hash_missing")
+    for field in _FORMAL_HANDOFF_ZERO_COUNTERS:
+        if int(handoff.get(field) or 0) != 0:
+            raise ValueError(f"strategy_factory_formal_handoff_nonzero:{field}")
+    if bool(handoff.get("demoArm")):
+        raise ValueError("strategy_factory_formal_handoff_demo_arm_forbidden")
+
+    ready_rows = handoff.get("readyCandidates")
+    blocked_rows = handoff.get("blockedCandidates")
+    if not isinstance(ready_rows, list) or not isinstance(blocked_rows, list):
+        raise ValueError("strategy_factory_formal_handoff_candidates_invalid")
+    if int(handoff.get("formalReadyCandidateCount") or 0) != len(ready_rows):
+        raise ValueError("strategy_factory_formal_ready_count_mismatch")
+    if int(handoff.get("blockedCandidateCount") or 0) != len(blocked_rows):
+        raise ValueError("strategy_factory_formal_blocked_count_mismatch")
+
+    pending: list[dict[str, Any]] = []
+    disposition_ids: set[str] = set()
+    for rows, expected_readiness, candidate_status in (
+        (ready_rows, "ready", "ready_to_freeze"),
+        (
+            blocked_rows,
+            "blocked",
+            (
+                "awaiting_external_readiness"
+                if handoff_status == "awaiting_external_readiness"
+                else "blocked_before_freeze"
+            ),
+        ),
+    ):
+        for row in rows:
+            if not isinstance(row, Mapping):
+                raise ValueError("strategy_factory_formal_candidate_invalid")
+            candidate_id = str(row.get("candidateId") or "").strip()
+            trial_id = str(row.get("selectedTrialId") or "").strip()
+            selection = selected.get(candidate_id)
+            if (
+                selection is None
+                or trial_id != selection["trialId"]
+                or candidate_id in disposition_ids
+            ):
+                raise ValueError("strategy_factory_formal_identity_mismatch")
+            readiness_status = str(row.get("readinessStatus") or "").strip()
+            blockers = sorted({str(value) for value in row.get("blockers") or []})
+            if readiness_status != expected_readiness:
+                raise ValueError("strategy_factory_formal_readiness_mismatch")
+            if expected_readiness == "ready" and blockers:
+                raise ValueError("strategy_factory_formal_ready_has_blockers")
+            if expected_readiness == "blocked" and not blockers:
+                raise ValueError("strategy_factory_formal_blocked_without_reason")
+            disposition_ids.add(candidate_id)
+            pending.append(
+                {
+                    **selection,
+                    "status": candidate_status,
+                    "readinessStatus": readiness_status,
+                    "blockers": blockers,
+                    "formalHandoffHash": handoff_hash,
+                }
+            )
+    if disposition_ids != set(selected):
+        raise ValueError("strategy_factory_formal_disposition_incomplete")
+    return pending, {
+        "formalHandoffStatus": handoff_status,
+        "formalHandoffHash": handoff_hash,
+        "formalReadyCandidateCount": len(ready_rows),
+        "formalBlockedCandidateCount": len(blocked_rows),
+    }
+
+
 def build_strategy_factory_outcome(
     *,
     run_id: str,
@@ -102,12 +255,18 @@ def build_strategy_factory_outcome(
 ) -> dict[str, Any]:
     if receipt.get("campaignId") not in (None, "", campaign_id):
         raise ValueError("strategy_factory_receipt_campaign_mismatch")
+    configured_candidates = [str(value) for value in candidate_ids]
     releases = _load_releases(
         receipt=receipt,
         campaign_id=campaign_id,
         output_root=output_root,
     )
-    configured_candidates = [str(value) for value in candidate_ids]
+    formal_validation_candidates, formal_handoff = _load_formal_validation_candidates(
+        receipt=receipt,
+        campaign_id=campaign_id,
+        output_root=output_root,
+        configured_candidates=configured_candidates,
+    )
     survivors: list[dict[str, Any]] = []
     seen_hashes: set[str] = set()
     for release in releases:
@@ -135,6 +294,11 @@ def build_strategy_factory_outcome(
         )
 
     survivor_ids = {item["candidateId"] for item in survivors}
+    formal_validation_ids = {
+        item["candidateId"] for item in formal_validation_candidates
+    }
+    if survivor_ids & formal_validation_ids:
+        raise ValueError("strategy_factory_candidate_disposition_overlap")
     failure_reason = str(receipt.get("status") or "research_not_release_eligible")
     archived = [
         {
@@ -144,6 +308,7 @@ def build_strategy_factory_outcome(
         }
         for candidate_id in configured_candidates
         if candidate_id not in survivor_ids
+        and candidate_id not in formal_validation_ids
     ]
     requests = []
     for survivor in survivors:
@@ -182,8 +347,11 @@ def build_strategy_factory_outcome(
         "campaignId": campaign_id,
         "candidateCount": len(configured_candidates),
         "survivorCount": len(survivors),
+        "formalValidationCandidateCount": len(formal_validation_candidates),
+        **formal_handoff,
         "archivedFailureCount": len(archived),
         "survivors": survivors,
+        "formalValidationCandidates": formal_validation_candidates,
         "archivedCandidates": archived,
         "createdAt": created_at,
     }
@@ -215,6 +383,8 @@ def build_strategy_factory_outcome(
         "runId": run_id,
         "campaignId": campaign_id,
         "candidateReviewRequestCount": len(requests),
+        "formalValidationCandidateCount": len(formal_validation_candidates),
+        **formal_handoff,
         "archivedFailureCount": len(archived),
         "candidateInventoryPath": str(inventory_path),
         "candidateReviewRequestPath": str(request_path),
@@ -234,6 +404,11 @@ def read_strategy_factory_outcome(outcome_root: Path) -> dict[str, Any]:
     if not path.is_file():
         return {
             "candidateReviewRequestCount": 0,
+            "formalValidationCandidateCount": 0,
+            "formalHandoffStatus": None,
+            "formalHandoffHash": None,
+            "formalReadyCandidateCount": 0,
+            "formalBlockedCandidateCount": 0,
             "archivedFailureCount": 0,
             "candidateInventoryPath": None,
             "candidateReviewRequestPath": None,

@@ -7,6 +7,7 @@
   let liveLoading = false;
   let activeFactoryRunId = null;
   let activeFactoryStatus = null;
+  let continuousActionLoading = false;
   let runtimeControlsLoading = false;
   let pendingRuntimeRiskOverlay = null;
 
@@ -140,6 +141,7 @@
     tuning_backtest: "开发回测",
     robustness: "稳健性检查",
     portfolio_evaluation: "组合评估",
+    formal_handoff: "正式验证准备",
     complete: "研究完成",
     release_ready: "Release 已冻结",
   };
@@ -169,11 +171,82 @@
     scanTopN: "扫描 Top N",
   };
 
+  function formatEvidenceNumber(value, digits = 2) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return "--";
+    return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: digits }).format(number);
+  }
+
+  function evidenceRows(rows) {
+    return `<div class="strategy-factory-evidence-list">${rows.map(([label, value]) => (
+      `<span>${escapeHtml(label)}：<strong>${escapeHtml(value)}</strong></span>`
+    )).join("")}</div>`;
+  }
+
+  function renderStrategyFactoryTaskEvidence(factory) {
+    const container = byId("strategyFactoryTaskEvidence");
+    if (!container || !factory?.researchRunId) return;
+    const evidence = factory.executionEvidence || {};
+    const development = evidence.development || {};
+    const formal = evidence.formal || {};
+    const runtime = evidence.runtime || {};
+    const progress = Math.max(0, Math.min(100, Number(factory.progressPercent || 0)));
+    const stage = FACTORY_STAGE_LABELS[factory.stage] || factory.stage || "等待启动";
+    container.hidden = false;
+    byId("strategyFactoryTaskStage").textContent = `${stage} · ${factory.timeframe || "--"}`;
+    byId("strategyFactoryTaskRuntime").textContent = runtime.elapsedSeconds === null || runtime.elapsedSeconds === undefined
+      ? `开始 ${formatTimestamp(runtime.startedAt || runtime.createdAt)}`
+      : `运行 ${formatEvidenceNumber(runtime.elapsedSeconds, 1)} 秒`;
+    const progressTrack = byId("strategyFactoryTaskProgress");
+    progressTrack.setAttribute("aria-valuenow", String(progress));
+    byId("strategyFactoryTaskProgressBar").style.width = `${progress}%`;
+
+    const timeframes = (development.timeframes || []).join(" / ") || factory.timeframe || "--";
+    byId("strategyFactoryDataEvidence").innerHTML = evidenceRows([
+      ["证据层", development.status === "completed" ? "Development 回测（真实本地快照）" : "等待 Development 回测"],
+      ["数据分区", `${formatEvidenceNumber(development.verifiedPartitionCount, 0)} 个已校验`],
+      ["币种 / 周期", `${formatEvidenceNumber(development.instrumentCount, 0)} / ${timeframes}`],
+      ["K 线行数", formatEvidenceNumber(development.totalRowCount, 0)],
+      ["时间窗口", `${formatTimestamp(development.developmentStart)} 至 ${formatTimestamp(development.developmentEnd)}`],
+      ["候选 / 试验", `${formatEvidenceNumber(development.candidateCount, 0)} / ${formatEvidenceNumber(development.trialCount, 0)}`],
+    ]);
+
+    const best = development.bestTrial || {};
+    byId("strategyFactoryMetricEvidence").innerHTML = evidenceRows([
+      ["事件数", formatEvidenceNumber(development.eventCount, 0)],
+      ["最佳 PF", formatEvidenceNumber(best.profitFactor)],
+      ["平均净 R", formatEvidenceNumber(best.averageNetR, 3)],
+      ["累计净 R", formatEvidenceNumber(best.totalNetR, 3)],
+      ["最大回撤 R", formatEvidenceNumber(best.maxDrawdownR, 3)],
+      ["成本压力 R", formatEvidenceNumber(best.totalCostR, 3)],
+    ]);
+
+    const formalLabel = formal.status === "completed"
+      ? "Formal 正式验证：已有可复核结果"
+      : formal.status === "running"
+        ? "Formal 正式验证：运行中"
+        : "Formal 正式验证：未运行 · 锁定 OOS 未读取";
+    byId("strategyFactoryFormalEvidence").innerHTML = evidenceRows([
+      ["状态", formalLabel],
+      ["Formal 运行 / 结果读取", `${formatEvidenceNumber(formal.formalRunCount, 0)} / ${formatEvidenceNumber(formal.resultReadCount, 0)}`],
+      ["锁定 OOS 读取", formatEvidenceNumber(formal.lockedOosReadCount, 0)],
+      ["Release", formatEvidenceNumber(formal.releaseCount, 0)],
+    ]);
+
+    const artifacts = evidence.artifacts || [];
+    byId("strategyFactoryArtifactEvidence").innerHTML = artifacts.length
+      ? artifacts.map((artifact) => (
+        `<div><code>${escapeHtml(artifact.name)}</code>${artifact.sha256 ? ` · ${escapeHtml(artifact.sha256.slice(0, 12))}` : ""}</div>`
+      )).join("")
+      : "尚未生成 Artifact。";
+  }
+
   function openStrategyFactoryDialog() {
     const dialog = byId("strategyFactoryDialog");
     byId("strategyFactoryFormStatus").textContent = "";
     if (typeof dialog.showModal === "function") dialog.showModal();
     else dialog.setAttribute("open", "");
+    refreshStrategy();
   }
 
   function closeStrategyFactoryDialog() {
@@ -202,7 +275,7 @@
       activeFactoryRunId = created.runId;
       activeFactoryStatus = created.status;
       status.textContent = "研究任务已在后台启动。";
-      window.setTimeout(closeStrategyFactoryDialog, 450);
+      renderStrategyFactoryTaskEvidence(created);
       await refreshStrategy();
     } catch (error) {
       status.textContent = `启动失败：${error.message}`;
@@ -234,20 +307,72 @@
     }
   }
 
+  function renderStrategyFactoryContinuous(state) {
+    const button = byId("strategyFactoryContinuousButton");
+    const status = byId("strategyFactoryContinuousStatus");
+    if (!button || !status) return;
+    const enabled = Boolean(state?.enabled);
+    const cycle = Array.isArray(state?.cycle) ? state.cycle : [];
+    const nextIndex = Number(state?.nextIndex || 0);
+    const nextItem = cycle[nextIndex] || {};
+    const operationLabel = nextItem.operation === "combine" ? "组合" : "生成";
+    const phaseLabels = {
+      disabled: "持续研究未启动",
+      disabled_after_current_run: "本轮完成后停止",
+      ready: "准备启动下一项",
+      running: "正在运行",
+      waiting_existing_run: "等待当前人工任务完成",
+      waiting_current_run: "正在核对本轮结果",
+      cycle_item_failed: "本项失败，已记录并继续下一项",
+    };
+    button.dataset.enabled = enabled ? "true" : "false";
+    button.disabled = continuousActionLoading;
+    button.textContent = enabled ? "停止持续研究" : "持续研究";
+    const currentLabel = nextItem.timeframe
+      ? `${nextItem.timeframe} ${operationLabel}`
+      : "等待研究项";
+    status.textContent = `${phaseLabels[state?.phase] || state?.phase || "状态未知"} · 下一项 ${currentLabel} · 已完成 ${Number(state?.completedRunCount || 0)} 次 / ${Number(state?.completedCycleCount || 0)} 轮`;
+  }
+
+  async function toggleStrategyFactoryContinuous() {
+    const button = byId("strategyFactoryContinuousButton");
+    if (!button || continuousActionLoading) return;
+    const action = button.dataset.enabled === "true" ? "disable" : "enable";
+    continuousActionLoading = true;
+    button.disabled = true;
+    try {
+      const state = await fetchJson(`/api/research-factory/continuous/${action}`, {
+        method: "POST",
+        body: "{}",
+      });
+      renderStrategyFactoryContinuous(state);
+      await refreshStrategy();
+    } catch (error) {
+      setIssue(byId("top200StrategyIssue"), [{ message: `持续研究操作失败：${error.message}` }], true);
+    } finally {
+      continuousActionLoading = false;
+      button.disabled = false;
+    }
+  }
+
   async function refreshStrategy() {
     if (strategyLoading || !byId("top200MinimalStrategy")) return;
     strategyLoading = true;
     try {
-      const [factory, summary, releases] = await Promise.all([
+      const [factory, summary, releases, continuous] = await Promise.all([
         fetchJson("/api/research-factory/summary"),
         fetchJson("/api/strategy/summary"),
         fetchJson("/api/strategy/releases"),
+        fetchJson("/api/research-factory/continuous"),
       ]);
       const current = (releases.releases || []).find((item) => item.status === "can_enter_demo");
       const progress = Math.max(0, Math.min(100, Number(factory.progressPercent || 0)));
       const track = byId("top200ResearchProgressBar")?.parentElement;
       activeFactoryRunId = factory.readOnly ? null : factory.researchRunId;
       activeFactoryStatus = factory.status;
+      if (byId("strategyFactoryDialog")?.open) {
+        renderStrategyFactoryTaskEvidence(factory);
+      }
       byId("top200ResearchStage").textContent = FACTORY_STAGE_LABELS[factory.stage] || factory.stage;
       byId("top200ResearchProgressLabel").textContent = `${factory.completedCount} / ${factory.totalCount}`;
       byId("top200ResearchProgressBar").style.width = `${progress}%`;
@@ -260,6 +385,7 @@
       pauseResume.textContent = factory.status === "pause_requested"
         ? "正在安全暂停"
         : factory.status === "paused" ? "继续研究" : "暂停研究";
+      renderStrategyFactoryContinuous(continuous);
       byId("top200CanEnterDemo").textContent = summary.resultCounts.canEnterDemo;
       byId("top200NeedsForward").textContent = summary.resultCounts.needsForwardValidation;
       byId("top200Failed").textContent = summary.resultCounts.failed;
@@ -578,6 +704,7 @@
     byId("strategyFactoryCancel")?.addEventListener("click", closeStrategyFactoryDialog);
     byId("strategyFactoryForm")?.addEventListener("submit", submitStrategyFactory);
     byId("top200FactoryPauseResumeButton")?.addEventListener("click", toggleStrategyFactoryRun);
+    byId("strategyFactoryContinuousButton")?.addEventListener("click", toggleStrategyFactoryContinuous);
     byId("top200RuntimeControls")?.addEventListener("toggle", refreshRuntimeControls);
     byId("runtimeRiskEnvironment")?.addEventListener("change", refreshRuntimeControls);
     byId("runtimeRiskForm")?.addEventListener("submit", createRuntimeRiskOverlay);

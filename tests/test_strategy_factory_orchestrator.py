@@ -105,6 +105,81 @@ class StrategyFactoryOrchestratorTests(unittest.TestCase):
         self.assertFalse(job["workerPolicy"]["orderAccess"])
         self.assertEqual(job["workerPolicy"]["maximumConcurrentRuns"], 1)
 
+    def test_candidate_selection_respects_requested_timeframe(self) -> None:
+        self.registry_path.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": "fixture-v1",
+                    "registryId": "fixture-registry",
+                    "families": [
+                        {
+                            "familyId": "intraday-family",
+                            "parameters": {"timeframes": ["5m", "15m"]},
+                            "variants": [{"candidateId": "intraday-candidate"}],
+                        },
+                        {
+                            "familyId": "swing-family",
+                            "parameters": {"timeframes": ["4h", "1d"]},
+                            "variants": [{"candidateId": "swing-candidate"}],
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        run = self.orchestrator.create_run(
+            {
+                "operation": "generate",
+                "timeframe": "15m",
+                "mode": "quick",
+                "maxCandidateCount": 2,
+                "maxTrialBudget": 6,
+            }
+        )
+
+        self.assertEqual(run["familyIds"], ["intraday-family"])
+        self.assertEqual(run["candidateIds"], ["intraday-candidate"])
+
+    def test_generate_excludes_context_only_family(self) -> None:
+        self.registry_path.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": "fixture-v1",
+                    "registryId": "fixture-registry",
+                    "families": [
+                        {
+                            "familyId": "signal-family",
+                            "parameters": {"timeframes": ["15m"]},
+                            "variants": [{"candidateId": "signal-candidate"}],
+                        },
+                        {
+                            "familyId": "context-family",
+                            "parameters": {
+                                "timeframes": ["15m"],
+                                "role": "context_only",
+                            },
+                            "variants": [{"candidateId": "context-candidate"}],
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        run = self.orchestrator.create_run(
+            {
+                "operation": "generate",
+                "timeframe": "15m",
+                "mode": "quick",
+                "maxCandidateCount": 2,
+                "maxTrialBudget": 6,
+            }
+        )
+
+        self.assertEqual(run["familyIds"], ["signal-family"])
+        self.assertEqual(run["candidateIds"], ["signal-candidate"])
+
     def test_configured_development_profile_is_frozen_into_one_click_job(self) -> None:
         snapshot_manifest = self.root / "snapshot.json"
         snapshot_manifest.write_text(
